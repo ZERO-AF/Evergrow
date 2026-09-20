@@ -1,4 +1,7 @@
 import type { StatModifiers } from './character-types.ts';
+import type { WowClassId } from './wow-types.ts';
+import { WOW_CLASS_SKILLS } from './wow-skills.ts';
+import type { WowSkill } from './skill-execution-content.ts';
 
 export interface Territory { id: string; name: string; domain: 'Might' | 'Cunning' | 'Arcana'; angle: number; bend: number; color: string; motto: string; }
 export const SKILL_TERRITORIES: readonly Territory[] = Object.freeze([
@@ -180,3 +183,126 @@ export const SKILL_DOCTRINES: readonly Doctrine[] = [
 function freezeContent(value:object):void {Object.freeze(value);for(const child of Object.values(value))if(child&&typeof child==='object'&&!Object.isFrozen(child))freezeContent(child);}
 for(const territory of SKILL_TERRITORIES)freezeContent(territory);
 freezeContent(OUTER_SPECIALTIES);freezeContent(BORDER_GARDENS);freezeContent(TERRITORY_SPECIALTIES);freezeContent(SKILL_DOCTRINES);
+
+/** A class-gated pocket in the Class Sanctum ring: the class's authored skill kit
+ * plus three class-flavored passives and three specialization signature keystones.
+ * Nodes cost one point and only unlock for a CharacterSheet whose classId matches. */
+export interface ClassSanctum {
+  readonly classId: WowClassId;
+  readonly domain: Territory['domain'];
+  readonly skills: readonly WowSkill[];
+  readonly passives: readonly Specialty[];
+  /** One keystone per WotLK specialization (WowClassDef.specs order). */
+  readonly specs: readonly SpecSignature[];
+}
+/** A specialization keystone: the signature passive that defines the spec's
+ * playstyle. `id` is unique within the class; `spec` is the WotLK tree name. */
+export interface SpecSignature {
+  readonly id: string;
+  readonly spec: string;
+  readonly name: string;
+  readonly description: string;
+  readonly bonuses: StatModifiers;
+}
+const sig = (id: string, spec: string, name: string, description: string, bonuses: StatModifiers): SpecSignature =>
+  ({ id, spec, name, description, bonuses });
+/** Spec keystone node id inside a class sanctum; the exclusivity family is `spec:<classId>`. */
+export const specSignatureNode = (classId: WowClassId, specId: string) => `wow-${classId}-spec-${specId}`;
+const s = (classId: WowClassId, domain: Territory['domain'], passives: readonly Specialty[], specs: readonly SpecSignature[]): ClassSanctum =>
+  ({ classId, domain, skills: WOW_CLASS_SKILLS[classId], passives, specs });
+
+/** The ten Class Sanctum clusters. Skill ids come from the authored kits in
+ * wow-skills-*.ts (the WowSkillId union); passives keep ordinary atlas budgets. */
+export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
+  s('warrior', 'Might', [
+    f('Warrior Conditioning', { strength: 2 }, { strength: 4, damagePercent: 6 }, 'Raw strength behind every strike.'),
+    f('Plate Discipline', { armor: 12 }, { armor: 30, maxHp: 15 }, 'Heavier plate worn well.'),
+    f('Battle Fury', { damagePercent: 3 }, { damagePercent: 9, attackSpeedPercent: 2 }, 'Rage honed into harder blows.'),
+  ], [
+    sig('arms', 'Arms', 'Taste for Blood', 'Critical wounds run deep: Rend and Overpower fight above their training.', { 'skill:rend': 3, 'skill:overpower': 3, critDamage: 15 }),
+    sig('fury', 'Fury', "Titan's Grip", 'Two-handed fury: Bloodthirst and Slam fight above their training.', { 'skill:bloodthirst': 3, 'skill:slam': 3, attackSpeedPercent: 6, damagePercent: 8 }),
+    sig('protection', 'Protection', 'Sword and Board', 'Shield mastery: Shield Slam and Revenge fight above their training. Requires a shield.', { 'skill:shieldSlam': 3, 'skill:revenge': 3, blockChance: 4, blockReduction: 6 }),
+  ]),
+  s('paladin', 'Might', [
+    f('Holy Might', { strength: 2 }, { strength: 3, damagePercent: 5 }, 'The Light lends weight to the blow.'),
+    f('Devout Aegis', { armor: 10 }, { armor: 24, allResistance: 3 }, 'Faith made plate.'),
+    f('Righteous Zeal', { spellDamagePercent: 3 }, { spellDamagePercent: 8, critChance: 1 }, 'Judgement burns brighter.'),
+  ], [
+    sig('holy', 'Holy', 'Beacon of Light', 'The Light answers faster: heals and holy spells hit harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
+    sig('protection', 'Protection', 'Holy Shield Mastery', 'Shield of Righteousness and Avenger\'s Shield fight above their training. Requires a shield.', { 'skill:shieldOfRighteousness': 3, 'skill:avengersShield': 3, blockChance: 4, blockReduction: 6 }),
+    sig('retribution', 'Retribution', 'The Art of War', 'Judgement and Divine Storm fight above their training.', { 'skill:judgement': 3, 'skill:divineStorm': 3, damagePercent: 8, critChance: 2 }),
+  ]),
+  s('hunter', 'Cunning', [
+    f('Deadeye', { dexterity: 2 }, { dexterity: 4, critChance: 1.5 }, 'A steadier hand on the string.'),
+    f('Wild Bond', { damagePercent: 2 }, { damagePercent: 6, moveSpeedPercent: 2 }, 'Hunter and beast move as one.'),
+    f('Trailcraft', { moveSpeedPercent: 1 }, { moveSpeedPercent: 3, maxHp: 12 }, 'Long roads, quick feet.'),
+  ], [
+    sig('beast-mastery', 'Beast Mastery', 'Master of Beasts', 'Kill Command fights above its training; the hunt never slows.', { 'skill:killCommand': 4, damagePercent: 6, moveSpeedPercent: 4 }),
+    sig('marksmanship', 'Marksmanship', 'Master Marksman', 'Aimed Shot and Chimera Shot fight above their training.', { 'skill:aimedShot': 3, 'skill:chimeraShot': 3, critChance: 3, critDamage: 12 }),
+    sig('survival', 'Survival', 'Lock and Load', 'Explosive Shot and Black Arrow fight above their training.', { 'skill:explosiveShot': 3, 'skill:blackArrow': 3, fireDamage: 6, areaPercent: 8 }),
+  ]),
+  s('rogue', 'Cunning', [
+    f('Blade Finesse', { dexterity: 2 }, { dexterity: 4, critDamage: 10 }, 'Precision over power.'),
+    f('Shadowstep', { moveSpeedPercent: 1 }, { moveSpeedPercent: 3, critChance: 1 }, 'Unseen, unhurried.'),
+    f('Lethality', { critChance: 1 }, { critChance: 2.5, critDamage: 12 }, 'Strike where it ends.'),
+  ], [
+    sig('assassination', 'Assassination', 'Master Poisoner', 'Mutilate and Envenom fight above their training.', { 'skill:mutilate': 3, 'skill:envenom': 3, critDamage: 15 }),
+    sig('combat', 'Combat', 'Combat Potency', 'Sinister Strike and Eviscerate fight above their training.', { 'skill:sinisterStrike': 3, 'skill:eviscerate': 3, attackSpeedPercent: 7 }),
+    sig('subtlety', 'Subtlety', 'Master of Subtlety', 'Ambush and Hemorrhage fight above their training.', { 'skill:ambush': 3, 'skill:hemorrhage': 3, critChance: 3, moveSpeedPercent: 4 }),
+  ]),
+  s('priest', 'Arcana', [
+    f('Devotion', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 5 }, 'Faith sharpens the mind.'),
+    f('Inner Sanctum', { maxMana: 8 }, { maxMana: 20, manaRegen: 0.6 }, 'A deeper well of spirit.'),
+    f('Holy Resolve', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'The faithful endure.'),
+  ], [
+    sig('discipline', 'Discipline', 'Soul Warding', 'Penance fights above its training; shields and wards hold longer.', { 'skill:penance': 3, maxMana: 20, manaRegen: 1.5 }),
+    sig('holy', 'Holy', 'Divine Providence', 'Heals and holy spells answer faster and land harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
+    sig('shadow', 'Shadow', 'Shadow Weaving', 'Mind Flay and Mind Blast fight above their training.', { 'skill:mindFlay': 3, 'skill:mindBlast': 3, spellDamagePercent: 8 }),
+  ]),
+  s('deathKnight', 'Might', [
+    f('Runic Might', { strength: 2 }, { strength: 4, damagePercent: 6 }, 'Runes carve strength into the blade.'),
+    f('Unholy Resilience', { armor: 10 }, { armor: 24, maxHp: 15 }, 'Death is a poor argument.'),
+    f('Chill of the Grave', { critChance: 1 }, { critChance: 2, critDamage: 10 }, 'Cold precision in every cut.'),
+  ], [
+    sig('blood', 'Blood', 'Blood Gorged', 'Death Strike and Blood Strike fight above their training; blood sustains the blade.', { 'skill:deathStrike': 3, 'skill:bloodStrike': 3, maxHp: 20, lifeOnHit: 1 }),
+    sig('frost', 'Frost', 'Threat of Thassarian', 'Obliterate and Frost Strike fight above their training.', { 'skill:obliterate': 3, 'skill:frostStrike': 3, frostDamage: 6, critDamage: 12 }),
+    sig('unholy', 'Unholy', 'Master of Ghouls', 'Scourge Strike fights above its training; plagues spread wider.', { 'skill:scourgeStrike': 3, 'skill:deathCoil': 3, areaPercent: 10, damagePercent: 6 }),
+  ]),
+  s('shaman', 'Arcana', [
+    f('Elemental Attunement', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'The elements answer faster.'),
+    f('Ancestral Vigor', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'Old blood runs strong.'),
+    f('Stormcall', { castSpeedPercent: 1 }, { castSpeedPercent: 3, critChance: 1 }, 'The storm does not wait.'),
+  ], [
+    sig('elemental', 'Elemental', 'Elemental Mastery', 'Lava Burst and Chain Lightning fight above their training.', { 'skill:lavaBurst': 3, 'skill:chainLightning': 3, spellDamagePercent: 8, castSpeedPercent: 4 }),
+    sig('enhancement', 'Enhancement', 'Stormbringer', 'Stormstrike fights above its training; weapon swings quicken.', { 'skill:stormstrike': 4, attackSpeedPercent: 7, damagePercent: 6 }),
+    sig('restoration', 'Restoration', 'Tidal Waves', 'Healing waters answer faster and land harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
+  ]),
+  s('mage', 'Arcana', [
+    f('Arcane Brilliance', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'A sharper mind cuts deeper.'),
+    f('Mana Reserves', { maxMana: 8 }, { maxMana: 22, manaRegen: 0.6 }, 'A larger font to draw from.'),
+    f('Spellweaver', { castSpeedPercent: 1 }, { castSpeedPercent: 3, spellDamagePercent: 4 }, 'Threads of magic, woven faster.'),
+  ], [
+    sig('arcane', 'Arcane', 'Arcane Power', 'Arcane Blast and Arcane Missiles fight above their training; spells cost 15% more mana.', { 'skill:arcaneBlast': 3, 'skill:arcaneMissiles': 3, spellDamagePercent: 10, manaCostPercent: -15 }),
+    sig('fire', 'Fire', 'Hot Streak', 'Pyroblast and Fire Blast fight above their training.', { 'skill:pyroblast': 3, 'skill:fireBlast': 3, fireDamage: 6, critDamage: 15 }),
+    sig('frost', 'Frost', 'Fingers of Frost', 'Frostbolt and Ice Lance fight above their training.', { 'skill:frostbolt': 3, 'skill:iceLance': 3, frostDamage: 6, critChance: 3 }),
+  ]),
+  s('warlock', 'Arcana', [
+    f('Fel Corruption', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'Power taken, not given.'),
+    f('Soul Harvest', { manaRegen: 0.5 }, { manaRegen: 1.5, maxMana: 14 }, 'Every soul has its use.'),
+    f('Demonic Resilience', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'What does not kill you is fuel.'),
+  ], [
+    sig('affliction', 'Affliction', 'Everlasting Affliction', 'Corruption and Unstable Affliction fight above their training.', { 'skill:corruption': 3, 'skill:unstableAffliction': 3, spellDamagePercent: 8 }),
+    sig('demonology', 'Demonology', 'Demonic Pact', 'Shadow Bolt fights above its training; demonic resilience deepens.', { 'skill:shadowBolt': 3, maxHp: 20, armor: 20 }),
+    sig('destruction', 'Destruction', 'Backdraft', 'Chaos Bolt and Conflagrate fight above their training.', { 'skill:chaosBolt': 3, 'skill:conflagrate': 3, critDamage: 15, castSpeedPercent: 4 }),
+  ]),
+  s('druid', 'Cunning', [
+    f('Natural Vigor', { vitality: 2 }, { vitality: 4, maxHp: 15 }, 'The wild does not tire.'),
+    f('Moonkin Insight', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 5 }, 'The moon teaches patience.'),
+    f('Feral Instinct', { dexterity: 2 }, { dexterity: 4, critChance: 1.5 }, 'Claw and fang remember.'),
+  ], [
+    sig('balance', 'Balance', 'Eclipse', 'Wrath and Starfire fight above their training.', { 'skill:wrath': 3, 'skill:starfire': 3, spellDamagePercent: 8, critChance: 2 }),
+    sig('feral', 'Feral', 'Leader of the Pack', 'Shred and Ferocious Bite fight above their training.', { 'skill:shred': 3, 'skill:ferociousBite': 3, attackSpeedPercent: 5, critDamage: 12 }),
+    sig('restoration', 'Restoration', 'Gift of the Earthmother', 'Heals and nature spells answer faster and land harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
+  ]),
+];
+freezeContent(CLASS_SANCTUMS);

@@ -3,7 +3,7 @@ import type { UIIconName } from './ui-icons.ts';
 
 export type PauseCategory = 'character' | 'adventure' | 'system';
 export type PauseDestination = 'character' | 'skills' | 'appearance' | 'map' | 'journeys'
-  | 'chronicle' | 'options' | 'controls' | 'leaderboard' | 'changelog';
+  | 'chronicle' | 'options' | 'controls' | 'leaderboard' | 'changelog' | 'editLayout';
 export interface PauseEntry { id: PauseDestination; label: string; description: string; icon: UIIconName; binding?: ControlAction; }
 export const PAUSE_CATEGORIES: readonly { id: PauseCategory; label: string; icon: UIIconName; entries: readonly PauseEntry[] }[] = [
   { id: 'character', label: 'Character', icon: 'sword', entries: [
@@ -18,6 +18,7 @@ export const PAUSE_CATEGORIES: readonly { id: PauseCategory; label: string; icon
   ] },
   { id: 'system', label: 'System', icon: 'options', entries: [
     { id: 'options', label: 'Options', description: 'Sound, loot labels, camera zoom and fullscreen', icon: 'options' },
+    { id: 'editLayout', label: 'Edit layout', description: 'Move, scale and lock interface frames', icon: 'center', binding: 'editLayout' },
     { id: 'controls', label: 'Controls', description: 'Input help and keyboard bindings', icon: 'center' },
     { id: 'leaderboard', label: 'Leaderboard', description: 'Cloud character rankings', icon: 'shield' },
     { id: 'changelog', label: 'What’s new', description: 'The latest release notes', icon: 'journal' },

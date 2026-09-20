@@ -1,4 +1,5 @@
 import { drawMapPOIIcon, drawMapPlayerIcon, drawMapEnemyIcon, MAP_ICON_SIZES } from './map-icon-art.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { worldTimeLabel, skyAtTime } from './world-time.ts';
 import { regionLevelLabel } from './encounter-scaling.ts';
 import { bindTouchCanvas } from './touch-canvas.ts';
@@ -13,6 +14,8 @@ import { BIOMES, type BiomeId } from './biomes.ts';
 import { roadPaths } from './road-shape.ts';
 import { clampMapCoordinate, fitMapBounds, getMinimapRect, projectMapPoint, unprojectMapPoint, zoomMapAt, type MapView, type MapZoomLimits, MAP_ZOOM } from './map-view.ts';
 import { POI_DEFINITIONS } from './world-pois.ts';
+import { drawWorldEventMinimapMarkers } from './world-event-art.ts';
+import { worldEventMapMarkers, type WorldEventState } from './world-event-state.ts';
 export { getMinimapRect, projectMapPoint, unprojectMapPoint, zoomMapAt, type MapView, type MapZoomLimits, MAP_ZOOM } from './map-view.ts';
 import type { ExplorationWorld, MapPOI, MapRect } from './exploration.ts';
 import { text } from './font.ts';
@@ -213,6 +216,8 @@ export class WorldMap {
   private pointer: { x: number; y: number } | null = null;
   private portalMarkers: () => MapPOI[] = () => [];
   setPortalMarkers(reader: () => MapPOI[]) { this.portalMarkers = reader; this.render(); }
+  private worldEvents: () => { state: WorldEventState; time: number } | null = () => null;
+  setWorldEventReader(reader: () => { state: WorldEventState; time: number } | null) { this.worldEvents = reader; }
   private minimapPointer: { x: number; y: number } | null = null;
   private drag: { id: number; x: number; y: number; centerX: number; centerY: number } | null = null;
   private hovered: MapPOI | null = null;
@@ -263,6 +268,7 @@ export class WorldMap {
         <div class="world-map-position"><span class="ui-kicker">Position</span><span class="world-map-coordinates"></span></div>
       </footer></section>`;
     mount.append(this.element);
+    attachPanelFrame(this.element, 'map');
     this.canvas = this.element.querySelector<HTMLCanvasElement>('.world-map-canvas')!;
     this.context = this.canvas.getContext('2d')!;
     this.viewport = this.element.querySelector<HTMLDivElement>('.world-map-viewport')!;
@@ -599,10 +605,11 @@ export class WorldMap {
     if (cache.size > TERRAIN_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     return tile.charted;
   }
-
   private features(view: MapView, mini: boolean): { pois: MapPOI[]; labels: MapRegionLabel[]; zones: ZoneProgression[] } {
     const pois = selectMapPOIs([...this.exploration.getDiscoveredPOIs(bounds(view))
-      .filter(poi => poi.sighted || this.exploration.isRevealed(poi.x, poi.y)), ...this.portalMarkers()], view, mini);
+      .filter(poi => poi.sighted || this.exploration.isRevealed(poi.x, poi.y)), ...this.portalMarkers(),
+      ...worldEventMapMarkers(this.worldEvents()?.state ?? { nextAt: 0, index: 0, active: null, history: [] }, this.worldEvents()?.time ?? 0)
+        .map(marker => ({ ...marker, sighted: true }))], view, mini);
     const labels = mini || this.zoneLevels ? [] : mapRegionLabels(this.world, this.exploration, view, [...pois.filter(poi => poi.kind === 'town'), this.player]);
     const zones = mini || !this.zoneLevels ? [] : mapZoneLabels(view, this.exploration, this.world.seed, pois.filter(p => p.kind === 'town'));
     return { labels, zones, pois: pois.filter(poi => !zones.some(z => Math.abs((z.x-poi.x)*view.zoom)<82 && Math.abs((z.y-poi.y)*view.zoom)<28)).filter(poi => poi.kind === 'portal' || poi.kind === 'town' || !labels.some(label => {
@@ -760,6 +767,7 @@ export class WorldMap {
       if (p.x < view.x || p.y < view.y || p.x > view.x + view.width || p.y > view.y + view.height) continue;
       drawMapEnemyIcon(c, p.x, p.y, enemy.kind, enemy.rank);
     }
+    { const we = this.worldEvents(); if (we) drawWorldEventMinimapMarkers(c, view, we.state, we.time); }
     this.playerArrow(c, player, view, true); c.restore();
     text(c, 'N', view.x + view.width / 2, view.y + 3, .8, palette.jade, 'center');
     const clockY=r.y+r.height-34, night=skyAtTime(time).daylight<.35;

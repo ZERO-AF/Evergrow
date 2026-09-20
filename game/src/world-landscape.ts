@@ -9,6 +9,11 @@ import { hydrology, type WaterSample } from './hydrology.ts';
 import { dungeonEntrances } from './dungeon-entrances.ts';
 import { queryEventSites } from './poi-sites.ts';
 import { townPortalAnchor } from './travel.ts';
+import { raidEntrances } from './raid-boss-content.ts';
+import { raid2Entrances } from './raid2-boss-content.ts';
+import { raid3Entrances } from './raid3-boss-content.ts';
+import { raid4Entrances } from './raid4-boss-content.ts';
+import { blackrockEntrances } from './dungeon2-content.ts';
 import { biomeGround, biomeMapColor, sampleBiome } from './biomes.ts';
 import type { BiomeId, BiomeSample } from './biomes.ts';
 import { chooseBiomeProp, propDefinition, type PropKind } from './biome-props.ts';
@@ -194,7 +199,7 @@ export class WorldLandscape {
     return result.sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
   }
 
-  getDungeonEntrances(x:number,y:number,w:number,h:number) { return this.wildernessOnly ? [] : dungeonEntrances(this,x,y,w,h); }
+  getDungeonEntrances(x:number,y:number,w:number,h:number) { return this.wildernessOnly ? [] : [...dungeonEntrances(this,x,y,w,h), ...raidEntrances(this,x,y,w,h), ...raid2Entrances(this,x,y,w,h), ...raid3Entrances(this,x,y,w,h), ...raid4Entrances(this,x,y,w,h), ...blackrockEntrances(this,x,y,w,h)]; }
 
   getEventSites(x: number, y: number, width: number, height: number) { return this.wildernessOnly ? [] : queryEventSites(this, x, y, width, height); }
 

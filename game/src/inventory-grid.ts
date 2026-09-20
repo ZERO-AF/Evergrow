@@ -1,27 +1,25 @@
-import { charmProfile } from './charm-content.ts';
 import type { CharacterSheet, Item } from './character-types.ts';
+import {
+  BASE_PACK_GRID, PACK_COLUMNS, findPackSpace, footprintCells, isCharmGridCell, itemFootprint, packOccupancy,
+  type ItemFootprint, type PackGrid, type PackLayout,
+} from './pack-grid.ts';
+import { EQUIPMENT_SLOTS } from './items.ts';
+import { bagGridLayout, resolveBagPackLayout, canPackInBagGrid, bagSpaceProblem } from './bag-content.ts';
+import { consumableFor } from './consumable-content.ts';
 
-export const PACK_COLUMNS = 12;
-export const PACK_ROWS = 6;
-export const PACK_CELLS = PACK_COLUMNS * PACK_ROWS;
-export const CHARM_ROWS = 4;
-export const INVENTORY_CELLS = PACK_CELLS + PACK_COLUMNS * CHARM_ROWS;
-export interface ItemFootprint { width: number; height: number; }
-export type PackLayout = Record<string, number>;
+// The grid primitives live in pack-grid.ts (a leaf) so bag-content can build on
+// them without a module cycle; they are re-exported here to keep the existing
+// import surface stable.
+export {
+  BASE_PACK_GRID, CHARM_ROWS, INVENTORY_CELLS, PACK_CELLS, PACK_COLUMNS, PACK_ROWS,
+  findPackSpace, footprintCells, isCharmGridCell, isPackGridCell, itemFootprint, packOccupancy,
+  packGridSectionAt,
+} from './pack-grid.ts';
+export type { ItemFootprint, PackGrid, PackLayout } from './pack-grid.ts';
 
-/** Physical size follows the equipment silhouette, never rarity or rolled stats. */
-export function itemFootprint(item: Item): ItemFootprint {
-  if (item.kind === 'charm') { const size=charmProfile(item)?.size; return size ? {width:size.width,height:size.height} : {width:1,height:1}; }
-  switch (item.kind) {
-    case 'riftKey': return { width: 1, height: 2 };
-    case 'ring': case 'amulet': return { width: 1, height: 1 };
-    case 'weapon':
-      if (item.weapon?.hands === 2) return { width: 2, height: 4 };
-      if (item.weapon?.family === 'wand' || item.weapon?.family === 'dagger') return { width: 1, height: 2 };
-      return { width: 1, height: 3 };
-    case 'chest': case 'cloak': case 'legs': case 'shield': return { width: 2, height: 3 };
-    default: return { width: 2, height: 2 };
-  }
+/** The grid a sheet's pack currently spans: base geometry plus equipped bags. */
+export function packGrid(sheet: Pick<CharacterSheet, 'bags'>): PackGrid {
+  return bagGridLayout(sheet);
 }
 
 /** Storage presentation grows vertically to preserve its item-count capacity.
@@ -46,71 +44,49 @@ export function storageGridLayout(items: readonly (Item | null)[]): { cells: Arr
   return { cells, rows };
 }
 
-export function footprintCells(item: Item, cell: number): number[] | null {
-  const { width, height } = itemFootprint(item);
-  if (!Number.isInteger(cell) || cell < 0 || cell >= INVENTORY_CELLS
-    || cell % PACK_COLUMNS + width > PACK_COLUMNS || Math.floor(cell / PACK_COLUMNS) + height > (cell >= PACK_CELLS ? PACK_ROWS + CHARM_ROWS : PACK_ROWS)
-    || cell >= PACK_CELLS && item.kind !== 'charm') return null;
-  return Array.from({ length: width * height }, (_, i) => cell + i % width + Math.floor(i / width) * PACK_COLUMNS);
-}
-export function packOccupancy(inventory: CharacterSheet['inventory'], layout: PackLayout): Set<number> {
-  return new Set(inventory.flatMap(item => item && layout[item.id] !== undefined ? footprintCells(item, layout[item.id]) ?? [] : []));
-}
-export function findPackSpace(item: Item, occupied: ReadonlySet<number>, preferred?: number, region: 'bag' | 'charms' = 'bag'): number | null {
-  const charms = region === 'charms';
-  const fits = (cell: number) => footprintCells(item, cell)?.every(n => !occupied.has(n)) ?? false;
-  if (preferred !== undefined && (preferred >= PACK_CELLS) === charms && fits(preferred)) return preferred;
-  for (let cell = charms ? PACK_CELLS : 0; cell < (charms ? INVENTORY_CELLS : PACK_CELLS); cell++) if (fits(cell)) return cell;
-  return null;
-}
-
 /** Keep placed items fixed; older unpositioned items pack deterministically. Unfitted items remain owned in overflow. */
-export function resolvePackLayout(sheet: Pick<CharacterSheet, 'inventory' | 'inventoryLayout'>): PackLayout {
-  const result: PackLayout = {}, occupied = new Set<number>();
-  for (const item of sheet.inventory) if (item && sheet.inventoryLayout?.[item.id] !== undefined) {
-    const cell = sheet.inventoryLayout[item.id], cells = footprintCells(item, cell);
-    if (cells && cells.every(n => !occupied.has(n))) { result[item.id] = cell; cells.forEach(n => occupied.add(n)); }
-  }
-  for (const item of sheet.inventory) if (item && result[item.id] === undefined) {
-    const cell = findPackSpace(item, occupied);
-    if (cell !== null) { result[item.id] = cell; footprintCells(item, cell)!.forEach(n => occupied.add(n)); }
-  }
-  return result;
+export function resolvePackLayout(sheet: Pick<CharacterSheet, 'inventory' | 'inventoryLayout'> & { bags?: Array<Item | null> }): PackLayout {
+  return resolveBagPackLayout(sheet);
 }
 export function normalizePackLayout(sheet: CharacterSheet): void { sheet.inventoryLayout = resolvePackLayout(sheet); }
-export function validPackLayout(inventory: CharacterSheet['inventory'], value: unknown): boolean {
+
+export function validPackLayout(inventory: CharacterSheet['inventory'], value: unknown, grid: PackGrid = BASE_PACK_GRID): boolean {
   if (value === undefined) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const items = new Map(inventory.filter((item): item is Item => !!item).map(item => [item.id, item]));
   const occupied = new Set<number>();
   for (const [id, cell] of Object.entries(value)) {
-    const item = items.get(id), cells = item && typeof cell === 'number' && footprintCells(item, cell);
+    const item = items.get(id), cells = item && typeof cell === 'number' && footprintCells(item, cell, grid);
     if (!cells || cells.some(n => occupied.has(n))) return false;
     cells.forEach(n => occupied.add(n));
   }
   return true;
 }
 
-export function canPackItem(sheet: Pick<CharacterSheet, 'inventory' | 'inventoryLayout'>, item: Item): boolean {
-  if (!sheet.inventory.includes(null) && sheet.inventory.length >= INVENTORY_CELLS) return false;
-  const layout = resolvePackLayout(sheet);
-  return !sheet.inventory.some(owned => owned && layout[owned.id] === undefined)
-    && findPackSpace(item, packOccupancy(sheet.inventory, layout)) !== null;
+/** Consumable stacks merge into existing stacks; only the overflow needs a free cell. */
+function consumableMergeable(sheet: Pick<CharacterSheet, 'inventory'>, item: Item): boolean {
+  const def = consumableFor(item);
+  return !!def && sheet.inventory.some(existing => (existing?.stack ?? 1) < def.stackSize && consumableFor(existing)?.id === def.id);
+}
+
+export function canPackItem(sheet: Pick<CharacterSheet, 'inventory' | 'inventoryLayout'> & { bags?: Array<Item | null> }, item: Item): boolean {
+  return consumableMergeable(sheet, item) || canPackInBagGrid(sheet, item);
 }
 
 /** Level-eligible stones in the dedicated charm grid grant bonuses; overflow and stash do not. */
-export function activeCharms(sheet: Pick<CharacterSheet,'inventory'|'inventoryLayout'>, level = Infinity): Item[] {
-  const layout=resolvePackLayout(sheet);
-  return sheet.inventory.filter((item):item is Item=>!!item && item.kind==='charm' && item.requiredLevel<=level && layout[item.id]>=PACK_CELLS);
+export function activeCharms(sheet: Pick<CharacterSheet,'inventory'|'inventoryLayout'> & { bags?: Array<Item | null> }, level = Infinity): Item[] {
+  const grid = bagGridLayout(sheet), layout = resolvePackLayout(sheet);
+  return sheet.inventory.filter((item):item is Item=>!!item && item.kind==='charm' && item.requiredLevel<=level && layout[item.id]!==undefined && isCharmGridCell(grid, layout[item.id]));
 }
 
-/** Repack each existing region independently; compact mode tries eight bounded shape orders. */
-export function repackLayout(inventory: CharacterSheet['inventory'], previous: PackLayout = {}, compact = false): PackLayout {
+/** Repack each region independently (backpack + each bag section, then charms); compact mode tries eight bounded shape orders. */
+export function repackLayout(inventory: CharacterSheet['inventory'], previous: PackLayout = {}, compact = false, grid: PackGrid = BASE_PACK_GRID): PackLayout {
   const items=inventory.filter((item):item is Item=>!!item);
-  const active=(item:Item)=>item.kind==='charm'&&previous[item.id]>=PACK_CELLS;
-  return {...packRegion(items.filter(i=>!active(i)),false,compact),...packRegion(items.filter(active),true,compact)};
+  const active=(item:Item)=>item.kind==='charm'&&previous[item.id]!==undefined&&isCharmGridCell(grid,previous[item.id]);
+  const bagRanges: [number, number][] = [[0, grid.packCells], ...grid.sections.map(s => [s.start, s.start + s.cells] as [number, number])];
+  return {...packRegion(items.filter(i=>!active(i)),bagRanges,compact,grid),...packRegion(items.filter(active),[[grid.charmStart,grid.charmEnd]],compact,grid)};
 }
-function packRegion(items: Item[], charms: boolean, compact: boolean): PackLayout {
+function packRegion(items: Item[], ranges: readonly [number, number][], compact: boolean, grid: PackGrid): PackLayout {
   let best:PackLayout={},bestCount=-1;
   const metrics=[(s:ItemFootprint)=>s.height*100+s.width,(s:ItemFootprint)=>s.width*100+s.height,
     (s:ItemFootprint)=>s.width*s.height*100+s.height,(s:ItemFootprint)=>Math.max(s.width,s.height)*100+s.width*s.height];
@@ -118,11 +94,14 @@ function packRegion(items: Item[], charms: boolean, compact: boolean): PackLayou
     const ordered=[...items].sort((a,b)=>metric(itemFootprint(b))-metric(itemFootprint(a)));
     const layout:PackLayout={},occupied=new Set<number>();
     for(const item of ordered){
-      const start=charms?PACK_CELLS:0,end=charms?INVENTORY_CELLS:PACK_CELLS;
-      for(let i=start;i<end;i++){
-        const cell=reverse?Math.floor(i/PACK_COLUMNS)*PACK_COLUMNS+PACK_COLUMNS-1-i%PACK_COLUMNS:i;
-        const cells=footprintCells(item,cell);
-        if(cells?.every(n=>!occupied.has(n))){layout[item.id]=cell;cells.forEach(n=>occupied.add(n));break;}
+      for(const [start,end] of ranges){
+        let placed=false;
+        for(let i=start;i<end;i++){
+          const cell=reverse?Math.floor(i/PACK_COLUMNS)*PACK_COLUMNS+PACK_COLUMNS-1-i%PACK_COLUMNS:i;
+          const cells=footprintCells(item,cell,grid);
+          if(cells?.every(n=>!occupied.has(n))){layout[item.id]=cell;cells.forEach(n=>occupied.add(n));placed=true;break;}
+        }
+        if(placed)break;
       }
     }
     const count=Object.keys(layout).length;
@@ -132,10 +111,36 @@ function packRegion(items: Item[], charms: boolean, compact: boolean): PackLayou
   return best;
 }
 
-export function packSpaceProblem(sheet: Pick<CharacterSheet,'inventory'|'inventoryLayout'>,item:Item,region: 'bag' | 'charms' = 'bag'): string {
-  const layout=resolvePackLayout(sheet),occupied=packOccupancy(sheet.inventory,layout);
-  const start=region==='charms'?PACK_CELLS:0,end=region==='charms'?INVENTORY_CELLS:PACK_CELLS;
-  const free=Array.from({length:end-start},(_,i)=>start+i).filter(i=>!occupied.has(i)).length;
-  const shape=itemFootprint(item),name=region==='charms'?'Charm grid':'Bag';
-  return free<shape.width*shape.height?`${name} full. Make room for this item.`:`No ${shape.width} × ${shape.height} space. Try Auto-sort.`;
+export function packSpaceProblem(sheet: Pick<CharacterSheet,'inventory'|'inventoryLayout'> & { bags?: Array<Item | null> },item:Item,region: 'bag' | 'charms' = 'bag'): string {
+  return bagSpaceProblem(sheet, item, region);
+}
+
+/** Add an item to the first free pack cell, growing the array to the bag-aware grid. */
+export function addInventoryItem(sheet: CharacterSheet, item: Item): boolean {
+  const consumable = consumableFor(item);
+  if (consumable) {
+    let remaining = item.stack ?? 1;
+    for (const existing of sheet.inventory) {
+      if (!existing || consumableFor(existing)?.id !== consumable.id) continue;
+      const space = consumable.stackSize - (existing.stack ?? 1);
+      if (space <= 0) continue;
+      const moved = Math.min(space, remaining);
+      existing.stack = (existing.stack ?? 1) + moved;
+      remaining -= moved;
+      if (remaining <= 0) return true;
+    }
+    item.stack = remaining;
+  }
+  if (sheet.inventory.some(existing => existing?.id === item.id) || EQUIPMENT_SLOTS.some(slot => sheet.equipped[slot]?.id === item.id)) return false;
+  const grid = packGrid(sheet), layout = resolvePackLayout(sheet);
+  if (sheet.inventory.some(existing => existing && layout[existing.id] === undefined)) return false;
+  const empty = sheet.inventory.findIndex(existing => existing === null);
+  const index = empty >= 0 ? empty : sheet.inventory.length < grid.totalCells ? sheet.inventory.length : -1;
+  const cell = findPackSpace(item, packOccupancy(sheet.inventory, layout, grid), undefined, 'bag', grid);
+  if (index < 0 || cell === null) return false;
+  while (sheet.inventory.length < grid.totalCells) sheet.inventory.push(null);
+  sheet.inventory[index] = item; sheet.inventoryLayout = { ...layout, [item.id]: cell };
+  const owned = new Set([...sheet.inventory, ...Object.values(sheet.equipped)].filter((i): i is Item => i !== null).map(i => i.id));
+  sheet.recentItems = [item.id, ...(sheet.recentItems ?? []).filter(id => id !== item.id && owned.has(id))];
+  return true;
 }

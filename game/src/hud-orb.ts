@@ -2,6 +2,37 @@ const TAU = Math.PI * 2;
 const GLASS_RADIUS = 25;
 const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
+/** Mix a hex resource color toward white (positive) or black (negative). */
+export function shade(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const target = amount < 0 ? 0 : 255, a = Math.abs(amount);
+  const mix = (v: number) => Math.round(v + (target - v) * a);
+  return `#${((1 << 24) | (mix(n >> 16 & 255) << 16) | (mix(n >> 8 & 255) << 8) | mix(n & 255)).toString(16).slice(1)}`;
+}
+
+/** Mana keeps its authored lapis palette; other resources derive shades from one tint. */
+interface OrbPalette {
+  readonly empty0: string; readonly empty1: string;
+  readonly liquid: readonly [string, string, string, string];
+  readonly glow0: string; readonly glow1: string;
+  readonly meniscus: string; readonly moteA: string; readonly moteB: string; readonly rim: string;
+}
+const MANA_PALETTE: OrbPalette = {
+  empty0: '#142131', empty1: '#0b1321',
+  liquid: ['#619fe9', '#327bd8', '#2048a3', '#0a1c50'],
+  glow0: '#448ded55', glow1: '#2a62be24',
+  meniscus: '#b3d7f7', moteA: '#b9b6ff', moteB: '#a6dfff', rim: '#80a8d653',
+};
+function resourcePalette(tint: string | undefined): OrbPalette {
+  if (!tint) return MANA_PALETTE;
+  return {
+    empty0: shade(tint, -.78), empty1: shade(tint, -.88),
+    liquid: [shade(tint, .45), shade(tint, .15), shade(tint, -.25), shade(tint, -.65)],
+    glow0: `${tint}55`, glow1: `${shade(tint, -.2)}24`,
+    meniscus: shade(tint, .6), moteA: shade(tint, .55), moteB: shade(tint, .35), rim: `${tint}53`,
+  };
+}
+
 function circle(c: CanvasRenderingContext2D, x: number, y: number, radius: number) {
   c.beginPath(); c.arc(x, y, radius, 0, TAU);
 }
@@ -19,8 +50,8 @@ function liquidLevel(ratio: number): number {
   return (low + high) * GLASS_RADIUS / 2;
 }
 
-/** Small luminous motes rise through mana, at the same scale as health bubbles. */
-function manaEnergy(c: CanvasRenderingContext2D, time: number, level: number) {
+/** Small luminous motes rise through the resource, at the same scale as health bubbles. */
+function manaEnergy(c: CanvasRenderingContext2D, time: number, level: number, moteA = '#b9b6ff', moteB = '#a6dfff') {
   for (let i = 0; i < 9; i++) {
     const phase = (time * (.07 + i % 3 * .012) + i * .381966) % 1;
     const x = Math.sin(i * 2.4) * 16 + Math.sin(time * .75 + i * 1.7) * 1.2;
@@ -29,7 +60,7 @@ function manaEnergy(c: CanvasRenderingContext2D, time: number, level: number) {
     const submerged = Math.min(1, Math.max(0, (y - level) / 3));
     const fade = Math.min(1, phase * 9) * submerged * (.75 + Math.sin(time * 1.5 + i) * .15);
     if (fade <= 0) continue;
-    const tint = i % 3 === 0 ? '#b9b6ff' : '#a6dfff';
+    const tint = i % 3 === 0 ? moteA : moteB;
     const halo = c.createRadialGradient(x, y, 0, x, y, radius * 2.7);
     halo.addColorStop(0, tint + '60'); halo.addColorStop(.4, tint + '24'); halo.addColorStop(1, tint + '00');
     c.globalAlpha = fade * .65; c.fillStyle = halo;
@@ -44,7 +75,8 @@ function manaEnergy(c: CanvasRenderingContext2D, time: number, level: number) {
 
 /** Native-resolution garnet/lapis glass and its complete, 31px metal socket. */
 export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
-  ratio: number, time: number, mana: boolean, trail = ratio, hit = 0, reserved = 0) {
+  ratio: number, time: number, mana: boolean, trail = ratio, hit = 0, reserved = 0, tint?: string) {
+  const palette = mana ? resourcePalette(tint) : MANA_PALETTE;
   const r = GLASS_RADIUS;
   ratio = clamp(ratio); trail = clamp(trail); hit = clamp(hit);
   const lowPulse = !mana && ratio > 0 && ratio < .3 ? .5 + Math.sin(time * 4.5) * .5 : 0;
@@ -68,8 +100,8 @@ export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
 
   c.save(); circle(c, 0, 0, r); c.clip();
   const empty = c.createRadialGradient(-7, -9, 1, 0, 0, r * 1.25);
-  empty.addColorStop(0, mana ? '#142131' : '#271722');
-  empty.addColorStop(.6, mana ? '#0b1321' : '#160e19');
+  empty.addColorStop(0, mana ? palette.empty0 : '#271722');
+  empty.addColorStop(.6, mana ? palette.empty1 : '#160e19');
   empty.addColorStop(1, '#03060c');
   c.fillStyle = empty; c.fillRect(-r, -r, r * 2, r * 2);
 
@@ -87,10 +119,10 @@ export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
     // removing apparent health as the surface animates.
     c.beginPath(); c.rect(-r, level, r * 2, r - level); c.clip();
     const liquid = c.createLinearGradient(-8, -r, 9, r);
-    liquid.addColorStop(0, mana ? '#619fe9' : '#ee4863');
-    liquid.addColorStop(.24, mana ? '#327bd8' : '#cd2249');
-    liquid.addColorStop(.59, mana ? '#2048a3' : '#991334');
-    liquid.addColorStop(1, mana ? '#0a1c50' : '#45091f');
+    liquid.addColorStop(0, mana ? palette.liquid[0] : '#ee4863');
+    liquid.addColorStop(.24, mana ? palette.liquid[1] : '#cd2249');
+    liquid.addColorStop(.59, mana ? palette.liquid[2] : '#991334');
+    liquid.addColorStop(1, mana ? palette.liquid[3] : '#45091f');
     c.fillStyle = liquid; c.fillRect(-r, -r, r * 2, r * 2);
 
     // Soft illumination remains behind the resource-specific motion.
@@ -98,15 +130,15 @@ export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
     const glowX = -7 + Math.sin(time * .31) * 2;
     const glowY = 9 + Math.cos(time * .27) * 2;
     const glow = c.createRadialGradient(glowX, glowY, 0, glowX, glowY, 24);
-    glow.addColorStop(0, mana ? '#448ded55' : '#f34b5559');
-    glow.addColorStop(.55, mana ? '#2a62be24' : '#bf28472b');
+    glow.addColorStop(0, mana ? palette.glow0 : '#f34b5559');
+    glow.addColorStop(.55, mana ? palette.glow1 : '#bf28472b');
     glow.addColorStop(1, '#00000000');
     c.fillStyle = glow; c.fillRect(-r, -r, r * 2, r * 2);
 
     if (ratio < 1) {
       const halfWidth = Math.sqrt(Math.max(0, r * r - level * level));
       c.globalAlpha = .6; c.lineWidth = .75;
-      c.strokeStyle = mana ? '#b3d7f7' : '#f38b99';
+      c.strokeStyle = mana ? palette.meniscus : '#f38b99';
       c.beginPath(); c.moveTo(-halfWidth, level + .4); c.lineTo(halfWidth, level + .4); c.stroke();
       for (let i = 0; !mana && i < 2; i++) {
         const travel = (time * .14 + i * .5) % 1;
@@ -119,7 +151,7 @@ export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
       }
     }
 
-    if (mana) manaEnergy(c, time, level);
+    if (mana) manaEnergy(c, time, level, palette.moteA, palette.moteB);
     // Health retains hollow rising bubbles; mana uses soft luminous motes instead.
     for (let i = 0; !mana && i < 11; i++) {
       const phase = (time * (.09 + (i % 4) * .017) + i * .381966) % 1;
@@ -151,7 +183,7 @@ export function drawHUDOrb(c: CanvasRenderingContext2D, x: number, y: number,
   c.beginPath(); c.arc(0, 0, 23.4, 3.65, 4.28);
   c.lineWidth = .95; c.strokeStyle = '#e1e9e376'; c.stroke();
   c.beginPath(); c.arc(0, 0, 23.7, .53, 1.15);
-  c.lineWidth = .55; c.strokeStyle = mana ? '#80a8d653' : '#af626453'; c.stroke();
+  c.lineWidth = .55; c.strokeStyle = mana ? palette.rim : '#af626453'; c.stroke();
   c.restore();
 
   // Small recessed steel pins, rather than ornamental corner jewels.

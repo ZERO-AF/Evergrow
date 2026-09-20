@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameInput } from '../src/game-input.ts';
 import { Simulation } from '../src/simulation.ts';
+import { createWowSim } from './fixtures/wow-sim.ts';
 import { generateUnique } from '../src/items.ts';
 import { WEAPON_PROFILES } from '../src/weapon-content.ts';
 import type { Input, WorldQuery } from '../src/model.ts';
@@ -10,7 +11,7 @@ const world: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: 
 const idle: Input = { moveX: 0, moveY: 0, aimX: 100, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 const dt = 1 / 120;
 function fixture() {
-  const sim = new Simulation(world, { spawn: false, startX: 0, startY: 0 });
+  const sim = createWowSim('mage', 'undead', world);
   const p = sim.player;
   p.equipment = { mainHand: WEAPON_PROFILES.find(w => w.family === 'staff')!, offHand: null };
   p.character.allocatedNodes = ['origin', 'skill:fireball', 'skill:meteor', 'skill:cataclysm'];
@@ -29,10 +30,12 @@ for (const [slot, skill] of [[1, 'meteor'], [2, 'cataclysm']] as const) {
     const tick = () => f.tick(input.consume({ x: 100, y: 0 }, false));
     input.keyDown('KeyD'); input.pointerDown(2); tick();
     assert.ok(f.p.castTime > .11);
-    const recovery = f.p.castTime;
-    input.keyDown(slot === 1 ? 'Digit1' : 'Digit2'); tick();
-    input.keyUp(slot === 1 ? 'Digit1' : 'Digit2');
-    for (let i = 0; i < Math.ceil((recovery + .05) / dt); i++) tick();
+    // The buffered press must survive the action's recovery AND the global cooldown
+    // the basic swing triggered — WoW queues a press through the GCD.
+    const recovery = Math.max(f.p.castTime, (f.p.gcdReady ?? 0) - f.sim.time);
+    input.keyDown(slot === 1 ? 'Digit2' : 'Digit3'); tick();
+    input.keyUp(slot === 1 ? 'Digit2' : 'Digit3');
+    for (let i = 0; i < Math.ceil((recovery + .15) / dt); i++) tick();
     assert.equal(f.casts(skill), 1);
     assert.ok(f.p.x > 0, 'movement continues during casting');
     input.pointerUp(2); f.advance(1);
@@ -53,8 +56,9 @@ test('a pressed skill takes priority over held basics after their existing recov
 
 test('a more recent explicit press replaces the one pending skill', () => {
   const f = fixture(); f.tick({ skillSlot: 0 });
-  const recovery = f.p.castTime;
-  f.tick({ skillSlot: 1 }); f.tick({ skillSlot: 2 }); f.advance(recovery + .1);
+  // The queued press must survive the swing's recovery AND its global cooldown.
+  const recovery = Math.max(f.p.castTime, (f.p.gcdReady ?? 0) - f.sim.time);
+  f.tick({ skillSlot: 1 }); f.tick({ skillSlot: 2 }); f.advance(recovery + .15);
   assert.equal(f.casts('meteor'), 0); assert.equal(f.casts('cataclysm'), 1);
 });
 
@@ -107,6 +111,7 @@ test('Dervish Grasp channel repeats yield to a newly pressed skill', () => {
   f.tick({ skillSlot: 0, heldSkillSlots: [0] });
   const recovery = f.p.attack!.duration;
   f.tick({ skillSlot: 1, heldSkillSlots: [0, 1] });
-  f.advance(recovery + .05, { heldSkillSlots: [0] });
+  // The pressed cleave must survive the whirlwind swing AND its global cooldown.
+  f.advance(Math.max(recovery, (f.p.gcdReady ?? 0) - f.sim.time) + .15, { heldSkillSlots: [0] });
   assert.equal(f.p.attack?.skill, 'cleave');
 });

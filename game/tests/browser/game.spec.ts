@@ -6,6 +6,9 @@ test('character creation, pause checkpoint and reload continue use the same slot
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Characters' })).toBeVisible();
   await expect(page.locator('[data-slot]')).toHaveCount(8);
+  await page.getByRole('button', { name: 'Warrior' }).click();
+  await page.getByRole('button', { name: 'Human' }).click();
+  await page.locator('.appearance-editor #save-editor').click();
   await page.getByLabel('Name').fill('Browser test');
   await page.getByRole('button', { name: 'Create character' }).click();
   await expect(page.locator('.title-screen')).toBeHidden();
@@ -25,17 +28,20 @@ test('character creation, pause checkpoint and reload continue use the same slot
 
 test('title creation is keyboard accessible and selected character deletion is explicit', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'Mage' }).click();
+  await page.getByRole('button', { name: 'Gnome' }).click();
+  await page.locator('.appearance-editor #save-editor').click();
   await page.getByLabel('Name').fill('Temporary');
   await page.getByRole('button', { name: 'Create character' }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'SAVE & CHARACTER HALL' }).click();
-  await page.getByRole('button', { name: 'Delete Temporary', exact: true }).click();
-  await page.getByRole('button', { name: 'Keep character' }).click();
-  await expect(page.locator('[data-slot="0"]')).toContainText('Temporary');
-  await page.getByRole('button', { name: 'Delete Temporary', exact: true }).click();
   await page.getByRole('button', { name: 'Delete character', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.locator('[data-slot="0"]')).toContainText('Temporary');
+  await page.getByRole('button', { name: 'Delete character', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.reload();
-  await expect(page.locator('[data-slot="0"]')).toContainText('New character');
+  await expect(page.locator('[data-slot="0"]')).toContainText('New');
 });
 
 test('the title retains mute preferences and follows system motion without remote assets', async ({ page }) => {

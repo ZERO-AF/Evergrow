@@ -1,4 +1,5 @@
 import { CHARM_DROP_CHANCE, CHARM_DROP_WEIGHT } from '../src/charm-content.ts';
+import { isSetPiece } from '../src/item-set-content.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BIOME_PROFILE_WEIGHTS, ENEMY_ITEM_KIND_WEIGHTS, ENEMY_LOOT_TABLES, getLootTable } from '../src/loot-content.ts';
@@ -23,7 +24,7 @@ test('reward content is deeply immutable and every authored weight table is comp
   assert.ok(Object.isFrozen(ENEMY_ITEM_KIND_WEIGHTS));
   for (const weights of Object.values(ENEMY_ITEM_KIND_WEIGHTS)) {
     assert.ok(Object.isFrozen(weights));
-    assert.deepEqual(Object.keys(weights).sort(), [...ITEM_KINDS].sort());
+    assert.deepEqual(Object.keys(weights).sort(), ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey').sort());
     const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
     assert.ok(Math.abs(total - (100 + CHARM_DROP_WEIGHT)) < 1e-10);
     assert.ok(Math.abs(weights.charm / total - CHARM_DROP_CHANCE) < 1e-10);
@@ -161,7 +162,7 @@ test('ordinary kills thin one third of common equipment while preserving exact v
       for (const encounter of ['chest', 'bossChest', 'event', 'boss'] as const) {
         const reward = rollEnemyLoot({ ...context, encounter });
         assert.equal(reward.length, 1, 'authored rewards do not lose common items');
-        assert.equal(reward[0].tier, original.tier);
+        if (!isSetPiece(reward[0])) assert.equal(reward[0].tier, original.tier);
         assert.equal(reward[0].kind, original.kind);
       }
     }

@@ -1,4 +1,5 @@
 import { dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { drawMapEnemyIcon } from './map-icon-art.ts';
 import { dungeonMapEnemyVisible, type DungeonMapEnemy as MapEnemy } from './dungeon-map-enemies.ts';
 import { drawRiftMapTerrain } from './rift-map-art.ts';
@@ -121,6 +122,7 @@ export class DungeonMap {
         this.tooltip.hidden = true;
         this.element.append(this.tooltip);
         mount.append(this.element);
+    attachPanelFrame(this.element, 'map');
         this.canvas = this.element.querySelector('canvas')!;
         this.clearTouch = bindTouchCanvas(this.canvas,this.abort.signal,{
           start:()=>{this.tooltip.hidden=true;},

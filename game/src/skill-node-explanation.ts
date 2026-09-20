@@ -11,7 +11,8 @@ export function nodeMechanicDetails(node: SkillNode, sheet?: CharacterSheet): st
   const term = terms[node.id];
   let result = term ? `<p>${effectTerm(term, 'Details')}</p>` : '';
   if (node.bonuses.afterguardPercent) result += `<p>Enables ${effectTerm('afterguard','Afterguard')} · 3s after blocking.</p>`;
-  if (node.doctrine) result += `<p>Choose one · ${effectTerm('doctrine', 'Doctrine')}</p>`;
+  if (node.spec) result += `<p>Choose one · Specialization signature</p>`;
+  else if (node.doctrine) result += `<p>Choose one · ${effectTerm('doctrine', 'Doctrine')}</p>`;
   if (node.specialization) result += `<p>${effectTerm(`technique:${node.specialization}`, 'Technique rules')}</p>`;
   if (node.id === 'keystone:open-hand' && sheet) {
     const main = sheet.equipped.weapon?.weapon;

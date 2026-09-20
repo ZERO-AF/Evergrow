@@ -1,0 +1,47 @@
+/* Achievements panel (Y) and unlock toasts (docs/wow-deepening.md §11). */
+.achievement-panel[hidden], .achievement-toasts[hidden] { display:none; }
+.achievement-panel { position:absolute; inset:0; z-index:25; display:grid; place-items:center; background:#03090b80; padding:24px; font-family:var(--ui-font); }
+.achievement-window { width:min(880px,100%); max-height:85vh; display:flex; flex-direction:column; }
+.achievement-window .ui-window-header { gap:12px; }
+.achievement-window .ui-window-header h2 { flex:1; }
+.achievement-heading-icon { width:22px; height:22px; display:flex; color:#d8c894; }
+.achievement-heading-icon svg { width:100%; height:100%; }
+.achievement-summary { display:flex; align-items:baseline; gap:10px; padding:0 4px 12px; color:#a3b4bc; font-size:13px; }
+.achievement-summary strong { color:#e3ddc4; font-weight:500; font-size:15px; font-variant-numeric:tabular-nums; }
+.achievement-filters { display:flex; flex-wrap:wrap; gap:4px; padding:0 4px 14px; }
+.achievement-filters button { font:inherit; font-size:12px; letter-spacing:.04em; color:#8fa1a8; background:transparent; border:1px solid #8ba5ae22; border-radius:3px; padding:5px 10px; cursor:pointer; }
+.achievement-filters button:hover { color:#c7d4d6; border-color:#8ba5ae44; }
+.achievement-filters button[aria-pressed="true"] { color:#e0dac4; border-color:#b3b69d55; background:#c2b37714; }
+.achievement-filters button:focus-visible, .achievement-card:focus-visible { outline:1px solid var(--ui-silver); outline-offset:-1px; }
+.achievement-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(255px,1fr)); gap:8px; overflow:auto; padding:2px 4px 6px; }
+.achievement-card { position:relative; display:flex; gap:11px; align-items:flex-start; padding:11px 12px; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; text-align:left; }
+.achievement-card.is-earned { border-color:#b3b69d44; background:linear-gradient(120deg,#c2b37714,#0b151e66); }
+.achievement-card-icon { flex:none; width:30px; height:30px; display:grid; place-items:center; color:#7d949c; border:1px solid #8ba5ae2a; border-radius:3px; }
+.achievement-card-icon svg { width:17px; height:17px; }
+.is-earned .achievement-card-icon { color:#d8c894; border-color:#b3b69d55; }
+.achievement-card-body { flex:1; min-width:0; }
+.achievement-card-name { display:flex; align-items:baseline; gap:6px; font-size:13px; color:#c9d6d4; }
+.is-earned .achievement-card-name { color:#e3ddc4; }
+.achievement-card-name .achievement-check { color:#a9c98f; font-size:11px; }
+.achievement-card-desc { margin-top:3px; font-size:11.5px; line-height:1.35; color:#8298a0; }
+.achievement-card-progress { margin-top:7px; height:4px; border-radius:2px; background:#8ba5ae1c; overflow:hidden; }
+.achievement-card-progress > i { display:block; height:100%; background:#b3b69d; border-radius:2px; }
+.achievement-card-meta { margin-top:5px; font-size:10px; letter-spacing:.03em; color:#6b828a; font-variant-numeric:tabular-nums; }
+.is-earned .achievement-card-meta { color:#a3a887; }
+.achievement-empty { padding:34px 0; text-align:center; color:#7d949c; font-size:13px; grid-column:1/-1; }
+@media(max-width:650px) { .achievement-panel { padding:10px; } .achievement-grid { grid-template-columns:1fr; } }
+
+/* Unlock toast: WoW-style banner dropping from the top center. */
+.achievement-toasts { position:absolute; inset:0; z-index:76; pointer-events:none; font-family:var(--ui-font); }
+.achievement-toast-stack { position:absolute; top:14%; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:8px; width:min(360px,86vw); }
+.achievement-toast { position:relative; width:100%; padding:10px 16px 11px; text-align:center; color:var(--ui-ivory); background:linear-gradient(180deg,#141d16f2,#0b151ee8); border:1px solid #b3b69d55; border-radius:3px; box-shadow:0 6px 24px #0009, inset 0 0 18px #c2b37714; animation:achievement-toast-in 320ms cubic-bezier(.2,1.4,.4,1) both; transition:opacity 260ms ease, transform 260ms ease; }
+.achievement-toast::before, .achievement-toast::after { content:''; position:absolute; top:50%; width:34px; height:1px; background:linear-gradient(90deg,transparent,#b3b69d88); }
+.achievement-toast::before { left:-30px; }
+.achievement-toast::after { right:-30px; transform:scaleX(-1); }
+.achievement-toast-kicker { font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:#d8c894; }
+.achievement-toast-name { margin-top:3px; font-size:16px; color:#efe9cf; }
+.achievement-toast-icon { display:inline-grid; place-items:center; width:22px; height:22px; margin-right:7px; vertical-align:-5px; color:#d8c894; }
+.achievement-toast-icon svg { width:100%; height:100%; }
+.achievement-toast.is-leaving { opacity:0; transform:translateY(-8px); animation:none; }
+@keyframes achievement-toast-in { from { opacity:0; transform:translateY(-14px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+@media(prefers-reduced-motion:reduce) { .achievement-toast, .achievement-toast.is-leaving { animation:none; transition:none; transform:none; } }

@@ -10,13 +10,13 @@ import { openCloudCache, type CloudRow } from '../src/cloud-cache.ts';
 import { makeSaveBundle, decodeSaveBundle, bundleChart, chartKey } from '../src/save-bundle.ts';
 import { openSaveDatabase } from '../src/save-database.ts';
 import { Simulation } from '../src/simulation.ts';
-import type { CharacterSave } from '../src/character-save.ts';
+import { CHARACTER_SAVE_VERSION, type CharacterSave } from '../src/character-save.ts';
 import type { SaveResult, SaveSlot } from '../src/character-storage.ts';
 import { WORLD_GENERATION_VERSION } from '../src/world.ts';
 const world = { seed: 7319, blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) };
 function fixture() {
   const sim = new Simulation(world, { spawn: false });
-  const record: CharacterSave = { version: 4, id: 'cloud-test', name: 'Rowan', createdAt: 1, updatedAt: 1,
+  const record: CharacterSave = { version: CHARACTER_SAVE_VERSION, id: 'cloud-test', name: 'Rowan', createdAt: 1, updatedAt: 1,
     worldSeed: 7319, worldVersion: WORLD_GENERATION_VERSION, checkpoint: sim.captureCheckpoint() };
   return makeSaveBundle(record, { chunks: [{ x: 0, y: 0, revision: 1, words: Uint32Array.from({ length: 32 }, (_, i) => i === 0 ? 15 : 0) }], pois: [] });
 }

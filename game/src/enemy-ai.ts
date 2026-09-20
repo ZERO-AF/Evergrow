@@ -2,10 +2,11 @@ import { enemyMovementMultiplier } from './enemy-modifiers.ts';
 import { decoyTarget } from './unique-combat.ts';
 import { enemyRecoveryDuration, enemyWindupDuration } from './enemy-threat.ts';
 import { projectileDamageType } from './resistance-content.ts';
-import type { DamageType } from './model.ts';
+import type { Ally, DamageType } from './model.ts';
 import { hasWalkableSegment } from './world-navigation.ts';
 import { goblinSpeed, goblinDamage } from './warband.ts';
 import { alertEnemy, transitionEnemy } from './enemy-state.ts';
+import { WOW_COMBAT, type CcKind } from './wow-types.ts';
 import { ENEMY_AI_RULES, ENEMY_DEFINITIONS, enemyAttackVariant, enemyAttackDefinition, type EnemyDefinition, type ProjectileDefinition } from './combat-content.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
 import type { CombatEvent, Enemy, Player, ProjectileEffects, WorldQuery } from './model.ts';
@@ -14,6 +15,9 @@ import type { CombatEvent, Enemy, Player, ProjectileEffects, WorldQuery } from '
 export interface EnemyAIContext {
   player: Player;
   target?: Pick<Player,'x'|'y'|'radius'|'dead'>;
+  /** Player allies (pets/minions/totems); valid hostile targets when hurtAlly is wired. */
+  allies?: readonly Ally[];
+  hurtAlly?(ally:Ally,amount:number,angle:number,enemy:Enemy):void;
   hurtDecoy?(id:number,amount:number):void;
   enemies: readonly Enemy[];
   neighbors?(enemy:Enemy,padding:number):readonly Enemy[];
@@ -26,6 +30,32 @@ export interface EnemyAIContext {
   shoot(enemy: Enemy, angle: number, definition: ProjectileDefinition, effects: ProjectileEffects): void;
   emit(event: CombatEvent): void;
 }
+/** Live crowd-control check; entries expire when remaining reaches zero. */
+function ccActive(enemy: Enemy, kind: CcKind): boolean {
+  const list = enemy.cc;
+  if (!list) return false;
+  for (const entry of list) if (entry.kind === kind && entry.remaining > 0) return true;
+  return false;
+}
+
+/** Enemies engage the nearest hostile: the player or a living ally. Taunt pins the player. */
+function nearestHostile(enemy: Enemy, context: EnemyAIContext): Player | Ally {
+  const p = context.player;
+  const taunt = enemy.taunted;
+  if ((taunt?.remaining ?? 0) > 0) {
+    // Pet growls pin the taunting ally instead of the player.
+    const ally = taunt!.allyId !== undefined ? (context.allies ?? p.allies ?? []).find(a => a.id === taunt!.allyId && a.hp > 0) : undefined;
+    return ally ?? p;
+  }
+  let best: Player | Ally = p, bestD = p.dead ? Infinity : Math.hypot(p.x - enemy.x, p.y - enemy.y);
+  if (context.hurtAlly) for (const ally of context.allies ?? p.allies ?? []) {
+    if (ally.hp <= 0 || (ally.stealth?.remaining ?? 0) > 0) continue;
+    const d = Math.hypot(ally.x - enemy.x, ally.y - enemy.y);
+    if (d < bestD) { best = ally; bestD = d; }
+  }
+  return best;
+}
+
 
 function separatedMotion(enemy: Enemy, vx: number, vy: number, context: EnemyAIContext): { vx: number; vy: number } {
   for (const other of context.neighbors?.(enemy,ENEMY_AI_RULES.separationPadding)??context.enemies) {
@@ -80,9 +110,13 @@ function sense(enemy: Enemy, dt: number, context: EnemyAIContext): void {
   const distance = Math.hypot(p.x - enemy.x, p.y - enemy.y);
   if (enemy.senseTime <= 0) {
     enemy.senseTime += ENEMY_AI_RULES.senseInterval;
-    const range = enemy.awareness >= 1 ? definition.awarenessDistance * 1.35 : definition.awarenessDistance;
+    let range = enemy.awareness >= 1 ? definition.awarenessDistance * 1.35 : definition.awarenessDistance;
+    // Stealth shrinks the sense bubble; only the real player can be stealthed.
+    if (p === context.player && context.player.stealthed) range = Math.min(range, WOW_COMBAT.stealthSenseRadius);
     enemy.seesPlayer = distance < range && context.visible(enemy.x, enemy.y, p.x, p.y);
   }
+  // A taunt compels attention regardless of sight or stealth.
+  if (p === context.player && (enemy.taunted?.remaining ?? 0) > 0) enemy.seesPlayer = true;
   if (enemy.seesPlayer) {
     enemy.lastSeenX = p.x; enemy.lastSeenY = p.y; enemy.lostSightTime = 0;
     enemy.awareness = Math.min(1, enemy.awareness + dt / ENEMY_AI_RULES.awarenessSeconds
@@ -127,15 +161,21 @@ function chase(enemy: Enemy, dt: number, context: EnemyAIContext, definition: En
     moveToward(enemy, enemy.x + Math.cos(flee) * 100, enemy.y + Math.sin(flee) * 100, definition.speed, dt, context);
     return;
   }
-  const attackDistance = definition.attack === 'melee'
-    ? definition.engageDistance ?? definition.range + p.radius - 3 : definition.maxAttackDistance;
-  const minDistance = definition.attack === 'melee' ? 0 : definition.retreatDistance;
-  if (hasSight && distance <= attackDistance && distance > minDistance
+  // Silence permits only the basic melee swing; ranged and signature actions are locked out.
+  const basic = ENEMY_DEFINITIONS[enemy.kind];
+  const silenced = ccActive(enemy, 'silence');
+  const action = silenced ? (basic.attack === 'melee' ? basic : null) : definition;
+  const attackAction = action ?? definition;
+  const attackDistance = attackAction.attack === 'melee'
+    ? attackAction.engageDistance ?? attackAction.range + p.radius - 3 : attackAction.maxAttackDistance;
+  const minDistance = attackAction.attack === 'melee' ? 0 : attackAction.retreatDistance;
+  if (action && hasSight && distance <= attackDistance && distance > minDistance
     && context.visible(enemy.x, enemy.y, p.x, p.y)) {
-    enemy.attackDamage = enemy.damage * (definition.damage / ENEMY_DEFINITIONS[enemy.kind].damage) * goblinDamage(enemy) * ((enemy.rallyTime??0)>0?1.25:1);
+    if (action !== definition) enemy.attackVariant = 0;
+    enemy.attackDamage = enemy.damage * (action.damage / basic.damage) * goblinDamage(enemy) * ((enemy.rallyTime??0)>0?1.25:1);
     enemy.attackAngle = angle; enemy.attackTargetX = p.x; enemy.attackTargetY = p.y;
     enemy.attackTurns = ((enemy.attackTurns ?? 0) + 1) % 3;
-    transitionEnemy(enemy, 'windup', enemyWindupDuration(enemy, definition.windup)); return;
+    transitionEnemy(enemy, 'windup', enemyWindupDuration(enemy, action.windup)); return;
   }
 
   if (!hasSight || !context.visible(enemy.x, enemy.y, targetX, targetY)) { moveToward(enemy, targetX, targetY, pursuitSpeed * .8, dt, context); return; }
@@ -160,9 +200,19 @@ function chase(enemy: Enemy, dt: number, context: EnemyAIContext, definition: En
 
 /** Tick only a living, unstaggered actor; status/damage integration remains simulation-owned. */
 export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext): void {
-  const target=decoyTarget(enemy,context.player,context.world,context.visible);
+  const taunted=(enemy.taunted?.remaining??0)>0;
+  if(taunted)delete enemy.decoyTarget;
+  const target=taunted&&enemy.taunted?.allyId===undefined?context.player:taunted?undefined:decoyTarget(enemy,context.player,context.world,context.visible);
   const original=context;if(target!==context.player)context={...context,target,hurt:(amount,angle,actor,type)=>{if(actor.decoyTarget)original.hurtDecoy?.(actor.decoyTarget.id,amount);else original.hurt(amount,angle,actor,type);}};
   if (enemy.state === 'chase') enemy.attackVariant = enemyAttackVariant(enemy);
+  const hostile=context.target??nearestHostile(enemy,context);
+  if('kind' in hostile&&context.hurtAlly){
+    const ally=hostile;
+    context={...context,target:{x:ally.x,y:ally.y,radius:ally.radius,dead:ally.hp<=0},
+      hurt:(amount,angle,actor)=>context.hurtAlly!(ally,amount,angle,actor)};
+  }
+  // Roots hold position without suppressing committed swings or shots.
+  if(ccActive(enemy,'root'))context={...context,move:()=>{}};
   const p = context.target??context.player, definition = enemyAttackDefinition(enemy);
   if (context.world.isSanctuary?.(context.player.x, context.player.y)) {
     if (enemy.state !== 'return') disengage(enemy);
@@ -172,6 +222,22 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
       enemy.angle = away;
       context.move(enemy, Math.cos(away) * definition.speed * .7, Math.sin(away) * definition.speed * .7, dt);
     } else returnHome(enemy, dt, context);
+    return;
+  }
+  // Incapacitate and polymorph suspend the actor entirely; the committed clock
+  // rewinds like stagger so control never grants a free instant attack.
+  if(ccActive(enemy,'incapacitate')||ccActive(enemy,'polymorph')){
+    enemy.stateTime=Math.max(0,enemy.stateTime-dt);enemy.vx=enemy.vy=0;return;
+  }
+  // Fear breaks a committed action and wanders the victim away from its target.
+  if(ccActive(enemy,'fear')){
+    if(enemy.state==='windup'||enemy.state==='attack'){
+      enemy.interrupted=true;
+      transitionEnemy(enemy,'recover',enemyRecoveryDuration(enemy,definition.recovery));
+    }
+    const away=Math.atan2(enemy.y-p.y,enemy.x-p.x)+Math.sin(context.time*2.3+enemy.id*1.7+enemy.patrolPhase)*.6;
+    enemy.angle=away;
+    context.move(enemy,Math.cos(away)*definition.speed*.6,Math.sin(away)*definition.speed*.6,dt);
     return;
   }
   const trial = context.trial;
@@ -221,9 +287,9 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
           && context.visible(enemy.x, enemy.y, tx, ty) && context.visible(tx, ty, p.x, p.y)) {
           context.hurt(enemy.attackDamage ?? enemy.damage, Math.atan2(p.y - ty, p.x - tx), enemy, projectileDamageType(definition.blastStyle ?? 'frost'));
         }
-        // The double redirects aim, but never shields the player from the same area.
+        // Area blasts never shield the real player, whatever redirected the aim.
         const real=context.player;
-        if(enemy.decoyTarget&&!real.dead&&Math.hypot(real.x-tx,real.y-ty)<=definition.blastRadius+real.radius
+        if(p!==real&&!real.dead&&Math.hypot(real.x-tx,real.y-ty)<=definition.blastRadius+real.radius
           &&context.visible(enemy.x,enemy.y,tx,ty)&&context.visible(tx,ty,real.x,real.y))
           original.hurt(enemy.attackDamage??enemy.damage,Math.atan2(real.y-ty,real.x-tx),enemy,projectileDamageType(definition.blastStyle??'frost'));
         enemy.attackHit = true;

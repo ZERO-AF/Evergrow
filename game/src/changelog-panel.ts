@@ -1,4 +1,5 @@
 import source from '../../CHANGELOG.md?raw';
+import { attachPanelFrame } from './panel-frames.ts';
 import { parseChangelog, changelogDate } from './changelog.ts';
 import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
@@ -29,6 +30,7 @@ export class ChangelogPanel {
       <article id="changelog-entry" class="changelog-entry ui-scroll-area" tabindex="0" aria-label="Update notes"></article></div>
       <footer class="ui-window-footer changelog-footer"><span>EVERGROW</span><span>Esc / B <span>Close</span></span></footer></section>`;
     mount.append(this.element);
+    attachPanelFrame(this.element, 'changelog');
     this.element.addEventListener('click', event => {
       const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (target?.hasAttribute('data-changelog-close') || event.target === this.element) this.close();

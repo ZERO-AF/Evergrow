@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateItem, deriveItem, ITEM_KINDS, itemAffixPool, affixConflicts } from '../src/items.ts';
+import { generateItem, deriveItem, createCharacterSheet, ITEM_KINDS, itemAffixPool, affixConflicts } from '../src/items.ts';
 import { isElementalAffix, ELEMENTAL_AFFIXES } from '../src/elemental-weapon.ts';
 import { improveItem } from '../src/item-improvement.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
@@ -22,7 +22,7 @@ const singleAffix = (kind: Item['kind'], stat: StatKey): Item => {
   item.affixes = [{ name: 'Test', stat, value: 0 }]; item.recipe.rolls = [.5]; return deriveItem(item);
 };
 test('new items and every reroll respect slot identity and exclusive affix groups', () => {
-  for (const kind of ITEM_KINDS) for (let seed = 0; seed < 100; seed++) {
+  for (const kind of ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey')) for (let seed = 0; seed < 100; seed++) {
     let item = generateItem(seed, 10, kind, undefined, 'legendary');
     for (let operation = 0; operation < 3; operation++) {
       assert.ok(validItem(item)); assert.deepEqual(deriveItem(item), item);
@@ -55,6 +55,8 @@ test('elemental weapon affixes remain uncommon rolls in generation and enchantin
 });
 test('sword + offhand wand casts Fireball, keeps the sword swing mana-free and round-trips saves', () => {
   const sim = new Simulation(world, { spawn: false }), p = sim.player;
+  // Mana class: Fireball costs mana and the sword swing stays free.
+  p.character = createCharacterSheet('mage', 'undead');
   p.character.equipped.weapon = generateItem(3, 1, 'weapon', 'longsword', 'common'); p.character.equipped.offhand = null;
   p.character.inventory[0] = generateItem(4, 1, 'weapon', 'cinder-wand', 'common');
   assert.ok(executeCharacterCommand(p, { type: 'equip', index: 0, slot: 'offhand' }).ok);

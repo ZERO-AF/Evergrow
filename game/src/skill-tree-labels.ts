@@ -1,4 +1,5 @@
 import { SKILL_TREE, SKILL_NODES, SKILL_TERRITORIES, type SkillNode } from './skill-tree.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
 /** Screen-space budgets prevent higher zoom from turning every star into a caption. */
 export function atlasLabelBudget(zoom: number, width: number, height: number) {
   const capacity = Math.max(3, Math.min(10, Math.floor(width * height / 85000)));
@@ -32,7 +33,7 @@ export interface AtlasLabelObstacles {
   lines: { a: Point; b: Point }[];
 }
 export interface AtlasCaption extends AtlasLabelBox { text: string; size: number; color: string; owner: string }
-export const skillNodeRadius = (n: SkillNode) => n.kind === 'origin' ? 28 : n.keystone ? 22 : n.skill ? 21 : n.doctrine ? 16 : n.specialization ? 12 : n.kind === 'notable' ? 15 : n.role === 'travel' ? 4 : 8;
+export const skillNodeRadius = (n: SkillNode) => n.kind === 'origin' ? 28 : n.keystone ? 22 : n.classId ? 14 : n.skill ? 21 : n.doctrine ? 16 : n.specialization ? 12 : n.kind === 'notable' ? 15 : n.role === 'travel' ? 4 : 8;
 export const skillNodeScreenRadius = (node: SkillNode, zoom: number) => {
   const scale = zoom < .4 ? zoom / Math.sqrt(.4) : Math.sqrt(zoom);
   return Math.max(node.kind === 'origin' ? 5 : node.kind === 'major' ? 3.2 : .65, skillNodeRadius(node) * scale);
@@ -142,7 +143,7 @@ export function layoutAtlasCaptions(view: LabelView & { allocated?: ReadonlySet<
     const notable=SKILL_TREE.nodes.filter(n=>n.cluster===cluster.id&&n.kind==='notable').at(-1)!;
     if(!anchorVisible(notable))continue;
     add(cluster.name.toUpperCase(),cluster.id,{...screen(notable,view),radius:skillNodeScreenRadius(notable,view.zoom)},
-      SKILL_TERRITORIES.find(t=>t.id===cluster.territory)?.color??'#b8cfdf',11);
+      cluster.classId?WOW_CLASSES[cluster.classId].color:SKILL_TERRITORIES.find(t=>t.id===cluster.territory)?.color??'#b8cfdf',11);
   }
   return result;
 }

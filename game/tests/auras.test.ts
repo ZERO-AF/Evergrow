@@ -9,7 +9,7 @@ import { buildSkillRoutes } from '../src/skill-tree-routes.ts';
 import { activeBuffs } from '../src/active-buffs.ts';
 import { advanceEnemyStatuses } from '../src/combat-status.ts';
 import { damageEnemy } from '../src/combat-damage.ts';
-import { generateItem } from '../src/items.ts';
+import { generateItem, createCharacterSheet } from '../src/items.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
 import { CHARACTER_SAVE_VERSION,decodeCharacterSave } from '../src/character-save.ts';
 import { SkillStudy } from '../src/tools/skill-scene.ts';
@@ -18,6 +18,8 @@ const world={blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x
 const input={moveX:0,moveY:0,aimX:300,aimY:0,attack:false,dodge:false,heal:false,skillSlot:null};
 function fixture(...ids:AuraId[]){
  const sim=new Simulation(world,{spawn:false,startX:0,startY:0}),p=sim.player;
+ // Auras reserve mana; a mana class keeps the pool instead of a rage/energy reset.
+ p.character=createCharacterSheet('mage','undead');
  p.level=500;p.character.skillPoints=499;p.character.statPoints=2495;
  p.character.equipped.weapon=generateItem(42,25,'weapon','longsword','common');p.character.equipped.offhand=null;
  for(const id of ids){assert.ok(executeCharacterCommand(p,{type:'allocateNode',id:`skill:${id}`}).ok);assert.ok(executeCharacterCommand(p,{type:'assignSkill',slot:ids.indexOf(id),skill:id}).ok);}

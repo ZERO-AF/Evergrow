@@ -108,21 +108,25 @@ function fixture(t: TestContext) {
 test('zooming out while stationary refreshes scene coverage without resizing the world buffer', t => {
   const { renderer, world, canvas, render } = fixture(t);
   render(); render();
-  assert.equal(world.propQueries.length, 1);
-  assert.equal(world.buildingQueries.length, 1);
+  const propsBefore = world.propQueries.length, buildingsBefore = world.buildingQueries.length;
+  assert.ok(propsBefore >= 1 && buildingsBefore >= 1);
   const dimensions = [renderer.width, renderer.height, canvas.width, canvas.height, canvas.resizeCount];
   renderer.zoomByWheel(300, 0, 900); renderer.zoomByWheel(300, 0, 900);
   const matrix = render();
-  assert.equal(world.propQueries.length, 2);
-  assert.equal(world.buildingQueries.length, 2);
-  for (const query of [world.propQueries.at(-1)!, world.buildingQueries.at(-1)!]) {
-    const near = renderer.screenToWorld(0, 0), far = renderer.screenToWorld(renderer.width, renderer.height);
+  assert.ok(world.propQueries.length > propsBefore);
+  assert.ok(world.buildingQueries.length > buildingsBefore);
+  // The scene-coverage query is the one spanning the whole view; gather probes are small cells.
+  const near = renderer.screenToWorld(0, 0), far = renderer.screenToWorld(renderer.width, renderer.height);
+  for (const query of [...world.propQueries, ...world.buildingQueries]) {
+    if (query.width < far.x - near.x) continue;
     assert.ok(query.left < near.x && query.top < near.y);
     assert.ok(query.left + query.width > far.x && query.top + query.height > far.y);
   }
   assert.ok(matrix.a < 1 && renderer.worldHeight > renderer.height);
+  const propsAfter = world.propQueries.length, buildingsAfter = world.buildingQueries.length;
   render();
-  assert.equal(world.propQueries.length, 2, 'unchanged coverage must be reused');
+  assert.equal(world.propQueries.length, propsAfter, 'unchanged coverage must be reused');
+  assert.equal(world.buildingQueries.length, buildingsAfter, 'unchanged coverage must be reused');
   assert.deepEqual([renderer.width, renderer.height, canvas.width, canvas.height, canvas.resizeCount], dimensions);
 });
 
@@ -181,7 +185,10 @@ test('renderer wires hover and combat focus to a native enemy plate without HUD 
     const ui = new RecordingContext(); ui.scale(2, 2);
     renderer.renderUI(ui as unknown as CanvasRenderingContext2D, sim, world, settings);
     assert.deepEqual(ui.getTransform(), { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 });
-    return ui.texts.find(call => call.value === 'HOLLOW STALKER');
+    // Nameplates (V) draw every visible enemy's name at ~15px; the focus plate
+    // this test exercises renders above 20px, so select it by font size.
+    return ui.texts.find(call => call.value === 'HOLLOW STALKER'
+      && Number(call.font.match(/([\d.]+)px/)![1]) > 20);
   };
   const hoverTorso = (matrix: Matrix) => {
     renderer.pointerX = matrix.a * enemy.x + matrix.e;

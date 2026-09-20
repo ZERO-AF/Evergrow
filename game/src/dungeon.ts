@@ -8,6 +8,11 @@ import { dungeonTheme, type DungeonThemeId, type DungeonEventKind, DUNGEON_EVENT
 import { cryptContains, cryptFloorContains } from './dungeon-contours.ts';
 import type { EnemyKind, WorldQuery } from './model.ts';
 import type { EnemyRank } from './progression-content.ts';
+import { isRaidEntranceId, raidArenaFloor } from './raid-boss-content.ts';
+import { isRaid2EntranceId, raid2ArenaFloor } from './raid2-boss-content.ts';
+import { isRaid3EntranceId, raid3ArenaFloor } from './raid3-boss-content.ts';
+import { isRaid4EntranceId, raid4ArenaFloor } from './raid4-boss-content.ts';
+import { isBlackrockTheme, BLACKROCK_PROP_KINDS, BLACKROCK_EVENT_KINDS, BLACKROCK_RETINUE } from './dungeon2-content.ts';
 import type { BiomeId } from './biomes.ts';
 export const DUNGEON_RULES = Object.freeze({ version: 4, minimumRooms: 7, maximumRooms: 9, cell: 64, corridor: 192 });
 export interface DungeonChestTarget {
@@ -86,12 +91,16 @@ export interface DungeonFloor {
 
 export function dungeonRandom(seed: number) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
 /** Grow a branching core, add two optional treasure leaves, then an exterior boss chamber. */
-export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<DungeonEntrance,'theme'|'expedition'|'rift'|'biome'>> = {}): DungeonFloor {
+export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<DungeonEntrance,'theme'|'expedition'|'rift'|'biome'|'id'>> = {}): DungeonFloor {
     if(options.rift)return buildRiftFloor(seed, options.biome??'verdant', options.rift);
+    if(isRaid2EntranceId(options.id))return raid2ArenaFloor(seed,_level);
+    if(isRaid3EntranceId(options.id))return raid3ArenaFloor(seed,_level);
+    if(isRaid4EntranceId(options.id))return raid4ArenaFloor(seed,_level);
+    if(isRaidEntranceId(options.id))return raidArenaFloor(seed,_level);
     const theme=dungeonTheme(seed,options.theme), random=dungeonRandom(seed);
     const {rooms,edges,corridors,treasureIds,bossId}=buildDungeonLayout(random,theme.id,!!options.expedition);
     const center = (r: Room) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
-    const events: DungeonEvent[] = treasureIds.map((room,id)=>({id,room,kind: id===0 ? (theme.id==='foundry'?'champion':'reliquary') : (theme.id==='rootbound'?'champion':'ward'),...center(rooms[room]),chest:id}));
+    const events: DungeonEvent[] = treasureIds.map((room,id)=>({id,room,kind: isBlackrockTheme(theme.id) ? BLACKROCK_EVENT_KINDS[id] : id===0 ? (theme.id==='foundry'?'champion':'reliquary') : (theme.id==='rootbound'?'champion':'ward'),...center(rooms[room]),chest:id}));
     const members: DungeonMember[] = [];
     for (const room of rooms) {
         if (room.kind === 'entry' || room.kind === 'boss')
@@ -111,7 +120,7 @@ export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<
     const boss = center(rooms[bossId]);
     members.push({ id: 'warden', kind: options.theme ? (theme.boss ?? (theme.id==='foundry'?'ashColossus':theme.id==='drowned'?'briarMatriarch':'warden')) : 'warden', rank: options.expedition?'veteran':'normal', room: bossId, x: boss.x, y: boss.y, seed: (seed ^ 731) >>> 0 });
     for (let i = 0; i < 4; i++)
-        members.push({ id: `buried:${i}`, kind: i % 2 ? 'stalker' : 'archer', rank: options.expedition?.modifier==='retinue'?'elite':'normal', room: bossId, x: boss.x + (i % 2 ? 560 : -560), y: boss.y + (i < 2 ? -400 : 400), seed: (seed + i + 900) >>> 0, wave: i < 2 ? 1 : 2 });
+        members.push({ id: `buried:${i}`, kind: isBlackrockTheme(theme.id) ? BLACKROCK_RETINUE[i % 2] : i % 2 ? 'stalker' : 'archer', rank: options.expedition?.modifier==='retinue'?'elite':'normal', room: bossId, x: boss.x + (i % 2 ? 560 : -560), y: boss.y + (i < 2 ? -400 : 400), seed: (seed + i + 900) >>> 0, wave: i < 2 ? 1 : 2 });
     const props: DungeonProp[] = [];
     const floor: DungeonFloor = { theme:theme.id, events, props, seed, rooms, edges, corridors, members, entry: center(rooms[0]), exit: { x: boss.x + 260, y: boss.y + 220 }, chests: [...treasureIds, bossId].map(id => { const p = center(rooms[id]); return { x: p.x, y: p.y + 140, room: id }; }) };
     // Rotate and mirror the authored graph; proportions and encounter recipes remain seeded.
@@ -145,7 +154,7 @@ export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<
         for(let i=0;i<8;i++) {
             const x=room.x+room.width*(i%2?.82:.18),y=room.y+room.height*(.18+Math.floor(i/2)*.21);
             if(corridors.some(r=>x>r.x-55&&x<r.x+r.width+55&&y>r.y-55&&y<r.y+r.height+55))continue;
-            const kinds: DungeonProp['kind'][]=theme.id==='rime'?['icePillar','tomb','crystal','icePillar']:theme.id==='ossuary'?['sarcophagus','tomb','crate','sarcophagus']:theme.id==='astral'?['orrery','bookshelf','crystal','bookshelf']:theme.id==='foundry'?['anvil','furnace','crate','barrel']:theme.id==='drowned'?['pool','crystal','barrel','crystal']:['tomb','roots','crate','tomb'];
+            const kinds: DungeonProp['kind'][]=isBlackrockTheme(theme.id)?[...BLACKROCK_PROP_KINDS]:theme.id==='rime'?['icePillar','tomb','crystal','icePillar']:theme.id==='ossuary'?['sarcophagus','tomb','crate','sarcophagus']:theme.id==='astral'?['orrery','bookshelf','crystal','bookshelf']:theme.id==='foundry'?['anvil','furnace','crate','barrel']:theme.id==='drowned'?['pool','crystal','barrel','crystal']:['tomb','roots','crate','tomb'];
             if(dungeonBlocked(floor,x,y,40))continue;
             props.push({id:`dungeon-prop:${room.id}:${i}`,x,y,kind:kinds[(i+room.id)%kinds.length],seed:(seed+room.id*71+i*137)>>>0});
         }

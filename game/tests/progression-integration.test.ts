@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import { awardCharacterExperience, refreshCharacter } from '../src/character.ts';
+import { createCharacterSheet } from '../src/items.ts';
 import { armorReduction } from '../src/progression-content.ts';
 import { getZoneAt, scaledEnemyStats, ZONE_RULES } from '../src/zone-progression.ts';
 import { awardExperience, xpForNextLevel, xpLevelFactor } from '../src/progression.ts';
@@ -10,10 +11,17 @@ import { generateItem } from '../src/items.ts';
 import { sampleBiome } from '../src/biomes.ts';
 import { LOOT_RULES, PLAYER_ABILITIES } from '../src/combat-content.ts';
 import type { Enemy, Input, Projectile, WorldQuery } from '../src/model.ts';
+import type { WowClassId, WowRaceId } from '../src/wow-types.ts';
 
 const world: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
-const createSim = () => new Simulation(world, { spawn: false, seed: 640981 });
+// Undead keeps racial passives out of XP/mana assertions; the class picks the resource model.
+const createSim = (classId: WowClassId = 'warrior', raceId: WowRaceId = 'undead') => {
+  const sim = new Simulation(world, { spawn: false, seed: 640981 });
+  sim.player.character = createCharacterSheet(classId, raceId);
+  refreshCharacter(sim.player);
+  return sim;
+};
 function advance(sim: Simulation, seconds: number, input: Partial<Input> = {}): void {
   for (let tick = 0; tick < Math.round(seconds / FIXED_STEP); tick++) sim.update(FIXED_STEP, { ...idle, ...input });
 }
@@ -107,7 +115,7 @@ test('combat RNG draws and gear/pickup entity IDs cannot change later source see
 });
 
 test('a caster bolt retains arcane damage through caster death and player level changes', () => {
-  const sim = createSim(), caster = sim.spawnEnemy('caster', ZONE_RULES.regionSize * 8 + 30, 0, 'veteran')!;
+  const sim = createSim('warrior', 'human'), caster = sim.spawnEnemy('caster', ZONE_RULES.regionSize * 8 + 30, 0, 'veteran')!;
   const sourceDamage = caster.damage, sourceLevel = caster.level;
   caster.x = caster.prevX = caster.homeX = -150; caster.y = caster.prevY = 0;
   caster.state = 'windup'; caster.stateDuration = 0; caster.attackAngle = 0;
@@ -156,8 +164,8 @@ test('level gains refresh the sheet armor estimate without healing, spending poi
 });
 
 test('dual potion scales with both resource pools, consumes one charge, and clamps to missing resources', () => {
-  const sim = createSim(), player = sim.player;
-  player.character.equipped.chest!.implicit = { maxHp: 900, maxMana: 1900, manaRegen: -5 };
+  const sim = createSim('mage'), player = sim.player;
+  player.character.equipped.chest!.implicit = { maxHp: 900, maxMana: 1900, manaRegen: -20 };
   refreshCharacter(player);
   assert.equal(player.maxHp, 1000); assert.equal(player.maxMana, 2000);
   assert.equal(player.hp, 100); assert.equal(player.mana, 100, 'larger resource pools grant no free restoration');
@@ -175,8 +183,10 @@ test('dual potion scales with both resource pools, consumes one charge, and clam
 });
 
 test('death pickups retain the health cadence and restore source-level mana and percentage life with missing-resource clamps', () => {
-  const sim = createSim(), player = sim.player;
-  player.character.equipped.chest!.implicit = { maxHp: 900, maxMana: 1900, manaRegen: -5 };
+  const sim = createSim('mage'), player = sim.player;
+  player.character.equipped.chest!.implicit = { maxHp: 900, maxMana: 1900, manaRegen: -20 };
+  // Melee swings are free, so the kills below never dip mana and eat the drops early.
+  player.character.equipped.weapon = generateItem(7, 1, 'weapon', 'longsword', 'common');
   refreshCharacter(player); player.hp = player.maxHp; player.mana = player.maxMana;
   for (let index = 0; index < 3; index++) {
     const enemy = sim.spawnEnemy('stalker', 45, 0)!; prepareKill(enemy);
@@ -199,8 +209,8 @@ test('death pickups retain the health cadence and restore source-level mana and 
 
 
 test('dual potion works at full life, respects cooldown and charges, and reports only restored resources', () => {
-  const sim = createSim(), p = sim.player;
-  p.character.equipped.chest!.implicit = { manaRegen: -5 }; refreshCharacter(p);
+  const sim = createSim('mage'), p = sim.player;
+  p.character.equipped.chest!.implicit = { manaRegen: -20 }; refreshCharacter(p);
   p.mana = 0;
   advance(sim, FIXED_STEP, { heal: true });
   assert.equal(p.hp, p.maxHp); assert.equal(p.mana, 40); assert.equal(p.flasks, 1);

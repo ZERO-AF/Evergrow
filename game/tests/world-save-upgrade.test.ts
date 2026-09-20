@@ -5,7 +5,7 @@ import { World } from '../src/world.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
 import { Simulation } from '../src/simulation.ts';
 import { awardCharacterExperience } from '../src/character.ts';
-import { decodeCharacterSave, type CharacterSave } from '../src/character-save.ts';
+import { decodeCharacterSave, CHARACTER_SAVE_VERSION, type CharacterSave } from '../src/character-save.ts';
 import { CharacterSession } from '../src/character-session.ts';
 import { CharacterRepository, type CharacterRepositoryPort, type SaveSlot, type SaveResult } from '../src/character-storage.ts';
 import { canLoadWorld, upgradeWorldSave, upgradeWorldChart } from '../src/world-save-upgrade.ts';
@@ -23,7 +23,7 @@ function fixture(){
  const town=world.getNearestSettlement(0,-1150),npc=buildingNPC(town.buildings.find(b=>b.kind==='blacksmith')!)!;
  const item=vendorStock(sim.player.character,npc,sim.player.level)[0]!;
  sim.player.character.inventory[0]=item;sim.player.character.commerce.sold[npc.id]=1;sim.player.character.recentItems=[item.id];
- const cp=sim.captureCheckpoint(),record:CharacterSave={version:4,id:'upgrade-character',name:'Rowan',createdAt:1,updatedAt:2,worldVersion:9,worldSeed:7319,checkpoint:cp};
+ const cp=sim.captureCheckpoint(),record:CharacterSave={version:CHARACTER_SAVE_VERSION,id:'upgrade-character',name:'Rowan',createdAt:1,updatedAt:2,worldVersion:9,worldSeed:7319,checkpoint:cp};
  const wall=town.buildings.find(b=>b.wallSegment)!;cp.x=wall.x+wall.width/2;cp.y=wall.y+wall.height/2;
  cp.travel!.returnTo={x:cp.x,y:cp.y,town:0};cp.brokenContainers=[`${town.id}:building:1:furniture:0`,'site:7319:kept:crate'];
  const chart:DecodedExploration={chunks:[{x:0,y:0,revision:0,words:Uint32Array.from({length:32},(_,i)=>i===0?123:0)}],pois:[...settlementPOIs(town).filter(p=>['town','blacksmith'].includes(p.kind)),{id:'site:kept',kind:'camp',name:'Camp',description:'Kept discovery',x:9000,y:9000}]};

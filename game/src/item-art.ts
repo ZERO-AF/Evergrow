@@ -10,6 +10,8 @@ import type { CharacterSheet, Item } from './character-types.ts';
 import { STARTING_SWORD } from './equipment.ts';
 import { gearShapesSVG, shieldShapes, weaponShapes, type GearShape } from './weapon-shapes.ts';
 import { type Point } from './art-primitives.ts';
+import { consumableFor } from './consumable-content.ts';
+import { consumableShapes } from './consumable-art.ts';
 
 const safeColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value) ? value : '#798590';
 const escape = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
@@ -49,6 +51,7 @@ export function itemDropShapes(item: Item): readonly GearShape[] {
     case 'boots': shapes = [-1, 1].flatMap(side => bootShapes(piece, side * .3).map(shape => ({ ...shape,
       points: shape.points.map(([x,y]):Point => [x * 1.5 + side * 3.6, y * 1.5 + 3.5]) }))); break;
     case 'ring': case 'amulet': shapes = jewelryShapes(item); break;
+    case 'consumable': { const def = consumableFor(item); shapes = def ? consumableShapes(def) : []; break; }
   }
   if (shapes.length === 0) return [];
   const rotated = shapes.map(shape => ({ ...shape,
@@ -123,6 +126,9 @@ export function itemIconSVG(item: Item, size = 48): string {
       break;
     case 'amulet': case 'ring':
       shape = `<g transform="translate(24 24) scale(2.05)">${detailed(jewelryShapes(item))}</g>`;
+      break;
+    case 'consumable':
+      shape = `<g transform="translate(24 25) scale(2.3)">${detailed(itemDropShapes(item))}</g>`;
       break;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixels}" height="${pixels}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><title>${escape(item.name)}</title>

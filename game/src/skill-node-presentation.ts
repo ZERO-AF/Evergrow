@@ -9,6 +9,7 @@ export function skillNodeOwner(node: SkillNode) {
   return id ? SKILL_DEFINITIONS[id] : undefined;
 }
 export function skillNodeRole(node: SkillNode): string {
+  if (node.spec) return 'Specialization · choose one';
   if (node.doctrine) return 'Doctrine · choose one';
   if (node.specialization) return 'Technique';
   if(node.skill&&SKILL_DEFINITIONS[node.skill].tier==='aura')return 'Aura · mana reservation';

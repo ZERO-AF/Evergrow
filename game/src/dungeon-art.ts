@@ -9,6 +9,8 @@ import type { DungeonRun } from './dungeon-state.ts';
 import { drawGlow } from './lighting.ts';
 import { cryptFixtures, cryptFlicker } from './dungeon-lighting.ts';
 import { cryptHash, cryptOutline } from './dungeon-contours.ts';
+import { isBlackrockTheme } from './dungeon2-content.ts';
+import { drawBlackrockGate, drawBlackrockFloorDecor, drawBlackrockEmission } from './dungeon2-art.ts';
 export function warden(c: CanvasRenderingContext2D, p: CharacterPose, color: Color) {
     const themed=p.dungeonTheme==='rime'||p.dungeonTheme==='astral';
     const baseColor=color;
@@ -65,6 +67,8 @@ export function drawCryptGate(c: CanvasRenderingContext2D, p: Pick<DungeonEntran
     // Receding steps ground every entrance; the portal silhouette stays distinct.
     for(let i=0;i<5;i++)poly([[-33-i*5,5+i*5],[33+i*5,5+i*5],[38+i*5,10+i*5],[-38-i*5,10+i*5]],i%2?'#56605c':'#353e3f');
     const stone=`rgb(${theme.stone.map(v=>v+35).join(',')})`;
+    if(id==='blackrock'){ drawBlackrockGate(c); }
+    else
     if(id==='foundry') {
         poly([[-66,7],[-66,-75],[-45,-108],[43,-108],[64,-75],[64,8]],'#393337');
         poly([[-47,5],[-47,-71],[-29,-88],[29,-88],[47,-71],[47,5]],'#967255');
@@ -145,6 +149,7 @@ export function drawCryptDecor(c: CanvasRenderingContext2D, f: DungeonFloor, run
             c.restore();
         }
     }
+    if (isBlackrockTheme(f.theme)) for (const r of f.rooms) { c.save(); drawBlackrockFloorDecor(c, r, f.seed); c.restore(); }
     drawDungeonProps(c,f,run,time);
     for (const p of cryptFixtures(f)) {
         const {x, y} = p;
@@ -216,4 +221,5 @@ export function drawCryptEmission(c: CanvasRenderingContext2D, f: DungeonFloor, 
             c.strokeStyle='#77dbe938'; c.lineWidth=1; c.beginPath(); c.ellipse(x,y+35,21+Math.sin(time+p.phase)*3,7,0,0,7); c.stroke();
         }
     }
+    if (isBlackrockTheme(f.theme)) drawBlackrockEmission(c, f, time, view);
 }

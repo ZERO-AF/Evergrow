@@ -28,7 +28,7 @@ test('navigator preserves aspect ratio and inverts clicks through letterboxing',
 });
 
 test('connectors do not run through unrelated node faces',()=>{
-  for(const edge of SKILL_TREE.edges){
+  for(const edge of SKILL_TREE.edges.filter(edge=>!edge.classGate)){
     const a=SKILL_NODES.get(edge.from)!,b=SKILL_NODES.get(edge.to)!;
     const c=edge.control??{x:(a.x+b.x)/2,y:(a.y+b.y)/2};
     const nearby=SKILL_TREE.nodes.filter(n=>n!==a&&n!==b

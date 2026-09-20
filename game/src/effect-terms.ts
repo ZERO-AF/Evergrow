@@ -64,7 +64,7 @@ export function spellweaveNodeMarkup(bonus: number, enabled: boolean): string {
 const STAT_TERMS: Record<string, string> = {
   spellweavePercent:'spellweave', spellweave:'spellweave', afterguardPercent:'afterguard', afterguard:'afterguard',
   fireDamage:'elemental', frostDamage:'elemental', lightningDamage:'elemental', areaPercent:'area', area:'area',
-  projectilePierce:'pierce', pierce:'pierce', lifeOnHit:'lifeOnHit', armor:'armor', armorReduction:'armor',
+  projectilePierce:'pierce', pierce:'pierce', lifeOnHit:'lifeOnHit', armor:'armor', armorPercent:'armor', armorReduction:'armor',
   blockChance:'block', blockReduction:'block', activeGuard:'block', attackSpeedPercent:'attackSpeed', attackSpeedMultiplier:'attackSpeed', attackSpeed:'attackSpeed',
   castSpeedPercent:'castSpeed', castSpeedMultiplier:'castSpeed', castSpeed:'castSpeed', potionPercent:'potion', potion:'potion', manaOnKill:'manaOnKill', measuredForce:'measuredForce',
 };

@@ -31,7 +31,8 @@ scope.onmessage = ({ data }) => {
             if (!decoded) throw new CloudSaveError();
             const record = decoded.character;
             return { ...info, summary: { name: record.name, level: record.checkpoint.level, updatedAt: record.updatedAt,
-              power: characterPower(previewCharacter(record)).power, gearPower: equippedGearPower(record.checkpoint.character) } };
+              power: characterPower(previewCharacter(record)).power, gearPower: equippedGearPower(record.checkpoint.character),
+              classId: record.checkpoint.character.classId, raceId: record.checkpoint.character.raceId } };
           } catch { return { ...info, invalid: true }; }
         });
       }

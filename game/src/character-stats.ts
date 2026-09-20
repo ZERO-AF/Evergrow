@@ -1,4 +1,5 @@
 import { admittedAuras, auraRank, resolveAura } from './aura-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { ATTRIBUTE_DAMAGE_BONUSES } from './attribute-content.ts';
 import { MANA_RULES, manaCostMultiplier } from './mana-content.ts';
 import { activeCharms } from './inventory-grid.ts';
@@ -9,7 +10,13 @@ import { PLAYER_DEFAULTS } from './combat-content.ts';
 import { scaleTreeDefenses, BORROWED_FLAME } from './skill-tree-balance.ts';
 import { armorReduction } from './progression-content.ts';
 import { EQUIPMENT_SLOTS, itemModifiers, itemDisplayName } from './items.ts';
+import { WOW_RACES } from './wow-races.ts';
 import type { Attribute, CharacterSheet, DerivedCharacterStats, StatKey, StatModifiers } from './character-types.ts';
+import type { WowBuff } from './model.ts';
+import { durabilityFactor } from './durability-state.ts';
+import { glyphStats } from './glyph-state.ts';
+import { setBonusSources } from './item-set-bonus.ts';
+import type { Player } from './model.ts';
 
 export const DEXTERITY_BONUSES = Object.freeze({ attackSpeedPercent: .25, critChance: .075 });
 
@@ -17,29 +24,43 @@ export const ATTRIBUTES: readonly Attribute[] = Object.freeze(['strength', 'dext
 const bounded = (value: number, min: number, max: number) => Math.max(min, Math.min(max, Number.isNaN(value) ? min : value));
 
 /** Named sources shared by stat derivation and the character-sheet explanation. */
-export function characterModifierSources(sheet: CharacterSheet, treeBonuses: StatModifiers = {}, level = Infinity): Array<{ label: string; modifiers: StatModifiers }> {
+export function characterModifierSources(sheet: CharacterSheet, treeBonuses: StatModifiers = {}, level = Infinity, buffs?: readonly WowBuff[], player?: Pick<Player, 'durability' | 'glyphs' | 'level'>): Array<{ label: string; modifiers: StatModifiers }> {
   const sources = EQUIPMENT_SLOTS.flatMap(slot => {
     const item = sheet.equipped[slot];
-    return item ? [{ label: `${itemDisplayName(item)} (${slot === 'weapon' ? 'main hand' : slot === 'offhand' ? 'off hand' : slot === 'ring1' ? 'ring I' : slot === 'ring2' ? 'ring II' : slot})`, modifiers: itemModifiers(item) }] : [];
+    if (!item) return [];
+    const factor = player ? durabilityFactor(player.durability, slot) : 1;
+    const modifiers = itemModifiers(item);
+    return [{ label: `${itemDisplayName(item)} (${slot === 'weapon' ? 'main hand' : slot === 'offhand' ? 'off hand' : slot === 'ring1' ? 'ring I' : slot === 'ring2' ? 'ring II' : slot})`,
+      modifiers: factor >= 1 ? modifiers : Object.fromEntries(Object.entries(modifiers).map(([key, value]) => [key, value * factor])) }];
   });
   sources.push(...activeCharms(sheet,level).map(item=>({label:`${itemDisplayName(item)} (charm)`,modifiers:itemModifiers(item)})));
+  const race = sheet.raceId ? WOW_RACES[sheet.raceId] : undefined;
+  if (race) sources.push({ label: `${race.name} racial`, modifiers: race.passives });
   sources.push({ label: 'Skill tree', modifiers: scaleTreeDefenses(treeBonuses, Number.isFinite(level) ? level : 1) });
+  if (player) {
+    const glyphs = glyphStats(player);
+    if (Object.keys(glyphs).length) sources.push({ label: 'Glyphs', modifiers: glyphs });
+  }
+  if (GAME_FEATURES.itemSets) sources.push(...setBonusSources(sheet.equipped, player?.durability));
   const blessing = sheet.blessing?.remaining ? sheet.blessing.kind : null;
   if (blessing === 'haste') sources.push({ label: 'Haste blessing', modifiers: { attackSpeedPercent: 15, castSpeedPercent: 15 } });
   if (blessing === 'wellspring') sources.push({ label: 'Wellspring blessing', modifiers: { manaCostPercent: 20 } });
   if (blessing === 'fleet') sources.push({ label: 'Fleet blessing', modifiers: { moveSpeedPercent: 15 } });
+  // Live combat buffs (aspects, seals, forms, shouts) fold into derived stats so
+  // damage/armor/speed actually move; absent on sheet-level derivations.
+  for (const buff of buffs ?? []) if (buff.remaining > 0 && buff.stats) sources.push({ label: buff.name, modifiers: buff.stats });
   return sources;
 }
 
 /** All item, attribute and node bonuses converge here. Percent bonuses are percentage points. */
-export function deriveCharacterStats(sheet: CharacterSheet, treeBonuses: StatModifiers = {}, level = 1): DerivedCharacterStats {
+export function deriveCharacterStats(sheet: CharacterSheet, treeBonuses: StatModifiers = {}, level = 1, buffs?: readonly WowBuff[], player?: Pick<Player, 'durability' | 'glyphs' | 'level'>): DerivedCharacterStats {
   const modifiers: StatModifiers = {};
   const add = (source: StatModifiers) => {
     for (const [key, value] of Object.entries(source) as [StatKey, number][]) {
       if (Number.isFinite(value)) modifiers[key] = bounded((modifiers[key] ?? 0) + value, -1e9, 1e9);
     }
   };
-  for (const source of characterModifierSources(sheet, treeBonuses, level)) add(source.modifiers);
+  for (const source of characterModifierSources(sheet, treeBonuses, level, buffs, player)) add(source.modifiers);
   const blessing = sheet.blessing?.remaining ? sheet.blessing.kind : null;
   const value = (key: StatKey) => modifiers[key] ?? 0;
   const attributes = Object.fromEntries(ATTRIBUTES.map(key => [key,
@@ -47,7 +68,7 @@ export function deriveCharacterStats(sheet: CharacterSheet, treeBonuses: StatMod
   const strength = Math.max(0, attributes.strength - 10), dexterity = Math.max(0, attributes.dexterity - 10);
   const intelligence = Math.max(0, attributes.intelligence - 10), vitality = Math.max(0, attributes.vitality - 10);
   const ironroot=admittedAuras(sheet).includes('ironroot')?resolveAura('ironroot',auraRank(sheet,'ironroot')).power:0;
-  const armor = bounded(value('armor') * (blessing === 'bulwark' ? 1.4 : 1) * (1+ironroot/100), 0, 1e9);
+  const armor = bounded(value('armor') * (1 + value('armorPercent') / 100) * (blessing === 'bulwark' ? 1.4 : 1) * (1+ironroot/100), 0, 1e9);
   const offhand = sheet.equipped.offhand;
   const shield = sheet.equipped.weapon?.weapon?.hands !== 2 && offhand?.kind === 'shield' ? offhand.shield : undefined;
   const owned=new Set(sheet.allocatedNodes);
@@ -67,7 +88,7 @@ export function deriveCharacterStats(sheet: CharacterSheet, treeBonuses: StatMod
     spellweavePercent: bounded(value('spellweavePercent'), 0, 100), afterguardPercent: bounded(value('afterguardPercent'), 0, 100),
     skillBonuses: Object.fromEntries((Object.keys(SKILL_STATS) as SkillStat[]).filter(key => value(key) > 0)
       .map(key => [key.slice(6), Math.floor(bounded(value(key), 0, AFFIX_COMBAT_RULES.maxBonusRanks))])),
-    maxHp: Math.round(bounded(PLAYER_DEFAULTS.maxHp + vitality * 6 + value('maxHp'), 1, 1e9)),
+    maxHp: Math.round(bounded((PLAYER_DEFAULTS.maxHp + vitality * 6 + value('maxHp')) * (1 + value('maxHpPercent') / 100), 1, 1e9)),
     maxMana: Math.round(bounded(PLAYER_DEFAULTS.maxMana + intelligence * MANA_RULES.perIntelligence + value('maxMana'), 1, 1e9)),
     attackDamageMultiplier: open * (borrowed ? BORROWED_FLAME.baselineMultiplier : 1) * bounded(1 + (strength * ATTRIBUTE_DAMAGE_BONUSES.strength + value('damagePercent')) / 100, .1, 1e6),
     castSpeedMultiplier: bounded(1 + value('castSpeedPercent') / 100, .25, 6),

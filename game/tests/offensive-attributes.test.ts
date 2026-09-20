@@ -12,7 +12,7 @@ function rolledHead(level:number, stat:'intelligence'|'strength'|'spellDamagePer
 }
 
 test('allocated, equipment, charm and tree attributes share the reduced conversion in combat',()=>{
-  const sheet=createCharacterSheet();sheet.equipped.weapon=null;sheet.inventory.fill(null);
+  const sheet=createCharacterSheet('mage','undead');sheet.equipped.weapon=null;sheet.inventory.fill(null);
   sheet.attributes.strength+=20;sheet.attributes.intelligence+=20;
   const ring=generateItem(8,35,'ring','moonstone-ring','rare');
   ring.implicit={};ring.affixes=[{name:'Might',stat:'strength',value:10},{name:'Insight',stat:'intelligence',value:10}];sheet.equipped.ring1=ring;
@@ -21,7 +21,7 @@ test('allocated, equipment, charm and tree attributes share the reduced conversi
   const stats=deriveCharacterStats(sheet,{strength:5,intelligence:5,damagePercent:20,spellDamagePercent:30},35);
   assert.equal(stats.attackDamageMultiplier,1.725);
   assert.equal(stats.spellDamageMultiplier,1.885);
-  assert.equal(stats.maxMana,178);assert.equal(stats.manaRegeneration,1);
+  assert.equal(stats.maxMana,178);assert.equal(stats.manaRegeneration,2.5);
 });
 
 test('midgame offensive rolls taper while dedicated damage and Vitality keep their budgets',()=>{

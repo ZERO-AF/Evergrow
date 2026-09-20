@@ -28,6 +28,7 @@ export function validItem(v: unknown): v is Item {
     || !text(v.baseName) || !oneOf(v.kind, ITEM_KINDS) || !Object.hasOwn(TIER_NAMES, String(v.tier))
     || !integer(v.itemLevel, 1, MAX_CONTENT_LEVEL) || !integer(v.requiredLevel, 1, MAX_CONTENT_LEVEL)
     || !number(v.power) || !modifiers(v.implicit) || !Array.isArray(v.affixes) || v.affixes.length > 12
+    || (v.stack !== undefined && !integer(v.stack, 1, 20))
     || !v.affixes.every(a => object(a) && text(a.name) && Object.hasOwn(STAT_LABELS, String(a.stat)) && number(a.value, -1e9, 1e9))) return false;
   const r = v.recipe;
   if (!object(r) || typeof r.starter !== 'boolean' || !integer(r.enhancement, 0, 10) || !integer(r.revision)

@@ -1,4 +1,5 @@
 import { dungeonTheme } from './dungeon-content.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { encounterRewardLevel } from './encounter-scaling.ts';
 import { eventRecipe } from './event-recipes.ts';
 import type { DungeonEntrance } from './dungeon.ts';
@@ -28,6 +29,7 @@ export class EventPanel {
     this.element.className = 'event-panel';
     this.element.hidden = true;
     mount.append(this.element);
+    attachPanelFrame(this.element, 'event');
     this.element.addEventListener('click', event => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (!button)

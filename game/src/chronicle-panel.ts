@@ -1,4 +1,5 @@
 import { uniquePowerMarkup } from './unique-power-ui.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { uniqueCollection } from './unique-collection.ts';
 import { generateUnique, STAT_LABELS } from './items.ts';
 import { SKILL_DEFINITIONS } from './skill-content.ts';
@@ -39,6 +40,7 @@ export class ChroniclePanel {
  constructor(mount:HTMLElement,onClose:()=>void,embedded=false) {
   this.onClose=onClose;this.embedded=embedded;
   this.element=document.createElement('div');this.element.className='chronicle-overlay'+(embedded?' home-embedded':'');this.element.hidden=true;mount.append(this.element);
+    attachPanelFrame(this.element, 'chronicle');
   this.tooltip=new RetainedTooltip(embedded?(mount.parentElement??mount):this.element,`chronicle-tooltip-${++nextTooltipId}`,'chronicle-tooltip');
   this.element.addEventListener('click',e=>{const anchor=(e.target as HTMLElement).closest<HTMLElement>('[data-achievement],[data-stat-help],[data-unique]');if(anchor)this.explain(anchor);else if(!(e.target as Element).closest('.ui-term,.ui-explanation'))this.hideTooltip();
    const b=(e.target as HTMLElement).closest<HTMLButtonElement>('button');if(e.target===this.element||b?.hasAttribute('data-close'))this.close();else if(b?.dataset.tab!==undefined){this.tab=Number(b.dataset.tab);this.render();this.element.querySelector<HTMLElement>(`[data-tab="${this.tab}"]`)?.focus();}else if(b?.dataset.uniqueFilter){this.uniqueFilter=b.dataset.uniqueFilter;this.render();this.element.querySelector<HTMLElement>(`[data-unique-filter="${this.uniqueFilter}"]`)?.focus();}else if(b?.dataset.group){this.group=b.dataset.group;this.render();this.element.querySelector<HTMLElement>(`[data-group="${this.group}"]`)?.focus();}},{signal:this.life.signal});

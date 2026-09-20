@@ -1,7 +1,7 @@
 import type { CombatEvent, ProjectileStyle } from './model.ts';
 import type { PointLight } from './lighting.ts';
 import { drawGlow } from './lighting.ts';
-import { line, polygon, type Point } from './art-primitives.ts';
+import { line, mixColor, polygon, type Point } from './art-primitives.ts';
 import { PROJECTILE_COLORS } from './projectile-art.ts';
 
 interface Area {
@@ -75,14 +75,15 @@ export class SkillEffects {
         c.globalAlpha = life; polygon(c, [[x-3,y],[x,y-6],[x+3,y],[x,y+3]], '#ddffeb');
         continue;
       }
+      const bolt = link.style === 'arrow' ? link.color : PROJECTILE_COLORS[link.style];
       c.globalAlpha = life * .35;
-      line(c, link.points, link.color, link.style === 'arrow' ? 3 : 8);
+      line(c, link.points, bolt, link.style === 'arrow' ? 3 : 8);
       c.globalAlpha = life;
-      line(c, link.points, link.color, link.style === 'arrow' ? 1.2 : 2.8);
+      line(c, link.points, bolt, link.style === 'arrow' ? 1.2 : 2.8);
       line(c, link.points, '#edfbff', .9);
       if (link.style !== 'arrow') for (let i = 2; i < link.points.length - 1; i += 3) {
         const point = link.points[i], sign = i % 2 ? -1 : 1;
-        line(c, [point, [point[0] + sign * 6, point[1] - 9], [point[0] + sign * 2, point[1] - 18]], link.color, .7);
+        line(c, [point, [point[0] + sign * 6, point[1] - 9], [point[0] + sign * 2, point[1] - 18]], bolt, .7);
       }
     }
     c.restore();
@@ -90,23 +91,26 @@ export class SkillEffects {
 
   private drawStrike(c: CanvasRenderingContext2D, s: Extract<CombatEvent, { type: 'skill-strike' }> & { life: number }, reduced: boolean): void {
     const life = s.life / .35;
+    const color = s.color ?? PROJECTILE_COLORS[s.style ?? 'arcane'];
+    const arc = Number.isFinite(s.arc) ? s.arc : Math.PI / 2;
     c.save(); c.translate(s.x, s.y - 14); c.rotate(s.angle);
-    if (s.skill === 'shieldBash' || s.skill === 'repulse') {
+    if (arc > Math.PI * .5) {
       const radius = s.range * (reduced ? 1 : .9 + (1 - life) * .1);
       c.globalAlpha = life * .25;
-      c.fillStyle = '#a4e0da'; c.beginPath(); c.moveTo(0,0); c.arc(0,0,radius,-s.arc/2,s.arc/2); c.closePath(); c.fill();
-      c.globalAlpha = life; c.strokeStyle = '#dbf7e9'; c.lineWidth = 2.5;
-      c.beginPath(); c.arc(0,0,radius,-s.arc/2,s.arc/2); c.stroke();
-      polygon(c, [[20,-12],[31,-8],[30,8],[20,16],[13,7],[13,-8]], '#c5dacc');
+      c.fillStyle = color; c.beginPath(); c.moveTo(0,0); c.arc(0,0,radius,-arc/2,arc/2); c.closePath(); c.fill();
+      c.globalAlpha = life; c.strokeStyle = mixColor(color, '#ffffff', .55); c.lineWidth = 2.5;
+      c.beginPath(); c.arc(0,0,radius,-arc/2,arc/2); c.stroke();
+      if (s.skill === 'shieldBash' || s.skill === 'repulse')
+        polygon(c, [[20,-12],[31,-8],[30,8],[20,16],[13,7],[13,-8]], '#c5dacc');
     } else {
-      const width = s.rear ? 9 : 5;
+      const width = (s.rear ? 9 : 5) * Math.max(.35, Math.min(1, arc / (Math.PI / 2)));
       c.globalAlpha = life * .55;
-      polygon(c, [[5,-width],[s.range*.65,-width*.5],[s.range,0],[s.range*.65,width*.5],[5,width]], s.rear ? '#ffc6ed' : '#b7e3d1');
+      polygon(c, [[5,-width],[s.range*.65,-width*.5],[s.range,0],[s.range*.65,width*.5],[5,width]], s.rear ? mixColor(color, '#ffc6ed', .55) : color);
       c.globalAlpha = life; line(c, [[8,0],[s.range,0]], '#f0ffdf', 1.6);
-      if (s.rear) {
-        c.translate(s.range,0); c.rotate(-s.angle); c.globalAlpha = life;
-        line(c, [[-9,-9],[9,9]], '#fff0cc', 2); line(c, [[-9,9],[9,-9]], '#ffcae6', 2);
-      }
+    }
+    if (s.rear) {
+      c.translate(s.range,0); c.rotate(-s.angle); c.globalAlpha = life;
+      line(c, [[-9,-9],[9,9]], '#fff0cc', 2); line(c, [[-9,9],[9,-9]], '#ffcae6', 2);
     }
     c.restore();
   }
@@ -154,10 +158,10 @@ export class SkillEffects {
         polygon(c, [[x - 10 * life, y], [x - 7, y - height * .5], [x + 3, y - height], [x + 12 * life, y]], i % 2 ? '#ff853d' : '#ffce79');
       }
     }
-    const radius = area.radius * (reducedMotion ? 1 : 1 - Math.pow(life, 3));
+    const radius = area.radius * (reducedMotion ? 1 : 1 - Math.pow(life, 3)), school = PROJECTILE_COLORS[area.style];
     c.globalCompositeOperation = 'lighter';
     drawGlow(c, 0, -8, area.radius * .85, area.color, life * .8);
-    c.globalAlpha = life * .65; c.strokeStyle = area.color;
+    c.globalAlpha = life * .65; c.strokeStyle = school;
     c.lineWidth = 1 + life * (area.style === 'fire' ? 8 : 3);
     c.beginPath(); c.ellipse(0, -5, radius, radius * .7, 0, 0, TAU); c.stroke();
     if (area.style === 'fire') {
@@ -183,7 +187,7 @@ export class SkillEffects {
         c.globalAlpha = life * .8;
         line(c, [[Math.cos(angle) * inner, Math.sin(angle) * inner * .7 - 5],
           [Math.cos(angle + .08) * radius * .82, Math.sin(angle + .08) * radius * .82 * .7 - 5],
-          [Math.cos(angle) * radius, Math.sin(angle) * radius * .7 - 5]], area.color, 1.2);
+          [Math.cos(angle) * radius, Math.sin(angle) * radius * .7 - 5]], school, 1.2);
       }
     }
     c.restore();

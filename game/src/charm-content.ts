@@ -33,7 +33,7 @@ export const CHARM_UTILITY_AFFIXES: readonly AffixDefinition[] = Object.freeze([
   {name:'Wisdom',stat:'xpGainPercent',base:5,growth:.1,weight:1.4},
 ].map(value=>Object.freeze(value)) as AffixDefinition[]);
 export const CHARM_WEIGHTS: Partial<Record<StatKey,number>> = Object.freeze({
-  fireResistance:2,frostResistance:2,lightningResistance:2,arcaneResistance:2,allResistance:.65,
+  fireResistance:2,frostResistance:2,lightningResistance:2,arcaneResistance:2,holyResistance:2,shadowResistance:2,natureResistance:2,allResistance:.65,
   goldFindPercent:2,xpGainPercent:1.4,attackSpeedPercent:1.5,castSpeedPercent:1.5,maxHp:2,maxMana:2,
   manaRegen:1.2,lifeRegen:1.2,moveSpeedPercent:.6,manaCostPercent:.6,cooldownPercent:.4,
   vitality:.5,intelligence:.5,strength:.3,dexterity:.5,critChance:.3,critDamage:.3,damagePercent:.3,spellDamagePercent:.3,

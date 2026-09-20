@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Simulation, FIXED_STEP } from '../src/simulation.ts';
+import { FIXED_STEP } from '../src/simulation.ts';
 import type { CombatEvent, Input, Projectile } from '../src/model.ts';
 import type { SkillId } from '../src/character-types.ts';
 import { SKILL_DEFINITIONS } from '../src/skill-content.ts';
@@ -21,12 +21,12 @@ import { enemyDebuffs } from '../src/enemy-debuffs.ts';
 import { previewSkillVariant } from '../src/skill-variant-preview.ts';
 import { skillSustain } from '../src/skill-sustain.ts';
 import { skillSoundFamily } from '../src/skill-audio-content.ts';
-
+import { createWowSim } from './fixtures/wow-sim.ts';
 const world = { blocked: () => false, move: (x: number,y: number,dx: number,dy: number) => ({x:x+dx,y:y+dy}) };
 const input: Input = {moveX:0,moveY:0,aimX:100,aimY:0,attack:false,dodge:false,heal:false,skillSlot:null};
 const close = (a: number,b: number) => assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 function setup(id: SkillId, variant?: string) {
-  const sim = new Simulation(world,{spawn:false});
+  const sim = createWowSim('mage', 'undead', world);
   sim.setCombatViewport({x:-500,y:-400,width:1000,height:800});
   const p=sim.player, requirement=SKILL_DEFINITIONS[id].requirement;
   const family=requirement==='magic'?'staff':requirement==='bow'?'bow':requirement==='heavy'?'axe':requirement==='dagger'?'dagger':'sword';

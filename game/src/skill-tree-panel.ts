@@ -1,4 +1,5 @@
 import { controls } from './control-preferences.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { SKILL_ACTIONS } from './control-bindings.ts';
 import { skillMechanicFacts } from './skill-mechanic-facts.ts';
 import { nodeDescription, nodeMechanicDetails } from './skill-node-explanation.ts';
@@ -18,7 +19,7 @@ import { TooltipMotion } from './ui-tooltip-motion.ts';
 import { tooltipTargetHeld } from './ui-tooltip.ts';
 import { skillDamageSuffix, skillUtilityLabel } from './skill-execution-content.ts';
 import type { Player } from './model.ts';
-import type { SkillId, StatKey } from './character-types.ts';
+import type { CharacterSheet, SkillId, StatKey } from './character-types.ts';
 import { SKILL_DEFINITIONS, canUseSkill, skillRequirementLabel } from './skill-content.ts';
 import { skillIconSVG } from './skill-icon.ts';
 import { SKILL_TREE, SKILL_NODES, SKILL_TREE_ORIGIN, unlockedSkills, type SkillNode } from './skill-tree.ts';
@@ -30,9 +31,11 @@ import { STAT_LABELS, formatStatValue } from './items.ts';
 import { atlasNavigatorProjection, boundsForNodes, fitAtlasBounds } from './skill-tree-view.ts';
 import { searchSkillAtlas, groupAtlasSearchMatches, type AtlasSearchMatch } from './skill-tree-search.ts';
 import { ATLAS_SEARCH_COLOR } from './skill-tree-search-art.ts';
+import { activeSpecIndex, dualSpecEnabled, dualSpecUnlocked, specUnspentPoints, DUAL_SPEC_COST, DUAL_SPEC_LEVEL, SPEC_NAME_MAX, type DualSpecSheet, type TalentSpec } from './dual-spec-state.ts';
+import { formatWalletCompact } from './currency.ts';
 import './skill-tree-panel.css';
 
-interface SkillTreeActions { develop(command: CharacterCommand): void; close(): void; allocate(id: string): void; assign(slot: number, skill: SkillId | null): void; }
+interface SkillTreeActions { develop(command: CharacterCommand): void; close(): void; allocate(id: string): void; assign(slot: number, skill: SkillId | null): void; specView?(index: number): void; swapSpec?(): void; unlockSpec?(): void; renameSpec?(index: number, name: string): void; }
 const COLORS = SKILL_DOMAIN_COLORS;
 
 /** Cached native-resolution atlas with a bounded 30 Hz light pass. Simulation owns allocations. */
@@ -86,6 +89,9 @@ export class SkillTreePanel {
   private readonly controller = new GamepadMenu();
   private controllerSection = 0;
   private controllerTime = 0;
+  private specView = 0;
+  private specStrip: HTMLElement;
+  private renamingSpec = -1;
 
   constructor(mount: HTMLElement, actions: SkillTreeActions) {
     this.actions = actions;
@@ -96,6 +102,7 @@ export class SkillTreePanel {
     this.root.hidden = true;
     this.root.innerHTML = `<section class="ui-window skill-atlas-window" role="dialog" aria-modal="true" aria-labelledby="skill-atlas-title">
       <header class="ui-window-header skill-atlas-header"><h2 class="ui-title" id="skill-atlas-title">Atlas of Becoming</h2>
+        <div class="skill-atlas-specs" role="tablist" aria-label="Talent specializations"></div>
         <div class="skill-atlas-points" aria-live="polite"></div><button class="ui-button ui-button--quiet ui-button--icon" data-tree="close" aria-label="Close skill tree">${uiIcon('close')}</button></header>
       <nav class="skill-atlas-controller" aria-label="Controller sections"><kbd>LB</kbd><span data-pad-section="0">Tree</span><span data-pad-section="1">Node</span><span data-pad-section="2">Skills</span><kbd>RB</kbd><small data-pad-help></small></nav>
       <div class="skill-atlas-main"><section class="skill-atlas-chart" aria-label="Skill atlas navigation">
@@ -114,6 +121,7 @@ export class SkillTreePanel {
       <footer class="ui-window-footer skill-atlas-footer"><span><b>${SKILL_TREE.nodes.length.toLocaleString('en-US')}</b> nodes <i>·</i> <b>${SKILL_TREE.clusters.length}</b> clusters <i>·</i> <b>${Object.keys(SKILL_DEFINITIONS).length}</b> skills</span><span>One skill point per level</span></footer>
     </section>`;
     mount.append(this.root);
+    attachPanelFrame(this.root, 'skills');
     this.canvas = this.root.querySelector('canvas')!;
     this.navigator = this.root.querySelector('.skill-atlas-navigator canvas')!;
     this.tooltip = this.root.querySelector('.skill-atlas-tooltip')!;
@@ -123,6 +131,7 @@ export class SkillTreePanel {
     this.detail = this.root.querySelector('.skill-atlas-inspection')!;
     this.search = this.root.querySelector('input')!;
     this.searchSummary = this.root.querySelector('.skill-atlas-search-summary')!;
+    this.specStrip = this.root.querySelector('.skill-atlas-specs')!;
     this.points = this.root.querySelector('.skill-atlas-points')!;
     this.assignments = this.root.querySelector('.skill-atlas-assignments')!;
     this.zoomLabel = this.root.querySelector('output')!;
@@ -194,6 +203,29 @@ export class SkillTreePanel {
       const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.height : 1);
       this.setZoom(this.zoom * Math.exp(-Math.max(-250, Math.min(250, delta)) * .0015), event.clientX - rect.left, event.clientY - rect.top);
     }, { ...opts, passive: false });
+    this.specStrip.addEventListener('dblclick', event => {
+      const tab = (event.target as Element).closest<HTMLElement>('[data-spec]');
+      if (!tab || tab.dataset.spec === 'unlock' || tab.dataset.spec === 'swap') return;
+      this.renamingSpec = Number(tab.dataset.spec); this.updateSpecStrip();
+      this.specStrip.querySelector<HTMLInputElement>('.skill-spec-rename')?.select();
+    }, opts);
+    const commitRename = (input: HTMLInputElement) => {
+      const index = Number(input.dataset.specRename);
+      const name = input.value.trim();
+      this.renamingSpec = -1;
+      if (name) this.actions.renameSpec?.(index, name); else this.updateSpecStrip();
+    };
+    this.specStrip.addEventListener('keydown', event => {
+      const input = event.target as HTMLInputElement;
+      if (!input.classList.contains('skill-spec-rename')) return;
+      if (event.key === 'Enter') { event.preventDefault(); commitRename(input); }
+      else if (event.key === 'Escape') { this.renamingSpec = -1; this.updateSpecStrip(); }
+      event.stopPropagation();
+    }, opts);
+    this.specStrip.addEventListener('focusout', event => {
+      const input = event.target as HTMLInputElement;
+      if (input.classList.contains('skill-spec-rename') && this.renamingSpec >= 0) commitRename(input);
+    }, opts);
     this.canvas.addEventListener('keydown', event => this.key(event), opts);
     const navigate = (event:PointerEvent) => {
       this.cancelSearchFit();
@@ -219,10 +251,26 @@ export class SkillTreePanel {
 
   open(player: Player): void {
     const firstOpen = !this.player;
+    this.specView = activeSpecIndex(player.character as DualSpecSheet); this.renamingSpec = -1;
     this.shown = true; this.root.hidden = false; this.refresh(player); this.resize();
     if (firstOpen) this.showOrigin();
+    this.frameClassSanctum();
     this.focus?.dispose();
     this.focus = trapDialogFocus(this.root, { signal: this.life.signal, initialFocus: this.canvas, restoreFocus: false });
+  }
+  /** If the player's class sanctum sits outside the opening view, nudge the camera until its edge shows. */
+  private frameClassSanctum(): void {
+    const sanctum = SKILL_TREE.clusters.find(cluster => cluster.classId === this.player?.character.classId);
+    if (!sanctum) return;
+    const halfW = this.width / 2 / this.zoom, halfH = this.height / 2 / this.zoom;
+    const margin = sanctum.radius + 60;
+    const dx = sanctum.x - this.centerX, dy = sanctum.y - this.centerY;
+    const shiftX = Math.max(0, Math.abs(dx) + margin - halfW), shiftY = Math.max(0, Math.abs(dy) + margin - halfH);
+    if (!shiftX && !shiftY) return;
+    this.fitMode = null;
+    this.centerX += Math.sign(dx) * Math.min(shiftX, Math.abs(dx));
+    this.centerY += Math.sign(dy) * Math.min(shiftY, Math.abs(dy));
+    this.clampCenter(); this.invalidate();
   }
   refresh(player: Player): void {
     const active = this.root.ownerDocument.activeElement;
@@ -231,16 +279,51 @@ export class SkillTreePanel {
         const value = active.getAttribute(attribute);
         return value === null ? [] : [{ attribute, value }];
       })[0] : undefined;
-    this.player = player; this.allocated = new Set(player.character.allocatedNodes); this.reachable.clear();
-    for (const id of this.allocated) for (const neighbor of SKILL_NODES.get(id)?.neighbors ?? []) if (!this.allocated.has(neighbor)) this.reachable.add(neighbor);
-    this.routes = buildSkillRoutes(this.allocated);
-    this.points.innerHTML = `<strong>${player.character.skillPoints}</strong><span>SKILL ${player.character.skillPoints === 1 ? 'POINT' : 'POINTS'}</span>`;
-    this.updateDetail(); this.updateAssignments(); this.updateSearch(); this.invalidate();
+    this.player = player;
+    const sheet = this.viewedSheet();
+    this.allocated = new Set(sheet.allocatedNodes); this.reachable.clear();
+    for (const id of this.allocated) for (const neighbor of SKILL_NODES.get(id)?.neighbors ?? []) { const n = SKILL_NODES.get(neighbor); if (!this.allocated.has(neighbor) && (!n?.classId || n.classId === sheet.classId)) this.reachable.add(neighbor); }
+    this.routes = buildSkillRoutes(this.allocated, sheet.classId);
+    this.points.innerHTML = `<strong>${sheet.skillPoints}</strong><span>SKILL ${sheet.skillPoints === 1 ? 'POINT' : 'POINTS'}</span>`;
+    this.updateSpecStrip(); this.updateDetail(); this.updateAssignments(); this.updateSearch(); this.invalidate();
     if (this.shown && focusedControl) {
       const replacement = [...this.root.querySelectorAll<HTMLButtonElement>(`[${focusedControl.attribute}]`)]
         .find(button => button.getAttribute(focusedControl.attribute) === focusedControl.value && !button.disabled);
       (replacement ?? this.canvas).focus({ preventScroll: true });
     }
+  }
+  /** Sheet view for the selected spec tab: live sheet for the active spec, the
+   * stored build merged over it for a dormant preview. */
+  private viewedSheet(): CharacterSheet {
+    const sheet = this.player!.character as DualSpecSheet;
+    const spec = sheet.specs?.[this.specView];
+    if (!spec || this.specView === activeSpecIndex(sheet)) return sheet;
+    return { ...sheet, allocatedNodes: spec.allocatedNodes, skillSlots: spec.skillSlots,
+      skillRanks: spec.skillRanks, activeSkillRanks: spec.activeSkillRanks,
+      skillSpecializations: spec.skillSpecializations, arcaneOverload: spec.arcaneOverload,
+      skillPoints: specUnspentPoints(spec, this.player!.level) };
+  }
+  private get dormantSpec(): boolean {
+    const sheet = this.player?.character as DualSpecSheet | undefined;
+    return !!sheet?.specs?.length && this.specView !== activeSpecIndex(sheet);
+  }
+  private updateSpecStrip(): void {
+    const sheet = this.player?.character as DualSpecSheet | undefined;
+    if (!sheet || !dualSpecEnabled()) { this.specStrip.innerHTML = ''; this.specStrip.hidden = true; return; }
+    this.specStrip.hidden = false;
+    const active = activeSpecIndex(sheet);
+    if (!dualSpecUnlocked(sheet)) {
+      const affordable = this.player!.level >= DUAL_SPEC_LEVEL;
+      this.specStrip.innerHTML = `<button class="ui-button ui-button--quiet skill-spec-unlock" data-spec="unlock" ${affordable ? '' : 'disabled'}
+        title="Level ${DUAL_SPEC_LEVEL} · ${formatWalletCompact(DUAL_SPEC_COST)}">Learn Dual Spec <small>${formatWalletCompact(DUAL_SPEC_COST)}</small></button>`;
+      return;
+    }
+    this.specStrip.innerHTML = sheet.specs!.map((spec: TalentSpec, i: number) =>
+      this.renamingSpec === i
+        ? `<input class="skill-spec-rename" data-spec-rename="${i}" maxlength="${SPEC_NAME_MAX}" value="${escapeUI(spec.name)}" aria-label="Rename ${escapeUI(spec.name)}">`
+        : `<button class="ui-button ui-button--quiet skill-spec-tab${i === this.specView ? ' is-viewing' : ''}${i === active ? ' is-active' : ''}" role="tab" aria-selected="${i === this.specView}"
+            data-spec="${i}" title="${i === active ? 'Active build' : 'Preview build'} — double-click to rename">${escapeUI(spec.name)}${i === active ? ' <small>active</small>' : ''}</button>`).join('')
+      + (this.dormantSpec ? `<button class="ui-button ui-button--primary skill-spec-swap" data-spec="swap">Activate ${escapeUI(sheet.specs![this.specView]?.name ?? 'spec')}</button>` : '');
   }
   updateGamepad(pad: GamepadInput, now: number): void {
     if (!this.shown) return;
@@ -299,6 +382,12 @@ export class SkillTreePanel {
   }
   private click(event: MouseEvent): void {
     const button = (event.target as Element).closest<HTMLButtonElement>('button'); if (!button) return;
+    if (button.dataset.spec !== undefined) {
+      if (button.dataset.spec === 'unlock') this.actions.unlockSpec?.();
+      else if (button.dataset.spec === 'swap') this.actions.swapSpec?.();
+      else { this.specView = Number(button.dataset.spec); this.renamingSpec = -1; this.actions.specView?.(this.specView); this.refresh(this.player!); }
+      return;
+    }
     if (button.dataset.slot) {
       const index = Number(button.dataset.slot) - 1, node = SKILL_NODES.get(this.selected)!;
       if (node.skill && this.allocated.has(node.id)) this.actions.assign(index, node.skill);
@@ -383,7 +472,8 @@ export class SkillTreePanel {
     if (!this.player) return;
     const node = SKILL_NODES.get(this.hovered ?? this.selected)!, owned = this.allocated.has(node.id), reachable = this.reachable.has(node.id);
     const skill = node.skill ? SKILL_DEFINITIONS[node.skill] : undefined;
-    const costs = skill ? resolveSkill(skill.id, this.player.derived, this.player.character) : undefined;
+    const sheet = this.viewedSheet(), dormant = this.dormantSpec;
+    const costs = skill ? resolveSkill(skill.id, this.player.derived, sheet) : undefined;
     const heading = skillNodeRole(node), owner = skillNodeOwner(node);
     const routeCost = this.routes.get(node.id)?.cost;
     const cluster = SKILL_TREE.clusters.find(cluster => cluster.id === node.cluster);
@@ -395,12 +485,12 @@ export class SkillTreePanel {
       ${skill && costs?.damageMultiplier && skillMechanicFacts(skill.id,costs.recipe) ? `<details class="skill-effect-values"><summary>Effect values</summary><p>${effectText(skillMechanicFacts(skill.id,costs.recipe))}</p></details>` : ''}
       ${skill ? `<p class="skill-atlas-requirement ${canUseSkill(skill.id, this.player.equipment) ? 'is-ready' : ''}">Requires ${escapeUI(skillRequirementLabel(skill.requirement))}</p><div class="skill-atlas-skill-costs">${owned ? `<span class="skill-casting-rank">${costs!.reservation?'Active rank':'Casting rank'} ${costs!.rank}</span>` : ''}<span><b>${costs!.reservation?`${costs!.reservation}%`:costs!.mana}</b> ${costs!.reservation?'mana reserved':'mana'}</span><span>${costs!.reservation?'Auto active on skill bar':costs!.cooldown ? `<b>${Number(costs!.cooldown.toFixed(2))}s</b> cooldown` : 'No cooldown'}</span>${skill.damageMultiplier ? `<span><b>${Math.round(costs!.damageMultiplier * 100)}%</b> damage${skillDamageSuffix(skill.id, costs!.recipe)}</span>` : `<span>${costs!.recipe.kind === 'guard' ? `${costs!.recipe.duration}s · ${Math.round(costs!.recipe.reduction*100)}% block` : skillUtilityLabel(skill.id, costs!.recipe)}</span>`}${skill.damageMultiplier&&skillUtilityLabel(skill.id,costs!.recipe)?`<span>${skillUtilityLabel(skill.id,costs!.recipe)}</span>`:''}${costs!.upkeep ? `<span><b>${costs!.upkeep}</b> mana / second</span>` : ''}</div>` : ''}
       <div class="skill-atlas-allocation"><span class="skill-atlas-node-state ${owned ? 'is-owned' : ''}">${owned ? '◆ Allocated' : reachable ? '◇ Connected to your path' : routeCost !== undefined ? `◇ ${routeCost} ${routeCost === 1 ? 'point' : 'points'} along the highlighted path` : '◇ No connected path'}</span>
-        ${owned ? '' : `<button class="ui-button ui-button--primary" data-tree="allocate" data-inspected="${node.id}" ${routeCost === undefined || this.player.character.skillPoints < routeCost ? 'disabled' : ''}>${routeCost === 1 ? 'Allocate' : 'Allocate path'} <span>${routeCost ?? '—'} ${routeCost === 1 ? 'point' : 'points'}</span></button>`}
-        ${!owned && routeCost !== undefined && this.player.character.skillPoints < routeCost ? `<small class="ui-muted">${routeCost - this.player.character.skillPoints} more ${routeCost - this.player.character.skillPoints === 1 ? 'point' : 'points'} needed.</small>` : ''}</div>
-      ${skill && owned ? '<button class="ui-button ui-button--quiet skill-assign-action" data-tree="assign">Assign skill <span class="controller-binding">X</span></button>' : ''}${this.progressionControls(node, owned)}`;
+        ${owned || dormant ? '' : `<button class="ui-button ui-button--primary" data-tree="allocate" data-inspected="${node.id}" ${routeCost === undefined || sheet.skillPoints < routeCost ? 'disabled' : ''}>${routeCost === 1 ? 'Allocate' : 'Allocate path'} <span>${routeCost ?? '—'} ${routeCost === 1 ? 'point' : 'points'}</span></button>`}
+        ${!owned && !dormant && routeCost !== undefined && sheet.skillPoints < routeCost ? `<small class="ui-muted">${routeCost - sheet.skillPoints} more ${routeCost - sheet.skillPoints === 1 ? 'point' : 'points'} needed.</small>` : ''}${dormant ? '<small class="ui-muted">Stored build — activate this spec to edit.</small>' : ''}</div>
+      ${skill && owned && !dormant ? '<button class="ui-button ui-button--quiet skill-assign-action" data-tree="assign">Assign skill <span class="controller-binding">X</span></button>' : ''}${dormant ? '' : this.progressionControls(node, owned)}`;
   }
   private progressionControls(node: SkillNode, owned: boolean): string {
-    const p = this.player!, sheet = p.character;
+    const p = this.player!, sheet = this.viewedSheet();
     if(node.doctrine&&sheet.allocatedNodes.some(id=>SKILL_NODES.get(id)?.doctrine===node.doctrine))return `<div class="skill-specialization-actions"><p class="ui-muted">One paid choice. Switching is free and clears temporary skill buffs.</p>${SKILL_TREE.nodes.filter(n=>n.doctrine===node.doctrine).map(n=>`<button class="ui-button" data-doctrine="${n.id}" ${sheet.allocatedNodes.includes(n.id)?'disabled':''}>${n.name}${sheet.allocatedNodes.includes(n.id)?' · selected':''}</button>`).join('')}</div>`;
     if (node.id===OVERLOAD_NODE && owned) return `<button class="ui-button ui-button--primary" data-overload aria-pressed="${sheet.arcaneOverload}">Overload ${sheet.arcaneOverload ? 'on' : 'off'}</button>`;
     if (node.specialization) {
@@ -424,13 +514,14 @@ export class SkillTreePanel {
 </details>` : ''}</section>`;
   }
   private updateAssignments(): void {
+    const viewed = this.viewedSheet();
     if (!this.player) return;
-    const skills = new Set(unlockedSkills(this.player.character.allocatedNodes));
+    const skills = new Set(unlockedSkills(viewed.allocatedNodes));
     const node = SKILL_NODES.get(this.selected)!, assigning = !!node.skill && this.allocated.has(node.id);
     this.root.querySelector('[data-slot-help]')!.textContent = assigning ? `Assign ${SKILL_DEFINITIONS[node.skill!].name}` : '';
     this.assignments.innerHTML = SKILL_ACTIONS.map((action, index) => {
       const binding = escapeUI(controls.label(action));
-      const id = this.player!.character.skillSlots[index], skill = id && skills.has(id) ? SKILL_DEFINITIONS[id] : null;
+      const id = viewed.skillSlots[index], skill = id && skills.has(id) ? SKILL_DEFINITIONS[id] : null;
       return `<div class="skill-atlas-assigned ${skill ? 'is-filled' : ''}"><button class="ui-button ui-button--quiet skill-slot-button" data-slot="${index+1}" aria-label="${assigning ? `Assign ${SKILL_DEFINITIONS[node.skill!].name} to` : 'Inspect'} ${binding}${skill ? `, ${skill.name}` : ', empty slot'}" title="${skill?.name ?? 'Empty slot'}" ${!assigning && !skill ? 'disabled' : ''}><span class="skill-atlas-assigned-icon" ${skill ? `style="color:${skill.color}"` : ''}>${skill ? skillIconSVG(skill.id, 24) : '◇'}</span><small><span class="desktop-binding">${binding}</span><span class="controller-binding">${PAD_SKILL_LABELS[index+1]}</span><span class="touch-only">${index+1}</span></small></button>${skill ? `<button class="ui-button ui-button--quiet skill-slot-clear" data-clear="${index+1}" aria-label="Remove ${skill.name} from ${binding}">×</button>` : ''}</div>`;
     }).join('');
   }
@@ -563,7 +654,7 @@ export class SkillTreePanel {
     const tooltip = this.tooltipMotion.sample(performance.now());
     const view: SkillAtlasView = { width: this.width, height: this.height, zoom: this.zoom,
       centerX: this.centerX, centerY: this.centerY, allocated: this.allocated, reachable: this.reachable,
-      sheet: this.player?.character, selected: this.selected, hovered: this.hovered,
+      sheet: this.player ? this.viewedSheet() : undefined, selected: this.selected, hovered: this.hovered,
       route: this.filterActive && !this.matching.has(this.hovered ?? this.selected) ? [] : previewSkillRoute(this.routes, this.hovered ?? this.selected),
       filterActive: this.filterActive,
       matches: node => this.matches(node) };
@@ -589,7 +680,7 @@ export class SkillTreePanel {
     this.tooltip.hidden = !node;
     if (node && (dirty || tooltip.active || tooltipWasHidden)) {
       const markup = skillTooltipMarkup(node, { allocated: this.allocated, reachable: this.reachable,
-        level: this.player?.level, sheet: this.player?.character, costStats: this.player?.derived, routes: this.routes });
+        level: this.player?.level, sheet: this.player ? this.viewedSheet() : undefined, costStats: this.player?.derived, routes: this.routes });
       if (markup !== this.tooltipMarkup) { this.tooltip.innerHTML = markup; this.tooltipMarkup = markup; }
       this.tooltip.style.setProperty('--tooltip-color', COLORS[node.domain]);
       this.tooltip.style.opacity = String(tooltip.opacity);

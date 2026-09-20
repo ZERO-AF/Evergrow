@@ -65,7 +65,7 @@ export function materialBaseName(kind:ItemKind,name:string,id:ItemMaterialId):st
 }
 
 /** A bounded source advantage; never depends on the player's level or kill count. */
-export interface MaterialSource { readonly merchantBonus?:number; readonly level?:number; readonly rank?:EnemyRank; readonly encounter?:'boss'|'chest'|'bossChest'|'event' }
+export interface MaterialSource { readonly merchantBonus?:number; readonly level?:number; readonly rank?:EnemyRank; readonly encounter?:'boss'|'chest'|'bossChest'|'event'; readonly classId?: import('./wow-types.ts').WowClassId }
 export function sourceMaterialPool(kind:ItemKind,family?:WeaponFamily,source:MaterialSource={}):readonly MaterialRoll[] {
   const level=Math.max(1,Math.min(1e6,Number.isFinite(source.level)?source.level!:1));
   const zone=1+2.5*(1-Math.exp(-(level-1)/35));

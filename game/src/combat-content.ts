@@ -1,6 +1,7 @@
 import { MANA_RULES } from './mana-content.ts';
 import { LAIR_RULES } from './wilderness-boss-content.ts';
 import type { Enemy, EnemyKind, Projectile, ProjectileStyle } from './model.ts';
+import type { PetFamily } from './pet-content.ts';
 
 /** Authored balance is immutable; each simulation owns its mutable actor state. */
 export const COMBAT_TIMING = Object.freeze({
@@ -8,7 +9,7 @@ export const COMBAT_TIMING = Object.freeze({
   hurtGuard: .3, knockbackDecay: .065, staggerDuration: .16, interruptedRecovery: .3,
 });
 
-export const PLAYER_DEFAULTS = Object.freeze({ maxHp: 100, maxMana: 100, manaRegeneration: 1, radius: 9 });
+export const PLAYER_DEFAULTS = Object.freeze({ maxHp: 100, maxMana: 100, manaRegeneration: 2.5, radius: 9 });
 export const SKILL_CAST_MOTION = Object.freeze({ releaseRemainingFraction: .145 / .22 });
 export const RANGED_BASIC_ATTACK_PHASES = Object.freeze({ activeStart: .42, activeEnd: .5 });
 export const BASIC_ATTACK_PHASES = Object.freeze({ activeStart: .19, activeEnd: .45 });
@@ -55,6 +56,8 @@ interface EnemyBaseDefinition {
   readonly awarenessDistance: number;
   readonly preferredDistance: number;
   readonly role: 'flanker' | 'heavy' | 'skirmisher' | 'ranged';
+  /** Beast family a hunter can tame this kind into (pet-content.ts); absent = not tameable. */
+  readonly beast?: PetFamily;
 }
 
 /** A new enemy chooses a supported attack behavior instead of adding kind checks. */
@@ -70,12 +73,12 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = O
   thornReaver: Object.freeze({ name: 'Thorn Reaver', hp: 76, xpReward: 32, radius: 13, speed: 93,
     windup: .45, active: .2, recovery: .66, range: 39, damage: 12, aimLock: .23,
     attack: 'melee', arc: Math.PI * .7, lungeSpeed: 45, awarenessDistance: 370, preferredDistance: 35,
-    role: 'flanker', knockbackDistance: 10, interruptible: true }),
+    role: 'flanker', knockbackDistance: 10, interruptible: true, beast: 'raptor' }),
   mireSpitter: Object.freeze({ name: 'Mire Spitter', hp: 61, xpReward: 31, radius: 13, speed: 67,
     windup: .7, active: .14, recovery: .8, range: 290, damage: 12, aimLock: .25,
     attack: 'projectile', projectile: Object.freeze({ owner: 'enemy', speed: 170, life: 2.1, radius: 5, damage: 12 }),
     projectileStyle: 'spirit', shotOffsets: Object.freeze([0]), maxAttackDistance: 250, retreatDistance: 70,
-    awarenessDistance: 390, preferredDistance: 180, role: 'ranged', knockbackDistance: 12, interruptible: true }),
+    awarenessDistance: 390, preferredDistance: 180, role: 'ranged', knockbackDistance: 12, interruptible: true, beast: 'windSerpent' }),
   frostRevenant: Object.freeze({ name: 'Rime Revenant', hp: 115, xpReward: 43, radius: 15, speed: 74,
     windup: .72, active: .2, recovery: .86, range: 44, damage: 17, aimLock: .40,
     attack: 'melee', arc: Math.PI * .85, lungeSpeed: 20, awarenessDistance: 370, preferredDistance: 40,
@@ -88,7 +91,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = O
   duneScuttler: Object.freeze({ name: 'Dune Scuttler', hp: 43, xpReward: 25, radius: 10, speed: 120,
     windup: .44, active: .16, recovery: .64, range: 29, damage: 9, aimLock: .22,
     attack: 'melee', arc: Math.PI * .65, lungeSpeed: 55, awarenessDistance: 370, preferredDistance: 24,
-    role: 'flanker', knockbackDistance: 15, interruptible: true }),
+    role: 'flanker', knockbackDistance: 15, interruptible: true, beast: 'cat' }),
   stormSentinel: Object.freeze({ name: 'Storm Sentinel', hp: 82, xpReward: 39, radius: 13, speed: 72,
     windup: .75, active: .14, recovery: .85, range: 320, damage: 15, aimLock: .24,
     attack: 'projectile', projectile: Object.freeze({ owner: 'enemy', speed: 175, life: 2.2, radius: 4, damage: 15 }),
@@ -112,12 +115,12 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = O
     windup: .42, active: .18, recovery: 0.624, range: 28, damage: 8, aimLock: .20,
     attack: 'melee', arc: Math.PI * .7, lungeSpeed: 48,
     awarenessDistance: 330, preferredDistance: 48, role: 'flanker',
-    knockbackDistance: 14, interruptible: true }),
+    knockbackDistance: 14, interruptible: true, beast: 'cat' }),
   brute: Object.freeze({ name: 'Gravebound Brute', hp: 138, xpReward: 50, radius: 17, speed: 65,
     windup: .95, active: .18, recovery: 0.96, range: 53, damage: 22, aimLock: .60,
     attack: 'melee', arc: Math.PI * 1.15, lungeSpeed: 0,
     awarenessDistance: 340, preferredDistance: 55, role: 'heavy',
-    knockbackDistance: 5, interruptible: false }),
+    knockbackDistance: 5, interruptible: false, beast: 'bear' }),
   caster: Object.freeze({ name: 'Mire Hexer', hp: 56, xpReward: 30, radius: 11, speed: 76,
     windup: .75, active: .15, recovery: .8, range: 280, damage: PROJECTILE_DEFINITIONS.hex.damage, aimLock: .34,
     attack: 'projectile', projectile: PROJECTILE_DEFINITIONS.hex, projectileStyle: 'spirit', shotOffsets: Object.freeze([0, -.22, .22]),
@@ -128,7 +131,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = O
     windup: .68, active: .28, recovery: 0.76, range: 23, damage: 10, aimLock: .22,
     attack: 'melee', arc: Math.PI * .48, lungeSpeed: 320, engageDistance: 112,
     awarenessDistance: 370, preferredDistance: 105, role: 'skirmisher',
-    knockbackDistance: 17, interruptible: true }),
+    knockbackDistance: 17, interruptible: true, beast: 'wolf' }),
   archer: Object.freeze({ name: 'Ashen Ranger', hp: 45, xpReward: 28, radius: 10, speed: 96,
     windup: .7, active: .12, recovery: .68, range: 335, damage: PROJECTILE_DEFINITIONS.boneArrow.damage, aimLock: .32,
     attack: 'projectile', projectile: PROJECTILE_DEFINITIONS.boneArrow, projectileStyle: 'arrow', shotOffsets: Object.freeze([0]),

@@ -18,6 +18,7 @@ import { SKILL_EXECUTION } from '../src/skill-execution-content.ts';
 import { decodeCharacterSave, CHARACTER_SAVE_VERSION } from '../src/character-save.ts';
 import type { Item, StatKey, SkillId } from '../src/character-types.ts';
 import type { CombatEvent, Input } from '../src/model.ts';
+import { skillSimStub } from './fixtures/skill-sim.ts';
 
 const world = { isSanctuary: () => false, blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
@@ -27,13 +28,14 @@ function affix(stat: StatKey, kind: Item['kind'] = 'amulet', level = 80, roll = 
   item.affixes = [{ stat, name: 'Test', value: 0 }]; item.recipe.rolls = [roll]; return deriveItem(item);
 }
 function make(profile = 'cinder-wand') {
-  const sim = new Simulation(world, { spawn: false }); const p = sim.player;
+  const sim = new Simulation(world, { spawn: false }); const p = sim.player; p.character = createCharacterSheet('mage', 'human');
   p.character.equipped.weapon = generateItem(40, 1, 'weapon', profile, 'common'); p.character.equipped.offhand = null;
   refreshCharacter(p); p.derived.critChance = 0; return sim;
 }
 function skillContext(sim: Simulation, id: SkillId): SkillContext {
   const p = sim.player; p.character.allocatedNodes.push(`skill:${id}`); p.character.skillSlots[0] = id;
-  return { player: p, enemies: sim.enemies, world, aimX: 300, aimY: 0, availableGroundEffects: 16, availableProjectiles: 128,
+  let time = 0;
+  return { get time() { return time += 2; }, sim: skillSimStub(), player: p, enemies: sim.enemies, world, aimX: 300, aimY: 0, availableGroundEffects: 16, availableProjectiles: 128,
     damage: () => {}, visible: () => true, onScreen: () => true, projectile: () => {}, schedule: () => {}, emit: () => {} };
 }
 test('new affixes retain slot identities and skill family weights favor matching weapons/elements', () => {
@@ -50,7 +52,7 @@ test('new affixes retain slot identities and skill family weights favor matching
   near(fire.reduce((n, a) => n + a.weight!, 0), .5);
   near(fire.find(a => a.stat === 'skill:fireball')!.weight!, 3 * fire.find(a => a.stat === 'skill:iceNova')!.weight!);
   assert.ok(!fire.some(a => a.stat === 'skill:cleave'));
-  assert.deepEqual(itemAffixPool({ kind: 'shield' }).filter(a => isSkillStat(a.stat)).map(a => a.stat).sort(), ['skill:bulwark', 'skill:ironCitadel', 'skill:repulse', 'skill:shieldBash']);
+  assert.deepEqual(itemAffixPool({ kind: 'shield' }).filter(a => isSkillStat(a.stat)).map(a => a.stat).sort(), ['skill:avengersShield', 'skill:bulwark', 'skill:holyShield', 'skill:ironCitadel', 'skill:repulse', 'skill:revenge', 'skill:shieldBash', 'skill:shieldBlock', 'skill:shieldOfRighteousness', 'skill:shieldSlam', 'skill:shieldWall', 'skill:spellReflection']);
   const amulet = itemAffixPool({ kind: 'amulet' });
   assert.ok([...SPECIAL_AFFIXES, ...SKILL_AFFIXES].every(a => amulet.some(b => a.stat === b.stat)));
 });

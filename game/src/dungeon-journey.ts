@@ -2,6 +2,10 @@ import { dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
 import { currentDungeon, type Expeditions } from './dungeon-state.ts';
 import { dungeonChestMask } from './expedition-route.ts';
 import { dungeonTheme } from './dungeon-content.ts';
+import { isRaidEntranceId, RAID_BOSS_NAME } from './raid-boss-content.ts';
+import { isRaid2EntranceId, RAID2_BOSS_NAME } from './raid2-boss-content.ts';
+import { isRaid3EntranceId, RAID3_BOSS_NAME } from './raid3-boss-content.ts';
+import { isRaid4EntranceId, RAID4_BOSS_NAME } from './raid4-boss-content.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import type { JourneyMarker } from './journey-marker.ts';
 
@@ -25,7 +29,7 @@ export function dungeonJourney(state: Expeditions, floor: DungeonFloor | null | 
     return {id:run.entrance.id,name:run.entrance.name,level:run.entrance.level,objective,phase,marker:run.rift.phase==='hunt'?null:{x:target.x,y:target.y,name:objective,known:true}};
   }
   const boss = run.states.warden;
-  const bossName = dungeonTheme(run.entrance.seed, run.entrance.theme).bossName ?? 'Hollow Warden';
+  const bossName = isRaidEntranceId(run.entrance.id) ? RAID_BOSS_NAME : isRaid2EntranceId(run.entrance.id) ? RAID2_BOSS_NAME : isRaid3EntranceId(run.entrance.id) ? RAID3_BOSS_NAME : isRaid4EntranceId(run.entrance.id) ? RAID4_BOSS_NAME : dungeonTheme(run.entrance.seed, run.entrance.theme).bossName ?? 'Hollow Warden';
   const phase = boss.hp > 0 ? 'boss' : run.chestMasks[2] === dungeonChestMask(run, 2) ? 'exit' : 'chest';
   const objective = phase === 'boss' ? `Defeat ${bossName}` : phase === 'chest' ? 'Claim the boss chest' : 'Return to the surface';
   const target = phase === 'boss' ? boss : phase === 'chest' ? floor.chests[2] : floor.exit;

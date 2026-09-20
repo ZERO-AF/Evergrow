@@ -1,7 +1,7 @@
 import { progressForRecord } from '../src/chronicle.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCharacterLook, validCharacterLook, type CharacterLook } from '../src/character-look.ts';
+import { createRaceLook, validCharacterLook, type CharacterLook } from '../src/character-look.ts';
 import { executeAppearanceChange } from '../src/character-commands.ts';
 import { Simulation } from '../src/simulation.ts';
 import { playerPose } from '../src/character-pose.ts';
@@ -64,10 +64,10 @@ test('appearance survives character creation, durable edits and checkpoint resto
   restored.player.character.look.showHelmet=false;assert.equal(playerPose(restored.player,0).outfit?.head,null);
 });
 
-test('save validation rejects missing v4 appearance and unsupported schemas without repairing their payload',()=>{
+test('save validation rejects missing appearance and unsupported schemas without repairing their payload',()=>{
   const sim=new Simulation(world,{spawn:false}),record={version:CHARACTER_SAVE_VERSION,id:'look-test',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:5,checkpoint:sim.captureCheckpoint()};
   assert.ok(decodeCharacterSave(JSON.stringify(record)));
-  for(const version of [1,2,5])assert.equal(decodeCharacterSave(JSON.stringify({...record,version})),null);
+  for(const version of [1,2,CHARACTER_SAVE_VERSION+1])assert.equal(decodeCharacterSave(JSON.stringify({...record,version})),null);
   for(const invalid of [undefined,{...look(),armorTints:{chest:'invalid'}}]){
     const candidate=structuredClone(record);candidate.checkpoint.character.look=invalid as CharacterLook;
     assert.equal(decodeCharacterSave(JSON.stringify(candidate)),null);
@@ -81,19 +81,19 @@ function preEditorSave(){
   sim.player.character.gold=1942;sim.player.x=8150;sim.player.y=-1680;sim.player.hp=31;sim.player.mana=12;
   sim.kills=15;sim.time=126;
   const record={version:3,id:'pre-editor',name:'Rowan',createdAt:1,updatedAt:2,worldSeed:7319,worldVersion:5,checkpoint:sim.captureCheckpoint()};
-  const {look:_,...character}=record.checkpoint.character;
+  const {look:_,classId:_c,raceId:_r,...character}=record.checkpoint.character;
   return {...record,checkpoint:{...record.checkpoint,character}};
 }
 
 test('v3 migration supplies the default look while preserving every other saved field and the original bytes',()=>{
   const old=preEditorSave(),raw=JSON.stringify(old),migrated=decodeCharacterSave(raw);
   assert.ok(migrated);
-  assert.deepEqual(migrated,{...old,version:4,checkpoint:{...old.checkpoint,character:{...old.checkpoint.character,look:createCharacterLook()}}});
+  assert.deepEqual(migrated,{...old,version:CHARACTER_SAVE_VERSION,checkpoint:{...old.checkpoint,character:{...old.checkpoint.character,classId:'warrior',raceId:'human',look:createRaceLook('human')}}});
   assert.equal(raw,JSON.stringify(old));
   assert.equal(migrated.checkpoint.character.look.showHelmet,false);
   assert.deepEqual(decodeCharacterSave(JSON.stringify(migrated)),migrated);
   migrated.checkpoint.character.look.appearance.skin='moonblue';
-  assert.deepEqual(decodeCharacterSave(raw)!.checkpoint.character.look,createCharacterLook());
+  assert.deepEqual(decodeCharacterSave(raw)!.checkpoint.character.look,createRaceLook('human'));
   const sim=new Simulation(world,{spawn:false});sim.restoreCheckpoint(decodeCharacterSave(raw)!.checkpoint);
   assert.deepEqual(sim.player.character,decodeCharacterSave(raw)!.checkpoint.character);
   const withLook={...old,checkpoint:{...old.checkpoint,character:{...old.checkpoint.character,look:look()}}};
@@ -103,7 +103,7 @@ test('v3 migration supplies the default look while preserving every other saved 
   assert.equal(decodeCharacterSave(JSON.stringify(old)),null);
 });
 
-test('v3 slots migrate on read and save v4 durably with failure and stale-writer protection intact',async()=>{
+test('v3 slots migrate on read and save v5 durably with failure and stale-writer protection intact',async()=>{
   const raw=JSON.stringify(preEditorSave()),key=characterSlotKey(0),data=new Map([[key,raw]]);
   let fail=false;
   const repo=new CharacterRepository({getItem:k=>data.get(k)??null,setItem:(k,v)=>{if(fail)throw new Error('Storage unavailable');data.set(k,v);}});
@@ -113,7 +113,7 @@ test('v3 slots migrate on read and save v4 durably with failure and stale-writer
   fail=true;assert.equal(await session.save(loaded.checkpoint,3),false);assert.equal(data.get(key),raw);
   fail=false;
   const edited=structuredClone(loaded.checkpoint);edited.character.look=look();
-  assert.ok(await session.save(edited,4));assert.equal(JSON.parse(data.get(key)!).version,4);
+  assert.ok(await session.save(edited,4));assert.equal(JSON.parse(data.get(key)!).version,CHARACTER_SAVE_VERSION);
   assert.deepEqual((await new CharacterSession(repo,5).load(0))!.checkpoint,edited);
   assert.equal(await other.save(loaded.checkpoint,5),false);
   assert.deepEqual(repo.read(0).record!.checkpoint,edited);

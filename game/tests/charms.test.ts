@@ -109,6 +109,7 @@ test('pre-charm 64/72-slot saves can earn, pick up and persist new monster-dropp
 test('kill gold and XP bonuses apply once while preserving equipment rolls',()=>{
   const run=(boost:boolean)=>{
     const sim=new Simulation(world,{spawn:false});const p=sim.player;
+    p.character.raceId='undead';refreshCharacter(p);
     if(boost){const item=stone();item.affixes=[{name:'Test',stat:'goldFindPercent',value:100},{name:'Test',stat:'xpGainPercent',value:50}];p.character.inventory[0]=item;p.character.inventoryLayout={[item.id]:PACK_CELLS};refreshCharacter(p);}
     const enemy={...sim.spawnEnemy('stalker',40,0)!,level:1,rank:'elite' as const,lootSeed:741,xpReward:20};
     awardKillRewards(enemy,0,0,{player:p,groundGold:sim.groundGold,groundItems:sim.groundItems,pickups:sim.pickups,nextId:(()=>{let id=200;return()=>id++;})(),emit:()=>{}});

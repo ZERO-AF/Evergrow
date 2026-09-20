@@ -14,9 +14,9 @@ import type { HUDRect } from './hud.ts';
 import { getMinimapRect, getPortalControlRect } from './map-view.ts';
 import type { GamePhase } from './game-phase.ts';
 import { gameMenuMarkup } from './game-menu.ts';
-import { trapDialogFocus, uiIcon } from './ui-components.ts';
+import { trapDialogFocus, uiIcon, escapeUI } from './ui-components.ts';
 
-interface ShellActions extends PauseActions { lastSavedAt?(): number | undefined; saveLocation?(): 'Local' | 'Online'; shortcutMenuChanged?(): void; portal?(): void; play(): void; openMap(): void; openCharacter(): void; openSkills(): void; }
+interface ShellActions extends PauseActions { lastSavedAt?(): number | undefined; saveLocation?(): 'Local' | 'Online'; shortcutMenuChanged?(): void; portal?(): void; play(): void; openMap(): void; openCharacter(): void; openSkills(): void; openTransmog?(): void; canReleaseSpirit?(): boolean; releaseSpirit?(): void; resurrectGhost?(mode: 'corpse' | 'healer'): void; }
 
 /** Owns DOM presentation and its listeners; it never reads or mutates simulation state. */
 export class GameShell {
@@ -37,6 +37,7 @@ export class GameShell {
   readonly buffs: BuffBar;
   readonly targetBuffs: BuffBar;
   private targetId: number | null = null;
+  private readonly spiritPrompt: HTMLElement;
   setTargetEffects(target: { id: number; buffs: readonly ActiveBuff[]; x: number; y: number; opacity: number } | null): void {
     if (target?.id !== this.targetId) this.targetBuffs.hide();
     this.targetId = target?.id ?? null;
@@ -87,7 +88,7 @@ export class GameShell {
       <div id="character-panels-mount"></div>
       <div id="overlay" class="overlay ui-scroll-area" role="dialog" aria-modal="true" aria-labelledby="menu-title"></div>
       <div id="save-warning" class="save-warning" role="status" hidden></div>
-      <p id="state-description" class="sr-only" aria-live="polite"></p>
+      <div id="ghost-prompt" role="status" style="display:none;position:fixed;left:50%;bottom:18%;transform:translateX(-50%);align-items:center;gap:12px;padding:10px 16px;background:rgba(8,14,22,.82);border:1px solid rgba(160,190,230,.35);border-radius:8px;pointer-events:none;z-index:30"></div>
     </div>`;
     this.element = root.querySelector<HTMLElement>('.game-shell')!;
     this.canvas = root.querySelector<HTMLCanvasElement>('#game')!;
@@ -99,6 +100,7 @@ export class GameShell {
     this.controls = root.querySelector<HTMLElement>('#hud-controls')!;
     this.status = root.querySelector<HTMLElement>('#state-description')!;
     this.notifications = new GameNotifications(this.element);
+    this.spiritPrompt = root.querySelector<HTMLElement>('#ghost-prompt')!;
     this.buffs = new BuffBar(this.controls);
     this.targetBuffs = new BuffBar(this.controls, 'Target effects');
     this.targetBuffs.element.classList.add('target-buff-bar');
@@ -107,10 +109,15 @@ export class GameShell {
     this.controls.querySelector('[data-hud="map"]')!.addEventListener('click', actions.openMap, { signal });
     this.controls.querySelector<HTMLButtonElement>('[data-hud="portal"]')!.disabled = !actions.portal;
     this.controls.querySelector('[data-hud="portal"]')!.addEventListener('click', () => actions.portal?.(), { signal });
+    this.spiritPrompt.addEventListener('click', event => {
+      const action = (event.target as HTMLElement).closest<HTMLElement>('[data-ghost]')?.dataset.ghost;
+      if (action === 'corpse' || action === 'healer') this.actions.resurrectGhost?.(action);
+    }, { signal });
     this.shortcutMenu = new HUDShortcutMenu(this.controls, this.controls.querySelector('[data-hud="menu"]')!, id => {
       if (id === 'character' || id === 'inventory') actions.openCharacter();
       else if (id === 'skilltree') actions.openSkills();
       else if (id === 'map') actions.openMap();
+      else if (id === 'transmog') actions.openTransmog?.();
       else actions.openJourneys?.();
     }, () => actions.shortcutMenuChanged?.());
     this.refreshBindings();
@@ -178,6 +185,23 @@ export class GameShell {
     status.title = `Last saved ${saved.toLocaleString()} (${location})`;
   }
 
+  /** Ghost-run prompt: a persistent hint plus the resurrection action in reach. */
+  setGhostPrompt(mode: 'corpse' | 'healer' | 'run' | null, healerName = ''): void {
+    if (this.spiritPrompt.dataset.mode === (mode ?? '')) return;
+    this.spiritPrompt.dataset.mode = mode ?? '';
+    this.spiritPrompt.style.display = mode === null ? 'none' : 'flex';
+    if (mode === null) { this.spiritPrompt.innerHTML = ''; return; }
+    const hint = mode === 'corpse' ? 'Your corpse is here.'
+      : mode === 'healer' ? `${escapeUI(healerName)} can return you to life — for a price.`
+      : 'Return to your corpse, or find the Spirit Healer.';
+    const button = mode === 'corpse'
+      ? '<button type="button" class="ui-button ui-button--primary" data-ghost="corpse" style="pointer-events:auto">RESURRECT</button>'
+      : mode === 'healer'
+        ? '<button type="button" class="ui-button ui-button--primary" data-ghost="healer" style="pointer-events:auto">RESURRECT NOW</button>'
+        : '';
+    this.spiritPrompt.innerHTML = `<span style="color:#cfe0f4;font-size:13px;text-shadow:0 1px 2px #000">${hint}</span>${button}`;
+  }
+
   setStatus(message: string): void { this.status.textContent = message; }
 
   showMenu(phase: GamePhase, kills: number, time: number, location = 'Deadwood'): void {
@@ -186,7 +210,7 @@ export class GameShell {
     const playing = phase === 'playing';
     if (playing || phase === 'ready' || phase === 'dead') this.pauseNavigation.focus = null;
     if (phase === 'ready') this.pauseNavigation.category = 'character';
-    const panel = phase === 'map' || phase === 'character' || phase === 'skills' || phase === 'service' || phase === 'event' || phase === 'journeys' || phase === 'chronicle';
+    const panel = phase === 'map' || phase === 'character' || phase === 'skills' || phase === 'service' || phase === 'stable' || phase === 'event' || phase === 'journeys' || phase === 'chronicle';
     this.overlay.hidden = playing || panel || phase === 'ready';
     this.controls.hidden = !playing;
     if (!playing) { this.buffs.hide(); this.targetBuffs.hide(); }
@@ -197,17 +221,26 @@ export class GameShell {
       return;
     }
     const dead = phase === 'dead';
-    this.overlay.innerHTML = gameMenuMarkup(phase, kills, time, location);
+    this.overlay.innerHTML = gameMenuMarkup(dead ? 'dead' : 'paused', kills, time, location);
+    const release = dead && this.actions.canReleaseSpirit?.();
+    if (release) {
+      const play = this.overlay.querySelector<HTMLButtonElement>('#play-action')!;
+      play.classList.remove('ui-button--primary');
+      play.insertAdjacentHTML('beforebegin',
+        `<button type="button" class="ui-button ui-button--primary menu-primary" id="release-action"><span>RELEASE SPIRIT</span>${uiIcon('chevron')}</button>`);
+    }
     this.refreshSaveStatus();
     const signal = this.menuAbort.signal;
     const play = this.overlay.querySelector<HTMLButtonElement>('#play-action')!;
+    const releaseButton = this.overlay.querySelector<HTMLButtonElement>('#release-action');
+    if (releaseButton) releaseButton.addEventListener('click', () => this.actions.releaseSpirit?.(), { signal });
     play.addEventListener('click', this.actions.play, { signal });
     if (dead) this.overlay.querySelector('#title-action')?.addEventListener('click', this.actions.returnToTitle, { signal });
     this.overlay.querySelector('#close-menu')?.addEventListener('click', this.actions.play, { signal });
     if (!dead) this.pauseMenu = new PauseMenu(this.overlay, this.actions, signal, this.pauseNavigation);
-    trapDialogFocus(this.overlay, { signal, initialFocus: play, restoreFocus: false });
+    trapDialogFocus(this.overlay, { signal, initialFocus: releaseButton ?? play, restoreFocus: false });
     this.pauseMenu?.restoreFocus();
-    this.setStatus(dead ? `You fell after defeating ${kills} enemies.`
+    this.setStatus(dead ? `You fell after defeating ${kills} enemies.${release ? ' Release your spirit to run back to your corpse.' : ''}`
       : phase === 'paused' ? 'Game paused.' : 'Ready to enter Deadwood.');
   }
 

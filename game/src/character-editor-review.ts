@@ -1,15 +1,17 @@
 import './character-editor-review.css';
 import {installUITheme} from './ui-theme.ts';
 import {loadGameFont} from './font.ts';
-import {createAppearanceEditor} from './character-editor.ts';
+import {createAppearanceEditor,type AppearanceEditor} from './character-editor.ts';
 import {createCharacterSheet} from './items.ts';
+import {isWowRaceId} from './wow-types.ts';
 import {AppearanceInventoryReview} from './appearance-inventory-review.ts';
 import {GamepadInput, PAD, type PadSnapshot} from './gamepad-input.ts';
 if(!import.meta.env.DEV)throw new Error('Local appearance study only.');
 await loadGameFont();installUITheme();
 const root=document.querySelector<HTMLElement>('#editor')!,params=new URLSearchParams(location.search);
-let sheet=createCharacterSheet('sword-shield'),editor:ReturnType<typeof createAppearanceEditor>|undefined;
-sheet.look.appearance={...sheet.look.appearance,hair:'braid',hairColor:'copper',skin:'sand'};
+const raceParam=params.get('race');
+let sheet=createCharacterSheet('paladin',raceParam&&isWowRaceId(raceParam)?raceParam:'human'),editor:AppearanceEditor|undefined;
+sheet.look.appearance={...sheet.look.appearance,hair:'braid',hairColor:'copper'};
 const inventory=new AppearanceInventoryReview(root,()=>{closeInventory();},()=>{closeInventory();});
 function showEditor(){editor=createAppearanceEditor(root,{sheet,name:'Rowan',study:!params.has('runtime'),view:params.get('view')??undefined,saveLabel:params.has('creation')?'Create character':undefined,
   onCancel:()=>{editor?.dispose();showEditor();},onSave:async look=>{sheet.look=structuredClone(look);return {ok:true};},

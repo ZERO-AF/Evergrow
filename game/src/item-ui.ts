@@ -1,4 +1,6 @@
 import { riftModifiers } from './rift-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
+import { setTooltipModel } from './item-set-state.ts';
 import { effectTerm, statTerm } from './effect-terms.ts';
 import { uniquePowerMarkup } from './unique-power-ui.ts';
 import { uniqueDefinition } from './unique-content.ts';
@@ -15,12 +17,24 @@ import { TIER_COLORS, TIER_NAMES, STAT_LABELS, itemModifiers, formatStatValue, i
 import { itemIconSVG } from './item-art.ts';
 import { previewEquipmentChange, type EquipmentStatChange, type PreviewStat } from './equipment-preview.ts';
 import { escapeUI } from './ui-components.ts';
+import { formatWalletCompact } from './currency.ts';
+import { durabilityMetaMarkup } from './durability.ts';
+import { LEGENDARY_PROCS, PROC_TRIGGER_LABELS, procTrigger } from './legendary-content.ts';
+import { consumableFor, CONSUMABLE_CATEGORY_LABELS } from './consumable-content.ts';
 
 const greaterMark = '<span class="ui-greater-affix" role="img" aria-label="Greater affix · top 10% roll" title="Greater affix · top 10% roll"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0 10 6 16 8 10 10 8 16 6 10 0 8 6 6Z"/></svg></span>';
 const TIER_RANK: Record<Exclude<ItemTier, 'unique'>, number> = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
 const uniqueSeal = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1 10 6 15 8 10 10 8 15 6 10 1 8 6 6Z"/></svg>';
+
+/** Legendary proc line, rendered in legendary orange under the stat block. */
+export function legendaryProcMarkup(item: Item): string {
+  const proc = item.recipe.procId ? LEGENDARY_PROCS[item.recipe.procId] : undefined;
+  return proc ? `<p class="ui-item-description" style="color:${TIER_COLORS.legendary}">${PROC_TRIGGER_LABELS[procTrigger(proc)]}: ${escapeUI(proc.text)}</p>` : '';
+}
 const number = (n: number, decimals = 1) => n.toLocaleString('en-US', { maximumFractionDigits: decimals });
 export interface ItemPresentation {
+  /** Current durability (0-100) for equipped pieces; renders the WoW meta row when present. */
+  durability?: number;
   sheet: CharacterSheet; level: number; equipped?: boolean; sourceIndex?: number; targetSlot?: EquipmentSlot;
   /** Optional functional context, e.g. a vendor's price. Always escaped. */
   context?: string;
@@ -38,6 +52,7 @@ export const CHANGE_LABELS: Record<PreviewStat, string> = {
   ...SPECIAL_AFFIX_LABELS, ...SKILL_STATS,
   fireResistance: RESISTANCE_LABELS.fireResistance, frostResistance: RESISTANCE_LABELS.frostResistance,
   lightningResistance: RESISTANCE_LABELS.lightningResistance, arcaneResistance: RESISTANCE_LABELS.arcaneResistance,
+  holyResistance: RESISTANCE_LABELS.holyResistance, shadowResistance: RESISTANCE_LABELS.shadowResistance, natureResistance: RESISTANCE_LABELS.natureResistance,
   goldFindMultiplier: 'Gold found', xpGainMultiplier: 'Experience gained',
   damage: 'Main-hand damage', cadence: 'Main-hand actions / s', offDamage: 'Off-hand damage', offCadence: 'Off-hand attacks / s',
   maxHp: 'Maximum life', maxMana: 'Maximum mana', armor: 'Armor', blockChance: 'Block chance', blockReduction: 'Blocked damage reduction',
@@ -46,13 +61,15 @@ export const CHANGE_LABELS: Record<PreviewStat, string> = {
   attackSpeedMultiplier: 'Attack speed', castSpeedMultiplier: 'Cast speed', spellDamageMultiplier: 'Spell damage',
   strength: 'Strength', dexterity: 'Dexterity', intelligence: 'Intelligence', vitality: 'Vitality',
 };
-export const PREVIEW_PERCENT = new Set<PreviewStat>(['goldFindMultiplier', 'xpGainMultiplier','fireResistance', 'frostResistance', 'lightningResistance', 'arcaneResistance', 'blockChance', 'blockReduction', 'critChance', 'critMultiplier', 'moveSpeedMultiplier',
-  'manaCostReduction', 'cooldownReduction', 'attackSpeedMultiplier', 'castSpeedMultiplier', 'spellDamageMultiplier']);
+export const PREVIEW_PERCENT: Record<Extract<PreviewStat, 'goldFindMultiplier' | 'xpGainMultiplier' | 'fireResistance' | 'frostResistance' | 'lightningResistance' | 'arcaneResistance' | 'holyResistance' | 'shadowResistance' | 'natureResistance' | 'blockChance' | 'blockReduction' | 'critChance' | 'critMultiplier' | 'moveSpeedMultiplier' | 'manaCostReduction' | 'cooldownReduction' | 'attackSpeedMultiplier' | 'castSpeedMultiplier' | 'spellDamageMultiplier'>, true> = {
+  goldFindMultiplier: true, xpGainMultiplier: true, fireResistance: true, frostResistance: true, lightningResistance: true, arcaneResistance: true,
+  holyResistance: true, shadowResistance: true, natureResistance: true, blockChance: true, blockReduction: true, critChance: true, critMultiplier: true,
+  moveSpeedMultiplier: true, manaCostReduction: true, cooldownReduction: true, attackSpeedMultiplier: true, castSpeedMultiplier: true, spellDamageMultiplier: true };
 
 /** Only match like-for-like stats; damage bonuses feed separate derived hand damage rows. */
 const MODIFIER_PREVIEW: Record<Exclude<StatKey, SkillStat>, PreviewStat | null> = {
   strength: 'strength', dexterity: 'dexterity', intelligence: 'intelligence', vitality: 'vitality',
-  maxHp: 'maxHp', maxMana: 'maxMana', armor: 'armor', damagePercent: null,
+  maxHp: 'maxHp', maxHpPercent: 'maxHp', maxMana: 'maxMana', armor: 'armor', armorPercent: 'armor', damagePercent: null,
   attackSpeedPercent: 'attackSpeedMultiplier', castSpeedPercent: 'castSpeedMultiplier',
   critChance: 'critChance', critDamage: 'critMultiplier', moveSpeedPercent: 'moveSpeedMultiplier',
   spellDamagePercent: 'spellDamageMultiplier', manaRegen: 'manaRegeneration', lifeRegen: 'lifeRegeneration',
@@ -60,14 +77,14 @@ const MODIFIER_PREVIEW: Record<Exclude<StatKey, SkillStat>, PreviewStat | null> 
   blockChance: 'blockChance', blockReduction: 'blockReduction', manaOnKill: 'manaOnKill',
   areaPercent: 'areaPercent', potionPercent: 'potionPercent', projectilePierce: 'projectilePierce',
   spellweavePercent: 'spellweavePercent', afterguardPercent: 'afterguardPercent',
-  fireResistance: 'fireResistance', frostResistance: 'frostResistance', lightningResistance: 'lightningResistance', arcaneResistance: 'arcaneResistance', allResistance: null,
+  fireResistance: 'fireResistance', frostResistance: 'frostResistance', lightningResistance: 'lightningResistance', arcaneResistance: 'arcaneResistance', holyResistance: 'holyResistance', shadowResistance: 'shadowResistance', natureResistance: 'natureResistance', allResistance: null,
   goldFindPercent: 'goldFindMultiplier', xpGainPercent: 'xpGainMultiplier',
   fireDamage: null, frostDamage: null, lightningDamage: null,
 };
 
 function equipChangeCell(change: EquipmentStatChange | undefined, emptyLabel = 'No change', scale = 1): string {
   if (!change) return `<td class="ui-item-stat-empty" aria-label="${emptyLabel}">—</td>`;
-  const percentage = PREVIEW_PERCENT.has(change.key);
+  const percentage = change.key in PREVIEW_PERCENT;
   const delta = (change.after - change.before) * (percentage ? 100 : 1) * scale;
   const wholePercent = ['areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent'].includes(change.key);
   return `<td class="${delta > 0 ? 'is-gain' : 'is-loss'}"><span aria-hidden="true">${delta > 0 ? '↑' : '↓'}</span> ${delta > 0 ? '+' : ''}${number(delta, 2)}${percentage || wholePercent ? '%' : ''}</td>`;
@@ -75,7 +92,7 @@ function equipChangeCell(change: EquipmentStatChange | undefined, emptyLabel = '
 
 function inlineEquipChange(change: EquipmentStatChange | undefined, scale = 1): string {
   if (!change) return '';
-  const percentage = PREVIEW_PERCENT.has(change.key);
+  const percentage = change.key in PREVIEW_PERCENT;
   const delta = (change.after - change.before) * (percentage ? 100 : 1) * scale;
   const unit = percentage || ['areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent'].includes(change.key) ? '%' : '';
   return ` <span class="ui-item-inline-change ${delta > 0 ? 'is-gain' : 'is-loss'}" aria-label="On equip: ${delta > 0 ? '+' : ''}${number(delta, 2)}${unit}">(${delta > 0 ? '+' : ''}${number(delta, 2)}${unit})</span>`;
@@ -85,7 +102,8 @@ export function itemSlotMarkup(item: Item, size = 44): string {
   const tierMark = item.tier === 'unique'
     ? `<span class="ui-item-unique-seal" aria-hidden="true">${uniqueSeal}</span>`
     : `<span class="ui-item-tier" aria-hidden="true">${'<i></i>'.repeat(TIER_RANK[item.tier])}</span>`;
-  return `${itemIconSVG(item, size)}${hasGreaterAffix(item) ? `<span class="ui-item-greater">${greaterMark}</span>` : ''}${item.locked?`<span class="ui-item-lock" aria-label="Locked">${ITEM_LOCK_ICON}</span>`:''}${item.recipe.enhancement ? `<span class="ui-item-enhancement">+${item.recipe.enhancement}</span>` : ''}<span class="ui-item-level">${number(item.itemLevel, 0)}</span>${tierMark}`;
+  const levelBadge = item.kind === 'consumable' && (item.stack ?? 1) > 1 ? `<span class="ui-item-level">${item.stack}</span>` : `<span class="ui-item-level">${number(item.itemLevel, 0)}</span>`;
+  return `${itemIconSVG(item, size)}${hasGreaterAffix(item) ? `<span class="ui-item-greater">${greaterMark}</span>` : ''}${item.locked?`<span class="ui-item-lock" aria-label="Locked">${ITEM_LOCK_ICON}</span>`:''}${item.recipe.enhancement ? `<span class="ui-item-enhancement">+${item.recipe.enhancement}</span>` : ''}${levelBadge}${tierMark}`;
 }
 export function updateItemSlot(cell: HTMLButtonElement, item: Item | null, options: { level: number; emptyMarkup: string; label: string; draggable?: boolean }): void {
   cell.classList.add('ui-item-slot');
@@ -104,6 +122,13 @@ export function updateItemSlot(cell: HTMLButtonElement, item: Item | null, optio
 /** Item data and effective equipment changes are distinct; no inventory DOM location is required. */
 export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   if(item.kind==='riftKey')return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span></span><h4>${escapeUI(item.name)}</h4></div></div><p>Single use · Opens an empowered rift</p>${riftModifiers({attempt:1,keySeed:item.seed,keyTier:item.recipe.riftKeyTier}).map(m=>`<div class="ui-item-property ui-rift-modifier" style="color:${m.beneficial?'#a2d5b3':'#ed929f'}"><span>${escapeUI(m.label)}</span><strong>+${m.value}${m.unit}</strong></div>`).join('')}`;
+  if (item.kind === 'consumable') {
+    const def = consumableFor(item); if (!def) return '';
+    const count = item.stack ?? 1;
+    return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="common">Common</span></span><h4>${escapeUI(def.name)}</h4></div></div>`
+      + `<p class="ui-item-description">${escapeUI(CONSUMABLE_CATEGORY_LABELS[def.buffCategory])} · Use: ${escapeUI(def.useText)}</p>`
+      + `<p class="ui-item-description">Stack: ${count} / ${def.stackSize}${def.cooldown > 1 ? ` · ${def.cooldown}s shared potion cooldown` : ''}</p>`;
+  }
   const preview = view.compare === false || view.equipped || item.kind === 'charm' && view.sourceIndex !== undefined ? null : previewEquipmentChange(view.sheet, item, view.level,
     { sourceIndex: view.sourceIndex, slot: view.targetSlot });
   const changes = new Map(preview?.ok ? preview.changes.map(change => [change.key, change]) : []);
@@ -136,6 +161,10 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   }
   if (item.focus) weapon = `<p class="ui-item-description">Off-hand · ${item.kind === 'grimoire' ? 'Grimoire · Mana & spell sustain' : 'Orb · Spell potency'}<br>Pairs with a one-handed weapon</p>`;
   if (item.shield) weapon = `<div class="ui-item-weapon"><div><strong>${number(item.shield.blockChance)}%</strong><span>Block chance</span></div><div><strong>${number(item.shield.blockReduction)}%</strong><span>Damage blocked</span></div></div>`;
+  const setModel = GAME_FEATURES.itemSets ? setTooltipModel(item, view.sheet.equipped) : null;
+  const setBlock = setModel ? `<div class="ui-item-set"><p class="ui-item-set-name">${escapeUI(setModel.set.name)} (${setModel.count}/${setModel.set.pieces.length})</p>
+    <ul class="ui-item-set-pieces">${setModel.pieces.map(({ def, have }) => `<li class="${have ? 'is-owned' : ''}">${escapeUI(def.name)}</li>`).join('')}</ul>
+    <ul class="ui-item-set-bonuses">${setModel.bonuses.map(({ tier, active }) => `<li class="${active ? 'is-active' : ''}">(${tier.pieces}) Set: ${escapeUI(tier.description)}</li>`).join('')}</ul></div>` : '';
   let comparison = '';
   if (preview) {
     if (!preview.ok) comparison = `<div class="ui-item-comparison is-loss">${escapeUI(preview.message)}</div>`;
@@ -143,12 +172,14 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
       comparison = `<div class="ui-item-comparison"><p>Replaces ${preview.displaced.map(entry => escapeUI(entry.item.name)).join(' + ')}</p></div>`;
   }
   return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span><span>${escapeUI(item.baseName)}</span>${view.equipped && view.compactComparison ? `<span class="ui-item-equipped-inline" title="${escapeUI(view.equippedLabel ?? '')}">Equipped</span>` : ''}</span><h4>${hasGreaterAffix(item) ? escapeUI(itemDisplayName(item).slice(0, -(GREATER_AFFIX_SYMBOL.length + 1))) + ' ' + greaterMark : escapeUI(itemDisplayName(item))}</h4></div></div>
-    <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}</div>
+    <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}${view.durability !== undefined ? durabilityMetaMarkup(view.durability) : ''}</div>
     ${item.recipe.enhancement && !view.hideEnhancementDetails ? `<div class="ui-item-upgrade">Enhancement +${item.recipe.enhancement} / 10 · +${item.recipe.enhancement * 5}% scalable item stats</div>` : ''}
     ${weapon}${properties}
-    ${uniqueDefinition(item)?uniquePowerMarkup(uniqueDefinition(item)!):''}
+    ${uniqueDefinition(item)?uniquePowerMarkup(uniqueDefinition(item)!):''}${legendaryProcMarkup(item)}
+    ${item.flavor ? `<p class="ui-item-description">${escapeUI(item.flavor)}</p>` : ''}
     ${itemModifiers(item).spellweavePercent ? `<p class="ui-item-description">Enables ${effectTerm('spellweave', 'Spellweave')} · melee ↔ magic · ${AFFIX_COMBAT_RULES.weaveDuration}s.</p>` : ''}${item.affixes.length ? `<div class="ui-item-affixes">${item.affixes.map(a => escapeUI(a.name)).join(' · ')}</div>` : ''}
-    ${comparison}<div class="ui-item-comparison"><span>Sell value · ${number(itemPrice(item, 'sell'), 0)} gold</span></div>
+    ${setBlock}
+    ${comparison}<div class="ui-item-comparison"><span>Sell value · ${formatWalletCompact(itemPrice(item, 'sell'))}</span></div>
     ${view.context ? `<div class="ui-item-comparison">${escapeUI(view.context)}</div>` : ''}`;
 }
 

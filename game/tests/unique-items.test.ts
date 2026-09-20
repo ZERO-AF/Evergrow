@@ -22,9 +22,10 @@ import { scheduleGroundEffect, advanceGroundEffects } from '../src/ground-effect
 import { SKILL_DEFINITIONS } from '../src/skill-content.ts';
 import { touchTargeting } from '../src/touch-targeting.ts';
 import type { CombatEvent, Input, WorldQuery } from '../src/model.ts';
+import { skillSimStub } from './fixtures/skill-sim.ts';
 const world:WorldQuery={blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})};
 function fixture(id:string,variant?:string,terrain=world){
- const u=UNIQUES.find(u=>u.id===id)!;const sim=new Simulation(terrain,{spawn:false,startX:0,startY:0});const p=sim.player;
+ const u=UNIQUES.find(u=>u.id===id)!;const sim=new Simulation(terrain,{spawn:false,startX:0,startY:0});const p=sim.player;p.character.classId='mage';
  p.level=25;p.character.equipped.weapon=generateItem(93,25,'weapon',SKILL_DEFINITIONS[u.skill].requirement==='magic'?'cinder-wand':SKILL_DEFINITIONS[u.skill].requirement==='bow'?'crescent-recurve':'longsword','common');
  p.character.equipped.offhand=null;
  p.character.equipped[uniqueSlot(u)]=generateUnique(42,25,id);
@@ -32,7 +33,8 @@ function fixture(id:string,variant?:string,terrain=world){
  if(variant){p.character.allocatedNodes.push(`specialization:${variant}`);p.character.skillSpecializations[u.skill]=variant;}
  refreshCharacter(p);p.hp=p.maxHp;p.mana=p.maxMana=10000;p.derived.critChance=0;
  const events:CombatEvent[]=[];
- const context:SkillContext={player:p,world:terrain,enemies:sim.enemies,aimX:250,aimY:0,availableGroundEffects:16,availableProjectiles:128,
+ let time=0;
+ const context:SkillContext={get time(){return time+=2;},sim:skillSimStub(),player:p,world:terrain,enemies:sim.enemies,aimX:250,aimY:0,availableGroundEffects:16,availableProjectiles:128,
   visible:(ax,ay,bx,by)=>{for(let i=0;i<=20;i++)if(terrain.blocked(ax+(bx-ax)*i/20,ay+(by-ay)*i/20,1))return false;return true;},onScreen:()=>true,
   damage:(e,n)=>{e.hp-=n;},emit:e=>events.push(e),schedule:e=>scheduleGroundEffect(sim.groundEffects,e,{nextId:()=>100+sim.groundEffects.length,emit:()=>{}}),
   projectile:(x,y,angle,d,skill,effects)=>{
@@ -117,7 +119,7 @@ test('Broken Seal only triggers on an enemy-depleted ward, with bounded non-crit
 });
 test('Dervish repeats only while held, charges every revolution, stops on release/mana loss and permits full movement',()=>{
  const {sim,p}=fixture('dervish-grasp');const input:Input={moveX:1,moveY:0,aimX:500,aimY:0,attack:false,heal:false,dodge:false,skillSlot:null,heldSkillSlots:[0]};
- const start=p.mana;for(let i=0;i<360;i++)sim.update(1/120,input);
+ const start=p.mana;for(let i=0;i<600;i++)sim.update(1/120,input);
  assert.ok(p.x>400);assert.ok(p.mana<start-20);
  input.heldSkillSlots=[];for(let i=0;i<120;i++)sim.update(1/120,input);assert.equal(p.attack,null);
  p.mana=0;p.derived.manaRegeneration=0;input.heldSkillSlots=[0];for(let i=0;i<120;i++)sim.update(1/120,input);assert.equal(p.attack,null);

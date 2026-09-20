@@ -10,7 +10,9 @@ test('opening passive routes preserves every active skill unlock cost and option
     volley: 2, ricochet: 8, piercingShot: 10, rainOfArrows: 13, ghostHunt: 23, backstab: 2, sidestep: 3, vaultingShot: 8,
     fireball: 2, arcLightning: 3, meteor: 14, cataclysm: 24, tempest: 26, iceNova: 3, runicWard: 5,
     siphon: 8, frostLance: 11, absoluteZero: 24 };
-  assert.equal(Object.keys(expected).length, SKILL_TREE.nodes.filter(node => node.skill).length);
+  // Class sanctum skills chain inside their own cluster; the atlas contract covers
+  // the universal (non-class) actives.
+  assert.equal(Object.keys(expected).length, SKILL_TREE.nodes.filter(node => node.skill && !node.classId).length);
   for (const [skill, cost] of Object.entries(expected)) {
     const id = `skill:${skill}`;
     assert.equal(routes.get(id)!.cost, cost, skill);
@@ -28,6 +30,9 @@ test('passive neighborhoods have multiple distinct entrances and remain compact'
     const exits = new Set(members.flatMap(node => node.neighbors.filter(id => SKILL_NODES.get(id)!.cluster !== cluster.id)));
     assert.ok(entrances.length >= 2, `${cluster.id} needs separate entry and exit nodes`);
     assert.ok(exits.size >= 2, `${cluster.id} must lead somewhere beyond its entrance`);
+    // Class sanctums are large multi-ring wheels, not compact passive pockets; the
+    // 260-unit bound only applies to ordinary neighborhoods.
+    if (cluster.id.startsWith('sanctum:')) continue;
     for (const a of members) for (const b of members) {
       assert.ok(Math.hypot(a.x - b.x, a.y - b.y) <= 260, `${cluster.id} stretches its passive group`);
     }
@@ -37,6 +42,7 @@ test('passive neighborhoods have multiple distinct entrances and remain compact'
 test('connections have short actual paths, including curved-path length if introduced', () => {
   for (const edge of SKILL_TREE.edges) {
     const a = SKILL_NODES.get(edge.from)!, b = SKILL_NODES.get(edge.to)!;
+ if (a.classId || b.classId || edge.classGate) continue; // sanctum entrances + class gateways legitimately span the atlas
     const control = edge.control ?? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     let previous = { x: a.x, y: a.y }, length = 0;
     for (let step = 1; step <= 32; step++) {
@@ -53,7 +59,7 @@ test('connections have short actual paths, including curved-path length if intro
 test('unrelated connections never cross without a node at the junction', () => {
   const cross = (a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) =>
     (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  const segments = SKILL_TREE.edges.flatMap(edge => {
+ const segments = SKILL_TREE.edges.filter(edge => !edge.classGate).flatMap(edge => {
     const a = SKILL_NODES.get(edge.from)!, b = SKILL_NODES.get(edge.to)!;
     const control = edge.control ?? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, steps = edge.control ? 32 : 1;
     return Array.from({ length: steps }, (_, i) => {

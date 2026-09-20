@@ -8,13 +8,18 @@ import { equipItem, unequipItem } from '../src/inventory.ts';
 import { generateItem } from '../src/items.ts';
 import { allocateNode, SKILL_NODES, SKILL_TREE } from '../src/skill-tree.ts';
 import { SKILL_DEFINITIONS } from '../src/skill-content.ts';
+import { SKILL_EXECUTION } from '../src/skill-execution-content.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
+import { createWowSim, manaClassForRace } from './fixtures/wow-sim.ts';
+import { BAR_TOTAL, RACIAL_SLOT } from '../src/action-bar.ts';
 import type { Enemy, Input, WorldQuery } from '../src/model.ts';
 import type { SkillId } from '../src/character-types.ts';
 
-const emptyWorld: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
+
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
-const createSim = () => new Simulation(emptyWorld, { spawn: false, seed: 984319 });
+// Default harness character: mage/undead — mana resource, neutral passives, sword-capable.
+const createSim = () => createWowSim('mage', 'undead');
 const close = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} should equal ${expected}`);
 function advance(sim: Simulation, seconds: number, input: Partial<Input> = {}): void {
   for (let tick = 0; tick < Math.round(seconds / FIXED_STEP); tick++) sim.update(FIXED_STEP, { ...idle, ...input });
@@ -40,10 +45,17 @@ function equipForSkill(sim: Simulation, id: SkillId): void {
 }
 function unlock(sim: Simulation, id: SkillId, slot = 0): void {
   equipForSkill(sim, id);
+  const definition = SKILL_DEFINITIONS[id];
+  // Racial actives are auto-known on the dedicated R slot — no tree node, no assignment.
+  if (definition.raceId) { refreshCharacter(sim.player); return; }
   const major = SKILL_TREE.nodes.find(node => node.skill === id)!;
+  const classId = sim.player.character.classId;
   const paths = new Map<string, string[]>([['origin', []]]), queue = ['origin'];
   for (let index = 0; index < queue.length && !paths.has(major.id); index++) {
     for (const neighbor of SKILL_NODES.get(queue[index])!.neighbors) if (!paths.has(neighbor)) {
+      // Foreign-class sanctum nodes are unreachable for this character.
+      const node = SKILL_NODES.get(neighbor)!;
+      if (node.classId && node.classId !== classId) continue;
       paths.set(neighbor, [...paths.get(queue[index])!, neighbor]); queue.push(neighbor);
     }
   }
@@ -106,7 +118,7 @@ test('all five empty slots and a locked skill are inert and cannot consume mana'
   for (let slot = 0; slot < 5; slot++) advance(sim, .2, { skillSlot: slot });
   sim.player.character.skillSlots[0] = 'fireball';
   advance(sim, .2, { skillSlot: 0 });
-  assert.equal(sim.player.mana, 100);
+  assert.equal(sim.player.mana, sim.player.maxMana);
   assert.equal(sim.projectiles.length, 0); assert.equal(sim.player.attack, null);
   assert.equal(sim.player.castTime, 0); assert.deepEqual(sim.player.skillCooldowns, {});
   assert.equal(sim.drainEvents().filter(event => event.type === 'cast' || event.type === 'swing' || event.type === 'hit').length, 0);
@@ -114,18 +126,66 @@ test('all five empty slots and a locked skill are inert and cannot consume mana'
 
 for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_DEFINITIONS[id].tier!=='aura')) {
   test(`${id} unlocks through connected nodes, pays its cost once and produces its actual combat effect`, () => {
-    const sim = createSim(); unlock(sim, id);
+    const definition = SKILL_DEFINITIONS[id];
+    // Class skills need a matching character; racials a matching race (played as a mana class
+    // so the resource assertion stays exact — racials cost no class resource).
+    const sim = definition.classId ? createWowSim(definition.classId)
+      : definition.raceId ? createWowSim(manaClassForRace(definition.raceId), definition.raceId)
+      : createSim();
+    const player = sim.player, wowClass = WOW_CLASSES[player.character.classId!];
+    const slot = definition.raceId ? RACIAL_SLOT : 0;
+    unlock(sim, id, definition.raceId ? 0 : 0);
     sim.setCombatViewport({ x: -600, y: -400, width: 1200, height: 800 });
-    const player = sim.player, definition = SKILL_DEFINITIONS[id];
     const enemy = target(sim, id === 'fireball' || id === 'volley' || id === 'siphon' ? 80 : 45);
-    if (id === 'siphon') player.hp = 20;
-    player.mana = player.maxMana;
+    // Gates: live target, execute range, stealth (carried by a stealth buff), form, combo.
+    if ((definition.targetMode ?? 'point') === 'enemy') sim.setTarget(enemy.id);
+    if (definition.executeThreshold) enemy.hp = enemy.maxHp * definition.executeThreshold * .5;
+    if (definition.requiresStealth) sim.addBuff('stealth', definition.color, { duration: 60, stealth: true });
+    if (definition.requiresForm) sim.addBuff(definition.requiresForm + ' form', definition.color, { duration: 60, form: definition.requiresForm });
+    if (definition.combo === 'spend') player.comboPoints = 5;
+    // Ally-gated casts need a matching summon; frozen-gated casts need a frozen target.
+    if (definition.requiresAlly) sim.summonAlly(definition.requiresAlly === 'demon' ? 'imp' : definition.requiresAlly, 1);
+    if (definition.requiresFrozen) enemy.freezeTime = 5;
+    // Passive regen is orthogonal noise; the assertion isolates the skill's own cost.
+    player.derived.manaRegeneration = 0;
+    const spent = Math.max(0, Math.round(definition.manaCost * player.derived.manaCostMultiplier * 10) / 10);
+    // Costs above the pool (e.g. Prayer of Healing) need a bigger pool to fire at all.
+    if (spent > player.maxMana && wowClass.resource === 'mana') player.maxMana = spent + 10;
+    // Bear/cat forms swap the resource pool: the form's model (rage/energy), not the class's.
+    const formModel = definition.requiresForm === 'bear' ? WOW_CLASSES.warrior
+      : definition.requiresForm === 'cat' ? WOW_CLASSES.rogue : undefined;
+    const model = formModel ?? wowClass;
+    // Non-mana resources live in player.mana but cap at the class resourceCap, which the
+    // sim enforces every tick — derived maxMana from gear does not apply to rage/energy/runic.
+    const resourceCap = model.resource !== 'mana' ? model.resourceCap : player.maxMana;
+    player.mana = resourceCap;
     sim.drainEvents();
-    advance(sim, FIXED_STEP, { skillSlot: 0, aimX: enemy.x });
-    close(player.mana, player.maxMana - Math.max(1, Math.round(definition.manaCost * player.derived.manaCostMultiplier * 10) / 10));
-    close(player.skillCooldowns[id]!, definition.cooldown * player.derived.cooldownMultiplier);
+    // Tick 1 starts the cast; it completes after castTime more ticks.
+    const castTicks = 1 + Math.ceil((definition.castTime ?? 0) / FIXED_STEP);
+    advance(sim, FIXED_STEP * castTicks, { skillSlot: slot, aimX: enemy.x });
+    // Costs and gains settle at cast start; decay ticks before the cast and, for
+    // non-offensive casts (no combatUntil), through the remaining cast time.
+    const recipe = SKILL_EXECUTION[id] as { kind?: string; form?: string; resourceGain?: number; resourceGainFrac?: number } | undefined;
+    const offensive = !!recipe?.kind && ['sweep','dash','radial','cone','backstab','projectile','ground','chain','strike','dot','cc','interrupt','pull','taunt','channel','comboStrike','runeStrike'].includes(recipe.kind);
+    const runesSpent = definition.runeCost ? Object.values(definition.runeCost).reduce((a, b) => a + (b ?? 0), 0) : 0;
+    const runicGain = runesSpent ? runesSpent * (definition.runicPowerGain ?? 10) : (definition.runicPowerGain ?? 0);
+    const gained = (recipe?.resourceGain ?? 0) + (recipe?.resourceGainFrac ?? 0) * resourceCap;
+    const decay = model.resourceDecay * FIXED_STEP;
+    const afterCast = Math.max(0, Math.min(resourceCap, resourceCap - decay - spent + runicGain + gained));
+    // Bear/cat form skills swap the pool after the cost is paid (rage 0 / energy cap).
+    const formSwap = recipe?.kind === 'form' ? (recipe.form === 'bear' ? 0 : recipe.form === 'cat' ? 100 : undefined) : undefined;
+    const expectedMana = formSwap ?? Math.max(0, afterCast - (offensive || !definition.castTime ? 0 : decay * (castTicks - 1)));
+    close(player.mana, expectedMana);
+    if (runesSpent) assert.equal(player.runes!.filter(r => r > 0).length, runesSpent, `${id} must spend its runes`);
+    if (definition.shardCost) assert.equal(player.soulShards, 4 - definition.shardCost);
+    // Cooldown starts at cast start (prepaid) and ticks down through the cast; ultimates
+    // and bulwark have a floor in resolveSkill.
+    const cooldownFloor = id === 'bulwark' ? 4 : definition.tier === 'ultimate' ? 12 : 0;
+    close(player.skillCooldowns[id]!, Math.max(0, Math.max(cooldownFloor, definition.cooldown * player.derived.cooldownMultiplier) - (castTicks - 1) * FIXED_STEP));
+
     const firstEvents = sim.drainEvents();
-    assert.equal(firstEvents.filter(event => (event.type === 'cast' || event.type === 'swing') && event.skill === id).length, 1);
+    // Cast-time skills emit 'cast' at start and completion; instant/channel skills emit once.
+    assert.equal(firstEvents.filter(event => (event.type === 'cast' || event.type === 'swing') && event.skill === id).length, definition.castTime ? 2 : 1);
     if (id === 'cleave' || id === 'whirlwind') {
       assert.ok(player.attack); assert.ok(player.attack.arc > Math.PI);
       assert.ok(player.attack.damage > deriveAttackStats(player.stats, player.equipment.mainHand).damage);
@@ -133,10 +193,22 @@ for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_
       assert.ok(player.x > 0 && player.x < 10, 'dash advances over time, not a teleport');
     } else if(id==='sidestep'){assert.ok(player.dash);assert.equal(player.dash.damage,0);} else if(id==='runicWard'){assert.ok(player.skillEffects?.ward?.capacity);} else if(id==='brace'||id==='rallyOfIron'||id==='ghostHunt'){assert.ok(player.skillEffects?.[id]);} else if (id === 'bulwark') assert.ok(player.guardTime > 2.9);
     else if (id === 'meteor' || id === 'rainOfArrows') assert.equal(sim.groundEffects.length, 1);
-    advance(sim, id === 'meteor' || id === 'cataclysm' ? 1.1 : .5, { aimX: enemy.x });
+    // Offensive casts arm auto-attack; stop it so later ticks measure only this skill.
+    player.autoAttack = false;
+    // Observe past the skill's first damage event: delayed ground effects arm after
+    // `delay`, dots tick after `interval`/`detonate`, so the window follows the recipe.
+    const exec = SKILL_EXECUTION[id] as { kind?: string; delay?: number; dot?: { interval?: number; detonate?: number }; healFrac?: number; radius?: number } | undefined;
+    const window = Math.max(.5, (exec?.delay ?? 0) + .5, (exec?.dot?.interval ?? 0) + .5, (exec?.dot?.detonate ?? 0) + .5);
+    advance(sim, id === 'meteor' || id === 'cataclysm' ? 1.1 : window, { aimX: enemy.x });
     const laterEvents = sim.drainEvents();
-    assert.equal(laterEvents.filter(event => event.type === 'cast' || event.type === 'swing').length, 0);
-    if (definition.damageMultiplier>0) assert.ok(enemy.hp < enemy.maxHp, `${id} must damage the actual enemy`);
+    assert.equal(laterEvents.filter(event => (event.type === 'cast' || event.type === 'swing') && event.skill === id).length, 0);
+    // Only recipes that actually strike the enemy can lower its hp (interrupt/taunt/cc don't).
+    // Heal-only channels (Tranquility, Divine Hymn) carry a damageMultiplier for heal
+    // scaling but never touch the enemy, so they are exempt from the damage check.
+    const healOnly = exec?.kind === 'channel' && exec.healFrac !== undefined
+      && exec.radius === undefined && (definition.targetMode === 'self' || definition.targetMode === undefined);
+    const damages = !healOnly && ['sweep','dash','radial','cone','backstab','projectile','ground','chain','strike','dot','channel','comboStrike','runeStrike'].includes(SKILL_EXECUTION[id]?.kind ?? '');
+    if (definition.damageMultiplier>0 && damages) assert.ok(enemy.hp < enemy.maxHp, `${id} must damage the actual enemy`);
     if (id === 'siphon') {
       assert.ok(player.hp > 20); assert.ok(laterEvents.some(event => event.type === 'heal' && event.value! > 0));
     }
@@ -179,12 +251,13 @@ test('armor, passive regeneration and movement gear affect simulation rather tha
   assert.equal(sim.drainEvents().find(event => event.type === 'hurt')!.value, 13);
   sim.enemies = []; sim.player.hp = 50; sim.player.mana = 20;
   advance(sim, 1, { moveX: 1 });
-  close(sim.player.hp, 56); close(sim.player.mana, 21.6);
+  close(sim.player.hp, 56); close(sim.player.mana, 23.1);
   assert.ok(sim.player.vx > 197 && sim.player.vx <= 198);
 });
 
 test('the first real death drops loot and awards level points exactly once', () => {
-  const sim = createSim(); sim.player.xp = 90;
+  // Warrior melee lands inside the swing's active window — no projectile travel.
+  const sim = createWowSim('warrior', 'undead'); sim.player.xp = 90;
   const enemy = sim.spawnEnemy('stalker', 45, 0)!; enemy.hp = 1; enemy.stateDuration = 999;
   advance(sim, .25, { attack: true });
   assert.equal(enemy.state, 'dead'); assert.equal(sim.groundItems.length, 1);
@@ -205,7 +278,8 @@ test('the first real death drops loot and awards level points exactly once', () 
 
 test('repeated seeded enemy deaths generate reproducible loot with unique identities', () => {
   const run = () => {
-    const sim = createSim();
+    // Warrior melee arc clears each stacked wave in one swing — no projectile travel.
+    const sim = createWowSim('warrior', 'undead');
     for (let wave = 0; wave < 4; wave++) {
       for (let count = 0; count < 10; count++) {
         const enemy = sim.spawnEnemy('stalker', 48, 0)!; assert.ok(enemy);
@@ -222,7 +296,8 @@ test('repeated seeded enemy deaths generate reproducible loot with unique identi
 });
 
 test('a full inventory preserves dropped loot until a cell is available, then an explicit pickup collects it once', () => {
-  const sim = createSim();
+  // Warrior melee lands inside the swing's active window — no projectile travel.
+  const sim = createWowSim('warrior', 'undead');
   sim.player.character.inventory = Array.from({ length: PACK_CELLS }, (_, index) => generateItem(9000 + index, 1, 'ring'));
   const enemy = sim.spawnEnemy('stalker', 22, 0)!; enemy.hp = 1; enemy.stateDuration = 999;
   advance(sim, .25, { attack: true });
@@ -249,8 +324,10 @@ test('starting a new run resets character allocations, points, inventory changes
   sim.reset();
   assert.equal(sim.player.level, 1); assert.equal(sim.player.xp, 0);
   assert.equal(sim.player.character.skillPoints, 0); assert.equal(sim.player.character.statPoints, 0);
-  assert.deepEqual(sim.player.character.allocatedNodes, ['origin']);
-  assert.deepEqual(sim.player.character.skillSlots, [null, null, null, null, null]);
+  // A fresh sheet owns the free class starter node and carries it on bar slot 1.
+  const starter = WOW_CLASSES[sim.player.character.classId].starterSkill;
+  assert.deepEqual(sim.player.character.allocatedNodes, ['origin', `wow-${sim.player.character.classId}-${starter}`]);
+  assert.deepEqual(sim.player.character.skillSlots, [starter, ...Array.from({ length: BAR_TOTAL - 1 }, () => null)]);
   assert.equal(sim.player.character.inventory.filter(Boolean).length, 0);
   assert.equal(sim.groundItems.length, 0);
   assert.deepEqual(sim.player.skillCooldowns, {});
@@ -271,20 +348,29 @@ test('a projectile already in flight cannot revive a fallen player through life 
 });
 
 test('held no-cooldown magic repeats at cast speed, never at physical attack speed', () => {
-  const casts = (castSpeed: number, attackSpeed: number) => {
-    const sim = createSim(); unlock(sim, 'fireball');
+  // WoW skills are GCD-bound; cast speed drives the staff's bolt auto-attack cadence
+  // (equipment.ts: bolt attackKind uses castSpeedMultiplier, melee uses attackSpeedMultiplier).
+  const bolts = (castSpeed: number, attackSpeed: number) => {
+    const sim = createSim(); equipForSkill(sim, 'fireball'); // ember-staff: bolt attackKind
+    const enemy = target(sim, 45); sim.setTarget(enemy.id);
     sim.player.stats.castSpeedMultiplier = castSpeed;
     sim.player.stats.attackSpeedMultiplier = attackSpeed;
-    sim.player.mana = sim.player.maxMana = 1000;
-    advance(sim, 2, { skillSlot: 0 });
-    assert.equal(sim.player.skillCooldowns.fireball, 0);
-    return sim.drainEvents().filter(event => event.type === 'cast' && event.skill === 'fireball').length;
+    sim.player.mana = sim.player.maxMana = 10000;
+    sim.player.autoAttack = true;
+    let shots = 0;
+    for (let tick = 0; tick < Math.round(6 / FIXED_STEP); tick++) {
+      const before = sim.projectiles.length;
+      sim.update(FIXED_STEP, idle);
+      shots += Math.max(0, sim.projectiles.length - before);
+    }
+    return shots;
   };
-  const normal = casts(1, 1);
+  const normal = bolts(1, 1);
   assert.ok(normal >= 2);
-  assert.equal(casts(1, 3), normal);
-  assert.ok(casts(2, 1) >= normal * 2 - 1);
+  assert.equal(bolts(1, 3), normal);
+  assert.ok(bolts(2, 1) >= normal * 2 - 1);
 });
+
 
 test('Living Ember creates snapshotted damaging ground at the actual fireball impact',()=>{
   const sim=createSim(); unlock(sim,'fireball'); const p=sim.player;

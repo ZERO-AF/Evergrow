@@ -8,37 +8,56 @@ import { drawHumanoid, type CharacterPose } from './art.ts';
 import { headArmor } from './equipment-art.ts';
 import { UNARMED_WEAPON } from './equipment.ts';
 import { characterBounds, fitCharacter, type CharacterBounds } from './character-framing.ts';
-import { createCharacterSheet, STARTER_LOADOUTS, isStarterLoadoutId, type StarterLoadoutId } from './items.ts';
+import { createCharacterSheet } from './items.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { WOW_RACES } from './wow-races.ts';
+import { isWowClassId, type WowClassId } from './wow-types.ts';
 import { outfitFromEquipment, itemIconSVG } from './item-art.ts';
+import { transmoggedSheet } from './transmog-state.ts';
 import type { CharacterSheet } from './character-types.ts';
 import { ARMOR_PARTS, ARMOR_TINTS, tintedOutfit, type ArmorPart, type ArmorTints } from './appearance-armor.ts';
 import { uiIcon } from './ui-components.ts';
-import { SKIN_PALETTES, HAIR_PALETTES, HAIR_STYLES, FACIAL_HAIR, ACCESSORIES, type CharacterAppearance, type AppearancePalette } from './appearance-content.ts';
+import { SKIN_PALETTES, HAIR_PALETTES, HAIR_STYLES, FACIAL_HAIR, ACCESSORIES, RACE_FEATURES, RACE_FEATURE_OPTIONS, type CharacterAppearance, type AppearancePalette, type RaceFeatureId } from './appearance-content.ts';
+import type { GamepadInput } from './gamepad-input.ts';
 
 export interface CharacterEditorOptions {
   sheet:CharacterSheet; name:string; look?:CharacterLook; study?:boolean; view?:string;
   onSave?:(look:CharacterLook)=>Promise<ActionResult>; onCancel:(look:CharacterLook)=>void;
   saveLabel?:string; onInventory?:()=>void;
 }
+/** Handle to a mounted editor overlay; disposal removes the element and its listeners. */
+export interface AppearanceEditor {
+  element:HTMLElement; cancel():void; updateGamepad(pad:GamepadInput,now:number):void;
+  getLook():CharacterLook; getSheet():CharacterSheet; dispose():void;
+}
 /** One disposable draft view, shared by creation, inventory and save-free studies. */
-export function createAppearanceEditor(mount:HTMLElement,options:CharacterEditorOptions) {
+export function createAppearanceEditor(mount:HTMLElement,options:CharacterEditorOptions):AppearanceEditor {
 installUITheme();
 const root=document.createElement('section');root.className='appearance-editor';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','Edit character');mount.append(root);
 const displayName=options.name.trim()||'Wayfarer';
 const initialLook=structuredClone(options.look??options.sheet.look);
 const abort = new AbortController(), reduced = matchMedia('(prefers-reduced-motion: reduce)');
 let appearance:CharacterAppearance={...initialLook.appearance};
+const raceId = options.sheet.raceId;
+const race = WOW_RACES[raceId];
+// Skin tones are race-appropriate; a stale tone snaps back to the race default.
+const skinOptions = race?.skinTones.length ? SKIN_PALETTES.filter(p => race.skinTones.includes(p.id)) : SKIN_PALETTES;
+if (!skinOptions.some(p => p.id === appearance.skin)) appearance.skin = skinOptions[0].id;
+const featureOptions = (RACE_FEATURE_OPTIONS[raceId] ?? []).map(id => RACE_FEATURES.find(f => f.id === id)!);
+if (featureOptions.length && !featureOptions.some(f => f.id === appearance.feature)) appearance.feature = featureOptions[0].id;
 const initial = { ...appearance };
-let facing = Math.PI / 2, loadout: StarterLoadoutId = 'sword-shield', showHelmet = initialLook.showHelmet;
+let facing = Math.PI / 2, gearClass: WowClassId = options.sheet.classId, showHelmet = initialLook.showHelmet;
 const studyView=options.view;
 let tints:ArmorTints={...initialLook.armorTints}, selectedPart:ArmorPart='chest', tab:'character'|'armor'=studyView==='armor'?'armor':'character';
 let busy=false;
-const pages={skin:Math.floor(SKIN_PALETTES.findIndex(p=>p.id===appearance.skin)/8),hair:Math.floor(HAIR_STYLES.findIndex(p=>p.id===appearance.hair)/8),hairColor:Math.floor(HAIR_PALETTES.findIndex(p=>p.id===appearance.hairColor)/8)};
+const pages={skin:Math.floor(Math.max(0,skinOptions.findIndex(p=>p.id===appearance.skin))/8),hair:Math.floor(HAIR_STYLES.findIndex(p=>p.id===appearance.hair)/8),hairColor:Math.floor(HAIR_PALETTES.findIndex(p=>p.id===appearance.hairColor)/8)};
+const pageTotal=(key:keyof typeof pages)=>Math.max(1,Math.ceil((key==='skin'?skinOptions:key==='hair'?HAIR_STYLES:HAIR_PALETTES).length/8));
 function revealSelection(){
-  pages.skin=Math.floor(SKIN_PALETTES.findIndex(p=>p.id===appearance.skin)/8);
+  pages.skin=Math.floor(Math.max(0,skinOptions.findIndex(p=>p.id===appearance.skin))/8);
   pages.hair=Math.floor(HAIR_STYLES.findIndex(p=>p.id===appearance.hair)/8);
   pages.hairColor=Math.floor(HAIR_PALETTES.findIndex(p=>p.id===appearance.hairColor)/8);
 }
+
 let frame = 0, disposed = false;
 const directions = ['East', 'Southeast', 'Front', 'Southwest', 'West', 'Northwest', 'Back', 'Northeast'];
 const selectOptions = (options: readonly { id: string; name: string }[]) => options.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
@@ -52,16 +71,16 @@ root.innerHTML = `<div class="editor-shell">
       <div class="figure-space"><canvas id="figure" role="img" aria-label="Full character wearing selected appearance and starting gear"></canvas>
         <div class="world-study"><canvas id="world-size" role="img" aria-label="Small character preview"></canvas><span>Small scale</span></div></div>
       <div class="rotation"><button type="button" class="ui-button ui-button--quiet ui-button--icon rotate-left" id="rotate-left" aria-label="Rotate left">${uiIcon('chevron')}</button><output id="direction">Front</output><button type="button" class="ui-button ui-button--quiet ui-button--icon" id="rotate-right" aria-label="Rotate right">${uiIcon('chevron')}</button></div>
-      <div class="stage-options"><label class="gear-choice">Gear<select id="gear">${STARTER_LOADOUTS.map(p => `<option value="${p.id}">${p.label}</option>`).join('')}</select></label></div>
+      <div class="stage-options"><label class="gear-choice">Gear<select id="gear">${Object.values(WOW_CLASSES).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></label></div>
     </section>
     <section class="editor-controls ui-window" aria-label="Appearance editor">
       <div class="editor-tabs" role="tablist" aria-label="Appearance category"><button type="button" role="tab" id="character-tab" data-tab="character" aria-controls="character-options" aria-selected="true">Character</button><button type="button" role="tab" id="armor-tab" data-tab="armor" aria-controls="armor-options" aria-selected="false">Armor</button></div>
       <div id="character-options" class="editor-tab-panel" role="tabpanel" aria-labelledby="character-tab">
       <div class="editor-name"><span>Name</span><span class="editor-name-value">${escapeUI(displayName)}</span></div>
-      <fieldset class="paged-section"><legend>Skin tone <span class="choice-value" id="skin-label"></span>${pager('skin','skin tone')}</legend><div class="swatches">${swatches('skin', SKIN_PALETTES)}</div></fieldset>
+      <fieldset class="paged-section"><legend>Skin tone <span class="choice-value" id="skin-label"></span>${pager('skin','skin tone')}</legend><div class="swatches">${swatches('skin', skinOptions)}</div></fieldset>
       <fieldset class="paged-section"><legend>Hairstyle <span class="choice-value" id="hair-label"></span>${pager('hair','hairstyle')}</legend><div class="hair-options">${HAIR_STYLES.map((p,index) => `<button type="button" class="hair-option" data-choice="hair" data-value="${p.id}" data-page="${Math.floor(index/8)}" aria-pressed="false"><canvas aria-hidden="true" data-hair="${p.id}"></canvas><span>${p.name}</span></button>`).join('')}</div></fieldset>
       <fieldset class="paged-section"><legend>Hair color <span class="choice-value" id="color-label"></span>${pager('hairColor','hair color')}</legend><div class="swatches">${swatches('hairColor', HAIR_PALETTES)}</div></fieldset>
-      <div class="detail-row"><label>Facial hair<select id="facial-hair">${selectOptions(FACIAL_HAIR)}</select></label><label>Accessory<select id="accessory">${selectOptions(ACCESSORIES)}</select></label></div>
+      <div class="detail-row"><label>Facial hair<select id="facial-hair">${selectOptions(FACIAL_HAIR)}</select></label><label>Accessory<select id="accessory">${selectOptions(ACCESSORIES)}</select></label><label id="feature-label">Features<select id="feature">${selectOptions(featureOptions)}</select></label></div>
       <p class="editor-notice" id="coverage-note">Hair and accessories follow your selected facing.</p>
       </div>
       <div id="armor-options" class="editor-tab-panel" role="tabpanel" aria-labelledby="armor-tab" hidden>
@@ -81,8 +100,9 @@ const figure = canvas('figure'), small = canvas('world-size');
 const gear = root.querySelector<HTMLSelectElement>('#gear')!;
 const facial = root.querySelector<HTMLSelectElement>('#facial-hair')!;
 const accessory = root.querySelector<HTMLSelectElement>('#accessory')!;
+const feature = root.querySelector<HTMLSelectElement>('#feature')!;
 const helmet = root.querySelector<HTMLInputElement>('#helmet-visible')!;
-gear.value = loadout;
+gear.value = gearClass;
 let sheet = structuredClone(options.sheet);
 const tintPrompt=bindArmorTintPrompt(root,()=>!busy&&!disposed,tint=>{
   tints=tint==='original'?{}:Object.fromEntries(ARMOR_PARTS.map(part=>[part.id,tint]));refresh();
@@ -96,8 +116,8 @@ const label = <T extends {id: string; name: string}>(catalog: readonly T[], id: 
 function pose(time: number, source:CharacterSheet=sheet, angle=facing): CharacterPose {
   const main = source.equipped.weapon?.weapon ?? UNARMED_WEAPON;
   const off = source.equipped.offhand;
-  return { kind: 'player', appearance, time, angle, attackAngle: angle, moving: 0, attack: 0, hitFlash: 0, dodging: false,
-    outfit: tintedOutfit(outfitFromEquipment(source),tints,showHelmet),
+  return { kind: 'player', appearance, raceId, time, angle, attackAngle: angle, moving: 0, attack: 0, hitFlash: 0, dodging: false,
+    outfit: tintedOutfit(outfitFromEquipment(transmoggedSheet(source)),tints,showHelmet),
     weapon: main.visual, grip: main.hands === 2 ? 'two-handed' : 'one-handed',
     offHand: off?.shield ? { kind: 'shield', visual: off.shield.visual } : off?.focus ? { kind: 'focus', visual: off.focus.visual } : off?.weapon ? {kind:'weapon',visual:off.weapon.visual}:null };
 }
@@ -121,7 +141,7 @@ function drawHead(target: HTMLCanvasElement, recipe: CharacterAppearance, angle:
   const { ctx, width, height } = surface(target);
   const scale = Math.min(width / 17, height / 24);
   ctx.save(); ctx.translate(width / 2, height * .52); ctx.scale(scale, scale); ctx.translate(0, 33);
-  headArmor(ctx, null, c => c, angle, recipe); ctx.restore();
+  headArmor(ctx, null, c => c, angle, recipe, raceId); ctx.restore();
 }
 function draw(time = 0) {
   if (disposed) return;
@@ -140,7 +160,7 @@ function refresh() {
     button.hidden=Number(button.dataset.page)!==pages[key as keyof typeof pages];
   });
   for(const key of Object.keys(pages) as (keyof typeof pages)[]) {
-    const total=key==='hair'?3:2;
+    const total=pageTotal(key);
     root.querySelector(`[data-page-label="${key}"]`)!.textContent=`${pages[key]+1} / ${total}`;
     root.querySelectorAll<HTMLButtonElement>(`[data-page-key="${key}"]`).forEach(b=>{b.disabled=Number(b.dataset.step)<0?pages[key]===0:pages[key]===total-1;});
   }
@@ -168,6 +188,8 @@ function refresh() {
   root.querySelector('#coverage-note')!.textContent = showHelmet ? 'The hood covers hair, hoops and circlets.' : 'Hair and accessories follow your selected facing.';
   root.querySelector('#preview-name')!.textContent = displayName;
   facial.value = appearance.facialHair; accessory.value = appearance.accessory;
+  root.querySelector<HTMLElement>('#feature-label')!.hidden = !featureOptions.length;
+  if (featureOptions.length) feature.value = appearance.feature ?? featureOptions[0].id;
   for (const target of root.querySelectorAll<HTMLCanvasElement>('.hair-option:not([hidden]) [data-hair]')) {
     drawHead(target, { ...appearance, hair:target.dataset.hair as CharacterAppearance['hair'], facialHair:'none', accessory:'none' }, Math.PI / 2);
   }
@@ -176,7 +198,7 @@ function refresh() {
 root.addEventListener('click', event => {
   const button = (event.target as Element).closest<HTMLButtonElement>('button'); if (!button||busy) return;
   const value = button.dataset.value;
-  if(button.dataset.pageKey) {const key=button.dataset.pageKey as keyof typeof pages;pages[key]=Math.max(0,Math.min(key==='hair'?2:1,pages[key]+Number(button.dataset.step)));}
+  if(button.dataset.pageKey) {const key=button.dataset.pageKey as keyof typeof pages;pages[key]=Math.max(0,Math.min(pageTotal(key)-1,pages[key]+Number(button.dataset.step)));}
   if(button.dataset.tab==='character'||button.dataset.tab==='armor'){tab=button.dataset.tab;root.querySelector('.editor-controls')!.scrollTop=0;}
   if(ARMOR_PARTS.some(p=>p.id===button.dataset.part))selectedPart=button.dataset.part as ArmorPart;
   if(ARMOR_TINTS.some(p=>p.id===button.dataset.tint))tints={...tints,[selectedPart]:button.dataset.tint};
@@ -185,25 +207,27 @@ root.addEventListener('click', event => {
   if(button.id==='inventory-preview'){options.onInventory?.();return;}
   if(button.id==='close-editor'||button.id==='cancel-editor'){cancel();return;}
   if(button.id==='save-editor'){void save();return;}
-  if (button.dataset.choice === 'skin' && SKIN_PALETTES.some(p => p.id === value)) appearance.skin = value!;
+  if (button.dataset.choice === 'skin' && skinOptions.some(p => p.id === value)) appearance.skin = value!;
   if (button.dataset.choice === 'hairColor' && HAIR_PALETTES.some(p => p.id === value)) appearance.hairColor = value!;
   if (button.dataset.choice === 'hair' && HAIR_STYLES.some(p => p.id === value)) appearance.hair = value as CharacterAppearance['hair'];
   if (button.id === 'rotate-left') facing -= Math.PI / 4;
   if (button.id === 'rotate-right') facing += Math.PI / 4;
   if (button.id === 'randomize') {
-    const random = crypto.getRandomValues(new Uint32Array(5));
-    appearance = { skin:SKIN_PALETTES[random[0] % SKIN_PALETTES.length].id, hairColor:HAIR_PALETTES[random[1] % HAIR_PALETTES.length].id,
-      hair:HAIR_STYLES[random[2] % HAIR_STYLES.length].id, facialHair:FACIAL_HAIR[random[3] % FACIAL_HAIR.length].id, accessory:ACCESSORIES[random[4] % ACCESSORIES.length].id };
+    const random = crypto.getRandomValues(new Uint32Array(6));
+    appearance = { skin:skinOptions[random[0] % skinOptions.length].id, hairColor:HAIR_PALETTES[random[1] % HAIR_PALETTES.length].id,
+      hair:HAIR_STYLES[random[2] % HAIR_STYLES.length].id, facialHair:FACIAL_HAIR[random[3] % FACIAL_HAIR.length].id, accessory:ACCESSORIES[random[4] % ACCESSORIES.length].id,
+      feature:featureOptions.length ? featureOptions[random[5] % featureOptions.length].id : undefined };
     revealSelection();
   }
   if (button.id === 'reset') { appearance = {...initial}; facing = Math.PI / 2; revealSelection(); }
   refresh();
 }, { signal:abort.signal });
-gear.addEventListener('change', () => { if (isStarterLoadoutId(gear.value)) { loadout = gear.value; sheet = createCharacterSheet(loadout); refresh(); } }, { signal:abort.signal });
+gear.addEventListener('change', () => { if (isWowClassId(gear.value)) { gearClass = gear.value; sheet = createCharacterSheet(gearClass, options.sheet.raceId, options.sheet.look); refresh(); } }, { signal:abort.signal });
 helmet.addEventListener('change',()=>{showHelmet=helmet.checked;refresh();},{signal:abort.signal});
 root.querySelector('.editor-tabs')!.addEventListener('keydown',event=>{const e=event as KeyboardEvent;if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();tab=tab==='character'?'armor':'character';root.querySelector('.editor-controls')!.scrollTop=0;refresh();root.querySelector<HTMLButtonElement>(`[data-tab="${tab}"]`)!.focus();}},{signal:abort.signal});
 facial.addEventListener('change', () => { appearance.facialHair = facial.value as CharacterAppearance['facialHair']; refresh(); }, { signal:abort.signal });
 accessory.addEventListener('change', () => { appearance.accessory = accessory.value as CharacterAppearance['accessory']; refresh(); }, { signal:abort.signal });
+feature.addEventListener('change', () => { appearance.feature = feature.value as RaceFeatureId; refresh(); }, { signal:abort.signal });
 root.addEventListener('keydown',event=>{
   if(busy||!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.key))return;
   const target=event.target as HTMLElement,grid=target.closest('.swatches, .hair-options, .armor-parts');

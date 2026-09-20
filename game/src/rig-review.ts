@@ -3,11 +3,16 @@ import { drawHumanoid } from './art.ts';
 import type { CharacterPose } from './art.ts';
 import { loadGameFont, text } from './font.ts';
 import { STARTING_SWORD, UNARMED_WEAPON } from './equipment.ts';
+import { createRaceLook } from './character-look.ts';
+import { isWowRaceId } from './wow-types.ts';
 
 const directions = ['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE'];
 const mount = document.querySelector<HTMLElement>('#poses')!;
 const equipment = document.querySelector<HTMLSelectElement>('#equipment')!;
-equipment.value = new URLSearchParams(location.search).get('equipment') === 'unarmed' ? 'unarmed' : 'sword';
+const params = new URLSearchParams(location.search);
+const raceParam = params.get('race');
+const raceId = raceParam && isWowRaceId(raceParam) ? raceParam : undefined;
+equipment.value = params.get('equipment') === 'unarmed' ? 'unarmed' : 'sword';
 const abort = new AbortController();
 let disposed = false;
 
@@ -39,7 +44,8 @@ async function boot() {
         text(c, moving ? 'WALK' : 'IDLE', 14, row * 300 + 12, 1.5, '#a5b3a5');
         c.strokeStyle = '#48615b'; c.beginPath(); c.moveTo(150, anchor); c.lineTo(170, anchor);
         c.moveTo(160, anchor - 4); c.lineTo(160, anchor + 4); c.stroke();
-        const pose: CharacterPose = { kind: 'player', angle, time: 1.25, moving,
+        const pose: CharacterPose = { kind: 'player', angle, time: 1.25, moving, raceId,
+          appearance: raceId ? createRaceLook(raceId).appearance : undefined,
           weapon: weapon.visual, grip: weapon.hands === 1 ? 'one-handed' : 'two-handed',
           gaitPhase: Math.PI / 2, moveAngle: angle, attack: 0, attackAngle: angle, hitFlash: 0, dodging: false };
         c.save(); c.translate(160, anchor); c.scale(2.8, 2.8); drawHumanoid(c, pose); c.restore();

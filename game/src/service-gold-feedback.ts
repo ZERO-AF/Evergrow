@@ -1,5 +1,6 @@
 import { RewardFeedback } from './reward-feedback.ts';
 import { drawRewardFlights } from './reward-art.ts';
+import { formatWalletCompact } from './currency.ts';
 
 /** Shop presentation only: reuse pickup coins and counter after the trade is durable. */
 export class ServiceGoldFeedback {
@@ -37,7 +38,7 @@ export class ServiceGoldFeedback {
       const dpr=Math.min(2,devicePixelRatio||1);this.canvas.width=Math.ceil(bounds.width*dpr);this.canvas.height=Math.ceil(bounds.height*dpr);
       this.panel.append(this.canvas);
     }
-    this.gain=document.createElement('span');this.gain.className='service-gold-gain';this.gain.textContent=`+${amount.toLocaleString()}`;this.gain.setAttribute('aria-hidden','true');wallet.append(this.gain);
+    this.gain=document.createElement('span');this.gain.className='service-gold-gain';this.gain.textContent=`+${formatWalletCompact(amount)}`;this.gain.setAttribute('aria-hidden','true');wallet.append(this.gain);
     const context=this.canvas?.getContext('2d');const began=performance.now();let last=began;
     const draw=(now:number)=>{
       if(this.panel.hidden||!wallet.isConnected){this.stop();return;}

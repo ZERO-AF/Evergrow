@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { Simulation, FIXED_STEP } from '../src/simulation.ts';
 import { addInventoryItem } from '../src/inventory.ts';
 import { PACK_CELLS, activeCharms, resolvePackLayout } from '../src/inventory-grid.ts';
-import { deriveItem, generateItem } from '../src/items.ts';
+import { deriveItem, generateItem, createCharacterSheet } from '../src/items.ts';
+import { refreshCharacter } from '../src/character.ts';
 import { GROUND_PICKUP_RANGE } from '../src/ground-item-pickup.ts';
 import type { Input, WorldQuery } from '../src/model.ts';
 
@@ -84,6 +85,7 @@ test('pickup routes around obstacles and gives up when no route exists',()=>{
 
 test('charm pickup is inactive until moved; a full bag preserves ground loot',()=>{
   const sim=setup(open,0);
+  sim.player.character=createCharacterSheet('mage','undead');refreshCharacter(sim.player);
   let charm=generateItem(771,1,'charm','amber-pebble','common');
   charm.affixes[0]={name:'Prosperity',stat:'goldFindPercent',value:0};charm=deriveItem(charm);
   sim.groundItems[0].item=charm;

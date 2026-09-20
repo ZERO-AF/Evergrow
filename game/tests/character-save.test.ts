@@ -6,7 +6,8 @@ import { CharacterRepository, characterSlotKey } from '../src/character-storage.
 import { CharacterSession } from '../src/character-session.ts';
 import { decodeCharacterSave, CHARACTER_SLOT_COUNT } from '../src/character-save.ts';
 import { awardCharacterExperience, refreshCharacter } from '../src/character.ts';
-import { generateItem, createCharacterSheet, STARTER_LOADOUTS } from '../src/items.ts';
+import { generateItem, createCharacterSheet } from '../src/items.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { addInventoryItem, equipItem } from '../src/inventory.ts';
 import { executeCharacterCommand } from '../src/character-commands.ts';
 import { SKILL_NODES } from '../src/skill-tree.ts';
@@ -214,25 +215,27 @@ test('character power is reproducible from saved gear and increases with stronge
 });
 
 
-test('each starter choice persists with matching portrait equipment, common gear and an empty bag', async () => {
+test('each class starter persists with matching portrait equipment, common gear and an empty bag', async () => {
   const { repo, session, sim } = (await setup());
-  assert.deepEqual(STARTER_LOADOUTS.map(option => option.id), ['sword-shield', 'sword', 'wand', 'fire', 'bow', 'longbow']);
-  for (const [index, option] of STARTER_LOADOUTS.entries()) {
+  const classes = Object.values(WOW_CLASSES);
+  assert.equal(classes.length, 10);
+  for (const [index, option] of classes.entries()) {
     sim.player.character = createCharacterSheet(option.id); refreshCharacter(sim.player);
-    const preview = previewCharacter(null, option.id);
+    const preview = previewCharacter(null, { classId: option.id });
     assert.deepEqual(preview.equipment, sim.player.equipment);
-    assert.equal(sim.player.equipment.mainHand.id, option.profileId);
+    assert.equal(sim.player.equipment.mainHand.id, option.starter.weapon);
     assert.equal(sim.player.character.equipped.weapon!.tier, 'common');
     assert.equal(sim.player.character.equipped.weapon!.itemLevel, 1);
     assert.deepEqual(sim.player.character.equipped.weapon!.affixes, []);
-    assert.equal(sim.player.character.equipped.offhand?.recipe.profileId ?? null, option.offhandProfileId);
+    assert.equal(sim.player.character.equipped.offhand?.recipe.profileId ?? null, option.starter.offhand ?? null);
     assert.ok(sim.player.character.inventory.every(item => item === null));
     assert.equal(sim.player.character.equipped.chest!.appearance.style, 'leather');
-    assert.ok((await session.create(index + 1, option.label, 7319, sim.captureCheckpoint(), `starter-${option.id}`, 200)));
+    if (index >= CHARACTER_SLOT_COUNT - 1) continue; // slot 0 holds the setup character; eight slots total
+    assert.ok((await session.create(index + 1, option.name, 7319, sim.captureCheckpoint(), `starter-${option.id}`, 200)));
     const loaded = (await session.load(index + 1))!;
     const restored = new Simulation(world, { spawn: false }); restored.restoreCheckpoint(loaded.checkpoint);
     assert.deepEqual(restored.player.equipment, preview.equipment);
-    assert.equal(repo.read(index + 1).record!.checkpoint.character.equipped.weapon!.weapon!.id, option.profileId);
+    assert.equal(repo.read(index + 1).record!.checkpoint.character.equipped.weapon!.weapon!.id, option.starter.weapon);
   }
 });
 

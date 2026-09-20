@@ -47,7 +47,7 @@ import { eventProgress } from './event-progress.ts';
 import { EventProgressPresentation } from './event-progress-presentation.ts';
 import { drawPortal, drawTownAnchor } from './travel-art.ts';
 import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } from './travel.ts';
-import { buildingNPC, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
+import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
 import { drawGroundGold, drawRewardFlights, drawGoldBalance, drawLevelCelebration, drawLevelAnnouncement, drawJourneyAnnouncement } from './reward-art.ts';
@@ -73,6 +73,9 @@ import type { PointLight } from './lighting.ts';
 import { CombatEffects } from './effects.ts';
 import { playerPose } from './character-pose.ts';
 import { drawProjectile, projectileLight } from './projectile-art.ts';
+import { castSchoolStyle, schoolCastAura } from './spell-school-art.ts';
+import { drawCastBars } from './cast-bar-art.ts';
+import { castBarSettings } from './cast-bar-settings.ts';
 import { drawCharacterStatus } from './status-art.ts';
 import { SettlementArt } from './settlement-art.ts';
 import { EnvironmentArt } from './environment-art.ts';
@@ -94,6 +97,32 @@ import { deriveAttackStats } from './equipment.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { drawEnemyPlate, getEnemyPlateLayout } from './enemy-plate.ts';
 import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-art.ts';
+import { VfxPack, drawCastTargetDecal } from './vfx-pack.ts';
+import { BossWarnings } from './boss-warnings.ts';
+import { drawBossWarnings } from './boss-warning-art.ts';
+import { lootBeamAnchors, lootBeamLights, type LootBeamAnchor } from './loot-beam.ts';
+import { drawLootBeams } from './loot-beam-art.ts';
+import { MOUNTS } from './mount-content.ts';
+import { drawMount, mountPose, MOUNT_SEAT_HEIGHT } from './mount-art.ts';
+import { drawAlly } from './ally-art.ts';
+
+import { summonCast, summonProgress } from './mount-state.ts';
+import { gatherNodesIn, focusGatherNode, gatherNodeLabel, gatherChannelOf, type GatherNode } from './gather-node.ts';
+import { drawGatherNode } from './gather-node-art.ts';
+import { questMarkers, drawQuestMarker } from './quest-marker.ts';
+import { focusedInnkeeper, innkeepersNear } from './hearthstone.ts';
+import { drawFishingLabel } from './fishing-art.ts';
+import { fishingPrompt, type FishingSession } from './fishing.ts';
+import { raidBossName } from './raid-boss-content.ts';
+import { raid2BossName } from './raid2-boss-content.ts';
+import { raid3BossName } from './raid3-boss-content.ts';
+import { raid4BossName } from './raid4-boss-content.ts';
+import { worldEventsOf, worldEventProgress, worldEventChestAt } from './world-event-state.ts';
+import { drawNecropolis, drawWorldEventChest, worldEventLights, WorldEventCardPresentation, drawWorldEventCard, worldEventChestLabel } from './world-event-art.ts';
+import { drawNameplates } from './nameplate-art.ts';
+import { nameplateSettings } from './nameplate-settings.ts';
+
+import { GAME_FEATURES } from './game-features.ts';
 
 import { EnemyDeaths } from './death-presentation.ts';
 import { drawEnemyRemains, deathDepth, resetDeathArt } from './death-art.ts';
@@ -115,6 +144,14 @@ export class Renderer {
   performanceUIBounds: UIRect | null = null;
   extraUIBounds: {x:number;y:number;width:number;height:number}|null = null;
   private outdoorLightEffects = new OutdoorLightEffects();
+  /** WoW combat VFX pack (docs/wow-deepening.md §4); game.ts fires quest/mount/gather triggers. */
+  readonly vfx = new VfxPack();
+  private bossWarnings = new BossWarnings();
+  private lootBeams: LootBeamAnchor[] = [];
+  private gatherNodes: GatherNode[] = [];
+  private focusedGatherNode: GatherNode | null = null;
+  /** Live fishing session owned by game.ts; null clears the bobber art. */
+  fishing: FishingSession | null = null;
   private dungeonLightEffects = new DungeonLightEffects();
   private emissionCanvas: HTMLCanvasElement | undefined;
   /** Explicit dungeon fixture emission for the shared bloom pass. */
@@ -182,6 +219,9 @@ export class Renderer {
   private battleBarks = new BattleBarkScene();
   private focusedEnemy: Enemy | null = null;
   targetEffects: { id: number; buffs: ActiveBuff[]; x: number; y: number; opacity: number } | null = null;
+  /** Enemy under the pointer this frame; click-targeting reads it. */
+  get hoveredEnemyId(): number | null { return this.enemyFocus.hoveredId; }
+  readonly worldEventCard = new WorldEventCardPresentation();
   private plateEnemy: Enemy | null = null;
   private plateOpacity = 0;
   private rangedAim: RangedAim | null = null;
@@ -265,6 +305,7 @@ export class Renderer {
 
   reset() {
     this.eventProgressPresentation.reset();
+    this.worldEventCard.reset();
     this.outdoorLightEffects.reset();
     this.dungeonLightEffects.reset(); this.emission = undefined;
     this.battleBarks.reset();
@@ -281,6 +322,7 @@ export class Renderer {
     this.rewards.reset(); this.experienceFeedback.reset(); this.experienceDisplay = undefined;
     this.enemyFocus.reset(); this.focusedEnemy = this.plateEnemy = null; this.plateOpacity = 0;
     this.visibility.reset();
+    this.vfx.reset(); this.bossWarnings.clear(); this.lootBeams = []; this.gatherNodes = []; this.focusedGatherNode = null;
   }
 
   handleEvents(events: CombatEvent[], reducedMotion: boolean) {
@@ -289,6 +331,8 @@ export class Renderer {
     this.rewards.handleEvents(events, reducedMotion);
     this.experienceFeedback.handleEvents(events);
     this.enemyFocus.noteHits(events);
+    if (GAME_FEATURES.lootBeams) this.vfx.handleEvents(events);
+    if (GAME_FEATURES.bossWarnings) this.bossWarnings.handleEvents(events);
     this.battleBarks.noteEvents(events);
     for (const e of events) {
       if (e.type === 'hit') {
@@ -317,6 +361,7 @@ export class Renderer {
     const c = this.ctx, p = sim.player, active = settings.phase === 'playing' || settings.phase === 'map' && settings.liveMap === true;
     const step = active ? dt : 0, alpha = sim.interpolationAlpha;
     const feedbackStep = active || settings.phase === 'dead' ? dt : 0;
+    this.worldEventCard.update(this.cryptFloor ? null : worldEventProgress(worldEventsOf(sim), sim.time), feedbackStep, settings.reducedMotion);
     this.eventProgressPresentation.update(this.cryptFloor ? null : eventProgress(sim.eventState), feedbackStep, settings.reducedMotion);
     this.rewards.update(goldBalance(p.character), feedbackStep, settings.reducedMotion);
     this.experienceDisplay = this.experienceFeedback.update(p, feedbackStep, settings.reducedMotion);
@@ -325,7 +370,9 @@ export class Renderer {
     this.visualTime += dt;
     this.portalGuide = Math.max(0, this.portalGuide - dt);
     if (sim.portal.origin) this.fadingPortal = { ...sim.portal.origin, progress: sim.portal.progress, life: .25 };
-    else if (this.fadingPortal) { this.fadingPortal.life -= dt; if (settings.reducedMotion || this.fadingPortal.life <= 0) this.fadingPortal = null; }
+    if (GAME_FEATURES.lootBeams) this.vfx.update(feedbackStep);
+    if (GAME_FEATURES.bossWarnings) this.bossWarnings.update(sim.enemies, this.visualTime);
+
     this.portalAnchors = world.getSettlements(this.view.left - 100, this.view.top - 100, this.view.width + 200, this.view.height + 200).map(townPortalAnchor);
     this.shake *= Math.exp(-dt * 22); this.hurt *= Math.exp(-dt * 5);
     this.kickX *= Math.exp(-dt * 18); this.kickY *= Math.exp(-dt * 18);
@@ -365,7 +412,7 @@ export class Renderer {
     const { offsetX, offsetY, left, top, width: worldWidth, height: worldHeight } = this.view;
     this.focusedEnemy = this.enemyFocus.update(sim.enemies, this.view,
       this.pointerActive && !this.pointerOverHUD() ? { x: this.pointerX, y: this.pointerY } : null,
-      alpha, dt, settings.phase === 'playing' && !p.dead, this.inspectedEnemyId);
+      alpha, dt, settings.phase === 'playing' && !p.dead, this.inspectedEnemyId, p.targetId ?? null);
     if (settings.phase !== 'playing' || p.dead) {
       this.plateEnemy = null; this.plateOpacity = 0;
     } else {
@@ -376,6 +423,12 @@ export class Renderer {
       if (this.plateOpacity < .01) this.plateEnemy = null;
     }
     this.visibility.update(world, this.view);
+    this.lootBeams = GAME_FEATURES.lootBeams ? lootBeamAnchors(sim.groundItems, sim.time, settings.reducedMotion) : [];
+    this.gatherNodes = this.cryptFloor ? [] : gatherNodesIn(world, p, sim.time, left, top, worldWidth, worldHeight);
+    this.focusedGatherNode = this.gatherNodes.length
+      ? focusGatherNode(world, p, sim.time, p,
+          this.pointerActive && !this.pointerOverHUD() ? screenToWorld(this.view, this.pointerX, this.pointerY) : undefined)
+      : null;
     this.residents=this.cryptFloor?[]:world.getSettlements(left,top,worldWidth,worldHeight).flatMap(t=>settlementResidents(t,sim.time)).filter(n=>n.x>=left-90&&n.x<=left+worldWidth+90&&n.y>=top-90&&n.y<=top+worldHeight+90);
     if(active){
       this.residentCooldown=Math.max(0,this.residentCooldown-step);
@@ -393,6 +446,7 @@ export class Renderer {
     this.biomeLife.update(dt, this.visualTime, this.cachedProps, { x: px, y: py, vx: p.vx, vy: p.vy },
       settings.reducedMotion, (x, y) => world.sampleGroundContact(x, y));
     const lights = this.sceneLights(sim, px, py, settings.reducedMotion, alpha);
+    if (GAME_FEATURES.lootBeams) lights.push(...lootBeamLights(this.lootBeams).slice(0, 4));
     this.materialLights = lights.slice(1);
     this.profiler?.end('sceneSetup', setupStart);
     const detailStart = this.profiler?.start() ?? 0;
@@ -436,6 +490,14 @@ export class Renderer {
     if(this.cryptFloor&&dungeonRun) drawCryptDecor(c,this.cryptFloor,dungeonRun,settings.reducedMotion ? 0 : this.visualTime,this.eventArt.chests,settings.reducedMotion);
     else if(sim.dungeonFloor?.rift&&dungeonRun?.rift){const f=sim.dungeonFloor;drawRiftPortal(c,f.entry.x,f.entry.y,this.visualTime,.65);if(dungeonRun.rift.phase==='complete'){const exit=dungeonRunExit(f,dungeonRun);drawRiftPortal(c,exit.x,exit.y,this.visualTime,.65);const ch=dungeonRunChest(f,dungeonRun,2);this.eventArt.chests.draw(c,`${dungeonRun.entrance.id}:chest`,ch.x,ch.y,dungeonRun.rift.claimed,this.visualTime,0,true,settings.reducedMotion);}}
     else for(const entrance of this.visibility.entrances)drawCryptGate(c,entrance,this.visualTime);
+    if (!this.cryptFloor) {
+      const events = worldEventsOf(sim);
+      for (const event of [events.active, ...events.history]) {
+        if (!event) continue;
+        drawNecropolis(c, event, this.visualTime, settings.reducedMotion);
+        drawWorldEventChest(c, event, this.visualTime, settings.reducedMotion);
+      }
+    }
     for (const site of this.visibility.sites) drawSiteGround(c, site, settings.reducedMotion ? 0 : this.visualTime);
     this.settlementArt.drawGround(c, this.cachedBuildings, this.visualTime, this.sky);
     this.groundDressing.draw(c, this.cachedProps, this.view);
@@ -475,14 +537,23 @@ export class Renderer {
       if (x < left - 70 || x > left + worldWidth + 70 || y < top - 70 || y > top + worldHeight + 70) continue;
       this.drawActorShadow(x, y, enemy.radius, enemy.kind === 'brute' ? 55 : 38);
     }
+    for (const ally of p.allies ?? []) {
+      if (ally.hp <= 0) continue;
+      const x = lerp(ally.prevX, ally.x, alpha), y = lerp(ally.prevY, ally.y, alpha);
+      if (x < left - 70 || x > left + worldWidth + 70 || y < top - 70 || y > top + worldHeight + 70) continue;
+      this.drawActorShadow(x, y, ally.radius, 30);
+    }
     // Civilians share the character's contact and directional shadows, beneath all scenery.
     for (const resident of this.residents) this.drawNPCShadow(resident.x, resident.y, npcArtScale(resident));
     for (const building of this.cachedBuildings) {
       const npc = buildingNPC(building);
       if (npc && npc.role !== 'stash') this.drawNPCShadow(npc.x, npc.y, npcArtScale(npc));
+      const master = stableMasterFor(building);
+      if (master) this.drawNPCShadow(master.x, master.y, npcArtScale(master));
     }
     this.enemyFocusMark(alpha);
     drawResourcePickups(c, sim.pickups, this.visualTime, settings.reducedMotion);
+    for (const node of this.gatherNodes) drawGatherNode(c, node, this.visualTime, node === this.focusedGatherNode);
     for (const ghost of this.ghosts) {
       c.save(); c.globalAlpha = ghost.life / .19 * .3; c.translate(ghost.x, ghost.y);
       drawHumanoid(c, { kind: 'player', angle: ghost.angle, time: sim.time, gaitPhase: ghost.gait,
@@ -528,21 +599,24 @@ export class Renderer {
     drawLevelCelebration(c, this.rewards.level, px, py, settings.reducedMotion);
     if(!this.cryptFloor)drawEventObjectives(c,sim.eventState,settings.reducedMotion?0:this.visualTime);
     drawGroundLoot(c, sim.groundItems, this.visualTime, settings.reducedMotion, sim.time);
+    drawLootBeams(c, this.lootBeams, this.visualTime, settings.reducedMotion);
     this.effects.drawSword(c);
     for (const effect of sim.groundEffects) {
       if (effect.x + effect.radius < left || effect.x - effect.radius - 180 > left + worldWidth
         || effect.y + effect.radius < top || effect.y - effect.radius - 500 > top + worldHeight) continue;
       drawGroundSpell(c, effect, this.visualTime, settings.reducedMotion);
     }
-    this.effects.draw(c, settings.reducedMotion);
+    if (GAME_FEATURES.lootBeams) drawCastTargetDecal(c, sim, this.visualTime, settings.reducedMotion);
+    const platesOn = GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off';
     if (!this.cryptFloor) this.waterArt.drawSplashes(c, this.water.fluid);
     this.damageDirection(px, py);
     if(!this.cryptFloor) this.motes(world, left, top, worldWidth, worldHeight, sim.time, settings.reducedMotion);
     if(!this.cryptFloor) this.environmentArt.drawAmbient(c, (x, y) => world.sampleBiome(x, y).weights, { x: left, y: top, width: worldWidth, height: worldHeight },
       this.visualTime, settings.reducedMotion);
     for (const enemy of sim.enemies) drawEnemyWarning(c, enemy, alpha, this.visualTime, settings.reducedMotion);
-    this.healthBars(sim, alpha);
+    if (!platesOn) this.healthBars(sim, alpha);
     c.restore();
+    if (GAME_FEATURES.castBars && !platesOn) drawCastBars(c, sim, this.view, castBarSettings(), settings.reducedMotion);
 
     const vignette = c.createRadialGradient(this.width / 2, this.height * .46, this.height * .23,
       this.width / 2, this.height * .46, Math.max(this.width, this.height) * .7);
@@ -557,6 +631,9 @@ export class Renderer {
     // Project popup anchors, leaving their glyph size and outline independent of camera zoom.
     // Speech draws later and may cover damage numbers; popups never displace a bark.
     this.effects.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y));
+    if (GAME_FEATURES.lootBeams) this.vfx.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y), settings.reducedMotion);
+    if (GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off')
+      drawNameplates(c, sim, this.view, nameplateSettings(), settings.reducedMotion);
     const lootPointer = settings.phase === 'playing' && this.pointerActive && !this.gamepadActive && !this.touchActive && !this.pointerOverHUD()
       ? { x: this.pointerX, y: this.pointerY } : null;
     const retainedId = lootPointer ? hoveredGroundLoot(this.groundLootLabels, lootPointer.x, lootPointer.y)?.id : undefined;
@@ -591,6 +668,7 @@ export class Renderer {
       hitPulse: p.dead ? Math.min(1, this.hurt) : Math.min(1, p.hitFlash / COMBAT_TIMING.hitFlashDuration),
       experience: this.experienceDisplay, groundEffects: sim.groundEffects,
       gamepad: this.gamepadActive, touch: this.touchActive, layout: footer,
+      simTime: sim.time, topInset: this.touchTopInset,
     });
     drawRewardFlights(c, this.rewards, (x, y) => worldToScreen(this.view, x, y), this.width, this.height, footer ? {hud:footer,gold:{x:headerX+27*.8*unit,y:headerY+62*.8*unit}} : undefined);
     drawLevelAnnouncement(c, this.rewards.level, worldToScreen(this.view, p.x, p.y), this.width, this.height, settings.reducedMotion);
@@ -601,26 +679,59 @@ export class Renderer {
     const plateWidth=this.width/plateScale, plateHeight=this.height/plateScale;
     const plateInset=this.touchTopInset/plateScale;
     const boss=sim.enemies.find(e=>isBossKind(e.kind)&&e.hp>0&&e.state!=='return'&&Math.hypot(e.x-p.x,e.y-p.y)<(isWildernessBoss(e.kind)?650:1100));
-    const target = boss ?? (this.plateOpacity > .01 ? this.plateEnemy : null);
+    const target = (this.plateOpacity > .01 ? this.plateEnemy : null) ?? boss;
     const debuffs = target ? [...enemyTraitBuffs(target),...enemyDebuffs(target, p)] : [];
     const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0);
     this.targetEffects = target && target.hp > 0 && targetPlate.height > 70 && debuffs.length && settings.phase === 'playing'
       ? { id: target.id, buffs: debuffs, x: (targetPlate.x + targetPlate.width / 2) * plateScale / this.width,
         y: (targetPlate.y + 76) * plateScale / this.height, opacity: boss ? 1 : this.plateOpacity } : null;
+    if (target) drawEnemyPlate(c, target, plateWidth, plateHeight, {
+      hasDebuffs: debuffs.length > 0, touch: this.touchActive, topInset: plateInset,
+      name: target === boss ? (raidBossName(target) ?? raid2BossName(target) ?? raid3BossName(target) ?? raid4BossName(target) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
+      time: this.visualTime, reducedMotion: settings.reducedMotion,
+      opacity: target === boss ? 1 : this.plateOpacity,
+      healthTrail: this.damageTrails.get(target.id)?.value ?? target.hp,
+      hitPulse: settings.reducedMotion ? 0 : Math.min(1, target.hitFlash / COMBAT_TIMING.hitFlashDuration),
+      comboPoints: p.comboPoints,
+    });
     if (boss) {
-      drawEnemyPlate(c, boss, plateWidth, plateHeight, { hasDebuffs: debuffs.length > 0, touch: this.touchActive, topInset: plateInset, name:this.cryptFloor?dungeonTheme(this.cryptFloor.seed,this.cryptFloor.theme).bossName:undefined });
       const plate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0);
       if (plate.height && this.focusedEnemy?.id === boss.id) text(c, 'CONTROL DURATION −75% · BRIEF STUN IMMUNITY',
         plateWidth / 2, plate.y + plate.height + 4, .7, '#9db8a7', 'center');
     }
-    if (!boss && this.plateEnemy && this.plateOpacity > .01) drawEnemyPlate(c, this.plateEnemy, plateWidth, plateHeight, {
-      hasDebuffs: debuffs.length > 0, touch: this.touchActive, topInset: plateInset,
-      time: this.visualTime, reducedMotion: settings.reducedMotion,
-      opacity: this.plateOpacity,
-      healthTrail: this.damageTrails.get(this.plateEnemy.id)?.value ?? this.plateEnemy.hp,
-      hitPulse: settings.reducedMotion ? 0 : Math.min(1, this.plateEnemy.hitFlash / COMBAT_TIMING.hitFlashDuration),
-    });
+    if (settings.phase === 'playing' && !this.cryptFloor) {
+      const view = this.view;
+      for (const marker of questMarkers(world, p, view.left, view.top, view.width, view.height)) {
+        const point = worldToScreen(view, marker.x, marker.y - 60);
+        drawQuestMarker(c, point.x, point.y, marker.mark, this.visualTime);
+      }
+      const innkeeper = GAME_FEATURES.hearthstone ? focusedInnkeeper(innkeepersNear(world, p.x - 100, p.y - 100, 200, 200), p, world) : null;
+      if (innkeeper) {
+        const point = worldToScreen(view, innkeeper.x, innkeeper.y - 78);
+        text(c, `${innkeeper.name} - Innkeeper  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      const stableMaster = focusedStableMaster(stableMastersNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      if (stableMaster) {
+        const point = worldToScreen(view, stableMaster.x, stableMaster.y - 78);
+        text(c, `${stableMaster.name} - Stable Master  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      if (this.focusedGatherNode) {
+        const point = worldToScreen(view, this.focusedGatherNode.x, this.focusedGatherNode.y - 46);
+        text(c, gatherNodeLabel(p, this.focusedGatherNode, gatherChannelOf(sim) !== null), point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      const prompt = GAME_FEATURES.fishing && this.fishing ? fishingPrompt(this.fishing, p, (x, y) => world.sampleWater(x, y), this.gamepadActive ? 'A' : controls.label('interact')) : null;
+      if (prompt) {
+        const point = this.fishing?.bobber ? worldToScreen(view, this.fishing.bobber.x, this.fishing.bobber.y - 30) : { x: this.width / 2, y: this.height * .62 };
+        drawFishingLabel(c, prompt, point.x, point.y);
+      }
+      const summon = GAME_FEATURES.mounts ? summonCast(sim) : null;
+      if (summon) {
+        const mount = MOUNTS[summon.id];
+        text(c, `Summoning ${mount.name}...`, this.width / 2, this.height * .68, 1, '#d6d7b3', 'center');
+      }
+    }
     c.restore();
+    if (GAME_FEATURES.bossWarnings) drawBossWarnings(c, this.bossWarnings, this.width, this.height, this.visualTime, settings.reducedMotion);
     if (settings.phase === 'playing') {
       const run=currentDungeon(sim.expeditions),f=sim.dungeonFloor;
       const points=run&&f?[{...f.entry,name:'Leave dungeon'},...(run.states.warden.hp<=0?[{...dungeonRunExit(f,run),name:'Leave dungeon'}]:[]),...f.chests.flatMap((_,i)=>!run.rift||i===2&&run.rift.phase==='complete'?[{...dungeonRunChest(f,run,i),name:'Treasure chest'}]:[])]:this.visibility.entrances;
@@ -628,6 +739,8 @@ export class Renderer {
       if(table){const q=worldToScreen(this.view,table.door.x,table.door.y-80);text(c,`${table.kind==='rift'?'Crimson Rift':'Expeditions'}${p.level<20?' · Level 20':''} [${this.gamepadActive?'A':controls.label('interact')}]`,q.x,q.y,1,'#d8c593','center');}
       const target=points.find(q=>Math.hypot(q.x-p.x,q.y-p.y)<75);
       if(target){const point=worldToScreen(this.view,target.x,target.y-75);text(c,`${target.name}  [${this.gamepadActive?'A':controls.label('interact')}]`,point.x,point.y,1,'#d6d7b3','center');}
+      if(!run){const chest=worldEventChestAt(worldEventsOf(sim),p);const chestLabel=worldEventChestLabel(chest);
+        if(chest&&chest.anchor&&chestLabel){const point=worldToScreen(this.view,chest.anchor.x,chest.anchor.y-55);text(c,`${chestLabel}  [${this.gamepadActive?'A':controls.label('interact')}]`,point.x,point.y,1,'#d6d7b3','center');}}
       if(run&&f)for(const event of f.events??[]){
           if(Math.hypot(event.x-p.x,event.y-p.y)>650)continue;
           const state=run.events?.[event.id];if(state?.finished)continue;
@@ -642,6 +755,7 @@ export class Renderer {
       }
       this.drawPortalHints(c, sim, world);
       drawEventUI(c, sim, world, (x,y) => worldToScreen(this.view,x,y), this.gamepadActive, this.eventSites, this.eventProgressPresentation.view);
+      drawWorldEventCard(c, this.worldEventCard.view);
       const npcs = this.cachedBuildings.flatMap(b => { const npc = buildingNPC(b); return npc ? [npc] : []; });
       const npc = focusNPC(npcs, p, world);
       if (npc) {
@@ -701,8 +815,8 @@ export class Renderer {
       // Prefetched offscreen props retain collision/light coverage without generating unseen sprites.
       if (prop.x + 115 < this.view.left || prop.x - 115 > this.view.left + this.view.width
         || prop.y + 10 < this.view.top || prop.y - 230 > this.view.top + this.view.height) return;
-      const sprite = this.propSprite(prop);
       const definition = propDefinition(prop.kind);
+      const sprite = this.propSprite(prop);
       const crown = definition.canopy;
       const occludes = crown && py < prop.y + 8 && py > prop.y - (crown.height + crown.radius) * prop.scale
         && Math.abs(px - prop.x - crown.offsetX * prop.scale) < crown.radius * prop.scale;
@@ -760,6 +874,8 @@ export class Renderer {
     for (const building of this.cachedBuildings) {
       const npc = buildingNPC(building);
       if (npc) entries.push({ y: npc.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(npc.x,npc.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, npc, this.visualTime, settings.reducedMotion)) });
+      const master = stableMasterFor(building);
+      if (master) entries.push({ y: master.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(master.x,master.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, master, this.visualTime, settings.reducedMotion)) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
         entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
       }
@@ -802,12 +918,35 @@ export class Renderer {
         c.restore();
       }});
     }
+    let drawnAllies = 0;
+    for (const ally of p.allies ?? []) {
+      if (ally.hp <= 0 || drawnAllies >= 24) continue;
+      const x = lerp(ally.prevX, ally.x, alpha), y = lerp(ally.prevY, ally.y, alpha);
+      if (x < this.view.left - 48 || x > this.view.left + this.view.width + 48
+        || y < this.view.top - 48 || y > this.view.top + this.view.height + 48) continue;
+      drawnAllies++;
+      entries.push({ y, stage: 'characters', draw: () => drawAlly(c, ally, x, y, this.visualTime, settings.reducedMotion) });
+    }
     if (settings.phase !== 'ready') entries.push({ y: py, draw: () => {
       const pose = playerPose(p, sim.time);
       pose.effectTime = settings.reducedMotion ? 0 : sim.time;
       if (sim.portal.active) { pose.cast = .45 * Math.min(1, sim.portal.progress * 4); pose.castColor = '#b5a0ee'; }
-      this.actor(px, py, pose);
+      const summon = summonProgress(sim);
+      if (summon > 0) { pose.cast = Math.max(pose.cast ?? 0, .45 * summon); pose.castColor = '#8fd3a0'; }
+      const mount = p.mounted ? MOUNTS[p.mounted.id] : null;
+      if (mount) {
+        const seat = mountPose(p, sim.time);
+        c.save(); c.translate(px, py); drawMount(c, mount, seat); c.restore();
+        this.actor(px, py - MOUNT_SEAT_HEIGHT, { ...pose, gaitPhase: 0, moving: 0 });
+      } else this.actor(px, py, pose);
       drawPlayerSkillEffects(c,p,px,py,settings.reducedMotion?0:sim.time,pose,settings.reducedMotion);
+      // School aura at the weapon tip while a cast or channel is in progress.
+      const castSkill = p.cast?.skill ?? (p.castTime > 0 ? p.activeSkill : null);
+      const castStyle = castSkill ? castSchoolStyle(p, castSkill) : null;
+      if (GAME_FEATURES.spellVfx && castStyle) {
+        const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
+        schoolCastAura(c, px + tip.x, (mount ? py - MOUNT_SEAT_HEIGHT : py) + tip.y, castStyle, this.visualTime, 1, settings.reducedMotion);
+      }
     } });
     for(const scar of this.riftAtmosphere.visible)if(scar.float)entries.push({y:scar.y,stage:'props',draw:()=>this.riftAtmosphere.drawFragment(c,scar)});
     entries.sort((a, b) => a.y - b.y);
@@ -865,6 +1004,8 @@ export class Renderer {
     for (const building of this.cachedBuildings) {
       const npc = buildingNPC(building);
       if (npc) environmentLights.push({ x: npc.x, y: npc.y - 20, radius: 60, color: NPC_COLORS[npc.role], power: .3 });
+      const master = stableMasterFor(building);
+      if (master) environmentLights.push({ x: master.x, y: master.y - 20, radius: 60, color: NPC_COLORS.stable, power: .3 });
     }
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
@@ -899,6 +1040,7 @@ export class Renderer {
       lights.push({ x: enemy.x, y: enemy.y - 22, radius: enemy.state === 'windup' ? 100 : 53,
         color: enemy.kind === 'emberAcolyte' ? '#ffac63' : enemy.kind === 'stormSentinel' ? '#a5baff' : enemy.kind === 'wisp' ? '#93c6ff' : '#8fc88c', power: enemy.state === 'windup' ? .65 : .28 });
     }
+    if (!this.cryptFloor) environmentLights.push(...worldEventLights(worldEventsOf(sim), this.visualTime, reducedMotion));
     // Combat illumination gets the finite light budget before distant lanterns.
     for (const light of environmentLights) light.stationary = true;
     environmentLights.sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
@@ -930,6 +1072,7 @@ export class Renderer {
     for (const shot of sim.projectiles) {
       const { x, y } = projectilePresentation(shot, alpha);
       drawProjectile(c, shot, x, y, reducedMotion && shot.effects?.style === 'radiant' ? 0 : this.visualTime);
+      if (GAME_FEATURES.spellVfx && shot.effects?.style) schoolCastAura(c, x, y, shot.effects.style, this.visualTime, .6, reducedMotion);
     }
   }
 

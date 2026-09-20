@@ -41,6 +41,7 @@ Updated 2026-09-07. Use the current guides for implementation. Proposed designs 
 | Character appearance, armor colors, phone editor and save v4 | [Character appearance editor](character-editor.md) |
 | Character, gear, attributes and allocation | [Character systems](character-systems.md) |
 | Weapon profiles, skill effects and action speed | [Weapons and skills](weapons-and-skills.md) |
+| WotLK classes, races, tab-targeting combat and class sanctums | [WoW transformation](wow-transformation.md) |
 | Ranks, specializations, mastery and ultimates | [Skill progression](skill-progression.md) |
 | Geographic scaling, XP, loot tables and gold | [Progression and loot](progression-and-loot.md) |
 | World history, retirement and current storage bounds | [World-state longevity](world-state-longevity.md) |

@@ -9,9 +9,12 @@ import { freshExpeditions, createDungeonRun } from '../src/dungeon-state.ts';
 import { Simulation } from '../src/simulation.ts';
 import { decodeCharacterSave, CHARACTER_SAVE_VERSION } from '../src/character-save.ts';
 import { World } from '../src/world.ts';
+import { createCharacterSheet } from '../src/items.ts';
+import { refreshCharacter } from '../src/character.ts';
 const goal=(id='camp:1',kind:JourneyGoal['kind']='camp',level=1):JourneyGoal=>({id,kind,name:'Test activity',x:700,y:300,level,region:'Briarwatch'});
 const facts=():JourneyFacts=>({events:freshEvents(),expeditions:freshExpeditions(),x:0,y:0,level:1,time:0,discovered:()=>false,campCleared:()=>false});
-const simulation=()=>new Simulation({blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})},{spawn:false});
+// Undead: no racial XP bonus, so authored rewards stay exact.
+const simulation=()=>{const s=new Simulation({blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})},{spawn:false});s.player.character=createCharacterSheet('warrior','undead');refreshCharacter(s.player);return s;};
 test('tracking, dismissal and collapse are bounded plans without mutating the prior state',()=>{
   let state=freshJourneys();state.offers=[goal('a'),goal('b'),goal('c'),goal('d')];const before=JSON.stringify(state);
   const first=planJourney(state,{type:'track',id:'a'})!;assert.equal(JSON.stringify(state),before);assert.equal(first.tracked,'a');assert.equal(first.accepted.length,1);

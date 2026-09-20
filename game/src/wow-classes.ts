@@ -1,0 +1,115 @@
+import type { WowClassDef, WowClassId } from './wow-types.ts';
+
+/** WotLK class definitions: resource model, starter gear, creation metadata. */
+export const WOW_CLASSES: Readonly<Record<WowClassId, WowClassDef>> = Object.freeze({
+  warrior: Object.freeze({
+    id: 'warrior', name: 'Warrior', color: '#C79C6E',
+    resource: 'rage', resourceLabel: 'Rage', resourceCap: 100, resourceRegen: 0, resourceDecay: 3,
+    gainOnDeal: 6, gainOnHit: 4, gcd: 1.5, armorStyle: 'plate',
+    starter: { weapon: 'weathered-sword' },
+    starterSkill: 'heroicStrike',
+    specs: ['Arms', 'Fury', 'Protection'] as const,
+    description: 'A master of arms who turns rage into devastating blows. Stalwart in plate, deadly with any weapon.',
+    roles: ['Melee damage', 'Tank'],
+  }),
+  paladin: Object.freeze({
+    id: 'paladin', name: 'Paladin', color: '#F58CBA',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'plate',
+    starter: { weapon: 'longsword', offhand: 'iron-buckler' },
+    starterSkill: 'crusaderStrike',
+    specs: ['Holy', 'Protection', 'Retribution'] as const,
+    description: 'A holy knight wielding the Light to smite foes and mend wounds. Blessed plate and righteous fury.',
+    roles: ['Melee damage', 'Healing', 'Tank'],
+  }),
+  hunter: Object.freeze({
+    id: 'hunter', name: 'Hunter', color: '#ABD473',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'leather',
+    starter: { weapon: 'thorn-shortbow' },
+    starterSkill: 'arcaneShot',
+    specs: ['Beast Mastery', 'Marksmanship', 'Survival'] as const,
+    description: 'A master of the wild who strikes from afar beside a loyal beast. Tracks, traps and deadly aim.',
+    roles: ['Ranged damage', 'Pet'],
+  }),
+  rogue: Object.freeze({
+    id: 'rogue', name: 'Rogue', color: '#FFF569',
+    resource: 'energy', resourceLabel: 'Energy', resourceCap: 100, resourceRegen: 10, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.0, armorStyle: 'leather',
+    starter: { weapon: 'rondel-dagger' },
+    starterSkill: 'sinisterStrike',
+    specs: ['Assassination', 'Combat', 'Subtlety'] as const,
+    description: 'A shadow striking from stealth. Builds combo points, then finishes with lethal precision.',
+    roles: ['Melee damage', 'Stealth'],
+  }),
+  priest: Object.freeze({
+    id: 'priest', name: 'Priest', color: '#FFFFFF',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'cloth',
+    starter: { weapon: 'star-wand', offhand: 'astral-grimoire' },
+    starterSkill: 'smite',
+    specs: ['Discipline', 'Holy', 'Shadow'] as const,
+    description: 'A wielder of holy and shadow magic. Mends allies, shields the faithful, and unmakes minds.',
+    roles: ['Healing', 'Spell damage'],
+  }),
+  deathKnight: Object.freeze({
+    id: 'deathKnight', name: 'Death Knight', color: '#C41F3B',
+    resource: 'runicPower', resourceLabel: 'Runic Power', resourceCap: 100, resourceRegen: 0, resourceDecay: 3,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'plate',
+    starter: { weapon: 'greatblade' },
+    starterSkill: 'icyTouch',
+    specs: ['Blood', 'Frost', 'Unholy'] as const,
+    description: 'A fallen champion commanding runes of blood, frost and unholy power. Death follows in their wake.',
+    roles: ['Melee damage', 'Tank'],
+  }),
+  shaman: Object.freeze({
+    id: 'shaman', name: 'Shaman', color: '#0070DE',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'leather',
+    starter: { weapon: 'flanged-mace' },
+    starterSkill: 'lightningBolt',
+    specs: ['Elemental', 'Enhancement', 'Restoration'] as const,
+    description: 'A conduit of the elements. Calls lightning, fire and totems, and mends with ancestral waters.',
+    roles: ['Spell damage', 'Melee damage', 'Healing'],
+  }),
+  mage: Object.freeze({
+    id: 'mage', name: 'Mage', color: '#69CCF0',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'cloth',
+    starter: { weapon: 'ember-staff' },
+    starterSkill: 'frostbolt',
+    specs: ['Arcane', 'Fire', 'Frost'] as const,
+    description: 'A scholar of the arcane. Burns, freezes and blasts enemies apart before they ever reach melee.',
+    roles: ['Spell damage', 'Control'],
+  }),
+  warlock: Object.freeze({
+    id: 'warlock', name: 'Warlock', color: '#9482C9',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'cloth',
+    starter: { weapon: 'cinder-wand', offhand: 'cinder-orb' },
+    starterSkill: 'shadowBolt',
+    specs: ['Affliction', 'Demonology', 'Destruction'] as const,
+    description: 'A channeler of fel and shadow. Corrupts enemies with curses while demons do their bidding.',
+    roles: ['Spell damage', 'Pet'],
+  }),
+  druid: Object.freeze({
+    id: 'druid', name: 'Druid', color: '#FF7D0A',
+    resource: 'mana', resourceLabel: 'Mana', resourceCap: 0, resourceRegen: 0, resourceDecay: 0,
+    gainOnDeal: 0, gainOnHit: 0, gcd: 1.5, armorStyle: 'leather',
+    starter: { weapon: 'rime-staff' },
+    starterSkill: 'wrath',
+    specs: ['Balance', 'Feral', 'Restoration'] as const,
+    description: 'A shapeshifting guardian of nature. Casts wrath and starfire, heals, or fights as bear and cat — Bear Form swaps mana for rage, Cat Form for energy and combo points.',
+    roles: ['Spell damage', 'Healing', 'Tank', 'Melee damage'],
+  }),
+});
+
+/** Resource bar color per type (HUD). */
+export const RESOURCE_COLORS = Object.freeze({
+  mana: '#3d6fd1', rage: '#c0392b', energy: '#e8c93a', runicPower: '#5aa7d6',
+} as const);
+
+/** Class definition for a character sheet; undefined while classId is absent (pre-migration). */
+export function wowClassOf(sheet: { classId?: WowClassId }): WowClassDef | undefined {
+  return sheet.classId ? WOW_CLASSES[sheet.classId] : undefined;
+}

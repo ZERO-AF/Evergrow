@@ -1,6 +1,10 @@
 import { PREVIOUS_NODE_IDS, PREVIOUS_EDGES } from './skill-tree-previous.ts';
 import { ATLAS_V2_NODE_IDS, ATLAS_V2_EDGES, ATLAS_V2_VARIANTS } from './skill-tree-v2.ts';
 import { SKILL_TREE_VERSION } from './skill-tree.ts';
+import { BAR_TOTAL } from './action-bar.ts';
+import { resetSpecs, type DualSpecSheet } from './dual-spec-state.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { isWowClassId } from './wow-types.ts';
 
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): value is RecordValue => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -56,7 +60,7 @@ export function upgradeSkillTree(checkpoint: RecordValue): boolean {
       || !owned.has(`skill:${id}`) || !owned.has(`specialization:${variant}`)) return false;
   }
   if (sheet.skillPoints + owned.size - 1 + paidRanks !== checkpoint.level - 1
-    || !Array.isArray(sheet.skillSlots) || sheet.skillSlots.length !== 5
+    || !Array.isArray(sheet.skillSlots) || sheet.skillSlots.length !== BAR_TOTAL
     || !sheet.skillSlots.every(id => id === null || typeof id === 'string' && source.skills.has(id) && owned.has(`skill:${id}`))
     || new Set(sheet.skillSlots.filter(Boolean)).size !== sheet.skillSlots.filter(Boolean).length
     || !record(checkpoint.skillCooldowns)
@@ -64,9 +68,10 @@ export function upgradeSkillTree(checkpoint: RecordValue): boolean {
       && typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1000)) return false;
   sheet.treeVersion = SKILL_TREE_VERSION;
   sheet.skillPoints = checkpoint.level - 1;
-  sheet.allocatedNodes = ['origin'];
+  sheet.allocatedNodes = isWowClassId(sheet.classId) ? ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`] : ['origin'];
   sheet.skillRanks = {}; sheet.activeSkillRanks = {}; sheet.skillSpecializations = {};
-  sheet.skillSlots = [null, null, null, null, null]; sheet.arcaneOverload = false;
+  sheet.skillSlots = Array(BAR_TOTAL).fill(null); sheet.arcaneOverload = false;
+  resetSpecs(sheet as unknown as DualSpecSheet);
   if (owned.size > 1 || paidRanks > 0) sheet.treeRefunded = true;
   checkpoint.skillCooldowns = {};
   return true;

@@ -24,6 +24,8 @@ export interface EnemyPlateOptions {
   hitPulse?: number;
   time?: number;
   reducedMotion?: boolean;
+  /** Rogue/cat combo points on this target; undefined hides the pips. */
+  comboPoints?: number;
 }
 
 const UI = UI_THEME.palette;
@@ -95,7 +97,7 @@ function bloodMotion(c: CanvasRenderingContext2D, x: number, y: number, width: n
 }
 
 /** Native text and restrained metalwork, drawn after world post-processing. */
-export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy,'lootSeed'|'rift'>>,
+export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy,'lootSeed'|'rift'|'stateTime'|'stateDuration'>>,
   width: number, height: number, options: EnemyPlateOptions = {}): void {
   const layout = getEnemyPlateLayout(width, height, options.touch, options.topInset, options.hasDebuffs);
   const opacity = clamp(options.opacity ?? 1);
@@ -180,5 +182,25 @@ export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, '
   text(c, healthLabel, w / 2, 61, Math.min(.8, (w - 114) / Math.max(1, textWidth(healthLabel))), UI.text, 'center');
   text(c, isBossKind(enemy.kind)?'BOSS':rank.name, w - 11, 61, .78, rank.color, 'right');
   c.restore();
+  // Enemy windup reads as a thin amber cast channel under the health rail.
+  if (enemy.state === 'windup' && (enemy.stateDuration ?? 0) > 0) {
+    const progress = clamp((enemy.stateTime ?? 0) / Math.max(.001, enemy.stateDuration!));
+    c.fillStyle = '#050a10d8'; c.fillRect(barX, 57.5, barWidth, 3);
+    const cast = c.createLinearGradient(barX, 57.5, barX, 60.5);
+    cast.addColorStop(0, '#f2d68a'); cast.addColorStop(1, '#b07f3c');
+    c.fillStyle = cast; c.fillRect(barX, 57.5, barWidth * progress, 3);
+    c.strokeStyle = '#8d7a4f80'; c.lineWidth = .5; c.strokeRect(barX - .5, 57, barWidth + 1, 4);
+  }
+  // Combo points ride the target frame like WoW's portrait pips.
+  const combo = options.comboPoints;
+  if (combo !== undefined && Number.isFinite(combo)) {
+    const filled = Math.max(0, Math.min(5, Math.floor(combo)));
+    for (let i = 0; i < 5; i++) {
+      const px = w / 2 + (i - 2) * 8, py = 72;
+      c.beginPath(); c.moveTo(px, py - 3); c.lineTo(px + 3, py); c.lineTo(px, py + 3); c.lineTo(px - 3, py); c.closePath();
+      c.fillStyle = i < filled ? '#e8c93a' : '#101a22'; c.fill();
+      c.strokeStyle = i < filled ? '#f6e28a' : '#4a5a64'; c.lineWidth = .6; c.stroke();
+    }
+  }
   c.restore();
 }

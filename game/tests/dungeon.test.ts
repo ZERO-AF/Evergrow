@@ -15,6 +15,7 @@ import { awardKillRewards } from '../src/combat-rewards.ts';
 import { updateDungeon } from '../src/dungeon-runtime.ts';
 import { LOOT_RULES } from '../src/combat-content.ts';
 import { generateItem } from '../src/items.ts';
+import { isGlyphItem } from '../src/glyph-content.ts';
 import { World } from '../src/world.ts';
 import type { CharacterCheckpoint } from '../src/character-save.ts';
 const entrance: DungeonEntrance = { id: 'dungeon:test', name: 'Rootbound Crypt', seed: 7319, level: 4, biome: 'deadwood', x: 600, y: 0 };
@@ -139,7 +140,7 @@ test('boss death grants XP once through the shared owner but no extra equipment 
     const events: unknown[] = [];
     let id = 1;
     awardKillRewards(e, 0, 0, { player: sim.player, groundGold: sim.groundGold, groundItems: sim.groundItems, pickups: sim.pickups, nextId: () => id++, emit: event => events.push(event) });
-    assert.equal(sim.groundItems.length, 0);
+    assert.equal(sim.groundItems.filter(g => !isGlyphItem(g.item)).length, 0);
     assert.equal(sim.groundGold.length, 0);
     assert.ok(sim.player.xp > 0 || sim.player.level > 1);
 });

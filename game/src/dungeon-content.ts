@@ -1,6 +1,7 @@
 import type { EnemyKind } from './model.ts';
 import type { WaveRules } from './wave-system.ts';
-export type DungeonThemeId = 'rootbound' | 'foundry' | 'drowned' | 'rime' | 'ossuary' | 'astral';
+import { BLACKROCK_DEPTHS } from './dungeon2-content.ts';
+export type DungeonThemeId = 'rootbound' | 'foundry' | 'drowned' | 'rime' | 'ossuary' | 'astral' | 'blackrock';
 export interface DungeonTheme {
     id: DungeonThemeId; name: string; description: string;
     ambient: string; stone: readonly [number, number, number]; floor: readonly [number, number, number];
@@ -15,6 +16,7 @@ export const DUNGEON_THEMES: Readonly<Record<DungeonThemeId, DungeonTheme>> = Ob
     rime: Object.freeze({id:'rime',name:'Rime Cathedral',description:'Frozen nave, shattered rose windows and hoarfrost reliquaries.',ambient:'#172435',stone:[69,87,105] as const,floor:[57,73,91] as const,accent:'#b5e8ff',light:'#9bd7ff',map:'#425d74',wall:'#b4d4df',roster:['frostRevenant','wisp','archer','brute'] as const,boss:'warden',bossName:'The Rime Prelate'}),
     ossuary: Object.freeze({id:'ossuary',name:'Sunken Ossuary',description:'Ochre burial halls, bone niches and fallen sandstone idols.',ambient:'#30241f',stone:[112,89,60] as const,floor:[88,69,48] as const,accent:'#e6c18a',light:'#f5c87f',map:'#756047',wall:'#ceb78b',roster:['stalker','archer','brute','caster'] as const,boss:'graveMarshal',bossName:'The Sepulchral King'}),
     astral: Object.freeze({id:'astral',name:'Astral Archive',description:'Violet marble, bronze orreries and sealed star charts.',ambient:'#221a34',stone:[76,63,99] as const,floor:[55,48,75] as const,accent:'#ceadff',light:'#bda1ff',map:'#55446b',wall:'#c4addd',roster:['stormSentinel','wisp','caster','archer'] as const,boss:'warden',bossName:'The Astral Custodian'}),
+    blackrock: BLACKROCK_DEPTHS,
 });
 export const DUNGEON_THEME_IDS = Object.freeze(Object.keys(DUNGEON_THEMES) as DungeonThemeId[]);
 export const dungeonTheme = (seed: number, theme?: DungeonThemeId): DungeonTheme => DUNGEON_THEMES[theme ?? (['rootbound', 'foundry', 'drowned'] as const)[(seed >>> 0) % 3]];

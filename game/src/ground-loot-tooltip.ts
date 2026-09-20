@@ -14,8 +14,8 @@ export interface GroundComparisonRow { key: string; label: string; delta: number
 /** Group only equal net changes: capped or unequal resistances remain individually accurate. */
 export function groundComparisonRows(changes: readonly EquipmentStatChange[]): GroundComparisonRow[] {
   const rows = changes.map(c => ({ key: c.key as string, label: CHANGE_LABELS[c.key],
-    delta: (c.after - c.before) * (PREVIEW_PERCENT.has(c.key) ? 100 : 1),
-    percent: PREVIEW_PERCENT.has(c.key) || ['areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent'].includes(c.key) }));
+    delta: (c.after - c.before) * (c.key in PREVIEW_PERCENT ? 100 : 1),
+    percent: c.key in PREVIEW_PERCENT || ['areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent'].includes(c.key) }));
   const resistanceRows = rows.filter(row => resistances.includes(row.key));
   if (resistanceRows.length === 4 && resistanceRows.every(row => Math.abs(row.delta - resistanceRows[0].delta) < .00001)) {
     return [...rows.filter(row => !resistances.includes(row.key)),

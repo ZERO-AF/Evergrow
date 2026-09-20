@@ -10,7 +10,7 @@ import type { GamepadInput } from './gamepad-input.ts';
 export interface PauseActions extends SystemWindowActions {
   openChronicle?(): void;
   openCharacter?(): void; openSkills?(): void; openAppearance?(): void;
-  openMap?(): void; openJourneys?(): void;
+  openMap?(): void; openJourneys?(): void; editLayout?(): void;
   save?(): Promise<boolean>;
   returnToTitle(): void | Promise<void>;
 }
@@ -92,6 +92,7 @@ export class PauseMenu {
       case 'journeys': this.actions.openJourneys?.(); return;
       case 'chronicle': this.actions.openChronicle?.(); return;
       case 'options': case 'controls': case 'leaderboard': case 'changelog': this.windows.open(destination); return;
+      case 'editLayout': this.actions.editLayout?.(); return;
     }
   }
   updateGamepad(pad: GamepadInput, now: number): void {

@@ -36,7 +36,7 @@ test('only owned or previewed connections receive light; offscreen and excess wo
 });
 
 test('a preview stays lit even when owned paths exhaust the visible animation budget', () => {
-  const target = SKILL_TREE.nodes[SKILL_TREE.nodes.length - 1];
+  const target = [...SKILL_TREE.nodes].reverse().find(node => !node.classId)!;
   const allocated = new Set(SKILL_TREE.nodes.filter(node => node.id !== target.id).map(node => node.id));
   const route = previewSkillRoute(buildSkillRoutes(allocated), target.id);
   const plan = buildAtlasLightPlan(view({ allocated, route, zoom: .05 }));

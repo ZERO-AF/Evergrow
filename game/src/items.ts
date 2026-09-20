@@ -9,19 +9,27 @@ import { JEWELRY_PROFILES, jewelryProfiles } from './jewelry-content.ts';
 import { ITEM_MATERIALS, isClothMaterial, sourceMaterialPool, type MaterialSource, itemMaterialPool, rollItemMaterial, itemMaterialScale, materialBaseName, type ItemMaterialId } from './item-materials.ts';
 import { SPECIAL_AFFIXES, SPECIAL_AFFIX_LABELS, SKILL_AFFIXES, SKILL_STATS, isSkillStat, skillAffixPool, discreteAffixValue, type AffixDefinition } from './equipment-affix-content.ts';
 import { ELEMENTAL_AFFIXES, ELEMENT_COLORS, isElementalAffix, meleeEnchantment } from './elemental-weapon.ts';
-import { createCharacterLook } from './character-look.ts';
+import { createRaceLook, type CharacterLook } from './character-look.ts';
+import { cloneData } from './data-clone.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { isWowClassId, isWowRaceId, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { FOCUS_PROFILES } from './focus-content.ts';
 import { STARTING_SWORD } from './equipment.ts';
 import { SHIELD_PROFILES, WEAPON_PROFILES } from './weapon-content.ts';
 import { itemAffixGrowthLevel, itemPercentageScale, itemPowerScale, normalizeLevel } from './progression-content.ts';
+import { generateWowName, legendaryFor, WOW_LEGENDARIES } from './item-naming.ts';
+import { LEGENDARY_PROCS, legendaryProcsFor } from './legendary-content.ts';
+import { createConsumableItem, isConsumableId } from './consumable-content.ts';
+import { BAR_TOTAL } from './action-bar.ts';
 import type { CharacterSheet, EquipmentSlot, Item, ItemAffix, ItemKind, ItemTier, StatKey, StatModifiers } from './character-types.ts';
+import { setPiecesFor, setPiece, setPieceSet, SET_PIECE_PREFIX, SET_PIECE_ROLL, type SetPieceDef, type SetPieceId } from './item-set-content.ts';
 
 export const INVENTORY_CAPACITY = 120;
 
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = Object.freeze([
   'weapon', 'offhand', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring1', 'ring2',
 ]);
-export const ITEM_KINDS: readonly ItemKind[] = Object.freeze(['weapon', 'shield', 'grimoire', 'orb', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring', 'charm']);
+export const ITEM_KINDS: readonly ItemKind[] = Object.freeze(['weapon', 'shield', 'grimoire', 'orb', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring', 'charm', 'consumable']);
 export const TIER_COLORS: Readonly<Record<ItemTier, string>> = Object.freeze({
   common: '#c5ccc8', magic: '#76b9ee', rare: '#e0c17a', epic: '#b895ef', legendary: '#f0a16b', unique: UNIQUE_COLOR,
 });
@@ -32,13 +40,13 @@ export const STAT_LABELS: Readonly<Record<StatKey, string>> = Object.freeze({
   ...SPECIAL_AFFIX_LABELS, ...SKILL_STATS, ...RESISTANCE_LABELS, goldFindPercent: 'Gold found', xpGainPercent: 'Experience gained',
   fireDamage: 'Added fire damage', frostDamage: 'Added frost damage', lightningDamage: 'Added lightning damage',
   strength: 'Strength', dexterity: 'Dexterity', intelligence: 'Intelligence', vitality: 'Vitality',
-  maxHp: 'Maximum life', maxMana: 'Maximum mana', armor: 'Armor', damagePercent: 'Attack damage',
+  maxHp: 'Maximum life', maxHpPercent: 'Maximum life %', maxMana: 'Maximum mana', armor: 'Armor', armorPercent: 'Armor %', damagePercent: 'Attack damage',
   attackSpeedPercent: 'Attack speed', castSpeedPercent: 'Cast speed', critChance: 'Critical chance', critDamage: 'Critical damage',
   moveSpeedPercent: 'Movement speed', spellDamagePercent: 'Spell damage', manaRegen: 'Mana / 5 sec',
   lifeRegen: 'Life / sec', manaCostPercent: 'Mana cost reduction', cooldownPercent: 'Cooldown reduction', lifeOnHit: 'Life on hit',
   blockChance: 'Block chance', blockReduction: 'Blocked damage reduction',
 });
-export const PERCENT_STATS = new Set<StatKey>(['goldFindPercent', 'xpGainPercent', ...RESISTANCE_STATS, 'areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent', 'damagePercent', 'attackSpeedPercent', 'castSpeedPercent', 'critChance', 'critDamage', 'moveSpeedPercent', 'spellDamagePercent', 'cooldownPercent', 'manaCostPercent', 'blockChance', 'blockReduction']);
+export const PERCENT_STATS = new Set<StatKey>(['goldFindPercent', 'xpGainPercent', ...RESISTANCE_STATS, 'areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent', 'damagePercent', 'attackSpeedPercent', 'castSpeedPercent', 'critChance', 'critDamage', 'moveSpeedPercent', 'spellDamagePercent', 'cooldownPercent', 'manaCostPercent', 'blockChance', 'blockReduction', 'armorPercent']);
 export function formatStatValue(stat: StatKey, value: number): string {
   return `${value > 0 ? '+' : ''}${Number(value.toFixed(1))}${PERCENT_STATS.has(stat) ? '%' : ''}`;
 }
@@ -49,17 +57,10 @@ export function itemModifiers(item: Item): StatModifiers {
   return modifiers;
 }
 
-// Local integer RNG keeps rolled equipment independent of encounter/combat randomness.
-export function randomSource(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6D2B79F5) | 0;
-    let n = Math.imul(state ^ state >>> 15, state | 1);
-    n ^= n + Math.imul(n ^ n >>> 7, n | 61);
-    return ((n ^ n >>> 14) >>> 0) / 4294967296;
-  };
-}
+export { randomSource } from './random-source.ts';
+import { randomSource } from './random-source.ts';
 const BASE_NAMES: Readonly<Record<Exclude<ItemKind, 'weapon' | 'shield' | 'grimoire' | 'orb'>, readonly string[]>> = {
+  consumable: ['Consumable'],
   riftKey: ['Crimson Rift Key'],
   head: ['Crown Helm', 'Watcher Hood', 'Visored Helm'],
   chest: ['Brigandine', 'Warden Plate', 'Scale Vest'], gloves: ['Gauntlets', 'Grips', 'Vambraces'],
@@ -67,9 +68,6 @@ const BASE_NAMES: Readonly<Record<Exclude<ItemKind, 'weapon' | 'shield' | 'grimo
   cloak: ['Mantle', 'Shroud', 'Halfcape'], amulet: ['Reliquary', 'Talisman', 'Moon Pendant'],
   ring: ['Signet', 'Band', 'Loop'], charm: ['Stone', 'Stone', 'Stone'],
 };
-const PREFIXES = ['Ashen', 'Starbound', 'Thornwrought', 'Gloaming', 'Hollow', 'Dawnforged', 'Mournful', 'Graveglass', 'Moonlit', 'Briar'];
-const SUFFIXES = ['of the Watch', 'of Embers', 'of the Hollow', 'of Still Water', 'of the Pilgrim', 'of Thorns', 'of the Pale Star', 'of Dusk'];
-const TITLES = ['Oath', 'Vigil', 'Remnant', 'Requiem', 'Promise', 'Echo', 'Witness', 'Memory'];
 export const AFFIXES: readonly AffixDefinition[] = [
   ...SPECIAL_AFFIXES, ...RESISTANCE_AFFIXES,
   { name: 'Might', stat: 'strength', base: 1, growth: .3 },
@@ -196,22 +194,43 @@ export function generateItem(seed: number, itemLevel: number, kind?: ItemKind, p
   const selectedWeapon = profileId ? WEAPON_PROFILES.find(profile => profile.id === profileId) : undefined;
   const selectedShield = profileId ? SHIELD_PROFILES.find(profile => profile.id === profileId) : undefined;
   const selectedFocus = profileId ? FOCUS_PROFILES.find(profile => profile.id === profileId) : undefined;
+  if (kind === 'consumable') {
+    if (!isConsumableId(profileId)) throw new RangeError(`Unknown consumable: ${profileId}`);
+    return createConsumableItem(profileId, seed);
+  }
   if (profileId && !selectedWeapon && !selectedShield && !selectedFocus && !selectedJewelry) throw new RangeError(`Unknown equipment profile: ${profileId}`);
   if(kind==='riftKey') return createRiftKey(seed,itemLevel);
-  const itemKind = kind ?? (selectedWeapon ? 'weapon' : selectedShield ? 'shield' : selectedFocus ? selectedFocus.visual.kind : selectedJewelry ? selectedJewelry.kind : choose(ITEM_KINDS.filter(k=>k!=='charm')));
+  const itemKind = kind ?? (selectedWeapon ? 'weapon' : selectedShield ? 'shield' : selectedFocus ? selectedFocus.visual.kind : selectedJewelry ? selectedJewelry.kind : choose(ITEM_KINDS.filter(k => k !== 'charm' && k !== 'consumable')));
   if (profileId && (itemKind === 'weapon' ? !selectedWeapon : itemKind === 'shield' ? !selectedShield : itemKind==='ring'||itemKind==='amulet' ? selectedJewelry?.kind!==itemKind : selectedFocus?.visual.kind !== itemKind)) {
     throw new RangeError(`Profile ${profileId} does not describe an item of kind ${itemKind}.`);
   }
+  // Named set pieces (Dreadnaught, Cryptstalker…) surface only from real drops,
+  // mirroring the legendary roll below: a dedicated stream keeps the roll
+  // independent of the item's own draw sequence.
+  const setPieceDef = (source.rank !== undefined || source.encounter !== undefined) ? setPiecesFor(itemKind, seed, source, source.classId) : null;
+  if (setPieceDef) return generateSetPiece(setPieceDef, seed, level);
+
   const roll = random();
   // This default is for general content tools and starting gear. Enemy loot supplies its own table result.
   // Consume the same draw with an override so the underlying silhouette/material roll stays stable.
-  const tier: ItemTier = tierOverride ?? (roll < .45 ? 'common' : roll < .77 ? 'magic' : roll < .94 ? 'rare' : roll < .99 ? 'epic' : 'legendary');
+  let tier: ItemTier = tierOverride ?? (roll < .45 ? 'common' : roll < .77 ? 'magic' : roll < .94 ? 'rare' : roll < .99 ? 'epic' : 'legendary');
   const variant = random();
-  const weaponProfile = itemKind === 'weapon' ? selectedWeapon ?? WEAPON_PROFILES[Math.floor(variant * WEAPON_PROFILES.length)] : undefined;
+  let weaponProfile = itemKind === 'weapon' ? selectedWeapon ?? WEAPON_PROFILES[Math.floor(variant * WEAPON_PROFILES.length)] : undefined;
   const shieldProfile = itemKind === 'shield' ? selectedShield ?? SHIELD_PROFILES[Math.floor(variant * SHIELD_PROFILES.length)] : undefined;
   const focusProfiles = FOCUS_PROFILES.filter(p => p.visual.kind === itemKind);
   const focusProfile = selectedFocus ?? focusProfiles[Math.floor(variant * focusProfiles.length)];
   const jewelryOptions=jewelryProfiles(itemKind), jewelryProfile=selectedJewelry??jewelryOptions[Math.floor(variant*jewelryOptions.length)];
+  // Named legendaries (Thunderfury, Sulfuras…) surface only from real drops: enemy
+  // loot and site rewards pass rank/encounter in `source`. A dedicated stream keeps
+  // the roll independent of the item's own draw sequence.
+  const legendary = (source.rank !== undefined || source.encounter !== undefined) && WOW_LEGENDARIES.some(l => l.slot === itemKind)
+    ? legendaryFor(itemKind, randomSource(seed ^ 0x2f6e8b1d)) : null;
+  if (legendary) {
+    tier = 'legendary';
+    if (legendary.slot === 'weapon')
+      weaponProfile = WEAPON_PROFILES.find(p => p.family === legendary.family && p.hands === legendary.hands)
+        ?? WEAPON_PROFILES.find(p => p.family === legendary.family) ?? WEAPON_PROFILES.find(p => p.hands === legendary.hands) ?? weaponProfile;
+  }
   const profileName = weaponProfile?.name ?? shieldProfile?.name ?? focusProfile?.name ?? jewelryProfile?.name ?? BASE_NAMES[itemKind as Exclude<ItemKind, 'weapon' | 'shield' | 'grimoire' | 'orb'>][Math.floor(variant * 3)];
   random(); // Preserve the affix/name draw sequence; construction uses its own RNG.
   const materials = sourceMaterialPool(itemKind, weaponProfile?.family, {level,...source});
@@ -238,9 +257,7 @@ export function generateItem(seed: number, itemLevel: number, kind?: ItemKind, p
   if (shieldProfile) implicit.armor = Math.max(1, Math.round(({ buckler: 7, kite: 15, tower: 22 }[shieldProfile.visual.kind]) * growth));
   if (itemKind === 'cloak') implicit.maxHp = Math.round(6 * growth);
   if (jewelryProfile) Object.assign(implicit,jewelryImplicit(jewelryProfile.id,level,quality*baseScale));
-  const prefix = choose(PREFIXES), suffix = choose(SUFFIXES);
-  const name = tier === 'common' ? `${prefix} ${baseName}` : tier === 'magic' ? `${prefix} ${baseName} ${suffix}`
-    : `${prefix} ${choose(TITLES)}`;
+  const name = generateWowName(itemKind, weaponProfile?.family, tier, random);
   const item: Item = {
     recipe: { manaVersion: 1, offenseVersion: 1, rollVersion: 1, materialId, ...((weaponProfile ?? shieldProfile ?? focusProfile ?? jewelryProfile) ? { profileId: (weaponProfile ?? shieldProfile ?? focusProfile ?? jewelryProfile)!.id } : {}), starter: false, enhancement: 0, revision: 0, targetedRolls: 0, fullRolls: 0, rolls },
     id: `item-${seed.toString(36)}-${level}-${weaponProfile?.id ?? shieldProfile?.id ?? focusProfile?.id ?? jewelryProfile?.id ?? itemKind}-${materialId}-${tier}`, seed, name, baseName, kind: itemKind, tier,
@@ -256,37 +273,41 @@ export function generateItem(seed: number, itemLevel: number, kind?: ItemKind, p
       visual: { ...shieldProfile.visual, material: surface, base: appearance.base, edge: appearance.edge, trim: appearance.trim, shadow: appearance.shadow } };
   }
   if (focusProfile) item.focus = { id: item.id, name, visual: { ...focusProfile.visual, material: surface, base: appearance.base, edge: appearance.edge, trim: appearance.trim, shadow: appearance.shadow } };
+  if (legendary) {
+    item.name = legendary.name; item.baseName = legendary.name; item.id += `-${legendary.id}`;
+    item.flavor = legendary.flavor;
+    if (legendary.classId) item.classId = legendary.classId;
+    if (item.weapon) item.weapon = { ...item.weapon, id: item.id, name: legendary.name };
+    if (item.shield) item.shield = { ...item.shield, id: item.id, name: legendary.name };
+    // Named legendaries carry their authored proc (legendary-content.ts).
+    if (LEGENDARY_PROCS[legendary.id]) item.recipe = { ...item.recipe, procId: legendary.id };
+  }
+  // Generic legendary weapons roll a proc that fits their silhouette.
+  if (item.tier === 'legendary' && item.weapon && item.recipe.procId === undefined) {
+    const procs = legendaryProcsFor(item.weapon.family, item.weapon.hands);
+    if (procs.length) item.recipe = { ...item.recipe, procId: procs[Math.floor(randomSource(seed ^ 0x5d4e2b1f)() * procs.length)].id };
+  }
   return roundItemStats(item);
 }
 
-/** Display order is deliberate: melee, magic, then archery; light before heavy. */
-export const STARTER_LOADOUTS = Object.freeze([
-  { id: 'sword-shield', label: 'Sword & shield', detail: 'Quick · guarded', profileId: 'longsword', offhandProfileId: 'iron-buckler' },
-  { id: 'sword', label: 'Two-handed sword', detail: 'Heavy · two-handed', profileId: 'weathered-sword', offhandProfileId: null },
-  { id: 'wand', label: 'Wand & grimoire', detail: 'Radiant bolts · quick casting', profileId: 'star-wand', offhandProfileId: 'astral-grimoire' },
-  { id: 'fire', label: 'Fire staff', detail: 'Powerful · two-handed', profileId: 'ember-staff', offhandProfileId: null },
-  { id: 'bow', label: 'Shortbow', detail: 'Fast · short range', profileId: 'thorn-shortbow', offhandProfileId: null },
-  { id: 'longbow', label: 'Longbow', detail: 'Heavy · long range', profileId: 'warden-longbow', offhandProfileId: null },
-] as const);
-export type StarterLoadoutId = typeof STARTER_LOADOUTS[number]['id'];
-export const isStarterLoadoutId = (value: string): value is StarterLoadoutId => STARTER_LOADOUTS.some(option => option.id === value);
-
 /** Authored level-one common gear: no random rarity, affixes or starter-only powers. */
-export function createStarterLoadout(id: StarterLoadoutId): { weapon: Item; offhand: Item | null } {
-  const option = STARTER_LOADOUTS.find(option => option.id === id);
-  if (!option) throw new RangeError('Unknown starter loadout');
-  const profile = id === 'sword' ? STARTING_SWORD : WEAPON_PROFILES.find(profile => profile.id === option.profileId)!;
-  const item = generateItem(1, 1, 'weapon', id === 'sword' ? 'longsword' : profile.id, 'common', itemMaterialPool('weapon', profile.family)[0].id);
+export function createStarterLoadout(weaponProfileId: string, offhandProfileId?: string): { weapon: Item; offhand: Item | null } {
+  const profile = weaponProfileId === STARTING_SWORD.id ? STARTING_SWORD : WEAPON_PROFILES.find(profile => profile.id === weaponProfileId);
+  if (!profile) throw new RangeError(`Unknown starter weapon profile: ${weaponProfileId}`);
+  const item = generateItem(1, 1, 'weapon', profile === STARTING_SWORD ? 'longsword' : profile.id, 'common', itemMaterialPool('weapon', profile.family)[0].id);
   item.id = 'starter-weapon'; item.baseName = profile.name;
-  item.name = id === 'sword' ? profile.name : `Worn ${profile.name}`;
+  item.name = profile === STARTING_SWORD ? profile.name : `Worn ${profile.name}`;
   item.implicit = {}; item.affixes = []; item.power = 1;
   item.recipe = { ...item.recipe, profileId: profile.id, starter: true, rolls: [] };
   item.weapon = { ...profile, visual: { ...profile.visual } };
   item.appearance = { base: profile.visual.metal, shadow: profile.visual.grip,
     edge: profile.visual.edge, trim: profile.visual.guard, style: 'plate' };
   let offhand: Item | null = null;
-  if (option.offhandProfileId) {
-    offhand = generateItem(2, 1, undefined, option.offhandProfileId, 'common', option.id === 'wand' ? 'leather' : 'iron');
+  if (offhandProfileId) {
+    const offhandKind: ItemKind | undefined = SHIELD_PROFILES.some(p => p.id === offhandProfileId) ? 'shield'
+      : FOCUS_PROFILES.find(p => p.id === offhandProfileId)?.visual.kind;
+    if (!offhandKind) throw new RangeError(`Unknown starter offhand profile: ${offhandProfileId}`);
+    offhand = generateItem(2, 1, offhandKind, offhandProfileId, 'common', itemMaterialPool(offhandKind)[0].id);
     offhand.id = 'starter-offhand'; offhand.name = `Worn ${offhand.baseName}`;
     offhand.recipe = { ...offhand.recipe, starter: true };
     if (offhand.shield) offhand.shield = { ...offhand.shield, id: offhand.id, name: offhand.name };
@@ -296,8 +317,10 @@ export function createStarterLoadout(id: StarterLoadoutId): { weapon: Item; offh
   return { weapon: item, offhand };
 }
 
-/** The chosen weapon, the same modest leather outfit, and an empty bag. */
-export function createCharacterSheet(starter: StarterLoadoutId = 'sword'): CharacterSheet {
+/** The class's starter weapon, the same modest leather outfit, and an empty bag. */
+export function createCharacterSheet(classId: WowClassId = 'warrior', raceId: WowRaceId = 'human', look?: CharacterLook): CharacterSheet {
+  if (!isWowClassId(classId)) throw new RangeError(`Unknown class: ${classId}`);
+  if (!isWowRaceId(raceId)) throw new RangeError(`Unknown race: ${raceId}`);
   const equipped = Object.fromEntries(EQUIPMENT_SLOTS.map(slot => [slot, null])) as CharacterSheet['equipped'];
   const starterPieces: readonly [EquipmentSlot, number][] = [['head', 31], ['chest', 17], ['gloves', 23], ['legs', 59], ['boots', 11], ['cloak', 71]];
   for (const [slot, seed] of starterPieces) {
@@ -313,16 +336,23 @@ export function createCharacterSheet(starter: StarterLoadoutId = 'sword'): Chara
     if (slot === 'cloak') item.appearance = { base: '#555e50', shadow: '#292f2d', edge: '#89937c', trim: '#a28c64', style: 'leather' };
     equipped[slot] = item;
   }
-  const loadout = createStarterLoadout(starter);
+  const starter = WOW_CLASSES[classId].starter;
+  const loadout = createStarterLoadout(starter.weapon, starter.offhand);
   equipped.weapon = loadout.weapon; equipped.offhand = loadout.offhand;
   const inventory: CharacterSheet['inventory'] = Array.from({ length: INVENTORY_CAPACITY }, () => null);
-  return { treeVersion: 3, look: createCharacterLook(), skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, arcaneOverload: false, gold: 0, commerce: { epoch: 0, revision: 0, operations: 0, sold: {}, buyback: [] }, attributes: { strength: 10, dexterity: 10, intelligence: 10, vitality: 10 },
-    statPoints: 0, skillPoints: 0, allocatedNodes: ['origin'], inventory, equipped, skillSlots: Array.from({ length: 5 }, () => null) };
+  // The class's level-1 skill is a free sanctum node, pre-allocated and on the bar.
+  const starterNodeId = `wow-${classId}-${WOW_CLASSES[classId].starterSkill}`;
+  const skillSlots: CharacterSheet['skillSlots'] = Array.from({ length: BAR_TOTAL }, () => null);
+  skillSlots[0] = WOW_CLASSES[classId].starterSkill;
+  return { classId, raceId, treeVersion: 3, look: look ? cloneData(look) : createRaceLook(raceId), skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, arcaneOverload: false, gold: 0, commerce: { epoch: 0, revision: 0, operations: 0, sold: {}, buyback: [] }, attributes: { strength: 10, dexterity: 10, intelligence: 10, vitality: 10 },
+    statPoints: 0, skillPoints: 0, allocatedNodes: ['origin', starterNodeId], inventory, equipped, skillSlots };
 }
+
 
 /** Rebuild from authored bases and exact roll quality; never scale rounded existing stats. */
 export function deriveItem(item: Item): Item {
   if(item.kind==='riftKey')return {...createRiftKey(item.seed,item.itemLevel,item.recipe.riftKeyTier),...(item.locked!==undefined?{locked:item.locked}:{})};
+  if (item.kind === 'consumable') return item;
   if (item.tier === 'unique') return deriveUnique(item);
   if (item.kind === 'charm') return deriveCharm(item);
   return deriveEquipment(item);
@@ -377,6 +407,7 @@ export function roundItemStats(item: Item): Item {
  * neither build DPS nor a valuation of a Unique's skill-changing power. */
 export function estimateItemPower(item: Item): number {
   if (item.kind === 'riftKey') return 0;
+  if (item.kind === 'consumable') return 0;
   if (item.recipe.starter && !item.weapon && !item.focus && !item.shield && !item.affixes.length) return 1;
   const quality = TIER_POWER[item.tier], enhance = 1 + .05 * item.recipe.enhancement;
   let base = quality * enhance * (item.kind === 'charm' ? charmProfile(item)!.size.potency : itemMaterialScale(item));
@@ -530,6 +561,8 @@ export function generateUnique(seed:number, level:number, uniqueId?:string):Item
   const item=generateItem(seed,level,definition.kind,definition.profile,'legendary',definition.material);
   item.tier='unique';item.name=definition.name;item.id+=`-${definition.id}`;
   item.recipe={...item.recipe,uniqueId:definition.id,rolls:[.75,.75,.75,.75]};
+  // Uniques carry authored powers, never a random legendary proc.
+  delete item.recipe.procId;
   item.affixes=definition.affixes.map(stat=>({name:STAT_LABELS[stat],stat,value:0}));
   return deriveUnique(item);
 }
@@ -543,4 +576,49 @@ function deriveUnique(item:Item):Item {
   if(next.shield)next.shield={...next.shield,name,visual:{...next.shield.visual,trim:UNIQUE_COLOR,edge:'#d7b6ee'}};
   if(next.focus)next.focus={...next.focus,name,visual:{...next.focus.visual,trim:UNIQUE_COLOR,edge:'#d7b6ee',glow:'#ba8bf1'}};
   return next;
+}
+
+/**
+ * Deterministic set piece item. Built on the normal equipment pipeline (material,
+ * implicit armor, affix growth, rounding all derive), then stamped with the
+ * authored name, affix stats and fixed roll quality — the generateUnique pattern.
+ * Calls generateItem WITHOUT a `source`, so the integrator's setPiecesFor hook
+ * (gated on source.rank/encounter) cannot recurse.
+ */
+export function generateSetPiece(pieceDef: SetPieceDef | SetPieceId, seed: number, itemLevel: number): Item {
+  const def = typeof pieceDef === 'string' ? setPiece(pieceDef) : pieceDef;
+  if (!def) throw new RangeError(`Unknown set piece: ${pieceDef}`);
+  const set = setPieceSet(def);
+  const item = generateItem(seed, itemLevel, def.kind, undefined, set.tier, def.material);
+  item.id = `${SET_PIECE_PREFIX}${def.id}:${(seed >>> 0).toString(36)}`;
+  item.name = def.name;
+  item.baseName = def.name;
+  item.flavor = `${set.flavor} Classes: ${set.classes.map(c => WOW_CLASSES[c].name).join(', ')}.`;
+  if (set.classes.length === 1) item.classId = set.classes[0];
+  item.affixes = def.affixes.map(stat => ({ name: STAT_LABELS[stat], stat, value: 0 }));
+  item.recipe = { ...item.recipe, rolls: def.affixes.map(() => SET_PIECE_ROLL) };
+  return deriveItem(item);
+}
+
+/**
+ * Authored named legendary (Thunderfury, Shadowmourne…): fixed identity, flavor
+ * and procId on the normal equipment pipeline — the generateUnique pattern.
+ * Calls generateItem WITHOUT a `source`, so the drop-only legendaryFor hook
+ * (gated on source.rank/encounter) cannot recurse.
+ */
+export function generateLegendary(seed: number, itemLevel: number, legendaryId?: string): Item {
+  const legendary = legendaryId ? WOW_LEGENDARIES.find(l => l.id === legendaryId) : WOW_LEGENDARIES[Math.floor(randomSource(seed ^ 0x3f9c27d1)() * WOW_LEGENDARIES.length)];
+  if (!legendary) throw new RangeError(`Unknown legendary: ${legendaryId}`);
+  const profile = legendary.slot === 'weapon'
+    ? WEAPON_PROFILES.find(p => p.family === legendary.family && p.hands === legendary.hands)
+      ?? WEAPON_PROFILES.find(p => p.family === legendary.family) ?? WEAPON_PROFILES.find(p => p.hands === legendary.hands)
+    : legendary.slot === 'shield' ? SHIELD_PROFILES[0] : undefined;
+  const item = generateItem(seed, itemLevel, legendary.slot, profile?.id, 'legendary');
+  item.name = legendary.name; item.baseName = legendary.name; item.id += `-${legendary.id}`;
+  item.flavor = legendary.flavor;
+  if (legendary.classId) item.classId = legendary.classId;
+  if (item.weapon) item.weapon = { ...item.weapon, id: item.id, name: legendary.name };
+  if (item.shield) item.shield = { ...item.shield, id: item.id, name: legendary.name };
+  if (LEGENDARY_PROCS[legendary.id]) item.recipe = { ...item.recipe, procId: legendary.id };
+  return item;
 }

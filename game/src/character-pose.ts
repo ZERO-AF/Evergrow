@@ -3,6 +3,7 @@ import { UNIQUE_RULES } from './unique-content.ts';
 import { tintedOutfit } from './appearance-armor.ts';
 import { SKILL_DEFINITIONS, skillWeapon } from './skill-content.ts';
 import { outfitFromEquipment } from './item-art.ts';
+import { transmoggedSheet } from './transmog-state.ts';
 import type { CharacterPose } from './art.ts';
 import type { Attack, Player } from './model.ts';
 import { COMBAT_TIMING, PLAYER_ABILITIES } from './combat-content.ts';
@@ -24,7 +25,7 @@ export function playerPose(player: Player, time: number,
     ? { kind: 'weapon', visual: attack?.hand === 'off' ? attack.weapon.visual : off.weapon.visual }
     : off?.kind === 'shield' ? { kind: 'shield', visual: off.shield.visual } : off?.kind === 'focus' ? { kind: 'focus', visual: off.focus.visual } : null;
   return {
-    kind: 'player', appearance:player.character.look.appearance, outfit:tintedOutfit(outfitFromEquipment(player.character),player.character.look.armorTints,player.character.look.showHelmet), angle: player.castTime > 0 ? player.castAngle : player.angle,
+    kind: 'player', appearance:player.character.look.appearance, raceId:player.character.raceId, outfit:tintedOutfit(outfitFromEquipment(transmoggedSheet(player.character)),player.character.look.armorTints,player.character.look.showHelmet), angle: player.castTime > 0 ? player.castAngle : player.angle,
     time, gaitPhase: player.walkTime, moveAngle: Math.atan2(player.vy, player.vx),
     moving: player.dash ? 1 : Math.min(1, Math.hypot(player.vx, player.vy) / 130),
     attack: attack ? elapsed / attack.duration : drawing ? .12+.29*Math.min(1,draw.elapsed/UNIQUE_RULES.drawTime) : 0,

@@ -1,0 +1,40 @@
+.profession-panel { position:fixed; inset:8vh max(20px,calc((100vw - 1080px)/2)); z-index:35; display:flex; flex-direction:column; max-height:84vh; --prof-color:#a8c88a; box-shadow:0 24px 100px #000c,0 0 0 1px #99b8c22b; }
+.profession-panel[hidden] { display:none; }
+.profession-panel .ui-window-header { display:flex; align-items:center; gap:12px; flex:none; }
+.profession-panel .ui-title { flex:1; }
+.profession-heading-icon { color:var(--prof-color); display:flex; }
+.profession-tabs { display:flex; flex-wrap:wrap; gap:6px; padding:10px 18px; border-bottom:1px solid #8099a128; flex:none; }
+.profession-tabs button { padding:6px 12px; border:1px solid #8099a12c; background:#101d24; color:#c8d4cf; font:inherit; font-size:13px; cursor:pointer; }
+.profession-tabs button.gather { border-color:#5a7a4a55; }
+.profession-tabs button[aria-pressed=true] { color:var(--prof-color); border-color:color-mix(in srgb,var(--prof-color) 55%,transparent); background:#22313a; }
+.profession-body { display:grid; grid-template-columns:minmax(340px,1.2fr) minmax(240px,.8fr); flex:1; min-height:0; }
+.profession-detail { padding:18px 22px; overflow:auto; min-width:0; }
+.profession-bag { padding:18px; overflow:auto; border-left:1px solid #8099a128; background:#0c171e66; }
+.profession-detail-head { margin-bottom:14px; }
+.profession-detail-head h3, .profession-bag h3 { font-size:16px; margin:0 0 8px; font-weight:500; color:#c7d4cf; }
+.profession-detail-head small { font:11px "Evergrow Numerals",system-ui,sans-serif; color:#95a6a9; }
+.prof-skill-bar { height:8px; background:#0a1418; border:1px solid #8099a12c; margin:6px 0 4px; }
+.prof-skill-bar span { display:block; height:100%; background:linear-gradient(90deg,#7a9a5a,#a8c88a); }
+.prof-hint { color:#9fb0a8; font-size:12px; margin:0 0 14px; }
+.prof-recipes { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.prof-recipe button { width:100%; display:flex; flex-direction:column; gap:3px; padding:8px 10px; border:1px solid #8099a122; background:#101d2488; text-align:left; font:inherit; cursor:pointer; }
+.prof-recipe button:hover:not(:disabled) { background:#1a2830; }
+.prof-recipe button:disabled { opacity:.55; cursor:default; }
+.prof-recipe button:focus-visible { outline:2px solid var(--prof-color); outline-offset:1px; }
+.prof-recipe-name { font-size:13px; }
+.prof-recipe-mats { display:flex; flex-wrap:wrap; gap:4px 10px; }
+.prof-mat { font:11px "Evergrow Numerals",system-ui,sans-serif; color:#9fb0a8; }
+.prof-mat.is-missing { color:#d88a7a; }
+.prof-disenchant { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+.prof-disenchant button { width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 10px; border:1px solid #8099a122; background:#101d2488; font:inherit; font-size:13px; cursor:pointer; }
+.prof-disenchant button:hover { background:#1a2830; }
+.prof-disenchant small { color:#95a6a9; font:11px "Evergrow Numerals",system-ui,sans-serif; }
+.profession-detail h3 { font-size:14px; margin:18px 0 8px; color:#c7d4cf; }
+.profession-bag h4 { font-size:12px; margin:14px 0 6px; color:#95a6a9; text-transform:uppercase; letter-spacing:.06em; }
+.prof-materials { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.prof-materials li > button, .prof-materials li > span { width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 8px; border:0; background:transparent; color:#d1d8cf; font:inherit; font-size:13px; text-align:left; }
+.prof-materials li > button { cursor:pointer; border:1px solid transparent; }
+.prof-materials li > button:hover { background:#9bb0b510; border-color:#8099a122; }
+.prof-materials small { color:#e0c98a; font:12px "Evergrow Numerals",system-ui,sans-serif; }
+.prof-empty { color:#819694; font-size:13px; padding:14px 10px; border:1px dashed #8099a128; text-align:center; }
+@media(max-width:760px) { .profession-panel { inset:12px; max-height:calc(100dvh - 24px); } .profession-body { display:block; overflow:auto; } .profession-detail,.profession-bag { overflow:visible; } .profession-bag { border-left:0; border-top:1px solid #8099a128; } }

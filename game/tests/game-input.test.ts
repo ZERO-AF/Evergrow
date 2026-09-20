@@ -45,21 +45,22 @@ test('a press and release between frames retains one action edge, while held bas
   }
 });
 
-test('five active skill bindings report slots, held RMB repeats, and unused controls stay inert', () => {
+test('twelve page-one skill bindings report slots, held RMB repeats, and unused controls stay inert', () => {
   const input = new GameInput();
   for (const button of [1, 3, 4]) {
     input.pointerDown(button); assert.equal(input.consume(aim, false).skillSlot, null); input.pointerUp(button);
   }
-  for (let slot = 1; slot <= 4; slot++) {
-    input.keyDown(`Digit${slot}`); assert.equal(input.consume(aim, false).skillSlot, slot);
-    assert.equal(input.consume(aim, false).skillSlot, null); input.keyUp(`Digit${slot}`);
+  const keys = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0','Minus','Equal'];
+  for (let slot = 0; slot < keys.length; slot++) {
+    input.keyDown(keys[slot]!); assert.equal(input.consume(aim, false).skillSlot, slot);
+    input.keyUp(keys[slot]!); assert.equal(input.consume(aim, false).skillSlot, null);
   }
   input.pointerDown(2); input.pointerDown(0);
   let state = input.consume(aim, false); assert.equal(state.attack, true); assert.equal(state.skillSlot, 0);
   assert.equal(input.consume(aim, false).skillSlot, 0);
   input.pointerUp(2); input.pointerUp(0); assert.equal(input.consume(aim, false).skillSlot, null);
   input.keyDown('Digit1'); assert.equal(input.consume(aim, true).skillSlot, null);
-  assert.equal(input.consume(aim, false).skillSlot, null, 'blocked edges never replay after leaving the HUD');
+  input.keyUp('Digit1'); assert.equal(input.consume(aim, false).skillSlot, null, 'blocked edges never replay after leaving the HUD');
 });
 
 test('aliases and opposing movement remain coherent, and repeat keydowns cannot queue extra dodges', () => {
@@ -122,7 +123,7 @@ test('all UI consumers share minimap and shortcut hit regions while open world s
 
 test('Tab preserves a rebound loot-reveal hold until release, while pause clears it', () => {
   const bindings = new ControlBindings();
-  bindings.bind('revealLoot', 0, 'KeyL');
+  bindings.bind('revealLoot', 0, 'KeyL', true);
   const input = new GameInput(bindings);
   input.keyDown('KeyL');
   input.clear(true);

@@ -93,7 +93,7 @@ test('caster lights follow actual tip geometry at all facings; offhand focus has
 });
 test('ordinary Astral Grimoires gain radiant art while The Broken Seal retains its Unique palette', () => {
   const sim = new Simulation(world, { spawn: false });
-  sim.player.character = createCharacterSheet('wand');
+  sim.player.character = createCharacterSheet('priest');
   const ordinary = sim.player.character.equipped.offhand!;
   const unique = generateUnique(7, 1, 'broken-seal');
   for (const source of [ordinary, unique]) for (const item of [source, deriveItem(source), JSON.parse(JSON.stringify(source)) as Item]) {

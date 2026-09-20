@@ -1,4 +1,5 @@
 import { drawRadiantSeal } from './radiant-art.ts';
+import { drawSchoolImpact } from './spell-school-art.ts';
 import { weaponGlowColor } from './radiant-content.ts';
 import { SkillMeleeArt } from './skill-melee-art.ts';
 import { weaponReleasePoint } from './projectile-launch.ts';
@@ -10,9 +11,10 @@ import { getPlayerSwordTip } from './art.ts';
 import { playerPose } from './character-pose.ts';
 import { drawGlow } from './lighting.ts';
 import type { PointLight } from './lighting.ts';
-import type { CombatEvent } from './model.ts';
+import type { CombatEvent, ProjectileStyle } from './model.ts';
 import type { Simulation } from './simulation.ts';
 import { GAME_FONT_STACK, text } from './font.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { SwordTrail } from './sword-trail.ts';
 import { projectileStyle, PROJECTILE_COLORS } from './projectile-art.ts';
 import { SkillEffects } from './skill-effects.ts';
@@ -23,7 +25,7 @@ interface Spark {
   life: number; max: number; size: number; color: string; luminous: boolean;
 }
 interface Flash { x: number; y: number; life: number; max: number; radius: number; color: string; ring: boolean; radiant?: boolean; }
-interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; }
+interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; }
 interface Popup { x: number; y: number; vx: number; vy: number; life: number; max: number; value: string; color: string; size: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
@@ -70,10 +72,11 @@ export class CombatEffects {
       const tip = event.type === 'cast' && event.launch ? weaponReleasePoint(event.launch) : null;
       const enemyCast = event.type === 'cast' && event.enemyKind;
       const contact = event.type === 'hit' || event.type === 'hurt' || event.type === 'kill';
+      const seal = event.style === 'radiant' || event.style === 'holy';
       const color = event.color ?? (event.style ? PROJECTILE_COLORS[event.style] : undefined) ?? (event.type === 'hurt' ? '#ff5e4e' : restoring || enemyCast ? MINT
         : event.type === 'dodge' ? BLUE : event.type === 'cast' ? FIRE : GOLD);
       const count = event.type === 'blast' ? 46 : event.type === 'block' ? 22 : event.type === 'hit' ? 30 : event.type === 'kill' ? 16
-        : event.type === 'hurt' ? 32 : event.type === 'cast' ? event.style === 'radiant' ? 6 : 18 : restoring ? 30
+        : event.type === 'hurt' ? 32 : event.type === 'cast' ? seal ? 6 : 18 : restoring ? 30
         : event.type === 'loot' ? 8 : event.type === 'pickup' ? 10 : event.type === 'dodge' ? 14 : 0;
       // MaterialResponses owns solid debris. Retain the short luminous contact accents here.
       for (let i = 0; i < (contact ? event.type === 'kill' ? 0 : 8 : count); i++) {
@@ -84,14 +87,14 @@ export class CombatEffects {
       const contactY = event.y - (event.type === 'hurt' ? 24 : enemyKind === 'brute' ? 25 : 18);
       if (contact) this.impacts.push({ x: event.x, y: contactY, angle: eventAngle,
         life: event.type === 'kill' ? .3 : .22, max: event.type === 'kill' ? .3 : .22,
-        color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: event.style === 'radiant' });
+        color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: seal, style: event.style });
       if (count > 5) {
         const max = restoring ? .55 : event.type === 'kill' ? .16 : .22;
         this.flashes.push({ x: event.x + (tip?.x ?? 0), y: tip ? event.y + tip.y : contact ? contactY : event.y - 10, life: max, max,
-          radius: event.style === 'radiant' ? 58 : event.type === 'kill' ? 62 : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
-          radiant: event.type === 'cast' && event.style === 'radiant', ring: restoring || event.type === 'level' || event.skill === 'iceNova' });
+          radius: seal ? 58 : event.type === 'kill' ? 62 : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
+          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' });
       }
-      if (event.type === 'hit' && event.value) this.popups.push({ x: event.x + (Math.random() - .5) * 10,
+      if (event.type === 'hit' && event.value && !(heavy && GAME_FEATURES.lootBeams)) this.popups.push({ x: event.x + (Math.random() - .5) * 10,
         y: event.y - (enemyKind === 'brute' ? 54 : 44), vx: (Math.random() - .5) * 22, vy: -47,
         life: .85, max: .85, value: String(Math.round(event.value)), color: heavy ? '#ffd177' : '#fff0c8', size: heavy ? 2.5 : 2 });
       if (event.type === 'hurt' || event.type === 'heal') this.popups.push({ x: event.x, y: event.y - 61,
@@ -226,6 +229,7 @@ export class CombatEffects {
   }
 
   private drawImpact(c: CanvasRenderingContext2D, impact: Impact, reducedMotion: boolean) {
+    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 1.3 : impact.hurt ? .8 : 1, reducedMotion)) return;
     const t = Math.max(0, impact.life / impact.max), elapsed = impact.radiant && reducedMotion ? .4 : 1 - t;
     c.save(); c.translate(impact.x, impact.y); c.rotate(impact.angle);
     c.globalCompositeOperation = 'lighter';

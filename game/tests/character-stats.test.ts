@@ -11,7 +11,7 @@ test('neutral starter gear preserves current basic attack and resource values', 
   const stats = deriveCharacterStats(createCharacterSheet());
   assert.equal(stats.maxHp, 100); assert.equal(stats.maxMana, 100);
   assert.equal(stats.attackDamageMultiplier, 1); assert.equal(stats.attackSpeedMultiplier, 1);
-  assert.equal(stats.manaRegeneration, 1); assert.equal(stats.moveSpeedMultiplier, 1);
+  assert.equal(stats.manaRegeneration, 2.8, 'base 2.5/s plus the human racial +1.5 per 5 sec'); assert.equal(stats.moveSpeedMultiplier, 1);
   assert.equal(stats.critChance, 0); assert.equal(stats.critMultiplier, 1.5);
   assert.equal(stats.armor, 0); assert.equal(stats.damageReduction, 0);
   assert.equal(stats.cooldownMultiplier, 1); assert.equal(stats.lifeOnHit, 0);
@@ -31,7 +31,7 @@ test('assigned attributes drive actual combat resources, damage and cadence', ()
 });
 
 test('Dexterity from assigned points, gear, charms and nodes shares the reduced conversion', () => {
-  const sheet = createCharacterSheet('bow'); sheet.attributes.dexterity += 5;
+  const sheet = createCharacterSheet('hunter'); sheet.attributes.dexterity += 5;
   const ring = generateItem(80,1,'ring'); ring.implicit={dexterity:5};ring.affixes=[];sheet.equipped.ring1=ring;
   const charm = generateItem(81,1,'charm','storm-pebble','common');
   charm.affixes=[{name:'Dexterity',stat:'dexterity',value:5}];assert.ok(addInventoryItem(sheet,charm));sheet.inventoryLayout![charm.id]=72;
@@ -39,7 +39,7 @@ test('Dexterity from assigned points, gear, charms and nodes shares the reduced 
   assert.equal(stats.attributes.dexterity,30);
   assert.equal(stats.attackSpeedMultiplier,1.15,'20 added Dexterity gives 5% speed; the direct 10% stays unchanged');
   assert.equal(stats.critChance,.045,'20 added Dexterity gives 1.5% crit; the direct 3% stays unchanged');
-  const base=deriveCharacterStats(createCharacterSheet('bow'));
+  const base=deriveCharacterStats(createCharacterSheet('hunter'));
   const weapon=sheet.equipped.weapon!.weapon!;
   assert.ok(Math.abs(deriveAttackStats(stats,weapon).attacksPerSecond / deriveAttackStats(base,weapon).attacksPerSecond - 1.15)<1e-10);
 });
@@ -67,7 +67,7 @@ test('the same bonuses derive identically from equipment or tree nodes', () => {
   assert.deepEqual(gearStats, treeStats);
   assert.ok(gearStats.damageReduction > 0); assert.equal(gearStats.lifeOnHit, 2);
   assert.equal(gearStats.cooldownMultiplier, .9);
-  assert.equal(gearStats.lifeRegeneration, 1); assert.equal(gearStats.manaRegeneration, 1.4);
+  assert.equal(gearStats.lifeRegeneration, 1); assert.equal(gearStats.manaRegeneration, 3.2);
 });
 
 test('attribute and direct bonuses accumulate once across multiple items and the tree', () => {

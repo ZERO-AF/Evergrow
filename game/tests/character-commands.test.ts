@@ -8,6 +8,7 @@ import { Simulation } from '../src/simulation.ts';
 import { executeCharacterCommand } from '../src/character-commands.ts';
 import { generateItem } from '../src/items.ts';
 import { SKILL_NODES } from '../src/skill-tree.ts';
+import { BAR_TOTAL } from '../src/action-bar.ts';
 
 const make = () => new Simulation({ blocked: () => false, move: (x, y) => ({ x, y }) }, { spawn: false }).player;
 
@@ -69,7 +70,7 @@ test('skill assignment commands preserve cooldowns and reject locked or invalid 
   assert.equal(player.character.skillSlots[0], null); assert.equal(player.character.skillSlots[3], 'fireball');
   assert.equal(player.skillCooldowns.fireball, .6);
   const before = structuredClone(player);
-  for (const command of [{ type: 'assignSkill', slot: 3, skill: 'meteor' }, { type: 'assignSkill', slot: 9, skill: null }] as const) {
+  for (const command of [{ type: 'assignSkill', slot: 3, skill: 'meteor' }, { type: 'assignSkill', slot: BAR_TOTAL, skill: null }] as const) {
     assert.equal(executeCharacterCommand(player, command).ok, false); assert.deepEqual(player, before);
   }
   assert.ok(executeCharacterCommand(player, { type: 'assignSkill', slot: 3, skill: null }).ok);

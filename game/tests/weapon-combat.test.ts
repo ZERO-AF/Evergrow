@@ -14,11 +14,13 @@ import { WEAPON_PROFILES, SHIELD_PROFILES } from '../src/weapon-content.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
 import type { Attack, CombatEvent, Enemy, Input, WorldQuery } from '../src/model.ts';
 import type { SkillId } from '../src/character-types.ts';
+import { createWowSim } from './fixtures/wow-sim.ts';
 
 const openWorld: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 400, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 const make = (world = openWorld) => {
-  const sim = new Simulation(world, { spawn: false, seed: 984319 });
+  // Mage/undead: mana pool seeded full, neutral caster for the universal skills here.
+  const sim = createWowSim('mage', 'undead', world);
   sim.setCombatViewport({ x: -600, y: -400, width: 1200, height: 800 });
   return sim;
 };
@@ -62,7 +64,7 @@ function cast(sim: Simulation, aimX = 400, aimY = 0): void { sim.update(FIXED_ST
 const hitEvents = (events: CombatEvent[], enemy?: Enemy) => events.filter((event): event is Extract<CombatEvent, { type: 'hit' }> => event.type === 'hit' && (!enemy || event.targetId === enemy.id));
 
 test('radiant starter basics pay once, retain their released identity and hit without burning', () => {
-  const sim = make(); sim.player.character = createCharacterSheet('wand'); refreshCharacter(sim.player);
+  const sim = make(); sim.player.character = createCharacterSheet('priest'); refreshCharacter(sim.player);
   const p = sim.player, enemy = target(sim, 160);
   assert.equal(p.character.equipped.weapon!.recipe.profileId, 'star-wand');
   assert.equal(p.character.equipped.offhand!.recipe.profileId, 'astral-grimoire');
@@ -279,9 +281,13 @@ test('meteor waits for impact, explodes once and sustains burning ground until e
 
 test('shield blocks apply their reduction, while Bulwark guarantees stronger reduction then expires', () => {
   const shield = skillSim('bulwark'); shield.player.derived.blockChance = 1; shield.player.derived.blockReduction = .55;
+  // Zero armor and resistances so the assertion isolates block reduction (the incoming
+  // bolt is arcane-typed and the mage's arcane resistance would shave it first).
+  shield.player.derived.armor = 0; shield.player.derived.resistances.arcane = 0;
   incoming(shield); advance(shield, FIXED_STEP);
   assert.equal(shield.player.hp, 82); assert.equal(shield.drainEvents().find(event => event.type === 'block')!.value, 22);
   const guard = skillSim('bulwark'); guard.player.derived.blockChance = 0; guard.player.derived.blockReduction = .55;
+  guard.player.derived.armor = 0; guard.player.derived.resistances.arcane = 0;
   cast(guard); incoming(guard); advance(guard, FIXED_STEP);
   assert.equal(guard.player.hp, 90); assert.equal(guard.drainEvents().find(event => event.type === 'block')!.value, 30);
   advance(guard, 3.1); assert.equal(guard.player.guardTime, 0);

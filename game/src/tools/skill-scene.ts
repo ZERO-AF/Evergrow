@@ -5,17 +5,28 @@ import { UNIQUES, uniqueSlot } from '../unique-content.ts';
 import { chronicleValues } from '../chronicle.ts';
 import { cloneData } from '../data-clone.ts';
 import type { CharacterSheet } from '../character-types.ts';
-import { Simulation } from '../simulation.ts';
-import { generateItem, generateUnique } from '../items.ts';
+import { Simulation, FIXED_STEP } from '../simulation.ts';
+import { generateItem, generateUnique, createCharacterSheet } from '../items.ts';
 import { refreshCharacter } from '../character.ts';
+import { raceAllowsClass } from '../wow-races.ts';
+import type { WowClassId, WowRaceId } from '../wow-types.ts';
 import { SKILL_DEFINITIONS, canUseSkill } from '../skill-content.ts';
-import { SKILL_RANK_RULES, SKILL_SPECIALIZATIONS, specializationNode, resolveSkill } from '../skill-progression.ts';
 import { WEAPON_PROFILES, SHIELD_PROFILES } from '../weapon-content.ts';
 import type { SkillId } from '../character-types.ts';
+import { SKILL_RANK_RULES, SKILL_SPECIALIZATIONS, specializationNode, resolveSkill } from '../skill-progression.ts';
 import type { CombatEvent, Input, WorldQuery, EnemyKind } from '../model.ts';
 export type SkillStudyScenario = 'showcase' | 'followup' | 'defense' | 'sustain';
 export interface SkillStudyOptions {unique?:string;scenario?:SkillStudyScenario;level?:number;baseline?:boolean;rear?:boolean;skill:SkillId;rank:number;specialization:string;weapon:string;facing:number;targets:'fan'|'line'|'ring'|'single'|'none';enemy:EnemyKind;x:number;y:number;}
 export function studyWeapons(id:SkillId){return WEAPON_PROFILES.filter(mainHand=>canUseSkill(id,{mainHand,offHand:{kind:'shield',shield:SHIELD_PROFILES[0]}}));}
+const STUDY_RACES:readonly WowRaceId[]=['undead','human','dwarf','nightElf','gnome','draenei','orc','tauren','troll','bloodElf'];
+function studyRace(classId:WowClassId):WowRaceId{for(const race of STUDY_RACES)if(raceAllowsClass(race,classId))return race;return 'human';}
+/** Class skills use their own class; racials use a class their race allows; the rest default to mage. */
+function studyLoadout(id:SkillId):[WowClassId,WowRaceId]{
+  const definition=SKILL_DEFINITIONS[id];
+  if(definition.classId)return [definition.classId,studyRace(definition.classId)];
+  if(definition.raceId){const race=definition.raceId;for(const classId of ['mage','priest','paladin','hunter','shaman','warlock','druid','warrior','rogue','deathKnight'] as const)if(raceAllowsClass(race,classId))return [classId,race];return ['mage',race];}
+  return ['mage','undead'];
+}
 /** A disposable simulation with only authored training targets; no Game, session or repository. */
 export class SkillStudy {
   readonly simulation:Simulation;
@@ -44,6 +55,7 @@ export class SkillStudy {
     const sim=this.simulation=new Simulation(query,{spawn:false,seed:7319,startX:options.x,startY:options.y});
     const p=sim.player; p.level=options.level??1;
     if(loadout)p.character=cloneData(loadout);
+    else p.character=createCharacterSheet(...studyLoadout(options.skill));
     const sheet=p.character;
     if(!loadout){
     sheet.attributes[SKILL_DEFINITIONS[options.skill].requirement==='magic'?'intelligence':'strength']+=3*(p.level-1);
@@ -62,9 +74,17 @@ export class SkillStudy {
     }
     if(options.baseline&&isAura(options.skill))sheet.skillSlots[0]=null;
     refreshCharacter(p);p.angle=options.facing;p.hp=p.maxHp;p.mana=p.maxMana;
-    if(!options.scenario||options.scenario==='showcase')p.maxMana=100000;
     p.mana=manaCapacity(p);
     this.resolved=resolveSkill(options.skill,p.derived,sheet);
+    // WoW class resources seed on the first update; run it now, then top the pool off.
+    sim.update(FIXED_STEP,{moveX:0,moveY:0,aimX:p.x,aimY:p.y,attack:false,dodge:false,heal:false,skillSlot:null});
+    if(!options.scenario||options.scenario==='showcase')p.maxMana=Math.max(p.maxMana,100000);
+    // Sandbox gates start satisfied: stealth openers, combo spenders, forms, shard costs.
+    if(this.resolved.requiresStealth)sim.addBuff('Stealth',SKILL_DEFINITIONS[options.skill].color,{duration:3600,stealth:true});
+    if(this.resolved.combo==='spend')p.comboPoints=5;
+    if(this.resolved.requiresForm)sim.addBuff(this.resolved.requiresForm==='bear'?'Bear Form':'Cat Form',SKILL_DEFINITIONS[options.skill].color,{duration:3600,form:this.resolved.requiresForm});
+    if(this.resolved.shardCost)p.soulShards=99;
+    p.mana=manaCapacity(p);
     const near=p.equipment.mainHand.attackKind==='melee',range=near?Math.min(38,deriveAttackStats(p.stats,p.equipment.mainHand).range*.65):140;
     const distance=this.resolved.recipe.kind==='radial'?(this.resolved.recipe.targetRange?220:Math.min(range,this.resolved.recipe.radius*.6)):range;
     this.options.weapon=sheet.equipped.weapon?.recipe.profileId??options.weapon;
@@ -72,8 +92,11 @@ export class SkillStudy {
     if(options.targets!=='none')for(let i=0;i<(options.targets==='single'?1:7);i++){
       const angle=options.facing+(options.targets==='ring'?i*Math.PI*2/7:options.targets==='fan'?(i-3)*.13:0),r=options.targets==='ring'?(near?45:85):options.targets==='line'?distance+i*27:distance+Math.abs(i-3)*8;
       const enemy=sim.spawnEnemy(options.enemy,p.x+Math.cos(angle)*r,p.y+Math.sin(angle)*r);
-      if(enemy){enemy.hp=enemy.maxHp=this.initialTargetLife;enemy.angle=options.facing+(options.rear?0:Math.PI);enemy.stagger=60;this.targetPositions.set(enemy.id,{x:enemy.x,y:enemy.y});}
+      // requiresBehind needs the player behind the enemy: face the enemy away (rear).
+      const rear=options.rear||this.resolved.requiresBehind||(this.resolved.recipe.kind==='comboStrike'&&this.resolved.recipe.requiresBehind);
+      if(enemy){enemy.hp=enemy.maxHp=this.initialTargetLife;if(this.resolved.executeThreshold)enemy.hp=Math.max(1,Math.floor(enemy.maxHp*this.resolved.executeThreshold*.9));enemy.angle=options.facing+(rear?0:Math.PI);enemy.stagger=60;this.targetPositions.set(enemy.id,{x:enemy.x,y:enemy.y});}
     }
+    p.targetId=sim.enemies[0]?.id??null;
     sim.setCombatViewport({x:p.x-450,y:p.y-330,width:900,height:660});sim.drainEvents();
   }
   step():CombatEvent[]{
@@ -90,6 +113,10 @@ export class SkillStudy {
     const showSpirit=scenario==='showcase'&&['ashen-double','pale-huntsman'].includes(this.options.unique??'')&&this.elapsed>=.55&&this.elapsed<1.25;
     const charge=this.options.unique==='heartwood-draw';
     const drawing=charge&&cast&&(this.elapsed-.3)%1.5<.65;
+    // Re-satisfy sandbox gates consumed by the previous cast (stealth breaks, combo spend).
+    if(this.resolved.requiresStealth&&!p.buffs?.some(b=>b.stealth&&b.remaining>0))sim.addBuff('Stealth',SKILL_DEFINITIONS[this.options.skill].color,{duration:3600,stealth:true});
+    if(this.resolved.combo==='spend'&&(p.comboPoints??0)<1)p.comboPoints=5;
+    if(this.resolved.requiresForm&&!p.buffs?.some(b=>b.form===this.resolved.requiresForm&&b.remaining>0))sim.addBuff(this.resolved.requiresForm==='bear'?'Bear Form':'Cat Form',SKILL_DEFINITIONS[this.options.skill].color,{duration:3600,form:this.resolved.requiresForm});
     sim.update(1/120,{...this.input,moveY:showSpirit?1:this.input.moveY,attack:attack&&!drawing,skillSlot:(charge?drawing:cast)?0:null,heldSkillSlots:(charge?drawing:cast)?[0]:[]});this.elapsed+=1/120;
     const events=sim.drainEvents();
     if(events.some(e=>(e.type==='cast'||e.type==='swing')&&e.skill===this.options.skill))this.didCast=true;

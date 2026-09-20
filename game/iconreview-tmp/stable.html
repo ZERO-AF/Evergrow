@@ -1,0 +1,52 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="../src/stable-panel.css">
+<style>
+:root{--ui-font:system-ui,sans-serif}
+body{background:#0a1218;margin:0}
+.ui-window{background:#0d1a24f2;border:1px solid #2a3d48;border-radius:6px}
+.ui-window-header{padding:10px 14px;border-bottom:1px solid #223440}
+.ui-header-emblem{display:inline-block;width:22px;height:22px;background:#8fd18a;border-radius:4px}
+.ui-title{margin:0;font-size:15px;color:#e8e2c8}
+.ui-button{padding:4px 10px;background:#16242e;border:1px solid #33485a;color:#cfd8bf;border-radius:3px;font-size:12px;cursor:pointer}
+.ui-button--icon{padding:2px 8px}
+.ui-window-footer{display:flex;justify-content:space-between;padding:8px 14px;border-top:1px solid #223440;font-size:11px;color:#7d9099}
+.service-section-heading{display:flex;justify-content:space-between;align-items:baseline;margin:2px 0 6px}
+.service-section-heading h3{margin:0;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b9c8b2}
+.service-section-heading span{font-size:11px;color:#7d9099}
+</style>
+<section class="stable-panel ui-window">
+<header class="ui-window-header"><span class="ui-header-emblem"></span><h2 class="ui-title" id="stable-title">Stable Master</h2><span class="stable-master-name">Squire Fuzzywig</span><button class="ui-button ui-button--icon">×</button></header>
+<div class="stable-body ui-scroll-area">
+<section class="stable-active"><div class="service-section-heading"><h3>Active companion</h3><span>Fights beside you</span></div>
+<article class="stable-pet is-active" style="--pet-color:#a06a3a">
+<header class="stable-pet-head"><span class="stable-pet-family">Wolf</span><span class="stable-pet-level">Lv 34</span></header>
+<h3 class="stable-pet-name">Fang</h3>
+<div class="stable-bars">
+<div class="stable-bar"><span>XP</span><div class="stable-bar-track"><i style="width:62%"></i></div></div>
+<div class="stable-bar"><span>Loyalty</span><div class="stable-bar-track is-loyalty"><i style="width:80%"></i></div></div>
+</div>
+<div class="stable-skills"><span class="stable-skill">Bite</span><span class="stable-skill">Dash</span><span class="stable-skill is-locked">Growl <small>Lv 40</small></span></div>
+<footer class="stable-pet-actions"><button class="ui-button ui-button--quiet">Stable</button><button class="ui-button ui-button--quiet">Rename</button><button class="ui-button ui-button--quiet">Dismiss</button></footer>
+</article></section>
+<section class="stable-stabled"><div class="service-section-heading"><h3>Stable</h3><span>2 / 4</span></div>
+<div class="stable-grid">
+<article class="stable-pet" style="--pet-color:#5a7a4a">
+<header class="stable-pet-head"><span class="stable-pet-family">Raptor</span><span class="stable-pet-level">Lv 22</span></header>
+<h3 class="stable-pet-name">Ripper</h3>
+<div class="stable-bars"><div class="stable-bar"><span>XP</span><div class="stable-bar-track"><i style="width:30%"></i></div></div>
+<div class="stable-bar"><span>Loyalty</span><div class="stable-bar-track is-loyalty"><i style="width:45%"></i></div></div></div>
+<div class="stable-skills"><span class="stable-skill">Claw</span></div>
+<footer class="stable-pet-actions"><button class="ui-button ui-button--quiet">Activate</button><button class="ui-button ui-button--quiet">Rename</button><button class="ui-button ui-button--quiet">Dismiss</button></footer>
+</article>
+<article class="stable-pet" style="--pet-color:#4a7a5a">
+<header class="stable-pet-head"><span class="stable-pet-family">Turtle</span><span class="stable-pet-level">Lv 30</span></header>
+<h3 class="stable-pet-name">Shelly</h3>
+<div class="stable-bars"><div class="stable-bar"><span>XP</span><div class="stable-bar-track"><i style="width:88%"></i></div></div>
+<div class="stable-bar"><span>Loyalty</span><div class="stable-bar-track is-loyalty"><i style="width:12%"></i></div></div></div>
+<footer class="stable-pet-actions"><button class="ui-button ui-button--quiet">Activate</button><button class="ui-button ui-button--quiet">Rename</button><button class="ui-button ui-button--quiet">Dismiss</button></footer>
+</article>
+<div class="stable-slot is-empty"><span>Empty slot</span></div>
+<div class="stable-slot is-empty"><span>Empty slot</span></div>
+</div></section>
+</div>
+<footer class="ui-window-footer"><span class="stable-message">Pet stabled.</span><span>Esc <span>Close</span></span></footer>
+</section>

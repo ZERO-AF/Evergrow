@@ -2,7 +2,7 @@ import test from 'node:test';
 import type { Attack } from '../src/model.ts';
 import assert from 'node:assert/strict';
 import { Simulation, FIXED_STEP } from '../src/simulation.ts';
-import { generateItem } from '../src/items.ts';
+import { createCharacterSheet, generateItem } from '../src/items.ts';
 import { refreshCharacter } from '../src/character.ts';
 import { basicAttackWeapon, basicAttackManaCost, deriveAttackStats } from '../src/equipment.ts';
 import { weaponReleasePoint } from '../src/projectile-launch.ts';
@@ -12,6 +12,8 @@ const world = { blocked: () => false, move: (x: number, y: number, dx: number, d
 const idle = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 function hybrid(reverse = false) {
   const sim = new Simulation(world, { spawn: false }), p = sim.player;
+  // A mana class pays for wand bolts; rage/energy classes would get them free.
+  p.character = createCharacterSheet('mage', 'undead');
   p.character.equipped.weapon = generateItem(11, 1, 'weapon', reverse ? 'cinder-wand' : 'longsword', 'common');
   p.character.equipped.offhand = generateItem(12, 1, 'weapon', reverse ? 'longsword' : 'cinder-wand', 'common');
   refreshCharacter(p); p.derived.manaRegeneration = 0;

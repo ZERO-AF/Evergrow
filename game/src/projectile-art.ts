@@ -1,20 +1,17 @@
 import { drawRadiantBolt } from './radiant-art.ts';
-import { RADIANT_COLORS } from './radiant-content.ts';
 import { projectilePresentation } from './projectile-launch.ts';
-import type { Projectile, ProjectileStyle } from './model.ts';
+import type { Projectile } from './model.ts';
 import { drawGlow, type PointLight } from './lighting.ts';
 import { line, polygon, type Point } from './art-primitives.ts';
+import { PROJECTILE_COLORS, projectileStyle } from './projectile-colors.ts';
 
-export const PROJECTILE_COLORS: Readonly<Record<ProjectileStyle, string>> = Object.freeze({
-  arrow: '#bdcca9', fire: '#ff803c', frost: '#8ee7ff', lightning: '#b7afff', arcane: '#a894ec', spirit: '#83dfb1', radiant: RADIANT_COLORS.light,
-});
-export const projectileStyle = (shot: Projectile): ProjectileStyle => shot.effects?.style ?? (shot.owner === 'enemy' ? 'spirit' : 'arcane');
+export { PROJECTILE_COLORS, projectileStyle } from './projectile-colors.ts';
 
 export function projectileLight(shot: Projectile, alpha = 1): PointLight {
   const style = projectileStyle(shot);
   return { ...projectilePresentation(shot, alpha), color: PROJECTILE_COLORS[style],
-    radius: style === 'arrow' ? 30 : style === 'fire' ? 150 : style === 'lightning' ? 130 : style === 'radiant' ? 82 : 105,
-    power: style === 'arrow' ? .15 : style === 'radiant' ? .62 : .86, shadows: style !== 'arrow' };
+    radius: style === 'arrow' ? 30 : style === 'fire' ? 150 : style === 'lightning' ? 130 : style === 'radiant' || style === 'holy' ? 82 : 105,
+    power: style === 'arrow' ? .15 : style === 'radiant' || style === 'holy' ? .62 : style === 'shadow' ? .6 : .86, shadows: style !== 'arrow' };
 }
 
 /** Projectile art follows the simulation's snapshotted payload, never current gear. */
@@ -22,7 +19,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
   const style = projectileStyle(shot), color = PROJECTILE_COLORS[style];
   const flicker = Math.sin(time * 21 + shot.id * 1.7), radius = Math.max(2, shot.radius);
   const wake = shot.launch ? Math.min(1, Math.max(0, shot.maxLife - shot.life) / .08) : 1;
-  if (style !== 'arrow') drawGlow(c, x, y, style === 'fire' ? 58 : style === 'radiant' ? 24 : 37, color, .65);
+  if (style !== 'arrow') drawGlow(c, x, y, style === 'fire' ? 58 : style === 'radiant' || style === 'holy' ? 24 : 37, color, .65);
   c.save(); c.translate(x, y); c.rotate(shot.angle);
   if(shot.effects?.fissureWidth){
     const width=shot.effects.fissureWidth;c.strokeStyle='#c4a17c';c.lineWidth=3;
@@ -71,6 +68,40 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     line(c, points, color, 3.5); line(c, points, '#edf5ff', 1.15);
     line(c, [points[2], [-24, -9], [-29, -12]], color, .85);
     line(c, [points[4], [-7, 9], [-14, 12]], '#b7d5ff', .7);
+  } else if (style === 'holy') {
+    c.globalCompositeOperation = 'lighter';
+    const tail = 38 * wake;
+    c.globalAlpha *= .5;
+    polygon(c, [[radius + 4, 0], [-4, -3.5], [-tail, -1.5], [-tail - 6, 0], [-tail, 1.5], [-4, 3.5]], '#c9a44e');
+    c.globalAlpha /= .5;
+    polygon(c, [[radius + 12, 0], [-4, -2.8], [-tail * .8, 0], [-4, 2.8]], '#ffd76e');
+    polygon(c, [[radius + 10, 0], [-1, -1.1], [-16 * wake, 0], [-1, 1.1]], '#fff8dc');
+    c.strokeStyle = '#fff3c2'; c.lineWidth = 1;
+    c.beginPath(); c.ellipse(1, 0, radius + 6.5, radius + 6.5, 0, 0, Math.PI * 2); c.stroke();
+  } else if (style === 'shadow') {
+    const tail = 30 * wake;
+    c.globalAlpha *= .55;
+    for (const side of [-1, 1]) polygon(c, [[2, side * 1.5], [-tail * .5, side * 5], [-tail - 8, side * 2.5], [-tail * .45, side * .5]], '#4b3566');
+    c.globalAlpha /= .55;
+    c.fillStyle = '#17101f';
+    c.beginPath(); c.ellipse(0, 0, radius + 3.5, radius + 2.5, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#8a6fb8'; c.lineWidth = 1.1;
+    c.beginPath(); c.ellipse(0, 0, radius + 4.5, radius + 3, Math.sin(time * 7) * .4, Math.PI * .15, Math.PI * 1.35); c.stroke();
+    c.fillStyle = '#cabce8';
+    c.beginPath(); c.arc(radius * .4, -radius * .3, Math.max(1, radius * .35), 0, Math.PI * 2); c.fill();
+  } else if (style === 'nature') {
+    c.globalCompositeOperation = 'lighter';
+    const tail = 34 * wake;
+    c.globalAlpha *= .5;
+    polygon(c, [[radius + 2, 0], [-5, -4], [-tail, -2], [-tail - 7, 0], [-tail, 2], [-5, 4]], '#3f7a3a');
+    c.globalAlpha /= .5;
+    polygon(c, [[radius + 6, 0], [-4, -3], [-tail * .75, 0], [-4, 3]], '#7fd06a');
+    c.fillStyle = '#e9f7cf';
+    c.beginPath(); c.ellipse(1, 0, radius * .8, radius * .62, 0, 0, Math.PI * 2); c.fill();
+    for (const side of [-1, 1]) {
+      const sway = Math.sin(time * 9 + side) * 2;
+      polygon(c, [[-6, side * 2], [-14, side * (6 + sway)], [-19, side * (4 + sway)], [-12, side * 1.5]], '#a5dd8a');
+    }
   } else {
     c.globalCompositeOperation = 'lighter';
     polygon(c, [[radius + 2, 0], [-6, -5], [-31 * wake, flicker * 3], [-8, 5]], color);

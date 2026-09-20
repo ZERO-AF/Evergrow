@@ -3,11 +3,13 @@ import { xpForNextLevel } from './progression.ts';
 import { HUD_ART } from './hud-layout.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
+import { restedDisplay, RESTED_RAIL_COLOR } from './rested.ts';
+import { GAME_FEATURES } from './game-features.ts';
 
 import type { CombatEvent } from './model.ts';
 import { RewardCounter } from './reward-counter.ts';
 
-type Progress = Pick<Player, 'level' | 'xp'>;
+type Progress = Pick<Player, 'level' | 'xp' | 'restedXp'>;
 export interface ExperienceDisplay { fill: number; pulse: number; pendingFill: number; pending: number; level: number; xp: number; }
 
 /** Reward amounts advance a visual ledger; the actual character has already gained its levels. */
@@ -99,6 +101,14 @@ export function drawHUDExperience(c: CanvasRenderingContext2D, player: Progress,
     c.fillStyle = pending; c.fillRect(bx + bw * fill, by, bw * (pendingFill - fill), bh);
     c.fillStyle = '#f5e7ff'; c.globalAlpha = .65;
     c.fillRect(bx + bw * pendingFill - .7, by, .7, bh); c.globalAlpha = 1;
+  }
+  // WoW rested overlay: the blue rail trails the violet fill to show the banked pool.
+  const rested = GAME_FEATURES.hearthstone ? restedDisplay(player) : { fill: 0, xp: 0 };
+  if (rested.xp > 0 && rested.fill > Math.max(fill, pendingFill)) {
+    const restedFill = Math.min(1, rested.fill);
+    c.fillStyle = RESTED_RAIL_COLOR + '55'; c.fillRect(bx + bw * Math.max(fill, pendingFill), by, bw * (restedFill - Math.max(fill, pendingFill)), bh);
+    c.fillStyle = RESTED_RAIL_COLOR; c.globalAlpha = .8;
+    c.fillRect(bx + bw * restedFill - .7, by, .7, bh); c.globalAlpha = 1;
   }
   // Short internal ticks preserve the uninterrupted glass and its clean outer edge.
   for (let i = 1; i < 4; i++) {

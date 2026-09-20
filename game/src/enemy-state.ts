@@ -28,3 +28,4 @@ export function interruptStaggeredEnemy(enemy: Enemy): void {
       enemyRecoveryDuration(enemy, action.recovery)));
   }
 }
+

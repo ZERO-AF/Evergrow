@@ -5,7 +5,7 @@ import { CloudClient } from '../src/cloud-client.ts';
 import { SaveHub } from '../src/save-hub.ts';
 import { Simulation } from '../src/simulation.ts';
 import { WORLD_GENERATION_VERSION } from '../src/world.ts';
-import type { CharacterSave } from '../src/character-save.ts';
+import { CHARACTER_SAVE_VERSION, type CharacterSave } from '../src/character-save.ts';
 import { makeSaveBundle } from '../src/save-bundle.ts';
 class BrowserWorker {
   static seedRows: unknown[] = [];
@@ -33,7 +33,7 @@ test('durable save bursts upload only the latest checkpoint each window; flush a
   const client=new CloudClient('cadence-test');t.after(()=>client.dispose());
   const world={seed:7319,blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};
   const sim=new Simulation(world,{spawn:false});
-  let record:CharacterSave={version:4,id:'cadence',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
+  let record:CharacterSave={version:CHARACTER_SAVE_VERSION,id:'cadence',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
   let token:string|null=null;
   for(let i=1;i<=12;i++){
     record={...record,updatedAt:i};const saved=await client.write(0,record,token);
@@ -59,7 +59,7 @@ test('confirmed conflict deletion removes both branches preserves recovery on fa
       t.after(()=>{if(old)Object.defineProperty(globalThis,'Worker',old);else Reflect.deleteProperty(globalThis,'Worker');});
       const world={seed:7319,blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};
       const sim=new Simulation(world,{spawn:false});
-      const record:CharacterSave={version:4,id:'delete-conflict',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
+      const record:CharacterSave={version:CHARACTER_SAVE_VERSION,id:'delete-conflict',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
       const client=new CloudClient('delete-'+scenario);t.after(()=>client.dispose());
       const saved=await client.write(0,record,null);assert.ok(saved.ok);
       let token=saved.token!,remote=makeSaveBundle({...record,updatedAt:2}) as ReturnType<typeof makeSaveBundle>|null;
@@ -128,7 +128,7 @@ test('Chronicle displays local progress before the network responds without flus
   const client=new CloudClient('chronicle-speed');t.after(()=>client.dispose());
   const world={seed:7319,blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};
   const sim=new Simulation(world,{spawn:false});
-  const record:CharacterSave={version:4,id:'quick-history',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
+  const record:CharacterSave={version:CHARACTER_SAVE_VERSION,id:'quick-history',name:'Rowan',createdAt:1,updatedAt:1,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:sim.captureCheckpoint()};
   record.checkpoint.chronicle!.sources[0].values.kills=42;
   assert.ok((await client.write(0,record,null)).ok);
   let shown=false,finished=false;
@@ -166,7 +166,7 @@ function installWorker(t: import('node:test').TestContext, worker: unknown = Bro
 }
 function recoveryRecord(): CharacterSave {
   const world = { seed: 7319, blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) };
-  return { version: 4, id: 'recovery-check', name: 'Rowan', createdAt: 1, updatedAt: 1, worldSeed: 7319,
+  return { version: CHARACTER_SAVE_VERSION, id: 'recovery-check', name: 'Rowan', createdAt: 1, updatedAt: 1, worldSeed: 7319,
     worldVersion: WORLD_GENERATION_VERSION, checkpoint: new Simulation(world, { spawn: false }).captureCheckpoint() };
 }
 test('a missing save worker returns unavailable slots and offers reload, with no false Synced or unhandled startup rejection', async t => {

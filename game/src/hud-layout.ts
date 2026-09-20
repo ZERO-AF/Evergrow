@@ -4,6 +4,8 @@ export const HUD_ART = Object.freeze({
   menu: Object.freeze({ x: 246, y: 31, width: 28, height: 28 }),
   skill: Object.freeze({ x: 134, y: 65, width: 40, height: 40, step: 42, count: 6 }),
   utility: Object.freeze({ left: 113, right: 379, y: 27, width: 28, height: 28 }),
+  /** Racial active medallion (R key) seated in the right utility gap. */
+  racial: Object.freeze({ x: 345, y: 27, width: 28, height: 28 }),
   orb: Object.freeze({ left: 74, right: 446, y: 70, scale: 1.18, readoutY: 122 }),
   inventory: Object.freeze({ skillY: 51, experienceY: 99, height: 136 }),
   experience: Object.freeze({ x: 133, y: 117, width: 254, height: 28, railHeight: 7 }),
@@ -14,6 +16,7 @@ export const HUD_MENU_SHORTCUTS = [
   { id: 'inventory', label: 'Inventory', key: 'I' },
   { id: 'skilltree', label: 'Skill tree', key: 'T' },
   { id: 'journal', label: 'Journeys', key: 'J' },
+  { id: 'transmog', label: 'Transmogrify', key: 'G' },
 ] as const;
 
 /** Empty bindings reserve room for future equipped skills; they perform no action. */
@@ -55,6 +58,8 @@ export function isHUDPoint(x: number, y: number, width: number, height: number):
   const utility = HUD_ART.utility;
   if ([utility.left, utility.right].some((left, i) => lx >= left - (i ? 27 : 0) && lx <= left + utility.width + (i ? 0 : 15)
     && ly >= utility.y && ly <= utility.y + utility.height + 5)) return true;
+  const racial = HUD_ART.racial;
+  if (lx >= racial.x - 2 && lx <= racial.x + racial.width + 2 && ly >= racial.y && ly <= racial.y + racial.height + 5) return true;
   // Include a small input margin between adjacent skill plates.
   const skill = HUD_ART.skill;
   if (lx >= skill.x - 2 && lx <= skill.x + 5 * skill.step + skill.width + 2

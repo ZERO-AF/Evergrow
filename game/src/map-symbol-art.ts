@@ -11,7 +11,7 @@ export const MAP_SYMBOL_LABELS = {
   shrine: 'Flame on an altar', landmark: 'Signpost', camp: 'Enemy tent and flag', watchtower: 'Broken watchtower',
   graveyard: 'Headstone and cross', standingStones: 'Stone circle', caravan: 'Covered wagon',
   chest: 'Treasure chest', exit: 'Door and outward arrow', ward: 'Protective shield and flame', champion: 'Visored helmet',
-  destination: 'Destination flag', search: 'Magnifying glass', direction: 'Direction chevron',
+  destination: 'Destination flag', search: 'Magnifying glass', direction: 'Direction chevron', necropolis: 'Floating necropolis citadel',
 } as const satisfies Record<MapSymbol, string>;
 
 /** Filled silhouettes in a 16-unit square. Fine interior marks disappear on the minimap. */
@@ -137,6 +137,10 @@ export function drawMapSymbol(c: CanvasRenderingContext2D, symbol: MapSymbol, si
       c.lineWidth = 2.5; c.beginPath(); c.arc(-2,-2,4.5,0,Math.PI*2); c.stroke();
       c.lineWidth = 3; line(2,2,7,7); break;
     case 'direction': polygon(-6,-6,-2,-6,5,0,-2,6,-6,6,1,0); break;
+    case 'necropolis':
+      polygon(-7,-3,-4,-7,4,-7,7,-3,4,0,-4,0);
+      polygon(-2,0,2,0,0,5);
+      hole(() => { dot(-2.4,-3.4,1.1); dot(2.4,-3.4,1.1); }); break;
     default: { const never: never = symbol; throw new Error(`Unknown map symbol: ${never}`); }
   }
   c.restore();

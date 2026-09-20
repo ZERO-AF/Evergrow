@@ -1,17 +1,7 @@
 import type { Prop } from './world.ts';
+import type { PointLight } from './light-types.ts';
 
-export interface PointLight {
-  x: number;
-  y: number;
-  radius: number;
-  color: string;
-  power: number;
-  shadows?: boolean;
-  /** Fixed environmental anchor; dynamic lights render through the reusable scratch. */
-  stationary?: boolean;
-  /** World-space visibility polygon, used by enclosed environments. */
-  clip?: readonly { x: number; y: number }[];
-}
+export type { PointLight } from './light-types.ts';
 
 const stamps = new Map<string, HTMLCanvasElement>();
 

@@ -8,7 +8,7 @@ import type { WorldQuery } from './model.ts';
 export async function executeService(player: Player, npc: TownNPC, world: WorldQuery, quote: ServiceQuote,
   persist: (character: CharacterSheet, hp: number, mana: number) => { ok: boolean; message?: string } | Promise<{ ok: boolean; message?: string }>): Promise<{ ok: boolean; message: string }> {
   if (!canInteractNPC(npc, player, world)) return { ok: false, message: 'This service is no longer in reach.' };
-  const plan = planService(player.character, npc, player.level, quote);
+  const plan = planService(player.character, npc, player.level, quote, player, world.seed);
   if (!plan.ok) return plan;
   const candidate = { ...player, character: plan.character }; refreshCharacter(candidate);
   const result = await persist(plan.character, candidate.hp, candidate.mana);

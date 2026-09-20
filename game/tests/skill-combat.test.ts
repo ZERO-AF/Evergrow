@@ -11,6 +11,7 @@ import { Simulation } from '../src/simulation.ts';
 import type { CombatEvent, Enemy, Equipment, GroundEffect, ProjectileEffects, WeaponFamily, WorldQuery } from '../src/model.ts';
 import type { ProjectileDefinition } from '../src/combat-content.ts';
 import type { SkillId } from '../src/character-types.ts';
+import { skillSimStub } from './fixtures/skill-sim.ts';
 
 const emptyWorld: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const profile = (family: Exclude<WeaponFamily, 'unarmed'>) => WEAPON_PROFILES.find(weapon => weapon.family === family)!;
@@ -27,7 +28,8 @@ function harness(id: SkillId) {
   const hits: Array<{ enemy: Enemy; amount: number }> = [], events: CombatEvent[] = [];
   const missiles: Array<{ angle: number; definition: ProjectileDefinition; skill: SkillId; effects?: ProjectileEffects }> = [];
   const scheduled: Array<Omit<GroundEffect, 'id' | 'tick'>> = [];
-  const context: SkillContext = { availableGroundEffects: 16, availableProjectiles: 128, player, world: emptyWorld, enemies: sim.enemies, aimX: 100, aimY: 0,
+  let time = 0;
+  const context: SkillContext = { get time() { return time += 2; }, sim: skillSimStub(), availableGroundEffects: 16, availableProjectiles: 128, player, world: emptyWorld, enemies: sim.enemies, aimX: 100, aimY: 0,
     damage: (enemy, amount) => { hits.push({ enemy, amount }); enemy.hp = Math.max(0, enemy.hp - amount); if (!enemy.hp) enemy.state = 'dead'; },
     visible: () => true, onScreen: () => true,
     projectile: (_x, _y, angle, definition, skill, effects) => { missiles.push({ angle, definition, skill, effects }); },
@@ -242,7 +244,7 @@ test('ground skills schedule delayed effects inside weapon range and before bloc
 
 test('first-row skills repeat after action recovery while second-row skills retain cooldowns', () => {
   const basic: SkillId[] = ['cleave', 'whirlwind', 'shieldBash', 'volley', 'ricochet', 'backstab', 'fireball', 'iceNova', 'arcLightning'];
-  for (const skill of Object.values(SKILL_DEFINITIONS).filter(s=>s.tier!=='aura')) {
+  for (const skill of Object.values(SKILL_DEFINITIONS).filter(s=>s.tier!=='aura'&&!s.classId&&!s.raceId)) {
     const h = harness(skill.id);
     assert.equal(skill.tier === 'basic', basic.includes(skill.id));
     assert.equal(activateSkill(h.context, 0), true);

@@ -5,7 +5,7 @@ import { createCharacterSheet } from '../src/items.ts';
 import { outfitFromEquipment } from '../src/item-art.ts';
 
 test('armor tinting isolates each material without changing items, silhouette or trim', () => {
-  const sheet=createCharacterSheet('sword'), before=structuredClone(sheet), outfit=outfitFromEquipment(sheet);
+  const sheet=createCharacterSheet('warrior'), before=structuredClone(sheet), outfit=outfitFromEquipment(sheet);
   const original=structuredClone(outfit);
   for(const part of ARMOR_PARTS) for(const tint of ARMOR_TINTS) {
     const tinted=tintedOutfit(outfit,{[part.id]:tint.id},true);
@@ -27,7 +27,7 @@ test('armor tinting isolates each material without changing items, silhouette or
 });
 
 test('original colors and helmet visibility are independent reversible projections', () => {
-  const outfit=outfitFromEquipment(createCharacterSheet('sword'));
+  const outfit=outfitFromEquipment(createCharacterSheet('warrior'));
   const hidden=tintedOutfit(outfit,{head:'crimson',chest:'teal'},false);
   assert.equal(hidden.head,null);assert.ok(outfit.head);
   assert.notDeepEqual(hidden.chest,outfit.chest);

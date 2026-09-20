@@ -1,4 +1,5 @@
 import { isGreaterAffix, GREATER_AFFIX_SYMBOL } from './item-roll-content.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { STOCK_CATEGORIES, STOCK_CATEGORY_NAMES, stockCategory, enhancementGains, type StockCategory } from './service-presentation.ts';
 import { storageTabCount, storageTabItems, hasStorageTab, MAX_STORAGE_TABS, nextStorageTabPrice } from './storage-content.ts';
 import { itemAffixCount } from './items.ts';
@@ -19,6 +20,10 @@ import { generateItem, EQUIPMENT_SLOTS, TIER_COLORS, TIER_NAMES, STAT_LABELS, it
 import { goldBalance } from './wallet.ts';
 import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import { ServiceGoldFeedback } from './service-gold-feedback.ts';
+import { formatWallet, formatWalletCompact } from './currency.ts';
+import { glyphVendorStock, glyphPrice } from './glyph-command.ts';
+import { bagVendorStock, bagPrice } from './bag-state.ts';
+import { repairQuote } from './durability.ts';
 import './service-panel.css';
 
 const ENCHANT_OPERATIONS = ['rarity', 'rerollOne', 'rerollAll', 'relevel'] as const;
@@ -31,8 +36,10 @@ export class ServicePanel {
   private tooltip: ItemTooltip;
   private player!: Player;
   private npc!: TownNPC;
+  private worldSeed?: number;
+  private selectedBag: string | null = null;
   private respecKind: 'skills' | 'attributes' = 'skills';
-  private tab: 'shop' | 'sell' | 'improve' | 'buyback' | 'respec' = 'shop';
+  private tab: 'shop' | 'sell' | 'improve' | 'buyback' | 'respec' | 'glyphs' | 'bags' = 'shop';
   private shopCategory: StockCategory = 'weapons';
   private stockCache: {key:string;available:(Item|null)[];all:(Item|null)[]}|null=null;
   private operation: Improvement = 'enhance';
@@ -44,15 +51,18 @@ export class ServicePanel {
   private tradeDrag: { id:string; quote:ServiceQuote|null; target:'.service-offer'|'.service-bag'; problem:string; message:string } | null = null;
   private ignoreClickUntil = 0;
   private gambleKind: ItemKind | null = null;
+  private selectedGlyph: string | null = null;
   private revealed:Item|null=null;
   private abort = new AbortController();
   private focus: { dispose(): void } | null = null;
-  private actions: { close(): void; sort(target: 'storage' | 'inventory', tab?: number): void; trade(quote: ServiceQuote): Promise<{ ok: boolean; message: string }> };
+  private actions: { close(): void; sort(target: 'storage' | 'inventory', tab?: number): void; trade(quote: ServiceQuote): Promise<{ ok: boolean; message: string }>; repair?(): Promise<{ ok: boolean; message: string }>; buyGlyph?(glyphId: string): Promise<{ ok: boolean; message: string }>; buyBag?(bagId: string): Promise<{ ok: boolean; message: string }> };
+
   constructor(mount: HTMLElement, actions: ServicePanel['actions']) {
     this.actions = actions;
     this.element = document.createElement('section'); this.element.className = 'service-panel ui-window'; this.element.hidden = true;
     this.element.setAttribute('role', 'dialog'); this.element.setAttribute('aria-modal', 'true'); this.element.setAttribute('aria-labelledby', 'service-title');
-    mount.append(this.element); this.goldFeedback = new ServiceGoldFeedback(this.element); this.tooltip = new ItemTooltip(this.element, 'service-tooltip');
+    mount.append(this.element);
+    attachPanelFrame(this.element, 'service'); this.goldFeedback = new ServiceGoldFeedback(this.element); this.tooltip = new ItemTooltip(this.element, 'service-tooltip');
     this.element.addEventListener('click', e => this.click(e), { signal: this.abort.signal });
     this.installTradeDrag();
     this.element.addEventListener('pointerover', e => this.hover(e.target), { signal: this.abort.signal });
@@ -64,7 +74,8 @@ export class ServicePanel {
     this.element.addEventListener('focusout', () => this.tooltip.defer(), { signal: this.abort.signal });
     this.element.addEventListener('scroll', event => { if (!(event.target instanceof Element) || !event.target.closest('.ui-tooltip')) this.tooltip.hide(); }, { signal: this.abort.signal, capture: true });
   }
-  open(player: Player, npc: TownNPC): void {
+  open(player: Player, npc: TownNPC, worldSeed?: number): void {
+    this.worldSeed = worldSeed;
     this.stockCache=null;
     this.shopCategory = npc.role === 'jeweler' ? 'accessories' : 'weapons';
     this.storageTab = 0; this.player = player; this.npc = npc; this.tab = npc.role === 'enchanter' ? 'improve' : 'shop';
@@ -101,6 +112,8 @@ export class ServicePanel {
     this.element.classList.toggle('is-enhancing',this.tab==='improve');
     this.element.classList.toggle('is-enchanting',this.tab==='improve'&&this.npc.role==='enchanter');
     if(this.tab==='respec'){this.renderRespec();return;}
+    if(this.tab==='glyphs'){this.renderGlyphs();return;}
+    if(this.tab==='bags'){this.renderBags();return;}
     if(this.npc.role==='stash'){this.renderStorage();return;}
     if(this.npc.role==='gambler'&&this.tab==='shop'){this.renderSpecial();return;}
     this.goldFeedback.stop();
@@ -161,10 +174,14 @@ export class ServicePanel {
     const stock=this.currentStock(true);
     const available=this.currentStock();
     const controls=this.element.querySelector<HTMLElement>('.service-stock-controls')!;
-    const refresh=quoteService(this.player.character,this.npc,this.player.level,{type:'refreshStock'});
+    const refresh=quoteService(this.player.character,this.npc,this.player.level,{type:'refreshStock'},this.player,this.worldSeed);
+
     const price=vendorRefreshPrice(this.player.character,this.npc,this.player.level);
     controls.innerHTML=`<nav class="service-categories" aria-label="Stock categories">${STOCK_CATEGORIES.map(category=>`<button class="ui-button ui-button--quiet" data-stock-category="${category}" aria-pressed="${this.shopCategory===category}">${STOCK_CATEGORY_NAMES[category]} <small>${available.filter(item=>item&&stockCategory(item)===category).length}</small></button>`).join('')}</nav>
-      <div class="service-refresh-row"><span>Merchant stock</span><button class="ui-button ui-button--quiet" data-refresh-stock ${!refresh.ok||price>goldBalance(this.player.character)?'disabled':''} title="Replace all stock. The fee doubles each time and resets at the next level restock."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 8M19 3v5h-5"/></svg> Refresh · ${Number.isSafeInteger(price)?price.toLocaleString()+' gold':'Unavailable'}</button></div>`;
+      <div class="service-refresh-row"><span>Merchant stock</span><button class="ui-button ui-button--quiet" data-refresh-stock ${!refresh.ok||price>goldBalance(this.player.character)?'disabled':''} title="Replace all stock. The fee doubles each time and resets at the next level restock."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 8M19 3v5h-5"/></svg> Refresh · ${Number.isSafeInteger(price)?formatWalletCompact(price)+' gold':'Unavailable'}</button></div>`;
+    const repair = this.npc.role === 'blacksmith' && this.actions.repair ? repairQuote(this.player) : null;
+    if (repair) controls.insertAdjacentHTML('beforeend',
+      `<div class="service-refresh-row"><span>Equipment repair</span><button class="ui-button ui-button--quiet" data-repair-all ${!repair.ok || repair.cost > goldBalance(this.player.character) ? 'disabled' : ''} title="Restore every equipped item to full durability.">${repair.ok ? `Repair all · ${formatWalletCompact(repair.cost)}` : repair.message}</button></div>`);
     this.renderSpatialItems(root,stock.flatMap((item,index)=>item&&stockCategory(item)===this.shopCategory?[{item,key:`stock:${index}`,sold:!available[index]}]:[]),8,`${STOCK_CATEGORY_NAMES[this.shopCategory]} for sale`);
     if(!available.some(item=>item&&stockCategory(item)===this.shopCategory))root.insertAdjacentHTML('beforeend','<p class="service-stock-empty">No items in this category.</p>');
   }
@@ -184,13 +201,14 @@ export class ServicePanel {
     ${gains.length?`<div class="enhance-gains"><div class="enhance-gains-heading"><span>Item improvement</span><span>Current</span><span>After</span><span>Gain</span></div>${gains.map(row=>`<div><span>${escapeUI(row.label)}</span><span>${row.before}</span><strong>${row.after}</strong><em>${row.gain}</em></div>`).join('')}</div><p class="enhance-footnote">Only changed item stats shown. Character caps still apply.${next!.recipe.enhancement>item!.recipe.enhancement+1?' Empty steps skipped at no extra cost.':''}</p>`:item?'<p class="enhance-footnote">No further enhancement available.</p>':''}`;
   }
   private headerMarkup(): string {
-    return `<header class="ui-window-header"><span class="ui-header-emblem">${npcEmblem(this.npc.role)}</span><h2 class="ui-title" id="service-title">${NPC_NAMES[this.npc.role]}</h2><span class="service-wallet"><b data-wallet-total>${goldBalance(this.player.character).toLocaleString()}</b> <small>gold</small></span><button class="ui-button ui-button--icon" data-close aria-label="Close service">×</button></header>`;
+    return `<header class="ui-window-header"><span class="ui-header-emblem">${npcEmblem(this.npc.role)}</span><h2 class="ui-title" id="service-title">${NPC_NAMES[this.npc.role]}</h2><span class="service-wallet"><b data-wallet-total>${formatWallet(goldBalance(this.player.character))}</b></span><button class="ui-button ui-button--icon" data-close aria-label="Close service">×</button></header>`;
   }
   private tabsMarkup(): string {
     if (this.npc.role === 'stash') return '';
     const tabs: Array<[typeof this.tab, string]> = this.npc.role === 'enchanter'
-      ? [['improve', 'Enchant'], ['respec', 'Respec']] : [['shop', this.npc.role === 'gambler' ? 'Gamble' : 'Shop']];
+      ? [['improve', 'Enchant'], ['glyphs', 'Glyphs'], ['respec', 'Respec']] : [['shop', this.npc.role === 'gambler' ? 'Gamble' : 'Shop']];
     if (this.npc.role === 'blacksmith') tabs.push(['improve', 'Enhance']);
+    if (bagVendorStock(this.npc).length) tabs.push(['bags', 'Bags']);
     tabs.push(['sell', 'Sell'], ['buyback', `Buyback <small>${this.player.character.commerce.buyback.length}/12</small>`]);
     return `<nav class="service-tabs" aria-label="Services">${tabs.map(([tab, label]) => `<button class="ui-button ui-button--quiet" data-tab="${tab}" aria-pressed="${this.tab === tab}">${label}</button>`).join('')}<span>${escapeUI(this.npc.name)}${this.tab === 'improve' ? ` · Services Lv ${vendorLevel(this.npc, this.player.level)}` : ''}</span></nav>`;
   }
@@ -200,16 +218,50 @@ export class ServicePanel {
     const attributes = this.respecKind === 'attributes', sheet = this.player.character;
     const request: ServiceRequest = {type:attributes?'resetAttributes':'respec'};
     const points = attributes ? attributeResetPoints(sheet) : respecPoints(sheet);
-    const result = quoteService(sheet,this.npc,this.player.level,request), price = attributes ? 0 : points*RESPEC_GOLD_PER_POINT;
+    const result = quoteService(sheet,this.npc,this.player.level,request,this.player,this.worldSeed), price = attributes ? 0 : points*RESPEC_GOLD_PER_POINT;
     this.quote=result.ok?result.quote:null;this.selected=request;
     this.element.style.setProperty('--service-color',NPC_COLORS.enchanter);
     this.element.innerHTML=`${this.headerMarkup()}${this.tabsMarkup()}<div class="service-respec ui-scroll-area">
       <nav class="service-tabs" aria-label="Reset type">${(['skills','attributes'] as const).map(kind=>`<button class="ui-button ui-button--quiet" data-respec-kind="${kind}" aria-pressed="${this.respecKind===kind}">${kind==='skills'?'Skills':'Attributes'}</button>`).join('')}</nav>
       <div class="service-respec-sigil">${npcEmblem('enchanter')}</div><h3>Choose a new path</h3>
       <p>${attributes?'Redistribute your assigned attributes. One free reset per character.':'Return every spent skill point, including purchased ranks.'}</p>
-      <div class="service-respec-values"><div><strong>${points}</strong><span>Points refunded</span></div><div><strong>${attributes?'Free':price.toLocaleString()}</strong><span>${attributes?'Once per character':`Gold · ${RESPEC_GOLD_PER_POINT} per point`}</span></div></div>
+      <div class="service-respec-values"><div><strong>${points}</strong><span>Points refunded</span></div><div><strong>${attributes?'Free':formatWalletCompact(price)}</strong><span>${attributes?'Once per character':`Gold · ${RESPEC_GOLD_PER_POINT} per point`}</span></div></div>
       <p class="ui-muted">${attributes?'Returns all four attributes to 10 and refunds their assigned points.':'Clears your skill tree, ranks, specializations and skill bindings.<br>Attributes and equipment stay yours.'}</p>
-      </div><footer class="ui-window-footer"><span class="service-message" role="status">${!result.ok?escapeUI(result.message):goldBalance(sheet)<price?'Not enough gold.':''}</span><button class="ui-button ui-button--primary" data-confirm ${!result.ok||goldBalance(sheet)<price?'disabled':''}>${attributes?'Reset attributes · Free':`Reset skills · ${price.toLocaleString()} gold`}</button></footer>`;
+      </div><footer class="ui-window-footer"><span class="service-message" role="status">${!result.ok?escapeUI(result.message):goldBalance(sheet)<price?'Not enough gold.':''}</span><button class="ui-button ui-button--primary" data-confirm ${!result.ok||goldBalance(sheet)<price?'disabled':''}>${attributes?'Reset attributes · Free':`Reset skills · ${formatWalletCompact(price)}`}</button></footer>`;
+  }
+  /** Enchanter glyph shop: every glyph in stock, bought straight into the bag. */
+  private renderGlyphs(): void {
+    this.goldFeedback.stop(); this.tooltip.hide(); this.element.classList.remove('is-selling');
+    const stock = glyphVendorStock(this.npc), sheet = this.player.character;
+    const selected = this.selectedGlyph ? stock.find(def => def.id === this.selectedGlyph) ?? null : null;
+    const price = selected ? glyphPrice(selected) : 0;
+    this.element.style.setProperty('--service-color', NPC_COLORS.enchanter);
+    this.element.innerHTML = `${this.headerMarkup()}${this.tabsMarkup()}
+      <div class="service-body"><section class="service-offer ui-scroll-area">
+        <div class="service-section-heading"><h3>Glyphs</h3><span>Inscribed at the glyph panel</span></div>
+        <div class="service-glyph-list">${stock.map(def => `<button class="service-glyph-row" data-glyph="${def.id}" aria-pressed="${selected?.id === def.id}">
+          <span class="service-glyph-name">${escapeUI(def.name)}</span><small>${escapeUI(def.slot)} · ${escapeUI(def.description)}</small>
+          <b>${formatWalletCompact(glyphPrice(def))}</b></button>`).join('') || '<p class="service-empty">No glyphs for sale.</p>'}</div>
+      </section><section class="service-bag ui-scroll-area"><div class="service-section-heading"><h3>Inventory</h3></div>${this.sortMarkup('inventory')}<div class="ui-item-grid-scroll"><div class="service-grid inventory-pack"></div></div></section></div>
+      <footer class="ui-window-footer"><span class="service-message" role="status">${selected && goldBalance(sheet) < price ? 'Not enough gold.' : ''}</span><button class="ui-button ui-button--primary" data-confirm ${!selected || goldBalance(sheet) < price ? 'disabled' : ''}>${selected ? `Buy ${escapeUI(selected.name)} · ${formatWalletCompact(price)}` : 'Choose a glyph'}</button></footer>`;
+    this.renderInventoryPack();
+  }
+  /** Jeweler bag shop: bag items bought straight into the pack. */
+  private renderBags(): void {
+    this.goldFeedback.stop(); this.tooltip.hide(); this.element.classList.remove('is-selling');
+    const stock = bagVendorStock(this.npc), sheet = this.player.character;
+    const selected = this.selectedBag ? stock.find(def => def.id === this.selectedBag) ?? null : null;
+    const price = selected ? bagPrice(selected) : 0;
+    this.element.style.setProperty('--service-color', NPC_COLORS.jeweler);
+    this.element.innerHTML = `${this.headerMarkup()}${this.tabsMarkup()}
+      <div class="service-body"><section class="service-offer ui-scroll-area">
+        <div class="service-section-heading"><h3>Bags</h3><span>Equip into a bag slot to expand your pack</span></div>
+        <div class="service-glyph-list">${stock.map(def => `<button class="service-glyph-row" data-bag="${def.id}" aria-pressed="${selected?.id === def.id}">
+          <span class="service-glyph-name">${escapeUI(def.name)}</span><small>${def.slots} slots</small>
+          <b>${formatWalletCompact(bagPrice(def))}</b></button>`).join('') || '<p class="service-empty">No bags for sale.</p>'}</div>
+      </section><section class="service-bag ui-scroll-area"><div class="service-section-heading"><h3>Inventory</h3></div>${this.sortMarkup('inventory')}<div class="ui-item-grid-scroll"><div class="service-grid inventory-pack"></div></div></section></div>
+      <footer class="ui-window-footer"><span class="service-message" role="status">${selected && goldBalance(sheet) < price ? 'Not enough gold.' : ''}</span><button class="ui-button ui-button--primary" data-confirm ${!selected || goldBalance(sheet) < price ? 'disabled' : ''}>${selected ? `Buy ${escapeUI(selected.name)} · ${formatWalletCompact(price)}` : 'Choose a bag'}</button></footer>`;
+    this.renderInventoryPack();
   }
 
   private renderStorage(): void {
@@ -224,7 +276,7 @@ export class ServicePanel {
       <div class="service-body"><section class="service-offer service-storage-pane ui-scroll-area">
         <nav class="storage-tabs" aria-label="Storage tabs">${Array.from({length:MAX_STORAGE_TABS},(_,tab)=>`<button type="button" class="ui-button ui-button--quiet" data-storage-tab="${tab}" aria-pressed="${this.storageTab===tab}" ${tab>count?'disabled':''} aria-label="${tab<count?'Open':'Unlock'} storage tab ${tab+1}">${tab>=count?ITEM_LOCK_ICON:''}<span>Tab ${tab+1}</span></button>`).join('')}</nav>
         ${owned?`<div class="service-storage-toolbar">${this.sortMarkup('storage')}<span>${storageTabItems(sheet,this.storageTab).filter(Boolean).length} / ${STASH_CAPACITY}</span></div><div class="ui-item-grid-scroll"><div class="service-storage inventory-pack"></div></div>`:
-          `<div class="storage-unlock"><span class="storage-unlock-icon">${ITEM_LOCK_ICON}</span><h3>Storage tab ${this.storageTab+1}</h3><p>${STASH_CAPACITY} more items</p><strong>${nextStorageTabPrice(sheet)?.toLocaleString()} <small>gold</small></strong></div>`}
+          `<div class="storage-unlock"><span class="storage-unlock-icon">${ITEM_LOCK_ICON}</span><h3>Storage tab ${this.storageTab+1}</h3><p>${STASH_CAPACITY} more items</p><strong>${nextStorageTabPrice(sheet) !== undefined ? formatWalletCompact(nextStorageTabPrice(sheet)!) : ''}</strong></div>`}
       </section><section class="service-bag ui-scroll-area"><div class="service-section-heading"><h3>Inventory</h3></div>${this.sortMarkup('inventory')}<div class="ui-item-grid-scroll"><div class="service-grid inventory-pack"></div></div></section></div>
       <footer class="ui-window-footer"><span class="service-message" role="status"></span><button class="ui-button ui-button--primary" data-confirm disabled>Select an item</button></footer>`;
     this.renderInventoryPack();
@@ -243,10 +295,10 @@ export class ServicePanel {
       cell.classList.toggle('is-selected',Boolean(entry && JSON.stringify(entry.request)===JSON.stringify(this.selected)));
     }
     if (!this.selected) return;
-    const result=quoteService(this.player.character,this.npc,this.player.level,this.selected);
+    const result=quoteService(this.player.character,this.npc,this.player.level,this.selected,this.player,this.worldSeed);
     if (!result.ok) {message.textContent=result.message;return;}
     if (this.selected.type==='unlockStorage') {
-      this.quote=result.quote; button.textContent=`Unlock tab ${this.storageTab+1} · ${result.quote.price.toLocaleString()} gold`;
+      this.quote=result.quote; button.textContent=`Unlock tab ${this.storageTab+1} · ${formatWalletCompact(result.quote.price)} gold`;
       button.disabled=goldBalance(this.player.character)<result.quote.price;
       if(button.disabled)message.textContent='Not enough gold.';
       return;
@@ -265,7 +317,7 @@ export class ServicePanel {
     this.element.style.setProperty('--service-color',NPC_COLORS[this.npc.role]);
     this.element.innerHTML=`${this.headerMarkup()}${this.tabsMarkup()}
       <div class="service-body"><section class="service-offer ui-scroll-area"><div class="service-section-heading"><h3>Choose an item type</h3><span>${this.npc.settlementTier??'settlement'} · Lv ${vendorLevel(this.npc,this.player.level)}</span></div>
-      <div class="gamble-choices">${GAMBLE_KINDS.map((kind,i)=>`<button class="gamble-choice" data-gamble="${kind}" aria-pressed="${this.selected?.type==='gamble'&&this.selected.kind===kind}"><span>${itemIconSVG(generateItem(i+71,1,kind,undefined,'common'),44)}</span><b>${kind==='head'?'Helmet':kind[0].toUpperCase()+kind.slice(1)}</b><small>${gamblePrice(this.npc,this.player.level,kind).toLocaleString()} gold</small></button>`).join('')}</div><details class="gamble-odds"><summary>Rarity odds</summary><p>${gambleOdds(this.npc).map((w,i)=>`${['Common','Magic','Rare','Epic','Legendary'][i]} ${w}%`).join(' · ')}</p></details>
+      <div class="gamble-choices">${GAMBLE_KINDS.map((kind,i)=>`<button class="gamble-choice" data-gamble="${kind}" aria-pressed="${this.selected?.type==='gamble'&&this.selected.kind===kind}"><span>${itemIconSVG(generateItem(i+71,1,kind,undefined,'common'),44)}</span><b>${kind==='head'?'Helmet':kind[0].toUpperCase()+kind.slice(1)}</b><small>${formatWalletCompact(gamblePrice(this.npc,this.player.level,kind))}</small></button>`).join('')}</div><details class="gamble-odds"><summary>Rarity odds</summary><p>${gambleOdds(this.npc).map((w,i)=>`${['Common','Magic','Rare','Epic','Legendary'][i]} ${w}%`).join(' · ')}</p></details>
       <div class="service-detail"></div></section><section class="service-bag ui-scroll-area"><div class="service-section-heading"><h3>Inventory</h3></div>${this.sortMarkup('inventory')}<div class="ui-item-grid-scroll"><div class="service-grid inventory-pack"></div></div></section></div>
       <footer class="ui-window-footer"><span class="service-message" role="status"></span><button class="ui-button ui-button--primary" data-confirm disabled>Choose an item type</button></footer>`;
     this.renderInventoryPack(); this.renderDetail();
@@ -285,11 +337,11 @@ export class ServicePanel {
       const name=document.createElement('span');name.textContent=itemDisplayName(item);name.dataset.item=`bag:${revealedIndex}`;row.append(name);detail.append(row);
     }
     if(!this.selected)return;
-    const result=quoteService(this.player.character,this.npc,this.player.level,this.selected);
+    const result=quoteService(this.player.character,this.npc,this.player.level,this.selected,this.player,this.worldSeed);
     if(!result.ok){this.element.querySelector('.service-message')!.textContent=result.message;return;}
     if(!result.item)return;
     this.quote=result.quote;
-    button.textContent=`Gamble · ${result.quote.price.toLocaleString()} gold`;
+    button.textContent=`Gamble · ${formatWalletCompact(result.quote.price)} gold`;
     const full=!canPackItem(this.player.character,result.item);
     button.disabled=full||goldBalance(this.player.character)<result.quote.price;
     if(button.disabled)this.element.querySelector('.service-message')!.textContent=full?packSpaceProblem(this.player.character,result.item):'Not enough gold.';
@@ -361,7 +413,7 @@ export class ServicePanel {
     if(!this.canDragTrade(key))return null;
     const value=this.resolve(key);if(!value)return null;
     const request:ServiceRequest=key.startsWith('bag:')?{type:'sell',source:{bag:Number(key.split(':')[1])}}:value.request;
-    const result=quoteService(this.player.character,this.npc,this.player.level,request);
+    const result=quoteService(this.player.character,this.npc,this.player.level,request,this.player,this.worldSeed);
     const buying=request.type==='buy'||request.type==='buyback';
     const problem=!result.ok?result.message:buying&&goldBalance(this.player.character)<result.quote.price?'Not enough gold.':buying&&!canPackItem(this.player.character,value.item)?packSpaceProblem(this.player.character,value.item):'';
     return {item:value.item,quote:result.ok?result.quote:null,problem};
@@ -394,7 +446,7 @@ export class ServicePanel {
       cell!.classList.add('is-trade-source');this.element.classList.add('is-trade-dragging');
       destination.classList.add('is-trade-destination');
       destination.classList.toggle('is-trade-invalid',!!trade.problem);
-      destination.dataset.dropCaption=trade.problem||`Drop to ${selling?'sell':'buy'} · ${trade.quote!.price.toLocaleString()} gold`;
+      destination.dataset.dropCaption=trade.problem||`Drop to ${selling?'sell':'buy'} · ${formatWalletCompact(trade.quote!.price)} gold`;
       message.textContent=`${itemDisplayName(trade.item)} · ${destination.dataset.dropCaption}`;
     },options);
     this.element.addEventListener('dragover',event=>{
@@ -456,9 +508,11 @@ export class ServicePanel {
       equipped: Boolean(value.source && 'equipped' in value.source),
       context: value.request.type === 'buyback' ? `Buy back · ${this.player.character.commerce.buyback.find(b=>b.item.id===value.item.id)?.price??0} gold` : value.request.type === 'buy' ? `Buy · ${itemPrice(value.item, 'buy')} gold` : undefined }, cell);
   }
+
   private click(e: MouseEvent): void {
     if (this.saving || this.tradeDrag || Date.now()<this.ignoreClickUntil) return;
     const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button, input[data-include-charms]'); if (!button) return;
+    if (button.hasAttribute('data-repair-all')) { void this.confirmRepair(); return; }
     if(button.dataset.operation && ENCHANT_OPERATIONS.includes(button.dataset.operation as typeof ENCHANT_OPERATIONS[number])) {
       this.operation=button.dataset.operation as Improvement; this.updateSelection(); this.render(); return;
     }
@@ -476,7 +530,7 @@ export class ServicePanel {
       this.element.querySelector<HTMLElement>(`[data-stock-category="${this.shopCategory}"]`)?.focus({preventScroll:true});return;
     }
     if(button.hasAttribute('data-refresh-stock')){
-      const result=quoteService(this.player.character,this.npc,this.player.level,{type:'refreshStock'});
+      const result=quoteService(this.player.character,this.npc,this.player.level,{type:'refreshStock'},this.player,this.worldSeed);
       if(result.ok){this.quote=result.quote;void this.confirm();}return;
     }
     if (button.hasAttribute('data-close')) { this.actions.close(); return; }
@@ -497,6 +551,8 @@ export class ServicePanel {
       this.element.querySelector<HTMLElement>(`[data-sort-pack="${target}"]`)?.focus({preventScroll:true});
       return;
     }
+    if (button.dataset.glyph) { this.selectedGlyph = button.dataset.glyph; this.renderGlyphs(); return; }
+    if (button.dataset.bag) { this.selectedBag = button.dataset.bag; this.renderBags(); return; }
     if(button.dataset.gamble){
       this.gambleKind=button.dataset.gamble as ItemKind;
       this.selected={type:'gamble',kind:this.gambleKind};
@@ -549,12 +605,12 @@ export class ServicePanel {
       const entry = this.resolve(cell.dataset.item!);
       cell.classList.toggle('is-selected', Boolean(entry && (entry.request.type==='improve'&&selected.type==='improve' ? JSON.stringify(entry.request.source)===JSON.stringify(selected.source) : JSON.stringify(entry.request)===JSON.stringify(selected))));
     }
-    const result = quoteService(this.player.character, this.npc, this.player.level, selected);
+    const result = quoteService(this.player.character, this.npc, this.player.level, selected, this.player, this.worldSeed);
     if (!result.ok) { detail.hidden=true; message.textContent=result.message; if(selected.type==='improve'&&selected.operation==='enhance')this.renderEnhancement(detail,sourceItem(this.player.character,selected.source),null); else if(selected.type==='improve')this.renderEnchantment(detail,sourceItem(this.player.character,selected.source),false,result.message); return; }
     const { item, quote } = result; if(!item)return; this.quote = quote;
     const buying = selected.type === 'buy' || selected.type === 'buyback', improving = selected.type === 'improve';
     const label = improving ? OP_LABELS[selected.operation] : buying ? 'Buy' : 'Sell';
-    button.textContent = `${label} · ${quote.price.toLocaleString()} gold`;
+    button.textContent = `${label} · ${formatWalletCompact(quote.price)} gold`;
     button.disabled = selected.type !== 'sell' && goldBalance(this.player.character) < quote.price;
     message.textContent = button.disabled ? 'Not enough gold.' : itemDisplayName(item);
     if(buying&&!canPackItem(this.player.character,item)){button.disabled=true;message.textContent=packSpaceProblem(this.player.character,item);}
@@ -606,6 +662,62 @@ export class ServicePanel {
       button.setAttribute('aria-pressed',String(items.length>0&&items.every(item=>this.sales.has(item!.id))));
     }
   }
+  private async confirmGlyph(): Promise<void> {
+    const def = this.selectedGlyph ? glyphVendorStock(this.npc).find(d => d.id === this.selectedGlyph) : undefined;
+    if (this.saving || !def || !this.actions.buyGlyph) return;
+    this.saving = true;
+    const button = this.element.querySelector<HTMLButtonElement>('[data-confirm]');
+    if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+    let result: { ok: boolean; message: string };
+    try { result = await this.actions.buyGlyph(def.id); }
+    catch { result = { ok: false, message: 'Could not complete the save. No purchase was committed.' }; }
+    finally { this.saving = false; }
+    if (this.element.hidden) return;
+    if (result.ok) {
+      this.renderGlyphs();
+      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
+    }
+    const message = this.element.querySelector('.service-message');
+    if (message) message.textContent = result.message;
+  }
+  private async confirmBag(): Promise<void> {
+    const def = this.selectedBag ? bagVendorStock(this.npc).find(d => d.id === this.selectedBag) : undefined;
+    if (this.saving || !def || !this.actions.buyBag) return;
+    this.saving = true;
+    const button = this.element.querySelector<HTMLButtonElement>('[data-confirm]');
+    if (button) { button.disabled = true; button.textContent = 'Saving…'; }
+    let result: { ok: boolean; message: string };
+    try { result = await this.actions.buyBag(def.id); }
+    catch { result = { ok: false, message: 'Could not complete the save. No purchase was committed.' }; }
+    finally { this.saving = false; }
+    if (this.element.hidden) return;
+    if (result.ok) {
+      this.renderBags();
+      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
+    }
+    const message = this.element.querySelector('.service-message');
+    if (message) message.textContent = result.message;
+  }
+  private async confirmRepair(): Promise<void> {
+    if (this.saving || !this.actions.repair) return;
+    this.saving = true;
+    const button = this.element.querySelector<HTMLButtonElement>('[data-repair-all]');
+    if (button) { button.disabled = true; button.textContent = 'Repairing…'; }
+    let result: { ok: boolean; message: string };
+    try { result = await this.actions.repair(); }
+    catch { result = { ok: false, message: 'Could not complete the save. No gold was spent.' }; }
+    finally { this.saving = false; }
+    if (this.element.hidden) return;
+    if (result.ok) {
+      this.render();
+      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
+    }
+    const message = this.element.querySelector('.service-message');
+    if (message) message.textContent = result.message;
+  }
   private renderSales(detail:HTMLElement, button:HTMLButtonElement, message:HTMLElement): void {
     const items=[...this.sales.values()].sort((a,b)=>a.bag-b.bag);
     for(const cell of this.element.querySelectorAll<HTMLButtonElement>('[data-item]')) {
@@ -614,18 +726,20 @@ export class ServicePanel {
     }
     const clear=this.element.querySelector<HTMLButtonElement>('[data-clear-sales]');if(clear)clear.disabled=!items.length;
     if(!items.length){detail.innerHTML='<p class="service-empty">Select items or a rarity.</p>';button.textContent='Select items';return;}
-    const result=quoteService(this.player.character,this.npc,this.player.level,{type:'sellMany',items,includeActiveCharms:true});
+    const result=quoteService(this.player.character,this.npc,this.player.level,{type:'sellMany',items,includeActiveCharms:true},this.player,this.worldSeed);
     if(!result.ok){detail.innerHTML=`<p class="service-empty">${escapeUI(result.message)}</p>`;return;}
     this.quote=result.quote;
-    button.disabled=false;button.textContent=`Sell ${items.length} · ${result.quote.price.toLocaleString()} gold`;
-    detail.innerHTML=`<div class="service-sale-total"><span>${items.length} ${items.length===1?'item':'items'}</span><strong>+${result.quote.price.toLocaleString()} <small>gold</small></strong></div><div class="service-sale-list">${items.map(({bag})=>{
+    button.disabled=false;button.textContent=`Sell ${items.length} · ${formatWalletCompact(result.quote.price)} gold`;
+    detail.innerHTML=`<div class="service-sale-total"><span>${items.length} ${items.length===1?'item':'items'}</span><strong>+${formatWalletCompact(result.quote.price)} <small>gold</small></strong></div><div class="service-sale-list">${items.map(({bag})=>{
       const item=this.player.character.inventory[bag]!;
-      return `<button class="service-sale-row" data-item="bag:${bag}" aria-label="Remove ${escapeUI(itemDisplayName(item))} from sale"><span class="service-sale-icon">${itemIconSVG(item,36)}</span><span style="color:${TIER_COLORS[item.tier]}">${escapeUI(itemDisplayName(item))}</span><small>${itemPrice(item,'sell').toLocaleString()}</small><i aria-hidden="true">×</i></button>`;
+      return `<button class="service-sale-row" data-item="bag:${bag}" aria-label="Remove ${escapeUI(itemDisplayName(item))} from sale"><span class="service-sale-icon">${itemIconSVG(item,36)}</span><span style="color:${TIER_COLORS[item.tier]}">${escapeUI(itemDisplayName(item))}</span><small>${formatWalletCompact(itemPrice(item,'sell'))}</small><i aria-hidden="true">×</i></button>`;
     }).join('')}</div>`;
     message.textContent=items.length>12?'Only the last 12 items remain in Buyback.':'Items remain available in Buyback.';
   }
   private selectedAffix() { return this.selected?.type === 'improve' ? this.selected.affix ?? 0 : 0; }
   private async confirm(): Promise<void> {
+    if (this.tab === 'glyphs') { void this.confirmGlyph(); return; }
+    if (this.tab === 'bags') { void this.confirmBag(); return; }
     if (this.saving || !this.quote) return;
     const refreshing=this.quote.request.type==='refreshStock';
     const gamble=this.quote.request.type==='gamble',revealedId=this.quote.itemId;
@@ -648,7 +762,7 @@ export class ServicePanel {
       if (gamble) {
         // Keep the choices and action button mounted for rapid repeat purchases.
         this.renderInventoryPack();
-        this.element.querySelector('[data-wallet-total]')!.textContent=goldBalance(this.player.character).toLocaleString();
+        this.element.querySelector('[data-wallet-total]')!.textContent=formatWallet(goldBalance(this.player.character));
         this.renderDetail();
       } else this.render();
       this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');

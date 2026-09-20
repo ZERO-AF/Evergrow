@@ -13,9 +13,9 @@ import { addInventoryItem } from '../src/inventory.ts';
 
 const world={blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};
 test('Intelligence adds mana without regeneration and preserves level-one casting',()=>{
-  const s=createCharacterSheet();const base=deriveCharacterStats(s);s.attributes.intelligence+=100;
-  const grown=deriveCharacterStats(s);assert.equal(base.maxMana,100);assert.equal(base.manaRegeneration,1);
-  assert.equal(grown.maxMana,300);assert.equal(grown.spellDamageMultiplier,2.5);assert.equal(grown.manaRegeneration,1);
+  const s=createCharacterSheet('mage','undead');const base=deriveCharacterStats(s);s.attributes.intelligence+=100;
+  const grown=deriveCharacterStats(s);assert.equal(base.maxMana,100);assert.equal(base.manaRegeneration,2.5);
+  assert.equal(grown.maxMana,300);assert.equal(grown.spellDamageMultiplier,2.5);assert.equal(grown.manaRegeneration,2.5);
   assert.equal(manaCostMultiplier(0),1);assert.equal(manaCostMultiplier(20),.8);
   const samples=[20,30,50,75,150,1000].map(manaCostMultiplier);
   for(let i=1;i<samples.length;i++)assert.ok(samples[i]<=samples[i-1]&&samples[i]>=.6);
@@ -27,9 +27,9 @@ test('integer regeneration rolls respect stone area instead of rounding every ce
     i.affixes[0]={name:'Clarity',stat:'manaRegen',value:1};i.recipe.rolls[0]=.5;return deriveItem(i);};
   const pebble=stone('astral-pebble',1),monolith=stone('astral-monolith',2);
   assert.equal(pebble.affixes[0].value,1);assert.ok(monolith.affixes[0].value>=8);
-  const s=createCharacterSheet();s.inventory.fill(null);s.inventoryLayout={};
+  const s=createCharacterSheet('mage','undead');s.inventory.fill(null);s.inventoryLayout={};
   for(let i=0;i<48;i++){const item=stone('astral-pebble',100+i);assert.ok(addInventoryItem(s,item));s.inventoryLayout![item.id]=72+i;}
-  assert.equal(deriveCharacterStats(s,{},35).manaRegeneration,10.6);
+  assert.equal(deriveCharacterStats(s,{},35).manaRegeneration,12.1);
   for(const i of [pebble,monolith])assert.ok(i.affixes.every(a=>Number.isInteger(a.value)));
 });
 
@@ -46,11 +46,12 @@ test('old mana recipes reprice once while preserving offense, identity, lock and
 
 test('mana vials snapshot defeated level, obey missing mana and ignore later pool inflation',()=>{
   const sim=new Simulation(world,{spawn:false});const p=sim.player;
+  p.character=createCharacterSheet('mage','undead');refreshCharacter(p);
   const enemy=sim.spawnEnemy('stalker',0,0,'normal',undefined,{base:35,min:35,max:35,fixed:true})!;
   p.mana=p.maxMana;let id=500;
   awardKillRewards(enemy,0,0,{player:p,groundItems:sim.groundItems,groundGold:sim.groundGold,pickups:sim.pickups,nextId:()=>++id,emit:()=>{}});
   assert.equal(sim.pickups[0].restoreAmount,20);assert.ok(validPickups(sim.pickups));sim.enemies=[];
-  p.character.equipped.head!.implicit={maxMana:1000,manaRegen:-5};refreshCharacter(p);p.mana=0;
+  p.character.equipped.head!.implicit={maxMana:1000,manaRegen:-20};refreshCharacter(p);p.mana=0;
   sim.update(FIXED_STEP,{moveX:0,moveY:0,aimX:0,aimY:0,attack:false,dodge:false,heal:false,skillSlot:null});
   assert.equal(p.mana,20);assert.equal(manaVialAmount(1),8);
   assert.equal(manaVialRestoration(100,manaVialAmount(1000)),16);

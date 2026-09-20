@@ -1,4 +1,5 @@
 import { UITooltipStack } from './ui-tooltip-stack.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import type { HUDOptions } from './hud.ts';
 import { InventoryHUD } from './inventory-hud.ts';
 import { previewCharmReplacement, charmComparisonCandidates } from './charm-comparison.ts';
@@ -11,21 +12,26 @@ import { itemTooltipMarkup, updateItemSlot, CHANGE_LABELS, PREVIEW_PERCENT } fro
 import { ItemTooltip } from './item-tooltip.ts';
 import { goldBalance } from './wallet.ts';
 import { equippedGearPower } from './leaderboard.ts';
-import { formatGold } from './currency-format.ts';
+import { formatWallet } from './currency.ts';
 import type { Player } from './model.ts';
 import type { Attribute, EquipmentSlot, Item, ItemTier, SkillId } from './character-types.ts';
+import { durabilityBadgeMarkup, durabilityOf } from './durability.ts';
 import { matchesInventoryFilter, planBestEquipment, type EquipBestChoice, type InventorySort, type InventoryFilter } from './inventory-tools.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
 import type { GamepadInput } from './gamepad-input.ts';
 import { directionalControl } from './ui-navigation.ts';
 import { INVENTORY_CAPACITY, EQUIPMENT_SLOTS, TIER_NAMES, TIER_COLORS } from './items.ts';
 import { planEquipmentChange, planInventoryMove } from './inventory.ts';
+import { isConsumableItem } from './consumable-content.ts';
 import { drawCharacterPortrait } from './character-portrait.ts';
 import { characterStatDetails, type StatDetail } from './character-stat-details.ts';
 import { RetainedTooltip } from './retained-tooltip.ts';
 import { effectText, statTerm, effectExplanation } from './effect-terms.ts';
 import { xpForNextLevel } from './progression.ts';
 import { uiIcon, trapDialogFocus, escapeUI } from './ui-components.ts';
+import { wowClassOf } from './wow-classes.ts';
+import { WOW_RACES } from './wow-races.ts';
+import { isWowRaceId } from './wow-types.ts';
 import './inventory-panel.css';
 
 export interface InventoryPanelActions {
@@ -35,6 +41,8 @@ export interface InventoryPanelActions {
   hudOptions?(): HUDOptions;
   editAppearance?():void;
   openChronicle?():void;
+  openGlyphs?(): void;
+  openBars?(): void;
   equip(index: number, slot?: EquipmentSlot): void;
   unequip(slot: EquipmentSlot, index?: number): void;
   move(from: number, to: number): void;
@@ -124,7 +132,7 @@ export class InventoryPanel {
     this.element.hidden = true;
     this.element.innerHTML = `<section class="ui-window character-window" role="dialog" aria-modal="true" aria-labelledby="character-title">
       <header class="ui-window-header character-header">
-        <div class="character-heading"><span class="character-sigil ui-header-emblem" aria-hidden="true">${uiIcon('shield')}</span><h2 class="ui-title" id="character-title">Character &amp; inventory</h2></div>
+        <div class="character-heading"><span class="character-sigil ui-header-emblem" aria-hidden="true">${uiIcon('shield')}</span><div class="character-title-block"><h2 class="ui-title" id="character-title">Character &amp; inventory</h2><p class="character-identity" data-identity hidden></p></div></div>
         <div class="character-header-right">${actions.editAppearance?`<button type="button" class="ui-button ui-button--quiet ui-button--icon" data-edit-appearance aria-label="Edit appearance" data-tooltip="Edit appearance" data-tooltip-placement="below" data-tooltip-align="end">${uiIcon('palette')}</button>`:''}<button type="button" class="ui-button ui-button--icon" data-close aria-label="Close character">${uiIcon('close')}</button></div>
       </header>
       <nav class="character-controller-nav" aria-label="Controller sections"><kbd>LB</kbd><span data-pad-section="0">Equipment</span><span data-pad-section="1">Inventory</span><span data-pad-section="2">Stats</span><kbd>RB</kbd><small>A Select · B Back</small></nav>
@@ -168,7 +176,7 @@ export class InventoryPanel {
           <div class="character-statistics"><div class="character-section-title character-section-title--secondary"><h3 tabindex="0">Combat details</h3><span>Effective</span></div><div data-combat-stats></div></div>
         </section>
       </div>
-      <footer class="ui-window-footer character-footer"><div class="character-experience"><div><span data-xp-label></span><span data-xp-total></span></div><div class="character-experience-track"><i data-xp-fill></i></div></div>${actions.openChronicle?'<button type="button" class="ui-button ui-button--quiet" data-chronicle>Chronicle</button>':''}<span class="character-footer-status">${uiIcon('diamond')}<span data-allocated-label></span></span></footer>
+      <footer class="ui-window-footer character-footer"><div class="character-experience"><div><span data-xp-label></span><span data-xp-total></span></div><div class="character-experience-track"><i data-xp-fill></i></div></div>${actions.openGlyphs?'<button type="button" class="ui-button ui-button--quiet" data-glyphs>Glyphs</button>':''}${actions.openBars?'<button type="button" class="ui-button ui-button--quiet" data-bars>Action Bars</button>':''}${actions.openChronicle?'<button type="button" class="ui-button ui-button--quiet" data-chronicle>Chronicle</button>':''}<span class="character-footer-status">${uiIcon('diamond')}<span data-allocated-label></span></span></footer>
       <div class="character-popup-layer" data-popup-layer hidden>
         <section class="character-mini-dialog character-filter-dialog ui-window" id="inventory-sort-dialog" data-mini="sort" role="dialog" aria-modal="true" aria-labelledby="inventory-sort-title" hidden>
           <header class="ui-window-header"><div class="character-filter-title">${uiIcon('sortFilter')}<h3 id="inventory-sort-title">Filter inventory</h3></div><button type="button" class="ui-button ui-button--quiet ui-button--icon" data-popup-close aria-label="Close filters">${uiIcon('close')}</button></header>
@@ -197,6 +205,8 @@ export class InventoryPanel {
     this.element.style.setProperty('--pack-columns', String(PACK_COLUMNS));
     this.window = this.element.querySelector('.character-window')!;
     this.element.querySelector('[data-chronicle]')?.addEventListener('click',()=>actions.openChronicle?.(),{signal:this.lifetime.signal});
+    this.element.querySelector('[data-glyphs]')?.addEventListener('click',()=>actions.openGlyphs?.(),{signal:this.lifetime.signal});
+    this.element.querySelector('[data-bars]')?.addEventListener('click',()=>actions.openBars?.(),{signal:this.lifetime.signal});
     this.popupLayer = this.element.querySelector('[data-popup-layer]')!;
     this.window.dataset.touchTab = 'bag';
     const tabs = document.createElement('nav'); tabs.className = 'character-tabs touch-only'; tabs.setAttribute('aria-label','Character sections');
@@ -211,6 +221,7 @@ export class InventoryPanel {
     this.canvas = this.element.querySelector('.character-doll')!;
     this.element.querySelectorAll<HTMLButtonElement>('[data-location]').forEach(cell => this.cells.set(cell.dataset.location!, cell));
     mount.append(this.element);
+    attachPanelFrame(this.element, 'character');
     this.hud = actions.assignSkill && actions.openSkills ? new InventoryHUD(this.element, this.window.querySelector('.character-footer')!, {
       options: actions.hudOptions, assign: actions.assignSkill, details: actions.openSkills,
       suspend: () => { this.focus?.dispose(); this.focus = null; this.window.inert = true; this.hideTooltip(); },
@@ -286,6 +297,8 @@ export class InventoryPanel {
         emptyMarkup: reserved ? `<span class="character-reserved-glyph" aria-hidden="true">${emptySlotIcon('weapon')}</span><span class="character-reserved-label">2H</span>` : location.type === 'equipment' ? emptySlotIcon(location.slot) : '<span class="ui-empty-item-mark">·</span>',
         label: reserved ? `Off-hand reserved by two-handed ${player.character.equipped.weapon!.name}` : item ? `${itemDisplayName(item)}, ${TIER_NAMES[item.tier]}, item level ${item.itemLevel}${location.type === 'equipment' ? `, equipped in ${SLOT_NAMES[location.slot]}` : ''}${item.requiredLevel > player.level ? `, requires level ${item.requiredLevel}` : ''}` : location.type === 'equipment' ? `${SLOT_NAMES[location.slot]}, empty` : `Empty inventory slot ${location.index + 1}`,
       });
+      cell.querySelector('.ui-durability-badge')?.remove();
+      if (location.type === 'equipment') cell.insertAdjacentHTML('beforeend', durabilityBadgeMarkup(durabilityOf(player, location.slot)));
       if (item && location.type === 'bag' && cell.dataset.packSignature !== cell.dataset.signature) {
         const size = itemFootprint(item);
         cell.querySelector('svg')?.remove();
@@ -305,9 +318,14 @@ export class InventoryPanel {
     const active = document.activeElement;
     if (active instanceof HTMLElement && this.element.contains(active) && (active.hidden || active.matches(':disabled'))) this.selectSection(this.section);
     const sheet = player.character, stats = player.derived;
+    const cls = wowClassOf(sheet), race = isWowRaceId(sheet.raceId) ? WOW_RACES[sheet.raceId] : undefined;
+    this.text('#character-title', player.name || 'Character & inventory');
+    const identity = this.element.querySelector<HTMLElement>('[data-identity]')!;
+    identity.hidden = !(cls && race);
+    if (cls && race) identity.innerHTML = `${escapeUI(race.name)} <b style="color:${cls.color}">${escapeUI(cls.name)}</b>`;
     this.text('[data-level]', number(player.level));
     this.text('[data-gear-power]', number(equippedGearPower(sheet)));
-    this.text('[data-gold]', `${formatGold(goldBalance(sheet))} Gold`);
+    this.text('[data-gold]', formatWallet(goldBalance(sheet)));
     this.text('[data-weapon-name]', sheet.equipped.weapon?.name ?? 'Unarmed');
     this.text('[data-skill-points]', number(sheet.skillPoints));
     this.text('[data-stat-points]', number(sheet.statPoints));
@@ -373,7 +391,7 @@ export class InventoryPanel {
       <div class="charm-candidate-summary">${itemIconSVG(candidate,64)}<div>${itemTooltipMarkup(candidate,{sheet,level,sourceIndex:sheet.inventory.findIndex(i=>i?.id===candidate.id)})}</div></div>
       <p class="ui-muted">Select active stones to replace. Exchange stored stones at a storage chest.</p>
       <div class="charm-compare-stones">${active.map(i=>`<button type="button" class="ui-button" data-compare-remove="${escapeUI(i.id)}" aria-pressed="${this.comparisonRemoved.has(i.id)}" aria-label="Replace ${escapeUI(itemDisplayName(i))}">${itemIconSVG(i,32)}<span>${escapeUI(itemDisplayName(i))}</span></button>`).join('')}</div>
-      <div class="charm-net-changes" aria-live="polite">${preview.ok?`<h4>Net change</h4>${preview.changes.length?`<table>${preview.changes.map(c=>{const delta=(c.after-c.before)*(PREVIEW_PERCENT.has(c.key)?100:1);return `<tr><th>${escapeUI(CHANGE_LABELS[c.key])}</th><td class="${delta>0?'is-gain':'is-loss'}">${delta>0?'+':''}${number(delta,2)}${PREVIEW_PERCENT.has(c.key)?'%':''}</td></tr>`;}).join('')}</table>`:'<p>No stat change.</p>'}`:`<p class="is-loss">${escapeUI(preview.message)}</p>`}</div>`;
+      <div class="charm-net-changes" aria-live="polite">${preview.ok?`<h4>Net change</h4>${preview.changes.length?`<table>${preview.changes.map(c=>{const delta=(c.after-c.before)*(c.key in PREVIEW_PERCENT?100:1);return `<tr><th>${escapeUI(CHANGE_LABELS[c.key])}</th><td class="${delta>0?'is-gain':'is-loss'}">${delta>0?'+':''}${number(delta,2)}${c.key in PREVIEW_PERCENT?'%':''}</td></tr>`;}).join('')}</table>`:'<p>No stat change.</p>'}`:`<p class="is-loss">${escapeUI(preview.message)}</p>`}</div>`;
   }
 
   private popupPanel(): HTMLElement { return this.popupLayer.querySelector<HTMLElement>(`[data-mini="${this.popup}"]`)!; }
@@ -724,9 +742,10 @@ export class InventoryPanel {
     }
     this.touchItem = {...location,id:item.id}; this.touchMoving = false;
     const buttons = item.kind==='charm'||item.kind==='riftKey' ? '' : location.type === 'equipment' ? '<button class="ui-button" data-touch-item="unequip">Unequip</button>' :
+      isConsumableItem(item) ? '<button class="ui-button ui-button--primary" data-touch-item="use">Use</button>' :
       EQUIPMENT_SLOTS.filter(slot=>planEquipmentChange(this.player!.character,item,this.player!.level,{sourceIndex:location.index,slot}).ok)
       .map(slot=>`<button class="ui-button" data-touch-item="equip:${slot}">Equip · ${SLOT_NAMES[slot]}</button>`).join('');
-    this.sheet.innerHTML = `<header><strong>Item details</strong><button class="ui-button" data-touch-item="close">Close</button></header><div class="ui-item-tooltip">${itemTooltipMarkup(item,{sheet:this.player.character,level:this.player.level,equipped:location.type==='equipment',sourceIndex:location.type==='bag'?location.index:undefined})}</div><nav>${buttons}<button class="ui-button" data-touch-item="move">Move to slot…</button>${this.actions.drop ? `<button class="ui-button" data-touch-item="drop">${uiIcon('dropItem')} Drop on ground</button>` : ''}</nav>`;
+    this.sheet.innerHTML = `<header><strong>Item details</strong><button class="ui-button" data-touch-item="close">Close</button></header><div class="ui-item-tooltip">${itemTooltipMarkup(item,{sheet:this.player.character,level:this.player.level,equipped:location.type==='equipment',sourceIndex:location.type==='bag'?location.index:undefined,durability:location.type==='equipment'?durabilityOf(this.player,location.slot):undefined})}</div><nav>${buttons}<button class="ui-button" data-touch-item="move">Move to slot…</button>${this.actions.drop ? `<button class="ui-button" data-touch-item="drop">Drop</button>` : ''}</nav>`;
     this.sheet.hidden = false; this.sheet.scrollTop = 0;
   }
   private closeTouchItem() { this.inlineExplanations.hide(); this.window.classList.remove('touch-moving'); this.sheet.hidden = true; this.touchItem = null; this.touchMoving = false; this.clearDrag(); }
@@ -741,6 +760,7 @@ export class InventoryPanel {
     this.closeTouchItem();
     if(action==='drop') this.actions.drop?.(source);
     if(action==='unequip' && source.type==='equipment') this.actions.unequip(source.slot);
+    if(action==='use' && source.type==='bag') this.actions.equip(source.index);
     if(action.startsWith('equip:') && source.type==='bag') this.actions.equip(source.index,action.slice(6) as EquipmentSlot);
   }
 
@@ -803,7 +823,8 @@ export class InventoryPanel {
     if (!item || !cell || cell.hidden || !this.player) { this.hideTooltip(); return; }
     this.hovered = location;
     this.tooltip.show(item, { sheet: this.player.character, level: this.player.level,
-      equipped: location.type === 'equipment', sourceIndex: location.type === 'bag' ? location.index : undefined }, cell);
+      equipped: location.type === 'equipment', sourceIndex: location.type === 'bag' ? location.index : undefined,
+      durability: location.type === 'equipment' ? durabilityOf(this.player, location.slot) : undefined }, cell);
   }
 
   private showStatTooltip(target: EventTarget | null): boolean {

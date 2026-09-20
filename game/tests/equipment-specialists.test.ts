@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { isSetPiece } from '../src/item-set-content.ts';
 import assert from 'node:assert/strict';
 import { generateItem,itemAffixPool,deriveItem } from '../src/items.ts';
 import { sourceMaterialPool,itemMaterialService } from '../src/item-materials.ts';
@@ -57,8 +58,13 @@ test('encounter material advantage changes neither drop count, affix rarity nor 
   for(let seed=0;seed<150;seed++){
     const context={seed,level:25,rank:'elite' as const,biome:'deadwood' as const,kind:'brute' as const};
     const ordinary=rollEnemyLoot(context),chest=rollEnemyLoot({...context,encounter:'bossChest'});
-    assert.deepEqual(ordinary.map(i=>[i.kind,i.tier,i.itemLevel,i.recipe.profileId]),chest.map(i=>[i.kind,i.tier,i.itemLevel,i.recipe.profileId]));
-    for(let i=0;i<ordinary.length;i++)if(ordinary[i].recipe.materialId!==chest[i].recipe.materialId)changed++;
+    assert.equal(ordinary.length, chest.length);
+    for(let i=0;i<ordinary.length;i++){
+      // Set pieces legitimately replace the rolled tier/material with authored set data.
+      if(isSetPiece(ordinary[i])||isSetPiece(chest[i])){assert.equal(ordinary[i].kind,chest[i].kind);assert.equal(ordinary[i].itemLevel,chest[i].itemLevel);continue;}
+      assert.deepEqual([ordinary[i].kind,ordinary[i].tier,ordinary[i].itemLevel,ordinary[i].recipe.profileId],[chest[i].kind,chest[i].tier,chest[i].itemLevel,chest[i].recipe.profileId]);
+      if(ordinary[i].recipe.materialId!==chest[i].recipe.materialId)changed++;
+    }
     assert.deepEqual(chest,rollEnemyLoot({...context,encounter:'bossChest'}));
   }
   assert.ok(changed>10);
@@ -75,7 +81,7 @@ test('robe geometry is cloth, long, bounded, and shared with its inventory icon'
   const robe=generateItem(11,8,'chest',undefined,'common','cloth');
   assert.equal(robe.baseName,'Linen Robe');assert.equal(robe.appearance.style,'cloth');
   const shapes=itemDropShapes(robe);assert.ok(shapes.some(s=>s.surface?.material==='cloth'));assert.ok(shapes.every(s=>s.points.every(p=>p.every(Number.isFinite))));
-  assert.ok(itemIconSVG(robe,96).includes('Linen Robe'));assert.ok(!itemIconSVG(robe,96).includes('NaN'));
+  assert.ok(itemIconSVG(robe,96).includes(robe.name));assert.ok(!itemIconSVG(robe,96).includes('NaN'));
 });
 
 test('silk is a rarer caster fabric with improved armor, soft sheen and durable identity',async()=>{

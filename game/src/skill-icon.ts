@@ -19,6 +19,31 @@ const scenes = new Map<string, readonly SkillIconDraw[]>();
 const themes: Partial<Record<SkillId, SkillIconMaterial>> = {
   fireball: 'fire', meteor: 'fire', cataclysm: 'fire', iceNova: 'ice', frostLance: 'ice', absoluteZero: 'ice',
   bulwark: 'ice', runicWard: 'jade', siphon: 'rose', backstab: 'rose', nightReaping: 'violet', lunge: 'jade',
+  // WoW kits: theme tints steel/dark parts, so each school keeps its color.
+  crusaderStrike: 'gold', judgement: 'gold', sealOfCommand: 'gold', consecration: 'gold', hammerOfJustice: 'gold',
+  holyLight: 'gold', flashOfLight: 'gold', divineShield: 'gold', divineProtection: 'gold', layOnHands: 'gold',
+  avengingWrath: 'gold', hammerOfWrath: 'gold', exorcism: 'gold', holyShock: 'gold', repentance: 'gold',
+  blessingOfKings: 'gold', divineStorm: 'gold', holyShield: 'gold',
+  smite: 'gold', powerWordShield: 'gold', renew: 'jade', flashHeal: 'gold', greaterHeal: 'gold',
+  dispelMagic: 'gold', holyNova: 'gold', prayerOfHealing: 'gold', innerFire: 'gold',
+  icyTouch: 'ice', obliterate: 'ice', chainsOfIce: 'ice', mindFreeze: 'ice', frostPresence: 'ice', iceboundFortitude: 'ice',
+  bloodStrike: 'rose', bloodBoil: 'rose', bloodPresence: 'rose', strangulate: 'rose',
+  plagueStrike: 'jade', scourgeStrike: 'jade', deathCoil: 'jade', deathAndDecay: 'jade', unholyPresence: 'jade',
+  antiMagicShell: 'jade', raiseDead: 'jade', armyOfDead: 'jade', deathStrike: 'dark', deathGrip: 'dark',
+  frostbolt: 'ice', frostNova: 'ice', iceLance: 'ice', coneOfCold: 'ice', blizzard: 'ice', iceBlock: 'ice',
+  iceBarrier: 'ice', deepFreeze: 'ice', pyroblast: 'fire', fireBlast: 'fire', scorch: 'fire', combustion: 'fire',
+  dragonsBreath: 'fire',
+  immolate: 'fire', searingPain: 'fire', conflagrate: 'fire', rainOfFire: 'fire',
+  drainLife: 'jade', chaosBolt: 'jade', felArmor: 'jade', summonImp: 'jade', summonFelguard: 'jade', metamorphosis: 'jade',
+  wrath: 'jade', insectSwarm: 'jade', entanglingRoots: 'jade', healingTouch: 'jade', regrowth: 'jade',
+  rejuvenation: 'jade', swiftmend: 'jade', barkskin: 'jade', innervate: 'jade',
+  maul: 'jade', swipe: 'jade', bash: 'jade', feralCharge: 'jade', mangle: 'jade',
+  earthShock: 'jade', flameShock: 'fire', lavaBurst: 'fire', frostShock: 'ice', stormstrike: 'violet',
+  healingWave: 'jade', lesserHealingWave: 'jade', chainHeal: 'jade', healingStreamTotem: 'jade', earthbindTotem: 'jade',
+  ghostWolf: 'ice', bloodlust: 'rose', feralSpirit: 'jade', thunderstorm: 'ice',
+  arcaneShot: 'violet', freezingTrap: 'ice', explosiveShot: 'fire', bestialWrath: 'rose', killShot: 'rose',
+  stealth: 'violet', vanish: 'violet', cloakOfShadows: 'violet', adrenalineRush: 'gold', prowl: 'violet',
+  shadowmeld: 'violet', willForsaken: 'dark', arcaneTorrent: 'violet', warStomp: 'jade', berserking: 'fire', bloodFury: 'rose',
 };
 /** Presentation color only: these palettes never assign a combat damage element. */
 function glassTheme(id: SkillId): SkillIconMaterial {

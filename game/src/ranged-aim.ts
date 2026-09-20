@@ -82,5 +82,11 @@ export function directionalAimProfile(range: number, kind: string, recipe: Skill
     case 'cone': return { range: recipe.radius, speed: 0 };
     case 'projectile': return { range, speed: recipe.speed };
     case 'chain': return { range, speed: 0 };
+    // WoW kinds: strikes/dots/cc ride the weapon reach; heals/buffs/forms are self or point.
+    case 'strike': case 'comboStrike': case 'runeStrike': case 'interrupt': case 'taunt': case 'tame':
+      return { range, speed: 0 };
+    case 'dot': case 'cc': case 'pull': case 'summon': case 'channel': case 'heal': case 'hot':
+    case 'buff': case 'form': case 'stealth': case 'cleanse':
+      return null;
   }
 }

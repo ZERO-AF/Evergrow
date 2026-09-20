@@ -1,17 +1,23 @@
 import type { Player } from './model.ts';
 import type { CharacterSave } from './character-save.ts';
-import { createCharacterSheet, type StarterLoadoutId } from './items.ts';
+import { createCharacterSheet } from './items.ts';
 import { initialPlayer } from './simulation.ts';
 import { refreshCharacter } from './character.ts';
 import { alternatesBasicAttacks, deriveAttackStats } from './equipment.ts';
+import type { CharacterLook } from './character-look.ts';
+import type { WowClassId, WowRaceId } from './wow-types.ts';
 
-export function previewCharacter(record: CharacterSave | null, starter: StarterLoadoutId = 'sword'): Player {
+/** Draft identity for unsaved previews: class starter gear plus the in-progress look. */
+export interface CreationPreview { classId?: WowClassId; raceId?: WowRaceId; look?: CharacterLook; }
+
+export function previewCharacter(record: CharacterSave | null, preview: CreationPreview = {}): Player {
   const player = initialPlayer(0, 0);
   if (record) {
     player.character = JSON.parse(JSON.stringify(record.checkpoint.character));
     player.level = record.checkpoint.level; player.xp = record.checkpoint.xp;
+  } else {
+    player.character = createCharacterSheet(preview.classId ?? 'warrior', preview.raceId ?? 'human', preview.look);
   }
-  if (!record) player.character = createCharacterSheet(starter);
   refreshCharacter(player); player.hp = player.maxHp; player.mana = player.maxMana;
   return player;
 }

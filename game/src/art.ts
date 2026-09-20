@@ -7,6 +7,7 @@ import { clamp, mixColor, type Color } from './art-primitives.ts';
 import { characterTransform, PLAYER_ART_SCALE } from './character-motion.ts';
 import { player } from './player-art.ts';
 import { stalker, brute, caster, hound, archer, wisp } from './enemy-art.ts';
+import { WOW_RACES } from './wow-races.ts';
 
 // Public art entry point: callers need not depend on individual drawing layers.
 export type { Sprite, ArmorMaterial, ArmorPiece, CloakPiece, CharacterOutfit, CharacterPose } from './art-types.ts';
@@ -28,6 +29,9 @@ export function drawHumanoid(ctx: CanvasRenderingContext2D, pose: CharacterPose)
   ctx.transform(...characterTransform(pose));
   if (pose.kind === 'player') {
     ctx.scale(PLAYER_ART_SCALE, PLAYER_ART_SCALE);
+    // Race silhouette: height/width scale the whole body from the feet up.
+    const rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
+    if (rv && (rv.height !== 1 || rv.width !== 1)) ctx.scale(rv.width, rv.height);
     player(ctx, pose, color);
   }
   else enemies[pose.kind](ctx, pose, color);

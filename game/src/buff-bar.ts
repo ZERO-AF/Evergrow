@@ -3,10 +3,13 @@ import { skillIconSVG } from './skill-icon.ts';
 import { escapeUI } from './ui-components.ts';
 import { effectExplanation, effectTerm } from './effect-terms.ts';
 import { UITooltipStack } from './ui-tooltip-stack.ts';
+import type { SkillId } from './character-types.ts';
+import { consumableCategoryIcon, type ConsumableCategory } from './consumable-content.ts';
 import './buff-bar.css';
 
 export function buffIcon(icon: ActiveBuff['icon']): string {
-  if (icon !== 'weave-melee' && icon !== 'weave-spell') return skillIconSVG(icon, 36);
+  if (icon.startsWith('consumable:')) return consumableCategoryIcon(icon.slice(11) as ConsumableCategory, 36);
+  if (icon !== 'weave-melee' && icon !== 'weave-spell') return skillIconSVG(icon as SkillId, 36);
   return `<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M8 28C32 23 4 10 28 7M8 7C32 12 4 25 28 28" fill="none" stroke="currentColor" stroke-width="2"/>${icon === 'weave-melee' ? '<path d="m17 8 4 3-2 13-3 3-2-3 3-13Zm-5 14 12 2m-6 1-1 6" fill="#e5bd80" stroke="#fff0c8"/>' : '<path d="m18 6 4 9 8 3-8 3-4 9-4-9-8-3 8-3Z" fill="#9270c0" stroke="#ead6ff"/>'}</svg>`;
 }
 /** Stable keyed buttons; only countdown/fill change as the simulation advances. */

@@ -39,24 +39,60 @@
 .title-build-stats span { display:block; font-size:14px; color:#8da39d; margin-top:4px; }
 .title-save-meta { display:flex; justify-content:space-between; gap:8px; font-size:13px; color:#93aaa5; }
 .title-enter.ui-button { width:100%; justify-content:space-between; min-height:46px; background:linear-gradient(110deg,#56614580,#2b413f); border-color:#bac49680; color:#ece6c9; font-size:15px; }
-.title-create { display:flex; flex-direction:column; gap:18px; }
 .title-create-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .title-create-fields label { min-width:0; display:flex; flex-direction:column; gap:7px; color:#a2b4b2; font-size:13px; }
-.title-create input:not([type='radio']) { width:100%; min-width:0; height:42px; padding:0 9px; border:1px solid #7f999850; border-radius:0; background:#071019; color:#e6e3ce; font:15px var(--ui-font); }
+.title-forge-stage input:not([type='radio']), .title-forge-stage select { width:100%; min-width:0; height:42px; padding:0 9px; border:1px solid #7f999850; border-radius:0; background:#071019; color:#e6e3ce; font:15px var(--ui-font); }
+.title-forge-stage select { height:34px; font-size:13px; }
 .title-seed-controls { display:flex; position:relative; }
 .title-seed-controls input { padding-right:29px !important; font-size:13px !important; }
 .title-seed-controls button { position:absolute; right:1px; top:1px; bottom:1px; width:28px; color:#b5c4b7; border:0; background:#142229; font-size:21px; cursor:pointer; }
-.title-weapons { margin:0; padding:0; border:0; min-width:0; }
-.title-weapons legend { padding:0; margin-bottom:8px; font-size:13px; color:#a2b4b2; }
-.title-weapon-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
-.title-weapon-choice { display:flex; position:relative; align-items:center; gap:6px; min-width:0; min-height:62px; padding:5px; background:#07131cb0; border:1px solid #738b9238; cursor:pointer; }
-.title-weapon-choice input { appearance:none; position:absolute; inset:0; opacity:0; margin:0; cursor:pointer; }
-.title-weapon-choice:has(input:checked) { border-color:#c2b984a0; background:linear-gradient(120deg,#bcb88220,#1b2b31); box-shadow:inset 2px 0 #c2b984; }
-.title-weapon-choice:has(input:focus-visible) { outline:2px solid #c9dfe4; outline-offset:2px; }
-.title-weapon-choice strong { font-size:13px; font-weight:400; line-height:1.2; color:#c5d3ca; }
-.title-weapon-icon { position:relative; width:42px; height:42px; flex:none; }
-.title-weapon-icon svg { width:40px; height:40px; }
-.title-weapon-icon svg + svg { position:absolute; width:27px; height:27px; bottom:0; right:-3px; }
+/* WoW-style creation: race list left, live portrait + identity center, class grid right. */
+.title-screen.is-creating .title-hero { display:none; }
+.title-screen.is-creating .title-roster.ui-window { grid-column:1/-1; max-height:100%; align-self:stretch; }
+.title-screen.is-creating .title-hall-body { grid-template-columns:minmax(150px,.62fr) minmax(0,2.6fr); }
+.title-forge { flex:1; min-height:560px; display:grid; grid-template-columns:minmax(215px,.9fr) minmax(300px,1.25fr) minmax(330px,1.15fr); gap:16px; }
+.title-forge-column { display:flex; flex-direction:column; gap:8px; min-width:0; min-height:0; }
+.title-forge-column h3 { margin:0; font-size:12px; font-weight:500; letter-spacing:1.6px; text-transform:uppercase; color:#8ea8a0; }
+.title-forge-stage { display:flex; flex-direction:column; gap:10px; min-width:0; min-height:0; }
+.title-forge-portrait { position:relative; flex:1; min-height:200px; }
+.title-forge-portrait canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; z-index:2; filter:drop-shadow(0 12px 22px #0008); }
+.title-forge-portrait .title-halo { left:50%; top:50%; transform:translate(-50%,-50%); }
+.title-forge-portrait .title-plinth { left:50%; transform:translateX(-50%); }
+.title-forge-stage .title-identity { text-align:center; }
+.title-look-row { display:flex; align-items:center; gap:10px; }
+.title-look-label { flex:none; width:34px; font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:#8ea8a0; }
+.title-swatches { display:flex; flex-wrap:wrap; gap:4px; min-width:0; }
+.title-swatch { width:17px; height:17px; padding:0; border:1px solid #ffffff2e; background:var(--swatch,#888); cursor:pointer; }
+.title-swatch:hover { border-color:#e6e0c4; }
+.title-swatch[aria-pressed='true'] { border-color:#e6e0c4; box-shadow:0 0 0 1px #e6e0c4,0 0 8px #c5bc8a55; }
+.title-look-selects { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.title-look-selects label { min-width:0; display:flex; flex-direction:column; gap:5px; color:#a2b4b2; font-size:12px; }
+.title-create-actions { display:flex; gap:10px; }
+.title-create-actions .title-enter { flex:1; }
+.title-class-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(5,minmax(0,1fr)); gap:7px; }
+.title-class-card { display:flex; flex-direction:column; gap:4px; min-width:0; min-height:0; overflow:hidden; padding:9px 11px; text-align:left; border:1px solid #738b9238; border-left:3px solid var(--class-color,#738b92); background:#07131cb0; color:var(--ui-text); cursor:pointer; }
+.title-class-card:hover { border-color:var(--class-color,#b7cbb3); background:#14232b; }
+.title-class-card[aria-pressed='true'] { background:linear-gradient(120deg,#bcb88214,#1b2b31); box-shadow:inset 0 0 0 1px var(--class-color,#c2b984); }
+.title-class-card strong { font-size:14px; font-weight:500; color:var(--class-color,#c5d3ca); }
+.title-class-roles { display:flex; flex-wrap:wrap; gap:3px 10px; }
+.title-class-roles i { display:inline-flex; align-items:center; gap:4px; font-style:normal; font-size:11px; color:#9fb4ad; }
+.title-class-roles .ui-icon { width:12px; height:12px; }
+.title-class-resource { font-size:11px; color:#8aa39c; letter-spacing:.5px; text-transform:uppercase; }
+.title-class-card small { font-size:11.5px; line-height:1.45; color:#8fa5a0; }
+.title-race-grid { flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:1fr; gap:6px; align-content:start; }
+.title-race-card { display:flex; flex-direction:column; gap:4px; min-width:0; padding:8px 11px; text-align:left; border:1px solid #738b9238; background:#07131cb0; color:var(--ui-text); cursor:pointer; }
+.title-race-card:hover { border-color:#b7cbb377; background:#14232b; }
+.title-race-card[aria-pressed='true'] { border-color:#c2b984a0; background:linear-gradient(120deg,#bcb88220,#1b2b31); box-shadow:inset 2px 0 #c2b984; }
+.title-race-card strong { font-size:14px; font-weight:500; color:#d5dccb; }
+.title-race-classes { display:flex; flex-wrap:wrap; gap:2px 8px; }
+.title-race-classes i { font-style:normal; font-size:10.5px; font-weight:500; }
+.title-race-racial { font-size:11.5px; color:#9fb4ad; }
+.title-race-racial::before { content:'◆'; font-size:8px; color:#a2946a; margin-right:6px; }
+.title-class-card[aria-disabled='true'], .title-race-card[aria-disabled='true'] { opacity:.38; filter:saturate(.35); cursor:default; }
+.title-class-card[aria-disabled='true']:hover, .title-race-card[aria-disabled='true']:hover { border-color:#738b9238; background:#07131cb0; box-shadow:none; }
+.title-identity { margin:0; font-size:15px; color:#c3cfc2; }
+.title-slot-class { font-weight:500; }
+.title-selection:has(.title-forge) { justify-content:flex-start; overflow-y:auto; padding:14px 18px; }
 .title-actions { display:flex; gap:8px; margin-top:20px; }
 .title-roster-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; border-top:1px solid #718c9038; padding:8px 18px; color:#8ea8a3; font-size:12px; }
 .title-storage-status::before { content:'◆'; font-size:8px; color:#9bbfa1; margin-right:8px; }
@@ -79,19 +115,25 @@
   .title-hero { display:none; } .title-roster.ui-window { max-width:920px; margin:auto; max-height:100%; }
   .title-hall-body { grid-template-columns:minmax(240px,.9fr) minmax(310px,1.1fr); }
   .title-slot-grid { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(4,minmax(44px,1fr)); }
-  .title-selection { padding:14px; gap:10px; } .title-create { gap:12px; } .title-weapon-choice { min-height:48px; }
+  .title-selection { padding:14px; gap:10px; }
   .title-roster-header { padding:9px 14px; }
   .title-build-stats { padding:12px 0; }
+  .title-screen.is-creating .title-roster.ui-window { max-height:100%; }
+  .title-screen.is-creating .title-hall-body { grid-template-columns:1fr; }
+  .title-screen.is-creating .title-slot-grid { grid-template-columns:repeat(8,minmax(0,1fr)); grid-template-rows:minmax(44px,auto); border-right:0; border-bottom:1px solid #84999730; }
+  .title-forge { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  .title-forge-stage { grid-area:1/1/2/-1; }
+  .title-forge-portrait { min-height:280px; }
 }
 @media (max-height:560px) and (min-width:601px) {
   .title-screen { grid-template-rows:30px minmax(0,1fr); padding:8px 14px; gap:7px; }
   .title-roster-header { padding:5px 12px; } .title-roster-header h2 { font-size:16px; }
   .title-roster-footer { padding:3px 12px; }
   .title-hall-body { grid-template-columns:minmax(220px,.85fr) minmax(340px,1.15fr); }
-  .title-weapon-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .title-weapon-icon { width:28px; height:32px; } .title-weapon-icon svg { width:28px; height:32px; } .title-weapon-icon svg + svg { width:21px; height:21px; }
-  .title-weapon-choice strong { font-size:12px; } .title-selection { padding:10px; }
-  .title-create { gap:8px; } .title-weapons legend { margin-bottom:5px; }
+  .title-class-card small { display:none; }
+  .title-selection { padding:10px; }
+  .title-forge { min-height:460px; }
+  .title-forge-portrait { min-height:150px; }
   .title-create-fields label { gap:3px; } .title-build-stats { padding:8px 0; }
 }
 @media (max-width:600px) {
@@ -105,25 +147,24 @@
   .title-selection { padding:14px; gap:12px; }
   .title-roster-header { gap:10px; } .title-roster-header h2 { font-size:16px; }
   .title-sources button { padding:7px 10px; }
-  .title-weapon-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .title-weapon-choice { min-height:48px; }
+  .title-class-card small { display:none; }
   .title-build-stats strong { font-size:27px; }
+  .title-screen.is-creating .title-slot-grid { grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(2,56px); }
+  .title-forge { grid-template-columns:1fr; flex:none; min-height:0; }
+  .title-forge-stage { grid-area:auto; order:-1; }
+  .title-forge-portrait { min-height:300px; }
+  .title-forge .title-class-grid { grid-template-rows:none; }
 }
 /* Accessibility/very small split windows: retain all controls rather than clipping them. */
-@media (max-height:360px), (max-width:360px) and (max-height:630px) { .title-screen { overflow:auto; } .title-roster.ui-window { max-height:none; } }
+@media (max-height:360px), (max-width:360px) and (max-height:630px) { .title-screen { overflow:auto; } .title-roster.ui-window, .title-screen.is-creating .title-roster.ui-window { max-height:none; } }
 .title-transfer[hidden], .title-signout[hidden] { display:none; }
 .title-signout { color:#8ea8a3; text-decoration:none; padding:7px 0; }
 .title-signout:hover { color:#e4dfc4; }
 @media (max-height:440px) and (min-width:601px) {
   .title-screen { grid-template-rows:24px minmax(0,1fr); gap:4px; padding:6px 12px; }
   .title-brand h1 { font-size:24px; }
-  .title-weapons legend { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 }
 @media (max-height:440px) and (min-width:601px) { .title-save-meta { display:none; } .title-conflict > span { display:none; } }
-.title-compact-starter { display:none; width:100%; height:44px; padding:0 10px; border:1px solid #7f999850; border-radius:0; background:#071019; color:#e6e3ce; font:14px var(--ui-font); }
-@media (max-height:420px) and (min-width:601px), (max-height:630px) and (max-width:600px) {
-  .title-weapon-grid { display:none; } .title-compact-starter { display:block; }
-}
 @media (max-height:360px) and (min-width:601px) {
   .title-brand { display:none; } .title-screen { grid-template-rows:minmax(0,1fr); }
   .title-slot-grid { padding:10px; }

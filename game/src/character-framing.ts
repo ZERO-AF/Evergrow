@@ -6,6 +6,7 @@ import { transformPoint, type Point } from './art-primitives.ts';
 import { projectArmPoint } from './player-arm-rig.ts';
 import { STARTING_SWORD } from './equipment.ts';
 import { shieldShapes, weaponShapes } from './weapon-shapes.ts';
+import { WOW_RACES } from './wow-races.ts';
 
 export interface CharacterBounds { left: number; top: number; right: number; bottom: number; }
 
@@ -13,14 +14,15 @@ export interface CharacterBounds { left: number; top: number; right: number; bot
  * cloth use a conservative envelope so tiny secondary motion cannot crop them. */
 export function characterBounds(pose: CharacterPose): CharacterBounds {
   const motion = playerMotion(pose), points: Point[] = [];
-  const outer = characterTransform(pose);
+  const outer = characterTransform(pose), rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
+  const scaleX = (rv?.width ?? 1) * PLAYER_ART_SCALE, scaleY = (rv?.height ?? 1) * PLAYER_ART_SCALE;
   const add = (point: Point, body = true) => {
     const local = body ? transformPoint(motion.body, point) : point;
-    points.push(transformPoint(outer, [local[0] * PLAYER_ART_SCALE, local[1] * PLAYER_ART_SCALE]));
+    points.push(transformPoint(outer, [local[0] * scaleX, local[1] * scaleY]));
   };
   for (const x of [-20, 20]) for (const y of [-42, 10]) add([x, y]);
-  if(pose.appearance) for(const shape of appearanceHeadShapes(pose.appearance,pose.angle,!!pose.outfit?.head)) for(const [x,y] of shape.points) {
-    add([x+Math.cos(pose.angle)*1.4-motion.lean*12,y-33-motion.bob*.3]);
+  if(pose.appearance) for(const shape of appearanceHeadShapes(pose.appearance,pose.angle,!!pose.outfit?.head,pose.raceId)) for(const [x,y] of shape.points) {
+    add([x+Math.cos(pose.angle)*(1.4+motion.hunch*7)-motion.lean*12,y-33-motion.bob*.3+motion.hunch*2.2]);
   }
   for (const x of [-19, 19]) for (const y of [-16, 12]) add([x, y], false);
   for (const arm of [motion.weaponArm, motion.offArm]) for (const joint of [arm.shoulder, arm.elbow, arm.hand]) {

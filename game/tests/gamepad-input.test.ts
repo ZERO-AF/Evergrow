@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { GamepadInput, PAD, PAD_SKILL_BUTTONS, padStick, type PadSnapshot } from '../src/gamepad-input.ts';
-import { Simulation, FIXED_STEP } from '../src/simulation.ts';
+import { FIXED_STEP } from '../src/simulation.ts';
+import { createWowSim } from './fixtures/wow-sim.ts';
 
 function snapshot(buttons: number[] = [], axes = [0, 0, 0, 0], extra: Partial<PadSnapshot> = {}): PadSnapshot {
   return { index: 0, id: 'test', connected: true, mapping: 'standard', axes,
@@ -60,7 +61,7 @@ test('selected controller remains stable when another controller appears first i
 
 test('controller inputs use ordinary simulation movement and empty skill rules', () => {
   const pad = setup();
-  const sim = new Simulation({ blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) }, { spawn: false });
+  const sim = createWowSim('mage', 'undead', { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) });
   const start = sim.player.x;
   for (let i = 0; i < 120; i++) {
     pad.poll([snapshot([PAD.skill1], [.6, 0, 0, 1])], true);

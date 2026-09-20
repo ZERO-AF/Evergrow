@@ -1,7 +1,8 @@
 import { improvementProblem } from '../src/item-improvement.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCharacterSheet, generateItem, deriveItem, ITEM_KINDS, STARTER_LOADOUTS, createStarterLoadout, TIER_AFFIXES } from '../src/items.ts';
+import { createCharacterSheet, generateItem, deriveItem, ITEM_KINDS, createStarterLoadout, TIER_AFFIXES } from '../src/items.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { vendorStock, quoteService, planService, improvementPrice, itemPrice, type ServiceRequest } from '../src/commerce.ts';
 import { improveItem, ITEM_TIERS } from '../src/item-improvement.ts';
 import { buildingNPC, canInteractNPC, focusNPC, type TownNPC } from '../src/npcs.ts';
@@ -86,7 +87,7 @@ test('buyback keeps last twelve exact sales and never refunds crafting investmen
   assert.ok(itemPrice(item, 'sell') < itemPrice(item, 'buy'));
 });
 test('all item kinds derive consistently and +10 is bounded without compounding rounded stats', () => {
-  for (const kind of ITEM_KINDS) {
+  for (const kind of ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey')) {
     const item = generateItem(190, 10, kind, undefined, 'rare');
     assert.deepEqual(deriveItem(item), item);
     let enhanced = item;
@@ -94,8 +95,8 @@ test('all item kinds derive consistently and +10 is bounded without compounding 
     assert.equal(enhanced.id, item.id); assert.deepEqual(enhanced.recipe.rolls, item.recipe.rolls);
     assert.throws(() => improveItem(enhanced, 'enhance', 10, 1));
   }
-  for (const choice of STARTER_LOADOUTS) {
-    const loadout = createStarterLoadout(choice.id);
+  for (const wowClass of Object.values(WOW_CLASSES)) {
+    const loadout = createStarterLoadout(wowClass.starter.weapon, wowClass.starter.offhand);
     if (loadout.offhand) {
       assert.deepEqual(deriveItem(loadout.offhand), loadout.offhand, 'starter off-hand keeps its authored bonuses during derivation');
       const improved = improveItem(loadout.offhand, 'enhance', 1, 1);

@@ -4,6 +4,10 @@ import { AFFIX_COMBAT_RULES } from './equipment-affix-content.ts';
 import type { ActionResult, CharacterSheet, DerivedCharacterStats, SkillId } from './character-types.ts';
 import { SKILL_DEFINITIONS } from './skill-content.ts';
 import { SKILL_EXECUTION, type SkillExecution } from './skill-execution-content.ts';
+import { isWowClassId, isWowRaceId, type WowClassId, type WowRaceId } from './wow-types.ts';
+import { CLASS_SANCTUMS, specSignatureNode, type SpecSignature } from './skill-tree-content.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+
 
 /** Small additive purchased-rank gains; utility growth stays useful through rank twenty. */
 export const SKILL_RANK_RULES = Object.freeze({ maximum: 20, mana: .015, duration: .05,
@@ -122,8 +126,43 @@ export const SKILL_SPECIALIZATIONS: readonly SkillSpecialization[] = Object.free
 ]);
 export const OVERLOAD_NODE = 'keystone:arcane-overload';
 export const specializationNode = (id: string) => `specialization:${id}`;
+/** Tolerant read until CharacterSheet.classId/raceId land (schema v5, owned by the save pass). */
+export function sheetClassId(sheet: CharacterSheet): WowClassId | undefined {
+  const value = 'classId' in sheet ? sheet.classId : undefined;
+  return isWowClassId(value) ? value : undefined;
+}
+export function sheetRaceId(sheet: CharacterSheet): WowRaceId | undefined {
+  const value = 'raceId' in sheet ? sheet.raceId : undefined;
+  return isWowRaceId(value) ? value : undefined;
+}
+
+/** The class specialization the sheet committed to via its sanctum signature
+ * keystone (`wow-<class>-spec-<id>` nodes, exclusive family `spec:<classId>`). */
+export function chosenSpec(sheet: CharacterSheet): SpecSignature | undefined {
+  const classId = sheetClassId(sheet);
+  const sanctum = classId ? CLASS_SANCTUMS.find(s => s.classId === classId) : undefined;
+  return sanctum?.specs.find(spec => sheet.allocatedNodes.includes(specSignatureNode(sanctum.classId, spec.id)));
+}
+/** Display identity for sheets and titles: 'Fury Warrior', or the bare class before a spec is chosen. */
+export function specIdentity(sheet: CharacterSheet): string {
+  const classId = sheetClassId(sheet);
+  if (!classId) return '';
+  const spec = chosenSpec(sheet);
+  return spec ? `${spec.spec} ${WOW_CLASSES[classId].name}` : WOW_CLASSES[classId].name;
+}
+
+
+/** Skill availability: atlas `skill:` nodes, class-cluster nodes for the player's class, and auto-known racials. */
+export function knowsSkill(sheet: CharacterSheet, id: SkillId): boolean {
+  const definition = SKILL_DEFINITIONS[id];
+  if (!definition) return false;
+  if (definition.raceId) return definition.raceId === sheetRaceId(sheet);
+  if (definition.classId && definition.classId !== sheetClassId(sheet)) return false;
+  // Atlas `skill:<id>` nodes end in `:<id>`; class-sanctum nodes are `wow-<classId>-<id>`.
+  return sheet.allocatedNodes.some(node => node.endsWith(`:${id}`) || node === `wow-${definition.classId}-${id}`);
+}
 export function learnedSkillRank(sheet: CharacterSheet, id: SkillId): number {
-  return sheet.allocatedNodes.includes(`skill:${id}`) ? sheet.skillRanks[id] ?? 1 : 0;
+  return knowsSkill(sheet, id) ? sheet.skillRanks[id] ?? 1 : 0;
 }
 export function maximumSkillRank(_sheet: CharacterSheet, _id: SkillId): number {
   return SKILL_RANK_RULES.maximum;
@@ -229,8 +268,17 @@ export function resolveSkill(id: SkillId, stats: Pick<DerivedCharacterStats, 'ma
     ...(!recipe.effects.blastRadius && stats.projectilePierce ? { pierce: Math.min(12, (recipe.effects.pierce ?? 0) + stats.projectilePierce) } : {}) };
 
   if(id==='iceNova'&&recipe.kind==='radial'&&sheet&&hasUnique(sheet,'winters-reach'))recipe.targetRange=UNIQUE_RULES.novaRange;
-  return { rank, bonusRanks, effectiveRank, variant, damageMultiplier, recipe, reservation:isAura(id)?resolveAura(id,rank).reservation:0, mana: isAura(id)?0:Math.max(1, Math.round(base.manaCost * stats.manaCostMultiplier * multiplier * 10) / 10),
-    cooldown, upkeep: id === 'tempest' ? Math.round(18 * stats.manaCostMultiplier * multiplier * 10) / 10 : 0 };
+  return { rank, bonusRanks, effectiveRank, variant, damageMultiplier, recipe, reservation:isAura(id)?resolveAura(id,rank).reservation:0,
+    // Zero-cost skills (rage builders, rune strikes) stay free; positive costs keep the 1-unit floor.
+    mana: isAura(id)||base.manaCost<=0?0:Math.max(1, Math.round(base.manaCost * stats.manaCostMultiplier * multiplier * 10) / 10),
+    cooldown, upkeep: id === 'tempest' ? Math.round(18 * stats.manaCostMultiplier * multiplier * 10) / 10 : 0,
+    // WoW definition fields shared by combat activation and HUD (docs/wow-transformation.md §3-4).
+    classId: base.classId, raceId: base.raceId, resource: base.resource, runeCost: base.runeCost,
+    runicPowerGain: base.runicPowerGain, shardCost: base.shardCost, combo: base.combo,
+    castTime: base.castTime, channel: base.channel, targetMode: base.targetMode, range: base.range,
+    offGcd: base.offGcd, executeThreshold: base.executeThreshold, requiresStealth: base.requiresStealth,
+    requiresForm: base.requiresForm, requiresBehind: base.requiresBehind,
+    requiresFrozen: base.requiresFrozen, requiresAlly: base.requiresAlly };
 }
 
 /** Strict current-format state validation, including point conservation at the save boundary. */
@@ -238,7 +286,7 @@ export function validSkillProgression(sheet: CharacterSheet): boolean {
   const records = [sheet.skillRanks, sheet.activeSkillRanks, sheet.skillSpecializations];
   if (records.some(r => !r || typeof r !== 'object' || Array.isArray(r)) || typeof sheet.arcaneOverload !== 'boolean') return false;
   for (const [id, rank] of Object.entries(sheet.skillRanks)) {
-    if (!(Object.hasOwn(SKILL_DEFINITIONS, id)) || !sheet.allocatedNodes.includes(`skill:${id}`) || !Number.isInteger(rank) || rank < 2 || rank > maximumSkillRank(sheet, id as SkillId)) return false;
+    if (!(Object.hasOwn(SKILL_DEFINITIONS, id)) || !knowsSkill(sheet, id as SkillId) || !Number.isInteger(rank) || rank < 2 || rank > maximumSkillRank(sheet, id as SkillId)) return false;
   }
   for (const [id, rank] of Object.entries(sheet.activeSkillRanks)) {
     if (!(Object.hasOwn(SKILL_DEFINITIONS, id)) || !Number.isInteger(rank) || rank < 1 || rank > learnedSkillRank(sheet, id as SkillId)) return false;

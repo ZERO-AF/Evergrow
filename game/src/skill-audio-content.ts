@@ -1,14 +1,19 @@
-import type { CombatEvent } from './model.ts';
+import type { CombatEvent, ProjectileStyle } from './model.ts';
 import { SKILL_EXECUTION } from './skill-execution-content.ts';
 
 export type SkillSoundFamily = 'steel' | 'shield' | 'earth' | 'arrow' | 'fire' | 'frost' | 'lightning' | 'spirit' | 'arcane' | 'radiant';
+/** New WoW schools reuse the closest established signature; no new sound families. */
+const STYLE_SOUNDS: Readonly<Record<ProjectileStyle, SkillSoundFamily>> = Object.freeze({
+  arrow: 'arrow', fire: 'fire', frost: 'frost', lightning: 'lightning', arcane: 'arcane', spirit: 'spirit', radiant: 'radiant',
+  holy: 'radiant', shadow: 'arcane', nature: 'lightning',
+});
 export function skillSoundFamily(event: CombatEvent): SkillSoundFamily {
   if (event.skill === 'earthshatter') return 'earth';
   if (event.skill === 'shieldBash' || event.skill === 'bulwark') return 'shield';
-  if (event.style) return event.style;
+  if (event.style) return STYLE_SOUNDS[event.style];
   const recipe = event.skill ? SKILL_EXECUTION[event.skill] : undefined;
-  if (recipe?.kind === 'projectile') return recipe.effects.style;
-  if (recipe && 'style' in recipe && recipe.style) return recipe.style;
+  if (recipe?.kind === 'projectile') return STYLE_SOUNDS[recipe.effects.style];
+  if (recipe && 'style' in recipe && recipe.style) return STYLE_SOUNDS[recipe.style];
   return event.skill ? 'steel' : 'arcane';
 }
 export const SKILL_SOUNDS = {

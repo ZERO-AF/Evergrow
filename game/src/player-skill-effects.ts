@@ -1,9 +1,14 @@
 import { advanceUniqueEffects, type StoredEmbers, type WardBurst } from './unique-combat.ts';
 import { hasUnique } from './unique-content.ts';
-import type { HitSnapshot, Player, ProjectileEffects } from './model.ts';
+import type { HitSnapshot, Player, ProjectileEffects, WowBuff } from './model.ts';
 import type { SkillId } from './character-types.ts';
 import type { ProjectileDefinition } from './combat-content.ts';
 import { canUseSkill } from './skill-content.ts';
+import { deriveCharacterStats } from './character-stats.ts';
+import { getTreeBonuses } from './skill-tree.ts';
+import { manaCapacity } from './auras.ts';
+import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
+import type { WowClassDef } from './wow-types.ts';
 export interface TimedSkillStance { remaining: number; reduction: number; charges: number; bonus: number; }
 export interface SkillEcho { delay: number; x: number; y: number; angle: number; definition: ProjectileDefinition; effects: ProjectileEffects; }
 export interface PlayerSkillEffects {
@@ -19,6 +24,8 @@ export interface PlayerSkillEffects {
   brace?: TimedSkillStance; rallyOfIron?: TimedSkillStance; ghostHunt?: TimedSkillStance;
   shelters?: Partial<Record<SkillId, { remaining: number; reduction: number }>>;
   embers?: StoredEmbers[];
+  /** Legendary proc state by equipped item id: icd remaining + gathered stacks. */
+  procs?: Record<string, { cooldown: number; stacks: number }>;
   ward?: { remaining: number; capacity: number; rupture?: {absorbed:number;cap:number;radius:number;offense:HitSnapshot} };
   echoes: SkillEcho[];
 }
@@ -69,8 +76,78 @@ export function advanceSkillEffects(p: Player,dt:number,emitEcho?:(echo:SkillEch
   if(s.ward){s.ward.remaining=Math.max(0,s.ward.remaining-dt);s.ward.capacity=Math.min(s.ward.capacity,p.maxHp*.35);if(!s.ward.remaining||!p.character.allocatedNodes.includes('skill:runicWard')||!canUseSkill('runicWard',p.equipment))delete s.ward;}
   // The shared barrier budget uses the current life limit and surviving ward.
   advanceUniqueEffects(p,dt);
+  // Legendary proc cooldowns tick down; entries die with the item that owns them.
+  if(s.procs)for(const [itemId,proc]of Object.entries(s.procs)){proc.cooldown=Math.max(0,proc.cooldown-dt);
+    const equipped=Object.values(p.character.equipped).some(item=>item?.id===itemId);
+    if(!equipped||proc.cooldown<=0&&proc.stacks<=0)delete s.procs[itemId];}
   if(s.archer&&!s.ghostHunt){delete s.archer;s.echoes=[];}
   if(!p.character.allocatedNodes.includes('skill:ghostHunt')||!canUseSkill('ghostHunt',p.equipment))s.echoes=[];
   for(const echo of s.echoes)echo.delay-=dt;
   if(emitEcho){const due=s.echoes.filter(e=>e.delay<=0);s.echoes=s.echoes.filter(e=>e.delay>0);for(const echo of due)if(emitEcho(echo)===false)s.echoes.push(echo);}
+}
+
+/** Active resource model: a bear/cat shapeshift buff swaps the pool (rage/energy rules);
+ * every other form and the base class keep their own model. */
+export function resourceModelOf(p: Player): WowClassDef | undefined {
+  const form = p.buffs?.find(buff => buff.form && buff.remaining > 0)?.form;
+  if (form === 'bear') return WOW_CLASSES.warrior;
+  if (form === 'cat') return WOW_CLASSES.rogue;
+  return wowClassOf(p.character);
+}
+
+/** Rebuild derived stats with live buff modifiers folded in (combat overlay seam:
+ * sheet-level derivation has no player, so buffs join here at add/remove/refresh). */
+export function refreshBuffStats(p: Player): void {
+  const derived = deriveCharacterStats(p.character, getTreeBonuses(p.character.allocatedNodes), p.level, p.buffs, p);
+  p.derived = derived;
+  p.stats = { castSpeedMultiplier: derived.castSpeedMultiplier, attackDamageMultiplier: derived.attackDamageMultiplier,
+    attackSpeedMultiplier: derived.attackSpeedMultiplier, spellDamageMultiplier: derived.spellDamageMultiplier };
+  p.maxHp = derived.maxHp;
+  // Non-mana resource pools keep their class cap; updatePlayer re-asserts it each tick.
+  const model = resourceModelOf(p);
+  if (!model || model.resource === 'mana') p.maxMana = derived.maxMana;
+  p.hp = Math.min(p.hp, p.maxHp);
+  p.mana = Math.min(p.mana, manaCapacity(p));
+}
+
+/** Form end hands the stashed pool back: bear/cat ran on rage/energy, mana returns. */
+export function restoreFormResource(p: Player, buff: WowBuff): void {
+  if (buff.form !== 'bear' && buff.form !== 'cat') return;
+  const cls = wowClassOf(p.character);
+  p.maxMana = cls && cls.resource !== 'mana' ? cls.resourceCap : manaCapacity(p);
+  p.mana = Math.min(p.maxMana, buff.storedResource ?? 0);
+}
+
+/** WoW buff clock: expiry, per-second heal/mana/resource ticks, stealth flag sync.
+ * healPerSecond/manaPerSecond are fractions of the player's maxima; resourcePerSecond is flat units.
+ * Stealth is carried by stealth buffs; p.stealthed is the cached flag enemy AI reads. */
+export function advanceWowBuffs(p: Player, dt: number, resourceCap: number): void {
+  const buffs = p.buffs;
+  let removed = false;
+  if (buffs) for (const buff of buffs) {
+    buff.remaining = Math.max(0, buff.remaining - dt);
+    const rate = (buff.healPerSecond ?? 0) + (buff.manaPerSecond ?? 0) + (buff.resourcePerSecond ?? 0);
+    if (rate > 0 && buff.remaining > 0) {
+      buff.tickAcc = (buff.tickAcc ?? 0) + dt;
+      if (buff.tickAcc >= .5) {
+        const acc = buff.tickAcc; buff.tickAcc = 0;
+        if (buff.healPerSecond) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * buff.healPerSecond * acc);
+        if (buff.manaPerSecond) p.mana = Math.min(p.maxMana, p.mana + p.maxMana * buff.manaPerSecond * acc);
+        if (buff.resourcePerSecond) p.mana = Math.min(resourceCap, p.mana + buff.resourcePerSecond * acc);
+      }
+    }
+  }
+  if (buffs?.length) {
+    for (const buff of buffs) if (buff.remaining <= 0) { removed = true; restoreFormResource(p, buff); }
+    p.buffs = buffs.filter(buff => buff.remaining > 0);
+  }
+  if (removed) refreshBuffStats(p);
+  p.stealthed = p.buffs?.some(buff => buff.stealth) ?? false;
+  // Player-side CC clock: enemies do not apply control yet, but cleanse/breakControl
+  // and the immunity window are live contract.
+  p.ccImmunity = Math.max(0, (p.ccImmunity ?? 0) - dt);
+  if (p.cc?.length) {
+    for (const effect of p.cc) effect.remaining = Math.max(0, effect.remaining - dt);
+    p.cc = p.cc.filter(effect => effect.remaining > 0);
+  }
 }

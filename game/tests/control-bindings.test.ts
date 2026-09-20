@@ -12,10 +12,10 @@ const memory = () => {
 
 test('bindings persist across sessions, including unbound slots and alternate mouse buttons', () => {
   const store = memory(), controls = new ControlBindings(store);
-  assert.equal(controls.bind('skill0', 0, 'KeyF'), 'saved');
+  assert.equal(controls.bind('skill0', 0, 'F9'), 'saved');
   controls.bind('skill0', 1, 'Mouse4'); controls.bind('heal', 0, null);
   const loaded = new ControlBindings(store);
-  assert.deepEqual(loaded.get('skill0'), ['KeyF', 'Mouse4']);
+  assert.deepEqual(loaded.get('skill0'), ['F9', 'Mouse4']);
   assert.deepEqual(loaded.get('heal'), [null, null]);
   assert.equal(loaded.action('Mouse2'), undefined);
   assert.equal(loaded.action('KeyQ'), undefined);
@@ -29,10 +29,10 @@ test('conflicts leave both controls unchanged until explicitly replaced', () => 
   const controls = new ControlBindings(memory());
   assert.equal(controls.bind('skill0', 1, 'ArrowUp'), 'conflict');
   assert.deepEqual(controls.get('up'), ['KeyW', 'ArrowUp']);
-  assert.deepEqual(controls.get('skill0'), ['Mouse2', null]);
+  assert.deepEqual(controls.get('skill0'), ['Digit1', 'Mouse2']);
   assert.equal(controls.bind('skill0', 1, 'ArrowUp', true), 'saved');
   assert.deepEqual(controls.get('up'), ['KeyW', null]);
-  assert.deepEqual(controls.get('skill0'), ['Mouse2', 'ArrowUp']);
+  assert.deepEqual(controls.get('skill0'), ['Digit1', 'ArrowUp']);
   controls.bind('skill0', 0, 'ArrowUp');
   assert.deepEqual(controls.get('skill0'), ['ArrowUp', null], 'same-action duplicates move to the selected column');
 });
@@ -51,10 +51,12 @@ test('invalid or duplicate stored bindings fall back safely without overwriting 
 test('older saved maps gain loot reveal bindings without losing custom controls', () => {
   const legacy = defaultControls() as Record<string, readonly [string | null, string | null]>;
   delete legacy.revealLoot;
+  delete legacy.petCommand;
   legacy.skill1 = ['KeyF', null];
   const migrated = parseControls(JSON.stringify(legacy));
   assert.deepEqual(migrated.skill1, ['KeyF', null]);
   assert.deepEqual(migrated.revealLoot, ['ShiftLeft', 'ShiftRight']);
+  assert.deepEqual(migrated.petCommand, [null, null], 'the KeyF default yields to the custom skill binding');
 });
 
 test('loot reveal migration never steals Shift from an existing custom binding', () => {
@@ -86,24 +88,24 @@ test('denied storage keeps mappings usable and reports that they only last this 
   assert.equal(bindings.bind('skill2', 0, 'Mouse3'), 'session');
   assert.equal(bindings.action('Mouse3'), 'skill2');
   assert.equal(bindings.reset(), 'session');
-  assert.equal(bindings.action('Digit2'), 'skill2');
+  assert.equal(bindings.action('Digit2'), 'skill1');
 });
 
 test('custom mouse and keyboard bindings preserve taps, holds, skill identities and releases', () => {
   const bindings = new ControlBindings(), input = new GameInput(bindings);
-  bindings.bind('attack', 0, 'KeyF'); bindings.bind('skill0', 0, 'KeyG');
+  bindings.bind('attack', 0, 'F9'); bindings.bind('skill0', 0, 'Backquote'); bindings.bind('skill0', 1, null);
   bindings.bind('skill3', 0, 'Mouse3'); bindings.bind('dodge', 0, 'Mouse4'); bindings.bind('heal', 0, 'Mouse1');
   input.pointerDown(0); input.pointerDown(2);
   assert.equal(input.consume(aim, false).attack, false);
   assert.equal(input.consume(aim, false).skillSlot, null);
-  input.keyDown('KeyF'); input.keyDown('KeyG');
+  input.keyDown('F9'); input.keyDown('Backquote');
   let state = input.consume(aim, false);
   assert.equal(state.attack, true); assert.equal(state.skillSlot, 0);
   state = input.consume(aim, false);
   assert.equal(state.attack, true); assert.equal(state.skillSlot, 0); assert.equal(state.skillPressed, false);
   input.pointerDown(3); state = input.consume(aim, false);
   assert.equal(state.skillSlot, 3); assert.deepEqual(state.heldSkillSlots, [0, 3]);
-  input.pointerUp(3); input.keyUp('KeyF'); input.keyUp('KeyG');
+  input.pointerUp(3); input.keyUp('F9'); input.keyUp('Backquote');
   input.pointerDown(4); input.pointerUp(4); input.pointerDown(1); input.pointerUp(1);
   state = input.consume(aim, false); assert.equal(state.dodge, true); assert.equal(state.heal, true);
   state = input.consume(aim, false); assert.equal(state.dodge, false); assert.equal(state.heal, false);
@@ -134,7 +136,7 @@ test('rebinding while held clears pending input through the runtime subscription
   const unsubscribe = bindings.subscribe(() => input.clear());
   input.keyDown('KeyW'); input.pointerDown(0); input.keyDown('Space'); input.keyDown('ShiftLeft');
   assert.equal(input.held('revealLoot'), true);
-  bindings.bind('attack', 0, 'KeyF');
+  bindings.bind('attack', 0, 'F9');
   const state = input.consume(aim, false);
   assert.equal(state.moveY, 0); assert.equal(state.attack, false); assert.equal(state.dodge, false);
   assert.equal(input.held('revealLoot'), false);
@@ -143,13 +145,13 @@ test('rebinding while held clears pending input through the runtime subscription
 
 test('custom alternate movement and native modified shortcuts retain keyboard ownership', () => {
   const bindings = new ControlBindings(), input = new GameInput(bindings);
-  bindings.bind('up', 0, 'KeyZ'); bindings.bind('up', 1, 'Mouse3');
+  bindings.bind('up', 0, 'F2'); bindings.bind('up', 1, 'Mouse3');
   input.keyDown('KeyW'); assert.equal(input.consume(aim, false).moveY, 0);
-  input.keyDown('KeyZ'); input.pointerDown(3); input.keyUp('KeyZ');
+  input.keyDown('F2'); input.pointerDown(3); input.keyUp('F2');
   assert.equal(input.consume(aim, false).moveY, -1);
   const target = new EventTarget(), abort = new AbortController();
   bindGameKeyboard(target, { press: event => input.keyDown(event.code), release: code => input.keyUp(code), clear: () => input.clear() }, abort.signal);
-  target.dispatchEvent(Object.assign(new Event('keydown'), { code: 'KeyZ', ctrlKey: true }));
+  target.dispatchEvent(Object.assign(new Event('keydown'), { code: 'F2', ctrlKey: true }));
   assert.equal(input.consume(aim, false).moveY, 0);
   abort.abort();
 });

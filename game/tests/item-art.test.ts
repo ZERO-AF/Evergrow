@@ -6,8 +6,8 @@ import { WEAPON_PROFILES, SHIELD_PROFILES } from '../src/weapon-content.ts';
 import { armorShapes } from '../src/armor-shapes.ts';
 
 test('every equipment family generates distinct vector art without external resources', () => {
-  const icons = ITEM_KINDS.map(kind => itemIconSVG(generateItem(419, 1, kind)));
-  assert.equal(new Set(icons).size, ITEM_KINDS.length);
+  const icons = ITEM_KINDS.filter(k=>k!=='consumable'&&k!=='riftKey').map(kind => itemIconSVG(generateItem(419, 1, kind)));
+  assert.equal(new Set(icons).size, ITEM_KINDS.filter(k=>k!=='consumable'&&k!=='riftKey').length);
   for (const icon of icons) {
     assert.ok(icon.startsWith('<svg ')); assert.ok(icon.endsWith('</svg>'));
     assert.ok(!/<image|href=|data:|NaN|Infinity/.test(icon));
@@ -40,7 +40,7 @@ test('equipped art follows actual material changes and empties all removed layer
 });
 
 test('ground gear has bounded profile-specific geometry cached only for its item lifetime', () => {
-  const items = [...ITEM_KINDS.map(kind => generateItem(819, 3, kind)),
+  const items = [...ITEM_KINDS.filter(k=>k!=='consumable'&&k!=='riftKey').map(kind => generateItem(819, 3, kind)),
     ...WEAPON_PROFILES.map(profile => generateItem(819, 3, 'weapon', profile.id)),
     ...SHIELD_PROFILES.map(profile => generateItem(819, 3, 'shield', profile.id))];
   for (const item of items) {
@@ -75,7 +75,7 @@ test('helmet and cuirass icons reuse the actual equipped plate geometry', () => 
 test('repeated item icons keep their material references inside their own SVG across panels', () => {
   const ids = new Set<string>();
   let referenced = 0;
-  for (const kind of ITEM_KINDS) {
+  for (const kind of ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey')) {
     const item = generateItem(8901, 25, kind);
     // Hidden inventory, visible vendor, rebuilt vendor, and duplicate square previews.
     for (const svg of [itemPackIconSVG(item,2,3), itemPackIconSVG(item,2,3), itemPackIconSVG(item,2,3), itemIconSVG(item,120), itemIconSVG(item,120)]) {

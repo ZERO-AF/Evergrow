@@ -1,0 +1,33 @@
+/* Reputation panel (U) — faction standings, discounts and rewards. */
+.reputation-panel[hidden] { display:none; }
+.reputation-panel { position:absolute; inset:0; z-index:25; display:grid; place-items:center; background:#03090b80; padding:24px; font-family:var(--ui-font); }
+.reputation-window { width:min(720px,100%); max-height:85vh; display:flex; flex-direction:column; }
+.reputation-window .ui-window-header { gap:12px; }
+.reputation-window .ui-window-header h2 { flex:1; }
+.reputation-heading-icon { width:22px; height:22px; display:flex; color:#d8c894; }
+.reputation-heading-icon svg { width:100%; height:100%; }
+.reputation-summary { display:flex; align-items:baseline; gap:10px; padding:0 4px 12px; color:#a3b4bc; font-size:13px; }
+.reputation-summary strong { color:#e3ddc4; font-weight:500; font-size:15px; font-variant-numeric:tabular-nums; }
+.reputation-list { display:flex; flex-direction:column; gap:8px; overflow:auto; padding:2px 4px 6px; }
+.reputation-row { display:flex; gap:11px; align-items:flex-start; padding:11px 12px; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; }
+.reputation-row.is-unknown { opacity:.62; }
+.reputation-icon { flex:none; width:30px; height:30px; display:grid; place-items:center; border:1px solid #8ba5ae2a; border-radius:3px; }
+.reputation-icon svg { width:17px; height:17px; }
+.reputation-body { flex:1; min-width:0; }
+.reputation-name { display:flex; align-items:baseline; gap:8px; font-size:13px; color:#c9d6d4; }
+.reputation-perk { font-size:10.5px; letter-spacing:.03em; color:#a9c98f; }
+.reputation-desc { margin-top:2px; font-size:11.5px; line-height:1.35; color:#8298a0; }
+.reputation-bar { position:relative; margin-top:8px; height:16px; border-radius:3px; background:#8ba5ae1c; overflow:hidden; display:flex; align-items:center; }
+.reputation-bar > i { position:absolute; inset:0 auto 0 0; display:block; border-radius:3px; opacity:.55; }
+.reputation-bar-label { position:relative; padding:0 8px; font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; text-shadow:0 1px 2px #000c; }
+.reputation-bar-meta { position:relative; margin-left:auto; padding:0 8px; font-size:10px; color:#c9d6d4; font-variant-numeric:tabular-nums; text-shadow:0 1px 2px #000c; }
+.reputation-rewards { margin:9px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; }
+.reputation-reward { display:flex; align-items:center; gap:8px; font-size:11.5px; color:#a3b4bc; }
+.reputation-reward.is-claimed .reputation-reward-name { color:#6b828a; text-decoration:line-through; }
+.reputation-reward-name { color:#c9d6d4; }
+.reputation-reward-detail { color:#6b828a; font-size:10.5px; }
+.reputation-reward-gate { margin-left:auto; font-size:10px; letter-spacing:.05em; text-transform:uppercase; }
+.reputation-reward-claimed { margin-left:auto; font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#a9c98f; }
+.reputation-claim { margin-left:auto; font-size:11px; padding:3px 10px; }
+.reputation-claim:focus-visible { outline:1px solid var(--ui-silver); outline-offset:-1px; }
+@media(max-width:650px) { .reputation-panel { padding:10px; } }

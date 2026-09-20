@@ -1,4 +1,5 @@
 import { charmThematicStat } from './charm-content.ts';
+import { isSetPiece } from './item-set-content.ts';
 import { isResistanceStat } from './resistance-content.ts';
 import type { Item } from './character-types.ts';
 import { affixConflicts, rollAffix, itemAffixPool, itemAffixCount, deriveItem, randomSource } from './items.ts';
@@ -20,6 +21,7 @@ export type Improvement = 'enhance' | 'rarity' | 'rerollOne' | 'rerollAll' | 're
 export const ITEM_TIERS = ['common', 'magic', 'rare', 'epic', 'legendary'] as const;
 export function improvementProblem(item: Item, operation: Improvement, zoneLevel: number, affix?: number): string | null {
   if(item.kind==='riftKey')return 'Rift keys cannot be modified.';
+  if ((operation === 'rerollOne' || operation === 'rerollAll') && isSetPiece(item)) return 'Set-piece bonuses are fixed. Only enhancement is available.';
   if(item.tier==='unique'&&operation!=='enhance')return 'Unique powers and affixes are fixed. Only enhancement is available.';
   if (item.recipe.revision >= Number.MAX_SAFE_INTEGER) return 'This item cannot be improved further.';
   if (operation === 'enhance' && item.recipe.enhancement >= 10) return 'Maximum enhancement reached.';

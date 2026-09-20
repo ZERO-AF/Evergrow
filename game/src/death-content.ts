@@ -126,3 +126,31 @@ export const ENEMY_DEATHS: Readonly<Record<EnemyKind, Four>> = Object.freeze({
 export const DEATH_KINDS = Object.freeze(Object.keys(ENEMY_DEATHS) as EnemyKind[]);
 export const DEATH_VARIANTS: readonly DeathVariant[] = Object.freeze([0, 1, 2, 3]);
 export const enemyDeathAnimation = (kind: EnemyKind, variant: DeathVariant) => ENEMY_DEATHS[kind][variant];
+
+// ── Spirit release (WoW corpse run) ─────────────────────────────────────
+
+/** Live ghost state: the corpse waits at the death spot, the spirit healer at the graveyard. */
+export interface GhostState {
+  readonly corpse: { readonly x: number; readonly y: number };
+  readonly healer: { readonly x: number; readonly y: number; readonly name: string };
+}
+
+/** WoW death-loop tuning: ghosts run faster, corpse revival is cheap, the spirit
+ * healer trades convenience for a durability hit plus a longer sickness. */
+export const GHOST_RULES = Object.freeze({
+  /** Ghost movement multiplier over the living run speed. */
+  moveSpeed: 1.5,
+  /** Reach of the corpse's resurrection prompt. */
+  corpseRadius: 40,
+  /** Reach of the spirit healer's resurrection prompt. */
+  healerRadius: 48,
+  /** Life and resource fractions restored by each resurrection path. */
+  corpseHealth: .5, corpseMana: .5,
+  healerHealth: .35, healerMana: .35,
+});
+
+/** Resurrection sickness debuffs; the spirit healer's bargain is the heavier one. */
+export const RESURRECTION_SICKNESS = Object.freeze({
+  corpse: Object.freeze({ duration: 20, stats: Object.freeze({ damagePercent: -25, moveSpeedPercent: -10 }) }),
+  healer: Object.freeze({ duration: 120, stats: Object.freeze({ damagePercent: -50, moveSpeedPercent: -25 }) }),
+});

@@ -6,6 +6,7 @@ import type { CharacterSheet, DerivedCharacterStats, SkillId, Item } from './cha
 import type { BiomeId } from './biomes.ts';
 import type { EnemyCamp } from './wilderness-sites.ts';
 import type { EnemyRank } from './progression-content.ts';
+import type { CcKind } from './wow-types.ts';
 
 export interface WorldQuery {
   /** Optional exact accelerations of the shared sampled visibility/walking rules. */
@@ -42,9 +43,15 @@ export interface Input {
   heldSkillSlots?: readonly number[];
   /** False for a held repeat, absent/true for a fresh skill press. */
   skillPressed?: boolean;
+  /** Click-selected enemy id; null clears the current target. Absent = unchanged. */
+  targetId?: number | null;
+  /** Tab-target edge: cycle on-screen enemies forward (1) or backward (-1). */
+  cycleTarget?: 1 | -1;
+  /** Action-bar page the skill slots resolve against (0..2); absent = page 0. */
+  barPage?: number;
 }
 
-export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number };
+export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number; readonly ally?: boolean; readonly proc?: boolean };
 
 export interface Attack {
   embersReleased?: boolean;
@@ -111,8 +118,8 @@ export interface WeaponDefinition {
 }
 
 export type WeaponFamily = 'sword' | 'axe' | 'mace' | 'dagger' | 'bow' | 'staff' | 'wand' | 'unarmed';
-export type DamageType = 'physical' | 'fire' | 'frost' | 'lightning' | 'arcane';
-export type ProjectileStyle = 'arrow' | 'fire' | 'frost' | 'lightning' | 'arcane' | 'spirit' | 'radiant';
+export type DamageType = 'physical' | 'fire' | 'frost' | 'lightning' | 'arcane' | 'holy' | 'shadow' | 'nature';
+export type ProjectileStyle = 'arrow' | 'fire' | 'frost' | 'lightning' | 'arcane' | 'spirit' | 'radiant' | 'holy' | 'shadow' | 'nature';
 export interface ShieldDefinition {
   id: string; name: string; blockChance: number; blockReduction: number;
   visual: { material?: GearMaterial; kind: 'buckler' | 'kite' | 'tower'; base: string; edge: string; trim: string; shadow: string };
@@ -174,12 +181,12 @@ export interface Player {
   skillEffects?: import('./player-skill-effects.ts').PlayerSkillEffects;
   guardTime: number;
   guardReduction: number;
-  dash: { angle: number; remaining: number; speed: number; damage: number; elementalDamage?: number; offense?: HitSnapshot; radius: number; skill: SkillId; style?: ProjectileStyle; hitIds: Set<number> } | null;
   stats: CharacterStats;
   equipment: Equipment;
   attack: Attack | null;
-  /** Remaining dodge animation time in seconds. */
+  dash: { angle: number; remaining: number; speed: number; damage: number; elementalDamage?: number; offense?: HitSnapshot; radius: number; skill: SkillId; style?: ProjectileStyle; stun?: number; hitIds: Set<number> } | null;
   dodgeTime: number;
+  /** Remaining dodge animation time in seconds. */
   dodgeAngle: number;
   dodgeCharges: number;
   /** Elapsed recharge time toward the next charge (1.8 seconds). */
@@ -200,18 +207,170 @@ export interface Player {
   walkTime: number;
   radius: number;
   dead: boolean;
+  // ── WoW combat model (docs/wow-transformation.md) ──
+  /** Current tab/click-selected enemy id; null = free aim. */
+  targetId?: number | null;
+  /** Auto-attack toggle: basics repeat on the current target until cancelled. */
+  autoAttack?: boolean;
+  /** Global cooldown: sim time when the next skill may start. */
+  gcdReady?: number;
+  /** Active cast/channel; roots movement to castMoveFactor, cancelled by dodge. */
+  cast?: { skill: SkillId; remaining: number; duration: number; targetId?: number; x?: number; y?: number; channel?: boolean; ticksDone?: number; breakRange?: number } | null;
+  /** Rogue/cat combo points on the current target (0-5). */
+  comboPoints?: number;
+  /** DK rune recharge timers per slot [blood,blood,frost,frost,unholy,unholy]. */
+  runes?: number[];
+  /** Warlock soul shards (0-4). */
+  soulShards?: number;
+  /** Stealthed (rogue/cat/racial); enemies sense only within stealthSenseRadius. */
+  stealthed?: boolean;
+  /** Active player buffs (stances, seals, aspects, forms, shields, haste). */
+  buffs?: WowBuff[];
+  /** Player allies (pets, minions, totems). */
+  allies?: Ally[];
+  /** Hunter pet stance: attack the player's target, return, hold position, or never engage. */
+  petCommand?: 'attack' | 'follow' | 'stay' | 'passive';
+  /** Crowd control on the player (enemy→player CC lands here once enemies apply it). */
+  cc?: EnemyCc[];
+  /** Seconds of remaining immunity to incoming crowd control (cleanse/breakControl). */
+  ccImmunity?: number;
+  /** Real-time timestamp (performance.now()/1000) when the shared consumable cooldown ends. */
+  consumableCooldownUntil?: number;
+  // ── WoW deepening (docs/wow-deepening.md) ──
+  /** Active mount; any offensive action dismounts. */
+  mounted?: { id: import('./mount-content.ts').MountId; since: number } | null;
+  /** Banked rested XP pool; kills consume it for double XP. */
+  restedXp?: number;
+  /** Bound hearthstone location (inn). */
+  hearthstone?: { x: number; y: number; zone: string } | null;
+  /** Gathering/crafting profession progress. */
+  professions?: Partial<Record<import('./profession-content.ts').ProfessionId, { level: number; xp: number }>>;
+  /** Quest ledger: active objectives and turned-in receipts. */
+  quests?: Record<string, import('./quest-content.ts').QuestState>;
+  /** Achievement id → progress count or completion timestamp. */
+  achievements?: Record<string, number>;
+  /** Equipped glyphs by slot. */
+  glyphs?: Partial<Record<import('./glyph-content.ts').GlyphSlot, import('./glyph-content.ts').GlyphId>>;
+  /** Fishing secondary profession. */
+  fishing?: { level: number; xp: number };
+  /** Current durability per equipped slot (0 = stats suppressed). */
+  durability?: Partial<Record<import('./character-types.ts').EquipmentSlot, number>>;
+  /** Bounded combat/system log ring (last 40). */
+  combatLog?: import('./combat-log.ts').CombatLogEntry[];
+  /** Faction reputation ledger: faction id → standing points. */
+  reputation?: Record<string, number>;
+}
+
+/** Live player buff instance. */
+export interface WowBuff {
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
+  remaining: number;
+  readonly duration: number;
+  readonly stats?: import('./character-types.ts').StatModifiers;
+  readonly absorb?: number;
+  absorbRemaining?: number;
+  readonly reduction?: number;
+  /** Fraction of maxHp restored per second (Fel Armor 0.01 = 1%/s). */
+  readonly healPerSecond?: number;
+  readonly manaPerSecond?: number;
+  readonly resourcePerSecond?: number;
+  readonly exclusiveGroup?: string;
+  readonly form?: import('./wow-types.ts').ShapeshiftForm;
+  readonly stealth?: boolean;
+  readonly reflect?: number;
+  readonly imbue?: { element: 'fire' | 'frost' | 'lightning' | 'nature' | 'shadow' | 'holy'; fraction: number };
+  readonly petShare?: number;
+  /** Breaks player crowd control on application and grants brief CC immunity. */
+  readonly breakControl?: boolean;
+  /** Multiplies ally (pet/minion) damage while active (Kill Command, Bestial Wrath). */
+  readonly allyDamage?: number;
+  /** Full damage immunity while active (Ice Block, Divine Shield). */
+  readonly immunity?: boolean;
+  /** Fraction of damage dealt returned as healing (Vampiric Embrace). */
+  readonly leech?: number;
+  /** Accumulator for per-second regen/heal ticks. */
+  tickAcc?: number;
+  /** Resource pool value stashed when a shapeshift form swapped it (restored on form end). */
+  storedResource?: number;
+}
+
+/** Player ally: pet, minion, totem, or temporary summon. */
+export interface Ally {
+  id: number;
+  readonly kind: import('./wow-types.ts').AllyKind;
+  x: number; y: number; prevX: number; prevY: number;
+  angle: number;
+  hp: number; maxHp: number;
+  damage: number;
+  /** Stationary totems never move. */
+  readonly stationary: boolean;
+  /** Seconds until despawn; undefined = permanent pet. */
+  remaining?: number;
+  /** Current hostile target. */
+  targetId: number | null;
+  attackCooldown: number;
+  radius: number;
+  /** Totem aura effect (healing stream, earthbind, mana spring, stat wards…). */
+  aura?: AllyAura;
+  /** PetRecord.id backing this ally; absent for demons, totems and other summons. */
+  petId?: number;
+  /** Mend Pet style regeneration: fraction of maxHp per second while remaining lasts. */
+  regen?: { remaining: number; perSecond: number };
+  /** Shell Shield style damage reduction while remaining lasts. */
+  guard?: { remaining: number; reduction: number };
+  /** Dash style move-speed multiplier while remaining lasts. */
+  speedBoost?: { remaining: number; factor: number };
+  /** Prowl style stealth: enemies stop choosing this ally as a hostile target. */
+  stealth?: { remaining: number };
+}
+
+/** Totem aura payload: kind selects the per-second tick effect in Simulation.updateAllies.
+ * heal/slow keep the legacy amount semantics; mana restores a maxMana fraction per tick;
+ * buff refreshes `stats` as a short player buff; absorb refreshes a maxHp-fraction ward;
+ * ccBreak clears player crowd control and grants `amount` seconds of immunity;
+ * cleanse strips one movement-impairing player CC per tick. */
+export interface AllyAura {
+  readonly kind: 'heal' | 'slow' | 'mana' | 'buff' | 'absorb' | 'ccBreak' | 'cleanse';
+  readonly amount: number;
+  readonly radius: number;
+  /** Player stats granted per tick while in radius (kind 'buff'). */
+  readonly stats?: import('./character-types.ts').StatModifiers;
+  tickAcc?: number;
+}
+
+/** Damage-over-time instance on an enemy. */
+export interface EnemyDot {
+  readonly id: string;
+  readonly school: import('./wow-types.ts').DotSchool;
+  dps: number;
+  remaining: number;
+  tick: number;
+  readonly interval: number;
+  readonly ramp?: number;
+  readonly detonate?: number;
+  readonly source: 'player' | 'ally';
+}
+
+/** Crowd-control instance on an enemy. */
+export interface EnemyCc {
+  readonly kind: import('./wow-types.ts').CcKind;
+  remaining: number;
+  /** Incapacitate/polymorph/root break on damage. */
+  readonly breakOnDamage: boolean;
+  readonly factor?: number;
 }
 
 export type EnemyKind = 'thornReaver' | 'mireSpitter' | 'frostRevenant' | 'emberAcolyte' | 'duneScuttler' | 'stormSentinel' | 'stalker' | 'brute' | 'caster' | 'hound' | 'archer' | 'wisp' | 'goblin' | 'goblinChief' | 'warden' | 'briarMatriarch' | 'ashColossus' | 'graveMarshal';
 export type EnemyState = 'idle' | 'patrol' | 'return' | 'chase' | 'windup' | 'attack' | 'recover' | 'dead';
-
 export interface Enemy {
   /** Transient support link, never serialized; source death disables it immediately. */
   riftWardSource?: Enemy;
   riftSpecialCooldown?:number;
   riftWarning?:{kind:'storm'|'fire';x:number;y:number;originX:number;originY:number;angle:number;remaining:number;damage:number};
   rift?: import('./rift-content.ts').RiftTag;
-  auraExposure?: Partial<Record<'fire'|'frost'|'lightning'|'arcane',{power:number;remaining:number}>>;
+  auraExposure?: Partial<Record<Exclude<DamageType,'physical'>,{power:number;remaining:number}>>;
   decoyTarget?: {id:number;x:number;y:number;radius:number;hit?:boolean};
   dungeonTheme?: import('./dungeon-content.ts').DungeonThemeId;
   /** Three-action cycle; regional signatures follow two basics, elites use lighter quick basics. */
@@ -281,6 +440,18 @@ export interface Enemy {
   burnTime: number;
   burnDps: number;
   burnTick: number;
+  /** WoW damage-over-time effects (shadow, bleed, poison, elemental). */
+  dots?: EnemyDot[];
+  /** WoW crowd-control effects (root/fear/incapacitate/polymorph/silence). */
+  cc?: EnemyCc[];
+  /** Diminishing returns: applications per CC kind inside the current window. */
+  ccDiminished?: Partial<Record<CcKind, number>>;
+  /** Seconds left in the current DR window per kind (decays in advanceEnemyStatuses). */
+  ccDiminishedUntil?: Partial<Record<CcKind, number>>;
+  /** Sunder/expose: bonus damage fraction taken. */
+  sundered?: { fraction: number; remaining: number };
+  /** Taunted: forced to attack the player — or the pet ally that growled (allyId). */
+  taunted?: { remaining: number; allyId?: number };
 }
 
 /** Frozen launch pose connecting visible arrows to the bow grip and bolts to the emitting tip. */
@@ -288,6 +459,8 @@ export interface WeaponLaunch {
   skill?: SkillId;
   weapon: WeaponVisual; mainWeapon: WeaponVisual; hand: 'main' | 'off'; hands: 1 | 2; facing: number; time: number;
   gaitPhase: number; moving: number; moveAngle: number; start: number; end: number;
+  /** Race posture (hunch) shifts the rendered weapon tip; the release pose must reproduce it. */
+  raceId?: import('./wow-types.ts').WowRaceId;
 }
 export interface Projectile {
   id: number;

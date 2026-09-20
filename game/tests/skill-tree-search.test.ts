@@ -51,7 +51,9 @@ test('common affix aliases agree, word order is flexible and neighboring stat me
 
 test('skill names include their Techniques; unsupported item-only bonuses and empty queries are honest', () => {
   assert.deepEqual(ids('fireball'), new Set(['skill:fireball', 'specialization:fireball-fork', 'specialization:fireball-ember', 'specialization:fireball-impact']));
-  for (const query of ['gold find', 'experience gain', 'added fire damage', 'Fireball ranks', 'no-such-bonus']) assert.equal(ids(query).size, 0, query);
+  for (const query of ['gold find', 'experience gain', 'Fireball ranks', 'no-such-bonus']) assert.equal(ids(query).size, 0, query);
+  // Spec signature keystones legitimately carry elemental damage bonuses.
+  assert.deepEqual(ids('added fire damage'), new Set(['wow-mage-spec-fire', 'wow-hunter-spec-survival']));
   assert.equal(ids('  ').size, SKILL_TREE.nodes.length);
 });
 

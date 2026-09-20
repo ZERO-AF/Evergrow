@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
 import { refreshCharacter } from '../src/character.ts';
 import { deriveCharacterStats } from '../src/character-stats.ts';
-import { createCharacterSheet, STARTER_LOADOUTS, generateItem, deriveItem, itemAffixPool, affixConflicts, ITEM_KINDS } from '../src/items.ts';
+import { createCharacterSheet, generateItem, deriveItem, itemAffixPool, affixConflicts, ITEM_KINDS } from '../src/items.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { ELEMENTS, RESISTANCE_STATS, RESISTANCE_AFFIXES, RESISTANCE_RULES, isResistanceStat, projectileDamageType } from '../src/resistance-content.ts';
 import { damagePlayer } from '../src/combat-damage.ts';
 import { advanceProjectiles } from '../src/projectile-combat.ts';
@@ -18,12 +19,12 @@ import type { CombatEvent, DamageType, Projectile, ProjectileStyle, EnemyKind } 
 const world = { isSanctuary: () => false, blocked: () => false, move: (x:number,y:number,dx:number,dy:number) => ({x:x+dx,y:y+dy}) };
 const setup = () => new Simulation(world, { spawn:false, startX:0, startY:0 });
 
-test('all starters have zero resistance; single and all-element bonuses add and cap independently', () => {
-  for (const loadout of STARTER_LOADOUTS) assert.deepEqual(deriveCharacterStats(createCharacterSheet(loadout.id)).resistances, {fire:0,frost:0,lightning:0,arcane:0});
+test('all class starters have zero resistance; single and all-element bonuses add and cap independently', () => {
+  for (const wowClass of Object.values(WOW_CLASSES)) assert.deepEqual(deriveCharacterStats(createCharacterSheet(wowClass.id)).resistances, {fire:0,frost:0,lightning:0,arcane:0,holy:0,shadow:0,nature:0});
   const sheet = createCharacterSheet(); sheet.equipped.ring1 = generateItem(89,1,'ring');
   sheet.equipped.ring1.implicit = {fireResistance:24, allResistance:8}; sheet.equipped.ring1.affixes=[];
-  assert.deepEqual(deriveCharacterStats(sheet,{fireResistance:80,frostResistance:12}).resistances, {fire:.75,frost:.2,lightning:.08,arcane:.08});
-  sheet.equipped.ring1=null; assert.deepEqual(deriveCharacterStats(sheet).resistances,{fire:0,frost:0,lightning:0,arcane:0});
+  assert.deepEqual(deriveCharacterStats(sheet,{fireResistance:80,frostResistance:12}).resistances, {fire:.75,frost:.2,lightning:.08,arcane:.08,holy:.08,shadow:.08,nature:.08});
+  sheet.equipped.ring1=null; assert.deepEqual(deriveCharacterStats(sheet).resistances,{fire:0,frost:0,lightning:0,arcane:0,holy:0,shadow:0,nature:0});
 });
 
 test('physical damage uses source-level armor; each element ignores armor and uses only its own resistance', () => {
@@ -37,7 +38,7 @@ test('physical damage uses source-level armor; each element ignores armor and us
 });
 
 test('resistance applies before block; caps and exactly-once immunity preserve damage and death behavior', () => {
-  const p=setup().player;p.character=createCharacterSheet('sword-shield');p.character.equipped.ring1=generateItem(50,1,'ring');
+  const p=setup().player;p.character=createCharacterSheet('paladin');p.character.equipped.ring1=generateItem(50,1,'ring');
   p.character.equipped.ring1.implicit={allResistance:999};p.character.equipped.ring1.affixes=[];refreshCharacter(p);
   p.guardTime=1;p.guardReduction=.8;const events:CombatEvent[]=[];
   const context={player:p,world,random:()=>1,emit:(e:CombatEvent)=>events.push(e)};
@@ -68,9 +69,9 @@ test('enemy ground signatures and Colossus eruptions route actual elemental cont
 });
 
 test('resistance rolls are restricted to jewelry/shields and exactly one resistance family per item', () => {
-  for (const kind of ITEM_KINDS) {
+  for (const kind of ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey')) {
     const rolls=itemAffixPool({kind}).filter(a=>isResistanceStat(a.stat));
-    assert.equal(rolls.length,['ring','amulet','shield','charm'].includes(kind)?5:0,kind);
+    assert.equal(rolls.length,['ring','amulet','shield','charm'].includes(kind)?RESISTANCE_AFFIXES.length:0,kind);
   }
   for(const a of RESISTANCE_STATS){assert.equal(affixCategory(a),'defense');for(const b of RESISTANCE_STATS)assert.ok(affixConflicts(a,[b]));}
   assert.ok(RESISTANCE_AFFIXES.find(a=>a.stat==='allResistance')!.weight! < RESISTANCE_AFFIXES.find(a=>a.stat==='fireResistance')!.weight!);
@@ -99,7 +100,7 @@ test('single resistance is stronger; enchanting, save validation, equip comparis
     for(const element of item===all?ELEMENTS:['fire'] as const)assert.ok(preview.changes.some(c=>c.key===`${element}Resistance`&&c.after>c.before));
     assert.match(itemTooltipMarkup(item,{sheet:p.character,level:40}),/resistance/i);
     p.character.equipped.ring1=item;refreshCharacter(p);
-    const group=characterStatDetails(p).find(g=>g.tone==='resistances')!;assert.equal(group.rows.length,4);
+    const group=characterStatDetails(p).find(g=>g.tone==='resistances')!;assert.equal(group.rows.length,7);
     assert.equal(group.rows[0].amount,p.derived.resistances.fire);assert.ok(group.rows[0].sources.some(s=>s.label.includes(item.name)));
   }
   const duplicate=structuredClone(all);duplicate.tier='rare';duplicate.affixes.push(single.affixes[0]);duplicate.recipe.rolls.push(.5);assert.equal(validItem(duplicate),false);

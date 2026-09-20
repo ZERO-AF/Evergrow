@@ -1,4 +1,5 @@
 import { STARTING_SWORD, getGripLength, getSupportGripOffset } from './equipment.ts';
+import { WOW_RACES } from './wow-races.ts';
 import { meleeStroke } from './melee-art-motion.ts';
 import { getActiveSwingOffset } from './attack-motion.ts';
 import { PLAYER_ABILITIES, RANGED_BASIC_ATTACK_PHASES } from './combat-content.ts';
@@ -164,9 +165,10 @@ export function playerMotion(pose: CharacterPose) {
   const hipX = -moveY * step * 0.65 + Math.cos(pose.attackAngle) * commitment * 0.55;
   const hipY = Math.cos(phase * 2) * moving * 0.25 + crouch;
   const lean = moving * moveX * 0.065 + Math.cos(pose.attackAngle) * commitment * 0.065;
-  const body: Affine = [1, 0, -lean, 1,
+  const hunch = pose.raceId ? WOW_RACES[pose.raceId]?.visual.hunch ?? 0 : 0;
+  const body: Affine = [1, 0, -lean - hunch * Math.cos(pose.angle), 1,
     hipX * 0.6 + Math.cos(pose.attackAngle) * commitment * 1.6,
-    bob + crouch - 3 + Math.sin(pose.attackAngle) * commitment * 1.4];
+    bob + crouch - 3 + Math.sin(pose.attackAngle) * commitment * 1.4 + hunch * (1 + Math.abs(Math.sin(pose.angle)))];
   // The grip cuts across the front of the chest, independently of blade pitch.
   // Recovery retracts from the end of that cut rather than orbiting the torso.
   const sweep = smooth(active);
@@ -306,7 +308,7 @@ export function playerMotion(pose: CharacterPose) {
   const activeWeaponOrigin = offWeaponActive ? offWeaponOrigin : hand;
   if (offWeaponActive) activeWeaponAngle = offWeaponAngle;
   return { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
-    weaponAngle, activeWeaponAngle, activeWeaponYaw, offWeaponAngle, rangedDraw, weaponBehind, supportHolding, hipX, hipY, lean, body,
+    weaponAngle, activeWeaponAngle, activeWeaponYaw, offWeaponAngle, rangedDraw, weaponBehind, supportHolding, hipX, hipY, lean, hunch, body,
     weaponOrigin: hand, offWeaponOrigin, activeWeaponOrigin, weaponScale, offWeaponScale,
     activeWeaponScale: offWeaponActive ? offWeaponScale : weaponScale, bodyAngle, weaponArm, offArm, weaponCharge };
 

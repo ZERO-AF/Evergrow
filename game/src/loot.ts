@@ -5,10 +5,13 @@ import type { EnemyKind } from './model.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { normalizeLevel } from './progression-content.ts';
 import { generateItem, generateUnique } from './items.ts';
+import { legendaryFor } from './item-naming.ts';
 import { BIOME_PROFILE_WEIGHTS, ENEMY_ITEM_KIND_WEIGHTS, ENEMY_LOOT_YIELD, NORMAL_COMMON_EQUIPMENT_SKIP_CHANCE, getLootTable } from './loot-content.ts';
 
 export interface EnemyLootContext {
   readonly playerLevel?: number;
+  /** Player class — weights set-piece drops toward the wearer's armor class. */
+  readonly classId?: MaterialSource['classId'];
   readonly tierOverride?: ItemTier;
   /** Authored chest rarity; quantity, item identity and source level retain their normal rules. */
   readonly tierWeights?: Readonly<Record<ItemTier, number>>;
@@ -79,14 +82,18 @@ export function rollEnemyLoot(context: EnemyLootContext): Item[] {
     const kind = selectLootWeight(ENEMY_ITEM_KIND_WEIGHTS[context.kind], random());
     // A separate stream preserves existing rarity, charm, profile and item rolls.
     // First-kill guarantees and authored chest/event/boss rewards bypass thinning.
-    if (context.rank === 'normal' && !context.firstKill && !context.encounter && tier === 'common' && kind !== 'charm'
+    // A common roll that upgrades to a named legendary inside generateItem is a
+    // valuable drop, not thin-able commons — check the same dedicated stream first.
+    const itemSeed = (seed + Math.imul(index + 1, 0x9E3779B9)) >>> 0;
+    const becomesLegendary = (context.rank !== undefined || context.encounter !== undefined)
+      && legendaryFor(kind, randomSource(itemSeed ^ 0x2f6e8b1d)) !== null;
+    if (context.rank === 'normal' && !context.firstKill && !context.encounter && tier === 'common' && kind !== 'charm' && !becomesLegendary
       && randomSource(seed ^ 0xA24BAED5)() < NORMAL_COMMON_EQUIPMENT_SKIP_CHANCE) continue;
     const profileId = kind === 'weapon' || kind === 'shield' || kind === 'grimoire' || kind === 'orb'
       ? selectLootWeight(BIOME_PROFILE_WEIGHTS[context.biome][kind], random()) : undefined;
     // Consecutive rewards receive different item-local seeds, independent of how many table draws were needed.
-    const itemSeed = (seed + Math.imul(index + 1, 0x9E3779B9)) >>> 0;
     if(tier==='unique'){items.push(generateUnique(itemSeed,context.playerLevel??context.level));continue;}
-    items.push(generateItem(itemSeed, itemLevel, kind, profileId, tier, undefined, {level:context.level,rank:context.rank,encounter:context.encounter}));
+    items.push(generateItem(itemSeed, itemLevel, kind, profileId, tier, undefined, {level:context.level,rank:context.rank,encounter:context.encounter,classId:context.classId}));
   }
   return items;
 }

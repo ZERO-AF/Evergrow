@@ -7,6 +7,8 @@ import { drawSkillGlyph } from './skill-tree-glyphs.ts';
 import type { CharacterSheet } from './character-types.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { drawAtlasSearchMarkers } from './skill-tree-search-art.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
 
 export const SKILL_DOMAIN_COLORS = { Might: '#e5b881', Cunning: '#8bd5b9', Arcana: '#b9b4ee' } as const;
 export interface SkillAtlasView {
@@ -21,6 +23,7 @@ const TAU = Math.PI * 2;
 const edges = SKILL_TREE.edges.map(edge => ({ ...edge, a: SKILL_NODES.get(edge.from)!, b: SKILL_NODES.get(edge.to)! }));
 const edgeKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`;
 const territoryColors = new Map(SKILL_TERRITORIES.map(t => [t.id, t.color]));
+const nodeColor = (n: SkillNode) => n.classId ? WOW_CLASSES[n.classId].color : territoryColors.get(n.territory ?? '') ?? SKILL_DOMAIN_COLORS[n.domain];
 const regions = SKILL_TERRITORIES.map(t => {
   const members = SKILL_TREE.nodes.filter(n => n.territory === t.id);
   return { ...t, x: members.reduce((s,n) => s+n.x,0)/members.length, y: members.reduce((s,n) => s+n.y,0)/members.length };
@@ -62,7 +65,7 @@ export function drawSkillAtlas(c: CanvasRenderingContext2D, view: SkillAtlasView
     if(cluster.id.startsWith('development:'))continue;
     const x=sx(cluster.x),y=sy(cluster.y),r=(cluster.radius+38)*z;
     if(x+r<0||x-r>w||y+r<0||y-r>h)continue;
-    const color=territoryColors.get(cluster.territory??'')??SKILL_DOMAIN_COLORS[cluster.domain];
+    const color=cluster.classId?WOW_CLASSES[cluster.classId].color:territoryColors.get(cluster.territory??'')??SKILL_DOMAIN_COLORS[cluster.domain];
     const halo=c.createRadialGradient(x,y,0,x,y,Math.max(1,r));
     halo.addColorStop(0,color+'0d');halo.addColorStop(.7,color+'06');halo.addColorStop(1,color+'00');
     c.fillStyle=halo;c.fillRect(x-r,y-r,r*2,r*2);
@@ -72,7 +75,7 @@ export function drawSkillAtlas(c: CanvasRenderingContext2D, view: SkillAtlasView
   const focusedNode=SKILL_NODES.get(view.hovered??view.selected);
   const focusedSkill=focusedNode&&skillNodeOwner(focusedNode)?.id;
   c.lineCap='round'; c.lineJoin='round';
-  for(const {a,b,control} of edges){
+  for(const {a,b,control,classGate} of edges){
     const ax=sx(a.x),ay=sy(a.y),bx=sx(b.x),by=sy(b.y);
     const cx=control?sx(control.x):(ax+bx)/2,cy=control?sy(control.y):(ay+by)/2;
     if(Math.max(ax,bx,cx)<-16||Math.min(ax,bx,cx)>w+16||Math.max(ay,by,cy)<-16||Math.min(ay,by,cy)>h+16)continue;
@@ -80,9 +83,18 @@ export function drawSkillAtlas(c: CanvasRenderingContext2D, view: SkillAtlasView
     const family=focusedSkill&&(a.developmentSkill===focusedSkill||b.developmentSkill===focusedSkill);
     const road=(a.role==='travel'||a.kind==='origin')&&(b.role==='travel'||b.kind==='origin');
     const sameCluster=a.cluster&&a.cluster===b.cluster;
-    const color=territoryColors.get(a.territory??'')??SKILL_DOMAIN_COLORS[a.domain];
-    c.globalAlpha=view.filterActive?(view.matches(a)&&view.matches(b)?.65:view.matches(a)||view.matches(b)?.28:owned||route?.2:.07):1;
+    const color=nodeColor(a);
+    const foreign=view.sheet&&(a.classId&&a.classId!==view.sheet.classId||b.classId&&b.classId!==view.sheet.classId);
+    c.globalAlpha=(view.filterActive?(view.matches(a)&&view.matches(b)?.65:view.matches(a)||view.matches(b)?.28:owned||route?.2:.07):1)*(foreign?.35:1);
     c.beginPath();c.moveTo(ax,ay);c.quadraticCurveTo(cx,cy,bx,by);
+    if(classGate){
+      // Class gateway: a dashed golden arc from the Root to the sanctum starter.
+      const gateColor=WOW_CLASSES[(a.classId??b.classId)!]?.color??'#ffd899';
+      c.save();c.setLineDash([Math.max(4,7*Math.sqrt(z)),Math.max(5,9*Math.sqrt(z))]);
+      c.strokeStyle='#08131f88';c.lineWidth=Math.max(1.4,2.4*Math.sqrt(z));c.stroke();
+      c.strokeStyle=(owned?'#ffe1a7':gateColor)+(foreign?'55':'b0');c.lineWidth=Math.max(.9,1.5*Math.sqrt(z));c.stroke();
+      c.restore();continue;
+    }
     c.strokeStyle='#08131f99';c.lineWidth=Math.max(1.6,3*Math.sqrt(z));c.stroke();
     if(owned||route||road){
       c.strokeStyle=owned?'#ffd89928':route?'#81ddff25':color+'0c';
@@ -99,9 +111,10 @@ export function drawSkillAtlas(c: CanvasRenderingContext2D, view: SkillAtlasView
     const owned=view.allocated.has(node.id),reachable=view.reachable.has(node.id);
     const selected=view.selected===node.id,hover=view.hovered===node.id;
     const landmark=node.kind==='major'||node.kind==='origin',notable=node.kind==='notable';
-    const color=territoryColors.get(node.territory??'')??SKILL_DOMAIN_COLORS[node.domain];
+    const color=nodeColor(node);
+    const foreign=view.sheet&&node.classId&&node.classId!==view.sheet.classId;
     const accent=owned?'#ffdb96':routeNodes.has(node.id)?'#9ce9ff':color;
-    c.globalAlpha=view.filterActive?(view.matches(node)?1:selected||hover?.6:routeNodes.has(node.id)?.3:.09):1;
+    c.globalAlpha=(view.filterActive?(view.matches(node)?1:selected||hover?.6:routeNodes.has(node.id)?.3:.09):1)*(foreign?.32:1);
     if(landmark||owned||selected||hover||notable&&z>.3){
       const bloom=c.createRadialGradient(x,y,r*.3,x,y,r*(landmark?3.8:2.6));
       bloom.addColorStop(0,accent+(owned||hover?'65':landmark?'40':'24'));bloom.addColorStop(1,accent+'00');
@@ -129,7 +142,7 @@ export function drawSkillAtlas(c: CanvasRenderingContext2D, view: SkillAtlasView
     }else if(node.skill&&r>5){
       c.beginPath();c.arc(x,y,r+3,.2,Math.PI-.2);c.arc(x,y,r+3,Math.PI+.2,TAU-.2);c.strokeStyle=accent+'80';c.lineWidth=.8;c.stroke();
     }
-    if(r>=6)drawSkillGlyph(c,node,x,y,r*(landmark?1.18:1.25),owned?'#ffebbf':accent);
+    if(r>=6)drawSkillGlyph(c,node.skill&&!Object.hasOwn(SKILL_DEFINITIONS,node.skill)?{...node,skill:undefined}:node,x,y,r*(landmark?1.18:1.25),owned?'#ffebbf':accent);
     else{circle(c,x,y,r*.3);c.fillStyle=accent;c.fill();}
     if(selected||hover){
       const gap=Math.min(6,2+z*4);circle(c,x,y,r+gap);c.strokeStyle=selected?'#ffe4b0':'#dbf5ff';c.lineWidth=1;c.stroke();

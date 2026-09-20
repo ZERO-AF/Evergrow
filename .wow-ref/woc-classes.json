@@ -1,0 +1,5113 @@
+{
+ "warrior": {
+  "resource": "rage",
+  "color": 14056020,
+  "baseStats": {
+   "str": 23,
+   "agi": 20,
+   "sta": 22,
+   "int": 10,
+   "spi": 11,
+   "armor": 50
+  },
+  "statsPerLevel": {
+   "str": 2,
+   "agi": 1,
+   "sta": 2,
+   "int": 0,
+   "spi": 0,
+   "armor": 12
+  },
+  "baseHp": 50,
+  "hpPerLevel": 18,
+  "baseMana": 100,
+  "manaPerLevel": 0,
+  "startWeapon": "worn_sword",
+  "startOffhand": "eastbrook_buckler",
+  "abilities": [
+   {
+    "id": "heroic_strike",
+    "name": "Reaver Strike",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "onNextSwing": true,
+    "offGcd": true,
+    "effects": [
+     "weaponDamage"
+    ],
+    "desc": "A strong attack that increases melee damage by $d. Activates on your next swing."
+   },
+   {
+    "id": "revenge",
+    "name": "Revenge",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 7,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Attack in a wide arc, dealing 18 to 24 Physical damage to all enemies in front of you. Above 5 targets the damage is reduced. When you dodge"
+   },
+   {
+    "id": "battle_shout",
+    "name": "Iron Bellow",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "exclusiveGroup": "warrior_shout",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "A shout that increases the attack power of all party members by $b% for 30 min."
+   },
+   {
+    "id": "charge",
+    "name": "Onrush",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 25,
+    "school": "physical",
+    "learnLevel": 3,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "charge",
+     "stun"
+    ],
+    "desc": "Rushes an enemy, generating 9 rage and stunning it for 1 sec. 8-25 yd range."
+   },
+   {
+    "id": "thunder_clap",
+    "name": "Quaking Blow",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 4,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage",
+     "aoeAttackSpeed"
+    ],
+    "desc": "Blasts nearby enemies for $d damage and slows their attacks by 10% for 10 sec."
+   },
+   {
+    "id": "hamstring",
+    "name": "Hobbling Cut",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Maims the enemy for $d damage, slowing its movement by 50% for 15 sec."
+   },
+   {
+    "id": "bloodrage",
+    "name": "Blood Toll",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 6,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfDamagePctMax",
+     "gainResource"
+    ],
+    "desc": "Generates 10 rage at the cost of health."
+   },
+   {
+    "id": "overpower",
+    "name": "Redhand",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 5,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike",
+     "selfBuff"
+    ],
+    "desc": "Instant attack (2 charges) for weapon damage plus $d that empowers your next Maiming Strike by 20% (stacks twice). Cannot be dodged."
+   },
+   {
+    "id": "raging_gale",
+    "name": "Twinstrike",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike",
+     "weaponStrike",
+     "gainResource"
+    ],
+    "desc": "Instantly strike with your weapon twice, each hit dealing 40% weapon damage plus $d, and generate 4 rage. Stores up to 2 charges. (Fury)"
+   },
+   {
+    "id": "raised_guard",
+    "name": "Raised Guard",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "offGcd": true,
+    "requiresShield": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Brace behind your shield: you take 50% reduced Physical damage for 6 sec. Stores up to 2 charges. (Protection)"
+   },
+   {
+    "id": "pummel",
+    "name": "Jawcrack",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts spellcasting, preventing any spell in that school from being cast for 4 sec. Generates 10 rage when it stops a cast."
+   },
+   {
+    "id": "berserker_rage",
+    "name": "Seething Fury",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "gainResource"
+    ],
+    "desc": "Enter a berserker rage, generating 20 rage. (Warrior talent)"
+   },
+   {
+    "id": "execute",
+    "name": "Early Grave",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Attempt to finish off a wounded foe, causing $d damage. Only usable on enemies below 20% health."
+   },
+   {
+    "id": "furious_mending",
+    "name": "Furious Mending",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "For 10 sec you take 20% reduced damage, and while it lasts your Bloodletting heals you for 20% of your maximum health. (Fury)"
+   },
+   {
+    "id": "iron_resolve",
+    "name": "Iron Resolve",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "absorbSpentResource"
+    ],
+    "desc": "Grit your teeth and ignore the pain: spends up to 40 rage (20 minimum) to absorb 4 damage per rage spent, lasting up to 10 sec. (Protection)"
+   },
+   {
+    "id": "slam",
+    "name": "Brute Swing",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 4,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike",
+     "gainResource"
+    ],
+    "desc": "Swings brutally at the opponent for 50% weapon damage plus $d, generating 8 rage."
+   },
+   {
+    "id": "red_harvest",
+    "name": "Red Harvest",
+    "cost": 80,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike",
+     "weaponStrike",
+     "weaponStrike",
+     "enrageChance"
+    ],
+    "desc": "Spend everything: strike three times in a frenzy for 65% weapon damage plus $d each, always Enraging you. (Fury)"
+   },
+   {
+    "id": "whirlwind",
+    "name": "Bladed Gyre",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "aoeDamage",
+     "selfBuff"
+    ],
+    "desc": "Spin in a deadly arc, striking all nearby enemies for $d at no rage cost. Your next 2 single-target abilities also strike enemies near their"
+   },
+   {
+    "id": "faultline",
+    "name": "Faultline",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Send a shockwave through the ground: enemies in front of you within 8 yards take $d damage and are stunned for 3 sec. (Protection)"
+   },
+   {
+    "id": "heroic_leap",
+    "name": "Vaulting Charge",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 30,
+    "school": "physical",
+    "learnLevel": 6,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "repositionToAim"
+    ],
+    "desc": "Leap to the target area, dealing $d damage to nearby enemies on landing."
+   },
+   {
+    "id": "cleave",
+    "name": "Reaping Arc",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "A sweeping strike that hits all enemies in front of you for $d damage."
+   },
+   {
+    "id": "rallying_cry",
+    "name": "Valor Roar",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "effects": [
+     "aoeAllyMaxHp"
+    ],
+    "desc": "Lets loose a valorous roar, granting you and party members within 40 yards 20% additional maximum health for 10 sec. Protection: they also t"
+   },
+   {
+    "id": "emboldening_roar",
+    "name": "Emboldening Roar",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "effects": [
+     "aoeAllySureCrit"
+    ],
+    "desc": "Lets loose an emboldening roar: you and friendly players within 40 yards are Emboldened, and your next 3 abilities are guaranteed critical s"
+   },
+   {
+    "id": "defiant_bellow",
+    "name": "Defiant Bellow",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "aoeTaunt"
+    ],
+    "desc": "A defiant bellow: every enemy within 10 yards is taunted, compelled to attack you for 3 sec. (Protection)"
+   },
+   {
+    "id": "battle_stance",
+    "name": "Battle Stance",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 1,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "offGcd": true,
+    "exclusiveGroup": "warrior_stance",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "An aggressive combat stance: you generate 10% more rage. The default stance for Arms and Protection."
+   },
+   {
+    "id": "berserker_stance",
+    "name": "Berserker Stance",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 1,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "offGcd": true,
+    "exclusiveGroup": "warrior_stance",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "A reckless combat stance: your critical strikes land 3% more often and hit for 3% more. The Fury warrior always fights in this stance."
+   },
+   {
+    "id": "defensive_stance",
+    "name": "Guarded Stance",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 1,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "offGcd": true,
+    "exclusiveGroup": "warrior_stance",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "A defensive combat stance: you generate 30% more threat but deal and take 10% less damage. Cast Battle Stance to return to the offensive."
+   },
+   {
+    "id": "demoralizing_shout",
+    "name": "Direhowl",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "aoeAttackPower"
+    ],
+    "desc": "Lets out a fearsome shout, reducing the damage dealt by all nearby enemies by 20% for 20 sec."
+   },
+   {
+    "id": "intimidating_shout",
+    "name": "Intimidating Shout",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "aoeFear"
+    ],
+    "desc": "A terrifying shout that sends up to 5 enemies within 8 yards fleeing in fear for 4 sec. Damage may break the effect."
+   },
+   {
+    "id": "sunder_armor",
+    "name": "Armor Shear",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "sunder"
+    ],
+    "desc": "Sunders the target's armor, reducing it by $d% per application. Stacks up to 5 times. Generates a high amount of threat."
+   },
+   {
+    "id": "taunt",
+    "name": "Goad",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 8,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "taunt"
+    ],
+    "desc": "Goads the target: your threat rises to match its most hated enemy and it is compelled to attack you for 3 sec."
+   },
+   {
+    "id": "measured_fury",
+    "name": "Measured Fury",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Your measured fury sharpens your economy: your abilities cost 10% less rage. (Arms)"
+   },
+   {
+    "id": "seasoned_soldier",
+    "name": "Seasoned Soldier",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Your critical auto-attacks generate 10% more rage. (Arms)"
+   },
+   {
+    "id": "sudden_death",
+    "name": "Sudden Death",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Your auto-attacks have a chance to let you cast Early Grave on a target at any health, costing no rage. (Arms)"
+   },
+   {
+    "id": "diabolical_twinstrike",
+    "name": "Diabolical Twinstrike",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "While Enraged, your Twinstrike deals 15% more damage. (Fury)"
+   },
+   {
+    "id": "cleaving_blows",
+    "name": "Cleaving Blows",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Red Harvest always refunds a charge of Twinstrike. (Fury)"
+   },
+   {
+    "id": "breachmaker",
+    "name": "Breachmaker",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike",
+     "debuffTargetSource"
+    ],
+    "desc": "Batter the target for weapon damage plus $d and crack its guard: your own attacks against it deal 20% more damage for 8 sec. (Arms)"
+   },
+   {
+    "id": "sweeping_strikes",
+    "name": "Widening Arc",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "For 12 sec your single-target attacks also strike 1 nearby enemy for full damage. (Arms)"
+   },
+   {
+    "id": "deep_wounds",
+    "name": "Gaping Wounds",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 9,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: your Maiming Strike leaves the target bleeding for Physical damage over 6 sec. (Arms)"
+   },
+   {
+    "id": "enrage_passive",
+    "name": "Mayhem",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: while Enraged you deal 7% more damage, attack 25% faster and move 10% faster for 4 sec. Bloodletting has a 30% chance to Enrage you"
+   }
+  ]
+ },
+ "mage": {
+  "resource": "mana",
+  "color": 3391985,
+  "baseStats": {
+   "str": 10,
+   "agi": 12,
+   "sta": 14,
+   "int": 24,
+   "spi": 22,
+   "armor": 25
+  },
+  "statsPerLevel": {
+   "str": 0,
+   "agi": 0,
+   "sta": 1,
+   "int": 3,
+   "spi": 2,
+   "armor": 4
+  },
+  "baseHp": 40,
+  "hpPerLevel": 12,
+  "baseMana": 100,
+  "manaPerLevel": 24,
+  "startWeapon": "gnarled_staff",
+  "abilities": [
+   {
+    "id": "fireball",
+    "name": "Cinderbolt",
+    "cost": 30,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Hurls a fiery ball that causes $d Fire damage plus additional damage over time."
+   },
+   {
+    "id": "frost_armor",
+    "name": "Hoarfrost Mantle",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Encases you in frost, increasing armor by $b for 30 min."
+   },
+   {
+    "id": "arcane_intellect",
+    "name": "Aether Insight",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 3,
+    "requiresTarget": false,
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Increases the Intellect of all party members by $b% for 30 min."
+   },
+   {
+    "id": "frostbolt",
+    "name": "Rimelance",
+    "cost": 25,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Launches a bolt of frost, causing $d Frost damage and slowing movement by 40%."
+   },
+   {
+    "id": "conjure_water",
+    "name": "Waterbind",
+    "cost": 40,
+    "castTime": 3,
+    "cooldown": 0,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "effects": [],
+    "desc": "Conjures 2 bottles of water, restoring mana when drunk. Higher ranks conjure purer water."
+   },
+   {
+    "id": "blink",
+    "name": "Flitstep",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "blinkForward"
+    ],
+    "desc": "Teleports you 15 yd forward and breaks roots. (Mage talent)"
+   },
+   {
+    "id": "ice_block",
+    "name": "Cold Coffin",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 240,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "cleanseSelf",
+     "selfBuff"
+    ],
+    "desc": "Encases you in solid ice for 8 sec, becoming immune to all damage and effects and removing every harmful effect. Usable while stunned or pol"
+   },
+   {
+    "id": "ignition",
+    "name": "Ignition",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: your spell critical strikes burn the target for 30% of the damage dealt over 6 sec, stacking. (Fire mastery)"
+   },
+   {
+    "id": "hot_streak",
+    "name": "Hot Streak",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: two critical strikes in a row with your Fire spells (Cinderbolt, Cinderfall, Scald, Pyrelance or Flamestrike) make your next Pyrela"
+   },
+   {
+    "id": "blazing_barrier",
+    "name": "Blazing Barrier",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "absorb"
+    ],
+    "desc": "Wreathe yourself in flame, absorbing $d damage for 60 sec. (Fire)"
+   },
+   {
+    "id": "meteor",
+    "name": "Skystone",
+    "cost": 120,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "groundAoE"
+    ],
+    "desc": "Calls a meteor down on the target area: after a 2 sec fall it deals 90 to 120 Fire damage and Ignites everything it strikes. (Fire)"
+   },
+   {
+    "id": "combustion",
+    "name": "Phoenix Trance",
+    "cost": 100,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Combust: for 10 sec your Fire spells always critically strike, including bolts already in flight. Off the global cooldown. These crits build"
+   },
+   {
+    "id": "summon_water_elemental",
+    "name": "Summon Water Elemental",
+    "cost": 150,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "summonDemon"
+    ],
+    "desc": "Summon a Water Elemental to fight beside you, hurling Waterbolts at your target and channeling Water Jet. (Frost)"
+   },
+   {
+    "id": "ice_lance",
+    "name": "Ice Lance",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Hurl a shard of ice, dealing $d Frost damage, tripled against a frozen target. Spends Fingers of Frost, or a charge of Winter's Chill, to tr"
+   },
+   {
+    "id": "fingers_of_frost",
+    "name": "Fingers of Frost",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Rimelance has a 15% chance to grant Fingers of Frost, up to 2 charges: your next Ice Lance treats its target as frozen. (Frost)"
+   },
+   {
+    "id": "brain_freeze",
+    "name": "Brain Freeze",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Rimelance has a 20% chance to make your next Winterlash instant and free of its cooldown. (Frost)"
+   },
+   {
+    "id": "shatter",
+    "name": "Brittle Ruin",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Your spells gain 50% critical strike chance against frozen targets. Fingers of Frost and Winter's Chill count as frozen. (Frost)"
+   },
+   {
+    "id": "conjure_food",
+    "name": "Breadbind",
+    "cost": 45,
+    "castTime": 3,
+    "cooldown": 0,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [],
+    "desc": "Conjures 2 servings of bread, restoring health when eaten. Higher ranks conjure heartier fare."
+   },
+   {
+    "id": "counterspell",
+    "name": "Spellsever",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 24,
+    "range": 30,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Counters enemy spellcasting, preventing any spell in that school from being cast for 6 sec. (Mage talent)"
+   },
+   {
+    "id": "fire_blast",
+    "name": "Cinderfall",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 20,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Blasts the enemy for $d Fire damage. Instant."
+   },
+   {
+    "id": "arcane_missiles",
+    "name": "Aether Darts",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "channel": {
+     "duration": 3,
+     "ticks": 3
+    },
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Launches Aether Darts at the enemy, causing $d Arcane damage each second for 3 sec."
+   },
+   {
+    "id": "flurry",
+    "name": "Winterlash",
+    "cost": 30,
+    "castTime": 1.5,
+    "cooldown": 10,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "directDamage",
+     "directDamage"
+    ],
+    "desc": "Loose three icy bolts for $d Frost damage each and plant Winter's Chill on the target: its next 2 incoming compatible spells treat it as fro"
+   },
+   {
+    "id": "polymorph",
+    "name": "Bewitch",
+    "cost": 50,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "effects": [
+     "polymorph"
+    ],
+    "desc": "Transforms the enemy into a toad for up to $t sec. The toad wanders and heals rapidly. Any damage breaks the effect. Beasts and humanoids on"
+   },
+   {
+    "id": "frost_nova",
+    "name": "Icebind",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 22,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 3,
+    "requiresTarget": false,
+    "effects": [
+     "aoeRoot"
+    ],
+    "desc": "Freezes all nearby enemies in place for up to 8 sec, dealing $d Frost damage. The root breaks after cumulative damage equal to 15% of the ta"
+   },
+   {
+    "id": "frozen_orb",
+    "name": "Frostglobe",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 15,
+    "requiresTarget": false,
+    "effects": [
+     "frozenOrb"
+    ],
+    "desc": "Release an orb of swirling frost that drifts forward for 8 sec, dealing $d Frost damage each second to nearby enemies and slowing them by 30"
+   },
+   {
+    "id": "blizzard",
+    "name": "Blizzard",
+    "cost": 70,
+    "castTime": 2,
+    "cooldown": 8,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "groundAoE"
+    ],
+    "desc": "Conjures an ice storm at the target area: after a 2 sec cast it rages for 6 sec, dealing 12 to 16 Frost damage each second and slowing enemi"
+   },
+   {
+    "id": "icy_veins",
+    "name": "Coldsurge",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff",
+     "selfBuff"
+    ],
+    "desc": "Increases spell haste by 30% and prevents cast interruption and pushback for 10 sec. (Frost signature)"
+   },
+   {
+    "id": "glacial_spike",
+    "name": "Rimeneedle",
+    "cost": 50,
+    "castTime": 2.7,
+    "cooldown": 0,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 16,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "root"
+    ],
+    "desc": "Conjure a massive spike of ice, consuming 5 Icicles to deal $d Frost damage and freeze the target in place for 4 sec. (Frost)"
+   },
+   {
+    "id": "glacial_front",
+    "name": "Glacial Front",
+    "cost": 80,
+    "castTime": 2.4,
+    "cooldown": 12,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 17,
+    "requiresTarget": false,
+    "effects": [
+     "empoweredCone"
+    ],
+    "desc": "Hold to gather a widening front of frost, then release it in a cone. Longer charges reach farther and deal more damage. All enemies hit are "
+   },
+   {
+    "id": "dragons_breath",
+    "name": "Dragon's Breath",
+    "cost": 90,
+    "castTime": 2.4,
+    "cooldown": 20,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "empoweredCone"
+    ],
+    "desc": "Hold to gather a widening breath of flame, then release it in a cone. Longer charges reach farther and deal more damage. Enemies hit are dis"
+   },
+   {
+    "id": "arcane_explosion",
+    "name": "Aetherburst",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 7,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "A burst of Arcane energy hits all nearby enemies for $d Arcane damage."
+   },
+   {
+    "id": "scorch",
+    "name": "Scald",
+    "cost": 35,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "selfBuff"
+    ],
+    "desc": "Scalds the enemy for $d Fire damage and quickens you by 20% for 3 sec. Quick to cast, and castable while moving."
+   },
+   {
+    "id": "ice_barrier",
+    "name": "Frostveil",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "frost",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "absorb"
+    ],
+    "desc": "Shields you in ice, absorbing $d damage for 60 sec."
+   },
+   {
+    "id": "pyroblast",
+    "name": "Pyrelance",
+    "cost": 125,
+    "castTime": 6,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Hurls an immense fiery boulder that causes $d Fire damage plus additional damage over time."
+   },
+   {
+    "id": "flamestrike",
+    "name": "Flamestrike",
+    "cost": 80,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Calls down a burst of flame at the target area, dealing $d Fire damage to enemies caught in the blast. Can critically strike (one strike for"
+   },
+   {
+    "id": "temporal_barrier",
+    "name": "Temporal Barrier",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "absorb"
+    ],
+    "desc": "Shifts the target a heartbeat out of the present, a temporal shell absorbing $d damage for 10 sec before the timeline snaps back."
+   },
+   {
+    "id": "temporal_echo",
+    "name": "Temporal Echo",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal",
+     "temporalEcho"
+    ],
+    "desc": "Marks an ally with an echo of a healthier moment, mending $d health at once. For $t sec, $x% of your other single-target Arcane damage and $"
+   },
+   {
+    "id": "arcane_surge",
+    "name": "Aether Surge",
+    "cost": 14,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Draws a surge of raw aether through the enemy for $d damage. Each cast leaves an Arcane Charge that raises your next Aether Surge's damage a"
+   },
+   {
+    "id": "temporal_cascade",
+    "name": "Temporal Cascade",
+    "cost": 90,
+    "castTime": 1.5,
+    "cooldown": 17,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "massTemporalEcho"
+    ],
+    "desc": "Sends an echo cascading through your group: the target and up to four of their nearest allies are mended at once, healing for more on those "
+   },
+   {
+    "id": "temporal_reversal",
+    "name": "Temporal Reversal",
+    "cost": 60,
+    "castTime": 2,
+    "cooldown": 600,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 16,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "resurrectAlly"
+    ],
+    "desc": "Rewinds a fallen ally's timeline, returning them to life at your side with 35% of their health and mana, even in the thick of combat. (Chron"
+   },
+   {
+    "id": "collective_reversal",
+    "name": "Collective Reversal",
+    "cost": 250,
+    "castTime": 7,
+    "cooldown": 300,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "massResurrectGroup"
+    ],
+    "desc": "Rewinds every fallen member of your group or raid within 40 yards and in your line of sight, returning them to life at your side with 30% he"
+   },
+   {
+    "id": "temporal_rewind",
+    "name": "Rewind",
+    "cost": 150,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "rewind"
+    ],
+    "desc": "Sends an arcane wave through your group or raid, rewinding time to restore 30% of the damage each ally within 40 yards took over the last 5 "
+   },
+   {
+    "id": "temporal_hourglass",
+    "name": "Hourglass of Suspension",
+    "cost": 110,
+    "castTime": 0,
+    "cooldown": 50,
+    "range": 28,
+    "school": "arcane",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "temporalHourglass"
+    ],
+    "desc": "Place a temporal hourglass at the selected location. Beneath an enemy, it suspends them for $e sec in PvE or $p sec in PvP and prevents all "
+   },
+   {
+    "id": "temporal_acceleration",
+    "name": "Temporal Acceleration",
+    "cost": 120,
+    "castTime": 0,
+    "cooldown": 300,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "aoeAllyHaste"
+    ],
+    "desc": "Accelerates the flow of time for your group or raid, increasing attack, casting, and channeling speed by 30% for 15 sec. Allies recently aff"
+   },
+   {
+    "id": "perfect_moment",
+    "name": "Perfect Moment",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "arcane",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "perfectMoment"
+    ],
+    "desc": "Seize your perfect moment: instantly gain 4 Arcane Charges, and for 10 sec Aether Darts does not consume them. (Chronomancer)"
+   },
+   {
+    "id": "fireball_form",
+    "name": "Ember Form",
+    "cost": 50,
+    "castTime": 2,
+    "cooldown": 10,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Transform into a blazing ember, increasing movement speed by $b%. You cannot attack or cast spells while transformed. Recast to return to yo"
+   }
+  ]
+ },
+ "rogue": {
+  "resource": "energy",
+  "color": 16576088,
+  "baseStats": {
+   "str": 17,
+   "agi": 25,
+   "sta": 17,
+   "int": 11,
+   "spi": 12,
+   "armor": 40
+  },
+  "statsPerLevel": {
+   "str": 1,
+   "agi": 3,
+   "sta": 1,
+   "int": 0,
+   "spi": 0,
+   "armor": 8
+  },
+  "baseHp": 45,
+  "hpPerLevel": 15,
+  "baseMana": 100,
+  "manaPerLevel": 0,
+  "startWeapon": "rusty_dagger",
+  "startOffhand": "rusty_dagger",
+  "abilities": [
+   {
+    "id": "sinister_strike",
+    "name": "Wicked Slash",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "An instant strike for weapon damage plus $d. Awards 1 combo point."
+   },
+   {
+    "id": "eviscerate",
+    "name": "Dirt Nap",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "effects": [
+     "finisherDamage"
+    ],
+    "desc": "Finishing move that causes $d."
+   },
+   {
+    "id": "garrote",
+    "name": "Throat Wire",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "requiresStealth": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Loop a wire around the enemy's throat, causing $d damage now and bleeding it for $o over 18 sec. Must be stealthed. Awards 1 combo point."
+   },
+   {
+    "id": "backstab",
+    "name": "Craven Thrust",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 3,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Drive your dagger into the target's back for 150% weapon damage plus $d. Must be behind the target. Requires a dagger. Awards 1 combo point."
+   },
+   {
+    "id": "gouge",
+    "name": "Eye Jab",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "effects": [
+     "directDamage",
+     "incapacitate"
+    ],
+    "desc": "Strikes the target for $d damage, incapacitating it for 4 sec, and resets your own weapon swing timer so your queued auto attack does not br"
+   },
+   {
+    "id": "cheap_shot",
+    "name": "Gut Punch",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "awardsCombo": 2,
+    "requiresStealth": true,
+    "effects": [
+     "directDamage",
+     "stun"
+    ],
+    "desc": "Strike the target for $d damage, stunning it for 4 sec. Must be stealthed. Awards 2 combo points."
+   },
+   {
+    "id": "evasion",
+    "name": "Ghostfoot",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 300,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 6,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Increases your dodge chance by 50% for 15 sec."
+   },
+   {
+    "id": "sap",
+    "name": "Sap",
+    "cost": 65,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "requiresStealth": true,
+    "effects": [
+     "incapacitate"
+    ],
+    "desc": "Incapacitates the target for 8 sec without breaking Duskveil or starting a fight. Must be stealthed and out of combat. Any damage breaks the"
+   },
+   {
+    "id": "slice_and_dice",
+    "name": "Cutthroat Tempo",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "effects": [
+     "finisherHaste"
+    ],
+    "desc": "Finishing move that increases melee attack speed by 30% for 12 sec plus 4 sec per combo point (5 combo points: 32 sec)."
+   },
+   {
+    "id": "sprint",
+    "name": "Swift Heels",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 300,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Increases your movement speed by 70% for 15 sec."
+   },
+   {
+    "id": "crippling_poison",
+    "name": "Leaden Venom",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Strikes the target with a crippling poison, dealing $d Nature damage and slowing its movement speed by 50% for 12 sec."
+   },
+   {
+    "id": "kidney_shot",
+    "name": "Low Blow",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "effects": [
+     "finisherStun"
+    ],
+    "desc": "Finishing move that stuns the target for 1 sec plus 1 sec per combo point (5 combo points: 6 sec)."
+   },
+   {
+    "id": "expose_armor",
+    "name": "Armor Breach",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "effects": [
+     "sunder"
+    ],
+    "desc": "Finishing move that exposes the target for 30 sec: each combo point spent reduces its armor by 2% (5 combo points: $d%)."
+   },
+   {
+    "id": "ambush",
+    "name": "Lurker's Strike",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "requiresStealth": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Strike from the shadows for 250% weapon damage plus $d. Must be stealthed and behind the target. Requires a dagger. Awards 1 combo point."
+   },
+   {
+    "id": "rupture",
+    "name": "Bleed Out",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "Finishing move that wounds the target: it bleeds every 2 sec, for 6 sec plus 2 sec per combo point (5 combo points: 16 sec and $d total dama"
+   },
+   {
+    "id": "vanish",
+    "name": "Smokefade",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 300,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Melt from sight, entering Duskveil even in combat. You move 50% slower while hidden. Lasts up to 10 sec."
+   },
+   {
+    "id": "instant_poison",
+    "name": "Adder's Bite",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Coats your weapon for 30 min, causing each of your melee swings to deal $d additional Nature damage."
+   },
+   {
+    "id": "adrenaline_rush",
+    "name": "Quickened Blood",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "gainResource"
+    ],
+    "desc": "Your blood runs hot, instantly restoring 60 energy."
+   },
+   {
+    "id": "deadly_poison",
+    "name": "Festering Venom",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Coats your weapon for 30 min. Each of your melee swings adds a stack of venom to the target, up to 5, and refreshes the 12 sec duration. Eac"
+   },
+   {
+    "id": "melting_acid",
+    "name": "Melting Acid",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Coats your weapon for 30 min. Each of your melee swings splashes the target with caustic acid, reducing its armor by 5% for 12 sec."
+   },
+   {
+    "id": "nightshade_coating",
+    "name": "Nightshade Coating",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Coats your weapon for 30 min. Each of your melee swings coats the target in nightshade, reducing the healing it receives by 25% for 12 sec."
+   },
+   {
+    "id": "blind",
+    "name": "Dirt Toss",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 5,
+    "school": "physical",
+    "learnLevel": 20,
+    "requiresTarget": true,
+    "effects": [
+     "incapacitate"
+    ],
+    "desc": "Tosses dirt into the target's eyes, causing it to wander disoriented for 8 sec. Any damage breaks the effect."
+   },
+   {
+    "id": "stealth",
+    "name": "Duskveil",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 2,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Conceals you in the shadows: enemies barely notice you, but you move 50% slower. Attacking or taking damage breaks Duskveil. Cast again to s"
+   },
+   {
+    "id": "kick",
+    "name": "Boot",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts the target's spellcast and prevents casting from that school for 4 sec."
+   },
+   {
+    "id": "venom_dart",
+    "name": "Venom Dart",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 20,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Flick a poisoned dart for $d Nature damage. Awards 1 combo point."
+   }
+  ]
+ },
+ "paladin": {
+  "resource": "mana",
+  "color": 16092320,
+  "baseStats": {
+   "str": 22,
+   "agi": 17,
+   "sta": 22,
+   "int": 13,
+   "spi": 14,
+   "armor": 45
+  },
+  "statsPerLevel": {
+   "str": 2,
+   "agi": 1,
+   "sta": 2,
+   "int": 1,
+   "spi": 1,
+   "armor": 12
+  },
+  "baseHp": 55,
+  "hpPerLevel": 17,
+  "baseMana": 80,
+  "manaPerLevel": 20,
+  "startWeapon": "training_mace",
+  "startOffhand": "eastbrook_buckler",
+  "abilities": [
+   {
+    "id": "seal_of_righteousness",
+    "name": "Oathbrand",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Fills you with Holy power for 30 sec, causing each of your melee swings to deal $d additional Holy damage."
+   },
+   {
+    "id": "holy_light",
+    "name": "Mending Light",
+    "cost": 25,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Quickly heals a friendly target for $d. Restoring health generates 1 Devotion, even without a specialization. Radiant Resonance or Solar Rep"
+   },
+   {
+    "id": "blessing_of_might",
+    "name": "Oath of Iron",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Blesses the party, increasing the attack power of all party members by $b% for 30 min."
+   },
+   {
+    "id": "divine_protection",
+    "name": "Ward of Faith",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 6,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "absorb"
+    ],
+    "desc": "A holy shield absorbs $d% of your maximum health for $t sec. Enduring Protection increases the shield."
+   },
+   {
+    "id": "hammer_of_justice",
+    "name": "Sundering Gavel",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 10,
+    "school": "holy",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "stun"
+    ],
+    "desc": "Stuns the target for $t sec."
+   },
+   {
+    "id": "lay_on_hands",
+    "name": "Last Rite",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 600,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "A massive surge that restores $d% of your maximum health and generates 1 Devotion when it restores health. 10 min cooldown."
+   },
+   {
+    "id": "flash_of_light",
+    "name": "Lightmend",
+    "cost": 35,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "A quick, efficient burst of Light that heals a friendly target for $d. Restoring health generates 1 Devotion, even without a specialization."
+   },
+   {
+    "id": "exorcism",
+    "name": "Rite of Expulsion",
+    "cost": 55,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Banishes the wicked with Holy wrath, causing $d Holy damage."
+   },
+   {
+    "id": "consecration",
+    "name": "Holy Ground",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "groundAoE"
+    ],
+    "desc": "Consecrate the ground beneath you for 9 sec, dealing $d Holy damage with high threat every second. The first impact generates 1 Devotion. Fa"
+   },
+   {
+    "id": "righteous_fury",
+    "name": "Burning Oath",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passively increases the threat generated by your Holy damage by 30%. Faithwarden only."
+   },
+   {
+    "id": "rebuke",
+    "name": "Reproach",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts spellcasting and prevents any spell in that school from being cast for 4 sec. (Paladin talent)"
+   },
+   {
+    "id": "sacred_bulwark",
+    "name": "Sacred Bulwark",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "For $t sec, the next enemy hit that would kill you is denied, restoring you to 35% health instead."
+   },
+   {
+    "id": "holy_shock",
+    "name": "Lightjolt",
+    "cost": 55,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "targetType": "any",
+    "effects": [
+     "heal",
+     "directDamage"
+    ],
+    "desc": "Shocks a friendly target with Holy energy to heal them, or an enemy for $d Holy damage. (Holy signature)"
+   },
+   {
+    "id": "holy_shield",
+    "name": "Hallowed Wall",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 13,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff",
+     "absorb",
+     "threatPulse"
+    ],
+    "desc": "Gain 30% block and a shield that absorbs $d% of your maximum health for $t sec, releasing a pulse of threat. Ascension strengthens and exten"
+   },
+   {
+    "id": "crusader_strike",
+    "name": "Oathstrike",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 4,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Strikes the target for weapon damage plus $d Holy damage. (Paladin talent)"
+   },
+   {
+    "id": "divine_ascension",
+    "name": "Divine Ascension",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "divineAscension"
+    ],
+    "desc": "Consume 20 Devotion to gain 5 Ascension charges for up to 45 sec. Marked abilities consume one charge and gain an additional effect."
+   },
+   {
+    "id": "devotion_ward",
+    "name": "Bastion Devotion",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "exclusiveGroup": "paladin_devotion",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Reduce damage taken by you and party members by 5% until death or replacement. Replaces your own Requital Aura. Another Paladin casting Bast"
+   },
+   {
+    "id": "radiant_devotion",
+    "name": "Radiant Devotion",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Increase the spell power of you and party members by 20 for 30 min. Replaces your own Dawn or Grace Devotion. Another Paladin casting Radian"
+   },
+   {
+    "id": "dawn_devotion",
+    "name": "Dawn Devotion",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 3,
+    "requiresTarget": false,
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Increase the attack power of you and party members by 40 for 30 min. Replaces your own Radiant or Grace Devotion. Another Paladin casting Da"
+   },
+   {
+    "id": "grace_devotion",
+    "name": "Grace Devotion",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "You and party members restore 15 mana every 5 sec and pay 3% less mana for 30 min. Replaces your own Radiant or Dawn Devotion. Another Palad"
+   },
+   {
+    "id": "retribution_aura",
+    "name": "Requital Aura",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 7,
+    "requiresTarget": false,
+    "exclusiveGroup": "paladin_devotion",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Surrounds you and your party with holy energy until death or replacement. Enemies that strike an affected ally in melee take $b Holy damage,"
+   },
+   {
+    "id": "hammer_of_grace",
+    "name": "Hammer of Grace",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 7,
+    "range": 20,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Instantly hurl a holy hammer at an enemy within 20 m for $d, restoring 70 mana, healing yourself for 50% of damage dealt, and generating 1 D"
+   },
+   {
+    "id": "hushbrand",
+    "name": "Hushbrand",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 5,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts spellcasting and prevents spells from that school for 4 sec."
+   },
+   {
+    "id": "solar_step",
+    "name": "Solar Step",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Increase your movement speed by 150% for 2 sec."
+   },
+   {
+    "id": "solar_invocation",
+    "name": "Solar Invocation",
+    "cost": 80,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 9,
+    "requiresTarget": true,
+    "targetType": "any",
+    "effects": [
+     "heal",
+     "directDamage"
+    ],
+    "desc": "Instantly heal an ally for $d or deal moderate Holy damage to an enemy. Either use generates 1 Devotion. During Ascension, a healing cast al"
+   },
+   {
+    "id": "recall_the_fallen",
+    "name": "Recall the Fallen",
+    "cost": 60,
+    "castTime": 8,
+    "cooldown": 300,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "resurrectAlly"
+    ],
+    "desc": "Returns a dead group member to life at your side with 35% health and mana. A Sunmender of level 16 or higher instead calls back every fallen"
+   },
+   {
+    "id": "beacon_of_light",
+    "name": "Beacon of Light",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 7,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 16,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "beaconOfLight"
+    ],
+    "desc": "Mark one group member as your Beacon of Light. 50% of your effective direct healing on another group member within 60 m also heals the Beaco"
+   },
+   {
+    "id": "final_edict",
+    "name": "Final Edict",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Deliver a crushing weapon strike and generate 1 Devotion when it deals damage. A successful hit reduces Dawnfall's remaining cooldown by 2 s"
+   },
+   {
+    "id": "dawnfall",
+    "name": "Dawnfall",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Deal $d Holy damage to nearby enemies and generate 1 Devotion. Hitting at least one enemy reduces Final Edict's remaining cooldown by 2 sec."
+   },
+   {
+    "id": "faithforged_guard",
+    "name": "Debt of Light",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 9,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "For 8 sec, the next enemy hit against you is answered: up to $b damage is denied and returned to the attacker as Holy damage, and you gain 1"
+   },
+   {
+    "id": "hammer_of_wrath",
+    "name": "Tolling Hammer",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "executeThreshold": 0.2,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Hurl a holy hammer for $d damage and generate 1 Devotion. Usable below 20% health, or during Divine Ascension or Zealwing. Dawn's Wrath gran"
+   },
+   {
+    "id": "guardian_covenant",
+    "name": "Guardian Covenant",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "offGcd": true,
+    "effects": [
+     "buffTarget",
+     "selfBuff"
+    ],
+    "desc": "Protects a friendly target and yourself, reducing damage taken by 20% for 8 sec. Defaults to you when no friendly target is selected."
+   },
+   {
+    "id": "avenging_wrath",
+    "name": "Zealwing",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff",
+     "selfBuff",
+     "grantDevotion"
+    ],
+    "desc": "Unfurl physical wings of golden holy power, gaining 10 Devotion and doubling Devotion generated by your abilities for 15 sec. Also increases"
+   },
+   {
+    "id": "sun_gods_verdict",
+    "name": "Verdict of the Sun God",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 17,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "sunGodVerdict"
+    ],
+    "desc": "Judge an enemy beneath the Verdict of the Sun God for 30 sec. Final Edict and Dawnfall inscribe one charge on a successful hit. The ability "
+   },
+   {
+    "id": "valkyrs_calling",
+    "name": "Valkyr's Calling",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 20,
+    "school": "holy",
+    "learnLevel": 13,
+    "requiresTarget": true,
+    "effects": [
+     "valkyrsCalling"
+    ],
+    "desc": "Ascend into the air, becoming immune to damage as you fly toward the enemy. After 2 sec, descend upon the target area for $d Holy damage and"
+   },
+   {
+    "id": "mercy_lance",
+    "name": "Mercy Lance",
+    "cost": 20,
+    "castTime": 1.75,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "targetType": "enemy",
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Deal $d Holy damage to an enemy and generate 1 Devotion when it deals damage. During Ascension, it consumes 1 charge to guarantee a critical"
+   },
+   {
+    "id": "sacred_form",
+    "name": "Sacred Form",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Enter a sacred state until death, increasing healing by 10%, spell critical chance by 5%, and reducing threat generated by 50%. Sunmender on"
+   },
+   {
+    "id": "dawns_embrace",
+    "name": "Dawn's Embrace",
+    "cost": 90,
+    "castTime": 2.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 13,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Deliver a powerful heal and generate 1 Devotion. Radiant Resonance reduces its mana cost by 50% and cast time to 1.5 sec. Ascension makes it"
+   },
+   {
+    "id": "radiant_chorus",
+    "name": "Radiant Chorus",
+    "cost": 60,
+    "castTime": 2,
+    "cooldown": 12,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "effects": [
+     "aoeHeal"
+    ],
+    "desc": "Heal nearby allies for $d and generate 1 Devotion. Effectively healing at least 2 allies grants Radiant Resonance: your next Mending Light i"
+   },
+   {
+    "id": "life_covenant",
+    "name": "Life Covenant",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 90,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "offGcd": true,
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Reduce an ally's damage taken by 40% for 6 sec. During Ascension it also grants a 120-point shield without consuming a charge."
+   },
+   {
+    "id": "aegis_first_dawn",
+    "name": "Aegis of the First Dawn",
+    "cost": 150,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "channel": {
+     "duration": 5,
+     "ticks": 5
+    },
+    "effects": [
+     "paladinAegis"
+    ],
+    "desc": "Channel for 5 sec, creating a 10 meter holy dome. Allies inside are healed every second and take 50% less damage. Completing the channel rel"
+   },
+   {
+    "id": "vowkeeper_strike",
+    "name": "Vowkeeper Strike",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 5,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Strike with high threat and generate 1 Devotion. A successful strike has a 20% chance to grant Solar Reprisal for 8 sec; each successful blo"
+   },
+   {
+    "id": "bastion_rite",
+    "name": "Bastion Rite",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 7,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff",
+     "selfBuff"
+    ],
+    "desc": "Reduce physical damage taken by 20% and increase block chance by 20% for 6 sec. Ascension extends the duration to 10 sec."
+   },
+   {
+    "id": "sunward_disc",
+    "name": "Sunward Disc",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "requiresShield": true,
+    "effects": [
+     "directDamage",
+     "chainDamage"
+    ],
+    "desc": "Requires a shield. Hurl a radiant disc that strikes and then bounces between nearby enemies. Each damaging impact generates 1 Devotion. Sola"
+   },
+   {
+    "id": "sacred_challenge",
+    "name": "Sacred Goad",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "taunt"
+    ],
+    "desc": "Compel an enemy to attack you. During Ascension it also reduces all damage received by 15% for 4 sec without consuming a charge."
+   },
+   {
+    "id": "bastion_sweep",
+    "name": "Bastion Sweep",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "requiresShield": true,
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Sweep your equipped shield through enemies in a 180 degree frontal arc for $d Holy damage with high threat and generate 1 Devotion. Ascensio"
+   },
+   {
+    "id": "oath_chain",
+    "name": "Oath Chain",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 18,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "pullTarget"
+    ],
+    "desc": "Instantly bind a distant enemy with a sacred chain. The enemy travels toward you at 18 m per second until it reaches 3 m, then is slowed by "
+   },
+   {
+    "id": "veilbound_march",
+    "name": "Veilbound March",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 75,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "effects": [
+     "veilboundMarch"
+    ],
+    "desc": "Become ethereal for 4 sec, gaining 40% movement speed and 30% armor and becoming immune to roots, slows, and displacement. Enemies you pass "
+   }
+  ]
+ },
+ "hunter": {
+  "resource": "focus",
+  "color": 10934351,
+  "baseStats": {
+   "str": 14,
+   "agi": 25,
+   "sta": 19,
+   "int": 13,
+   "spi": 14,
+   "armor": 45
+  },
+  "statsPerLevel": {
+   "str": 1,
+   "agi": 3,
+   "sta": 2,
+   "int": 1,
+   "spi": 1,
+   "armor": 8
+  },
+  "baseHp": 50,
+  "hpPerLevel": 15,
+  "baseMana": 100,
+  "manaPerLevel": 0,
+  "startWeapon": "rusty_hatchet",
+  "abilities": [
+   {
+    "id": "raptor_strike",
+    "name": "Gutting Strike",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Strike for 10% weapon damage plus $d. A hit restores 15 Focus and grants 1 Hunting Momentum. Damage increases with Attack Power through weap"
+   },
+   {
+    "id": "pack_command",
+    "name": "Pack Command",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 4,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "packCommand"
+    ],
+    "desc": "Command your living pet to strike for 36 to 48 Physical damage. Damage increases with the pet's Attack Power. A hit restores 20 Focus and gr"
+   },
+   {
+    "id": "stampede",
+    "name": "Stampede",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 90,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 17,
+    "requiresTarget": true,
+    "effects": [
+     "hunterStampede"
+    ],
+    "desc": "Summon 3 beasts for 12 sec. Each attacks every 2 sec for $d Physical damage. The shown damage includes 8% of your Ranged Attack Power before"
+   },
+   {
+    "id": "measured_shot",
+    "name": "Measured Shot",
+    "cost": 0,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "gainResource"
+    ],
+    "desc": "Shoot the target for $d Physical damage. A hit restores 20 Focus. Damage increases with Ranged Attack Power."
+   },
+   {
+    "id": "aspect_of_the_hawk",
+    "name": "Harrier's Guise",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "exclusiveGroup": "aspect",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Adopt Harrier's Guise, increasing your Attack Power by $b for 30 min."
+   },
+   {
+    "id": "serpent_sting",
+    "name": "Venom Barb",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 35,
+    "school": "nature",
+    "learnLevel": 3,
+    "requiresTarget": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "Deal $d total Nature damage over 15 sec, once every 3 sec. Damage increases with Ranged Attack Power."
+   },
+   {
+    "id": "arcane_shot",
+    "name": "Fell Shot",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 35,
+    "school": "arcane",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Shoot the target for $d Arcane damage. Damage increases with Ranged Attack Power."
+   },
+   {
+    "id": "concussive_shot",
+    "name": "Rattling Shot",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Shoot the target for $d Physical damage and slow it by 50% for 4 sec. Damage increases with Ranged Attack Power."
+   },
+   {
+    "id": "mongoose_bite",
+    "name": "Woundrend",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Strike for 45% weapon damage plus $d. If the target has your Bloodhook Wound, deal 1 wound tick immediately and refresh the wound to 12 sec."
+   },
+   {
+    "id": "hunting_momentum",
+    "name": "Hunting Momentum",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: Gutting Strike grants 1 Hunting Momentum for 8 sec, up to 3. At 3 stacks, Woundrend deals 45% more strike damage and consumes the s"
+   },
+   {
+    "id": "fieldcraft_reentry",
+    "name": "Armed Re-entry",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: Trailbreak refreshes Hunting Momentum and arms your next Gutting Strike or Bloodhook for 12 sec. Gutting Strike deals 15% more dama"
+   },
+   {
+    "id": "wing_clip",
+    "name": "Fettering Slash",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Slash the target for $d Physical damage and slow it by 40% for 10 sec. Damage increases with Attack Power."
+   },
+   {
+    "id": "trailbreak",
+    "name": "Trailbreak",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "hunterTrailbreak"
+    ],
+    "desc": "Leap 12 yards backward. If you have Hunting Momentum, refresh it and arm Re-entry for 12 sec."
+   },
+   {
+    "id": "wildheart",
+    "name": "Wildheart",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 6,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfHealPctMax"
+    ],
+    "desc": "Immediately restore 30% of your maximum health."
+   },
+   {
+    "id": "shellskin",
+    "name": "Shellskin",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Reduce damage taken by 60% for 8 sec, but prevent attacks while active."
+   },
+   {
+    "id": "frostjaw_trap",
+    "name": "Frostjaw Trap",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 30,
+    "school": "frost",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "effects": [
+     "frostjawTrap"
+    ],
+    "desc": "Place a trap at the selected enemy or at your feet. It arms after 0.75 sec and lasts 30 sec. The first enemy to trigger it is rooted for 3 s"
+   },
+   {
+    "id": "tame_beast",
+    "name": "Wildbond",
+    "cost": 0,
+    "castTime": 6,
+    "cooldown": 0,
+    "range": 20,
+    "school": "nature",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "tamePet"
+    ],
+    "desc": "Begins taming a beast to be your companion. It must be your level or lower and not an elite. Your pet follows you, attacks your enemies, and"
+   },
+   {
+    "id": "dismiss_pet",
+    "name": "Release Companion",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "dismissPet"
+    ],
+    "desc": "Releases your pet back to the wild."
+   },
+   {
+    "id": "revive_pet",
+    "name": "Patch Up",
+    "cost": 45,
+    "castTime": 3,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "hot"
+    ],
+    "desc": "Restore $o health to your living companion over 12 sec. Healing increases with Spell Power. If your companion is dead, revive it with 35% he"
+   },
+   {
+    "id": "aspect_of_the_monkey",
+    "name": "Marten's Guise",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "exclusiveGroup": "aspect",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Adopt Marten's Guise, increasing your dodge chance by 8% for 30 min."
+   },
+   {
+    "id": "aspect_of_the_cheetah",
+    "name": "Courser's Guise",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "exclusiveGroup": "aspect",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Adopt Courser's Guise, increasing your movement speed by 30% for 30 min. While active, taking damage dazes you, halving your movement speed "
+   },
+   {
+    "id": "aimed_shot",
+    "name": "Long Draw",
+    "cost": 35,
+    "castTime": 2.5,
+    "cooldown": 0,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 11,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Shoot the target for $d Physical damage. Damage increases with Ranged Attack Power. Coldsight Read from a completed Fevered Draw makes your "
+   },
+   {
+    "id": "rapid_fire",
+    "name": "Fevered Draw",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "channel": {
+     "duration": 2.4,
+     "ticks": 6
+    },
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Fire 6 shots over 2.4 sec while moving. Each shot deals $d Physical damage and increases with Ranged Attack Power. Completing all 6 shots gr"
+   },
+   {
+    "id": "shrapnel_charge",
+    "name": "Shrapnel Charge",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 25,
+    "school": "physical",
+    "learnLevel": 11,
+    "requiresTarget": true,
+    "effects": [
+     "hunterShrapnel"
+    ],
+    "desc": "Hit the target for 24 to 30 Physical damage and up to 4 other enemies within 6 yards for 13 to 17. Other targets also bleed for 12 damage ov"
+   },
+   {
+    "id": "bloodtrail_assault",
+    "name": "Bloodtrail Assault",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 90,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 17,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "For 12 sec, Bloodhook spreads a 60%-strength wound to up to 2 enemies within 5 yards, Woundrend commands an 18-damage pet attack, and Shrapn"
+   },
+   {
+    "id": "volley",
+    "name": "Volley",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "channel": {
+     "duration": 3,
+     "ticks": 6
+    },
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Rain arrows over an 8-yard area for 3 sec. Enemies in the area take $d Physical damage every 0.5 sec. Damage increases with Ranged Attack Po"
+   },
+   {
+    "id": "counter_shot",
+    "name": "Hushing Shot",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 35,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupt the target and prevent spells from that school for 4 sec."
+   }
+  ]
+ },
+ "priest": {
+  "resource": "mana",
+  "color": 13030640,
+  "baseStats": {
+   "str": 10,
+   "agi": 11,
+   "sta": 13,
+   "int": 22,
+   "spi": 24,
+   "armor": 20
+  },
+  "statsPerLevel": {
+   "str": 0,
+   "agi": 0,
+   "sta": 1,
+   "int": 2,
+   "spi": 3,
+   "armor": 4
+  },
+  "baseHp": 38,
+  "hpPerLevel": 11,
+  "baseMana": 110,
+  "manaPerLevel": 26,
+  "startWeapon": "gnarled_staff",
+  "abilities": [
+   {
+    "id": "smite",
+    "name": "Scouring Hymn",
+    "cost": 20,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Deal $d Holy damage. Damage increases with Spell Power. Doctrine converts this damage into healing through your links. If no injured linked "
+   },
+   {
+    "id": "lesser_heal",
+    "name": "Whispered Prayer",
+    "cost": 30,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heal a friendly target for $d. Healing increases with Spell Power."
+   },
+   {
+    "id": "power_word_fortitude",
+    "name": "Litany of Resolve",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Increase the Stamina of every party member by $b% for 30 min."
+   },
+   {
+    "id": "shadow_word_pain",
+    "name": "Dirge of Decay",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "Deal $d total Shadow damage over 18 sec, once every 3 sec. Damage increases with Spell Power. Vespers already includes 10% more damage and g"
+   },
+   {
+    "id": "power_word_shield",
+    "name": "Psalm of Warding",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "absorb"
+    ],
+    "desc": "Shield a friendly target, absorbing $d damage for 30 sec. Doctrine also links the target for 30 sec. Your Scouring Hymn and hostile Scouring"
+   },
+   {
+    "id": "renew",
+    "name": "Lingering Grace",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "hot"
+    ],
+    "desc": "Heal the target for $d over 15 sec, once every 3 sec. Healing increases with Spell Power."
+   },
+   {
+    "id": "mind_blast",
+    "name": "Mindfracture",
+    "cost": 50,
+    "castTime": 1.5,
+    "cooldown": 8,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 3,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Deal $d Shadow damage. Damage increases with Spell Power. Vespers binds a target with your Dirge of Decay as its Effigy, grants 1 Gloomtithe"
+   },
+   {
+    "id": "heal",
+    "name": "Solemn Prayer",
+    "cost": 95,
+    "castTime": 2.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heal a friendly target for $d. Healing increases with Spell Power."
+   },
+   {
+    "id": "mind_flay",
+    "name": "Litany of Woe",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 20,
+    "school": "shadow",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "channel": {
+     "duration": 3,
+     "ticks": 3
+    },
+    "effects": [
+     "drainTick"
+    ],
+    "desc": "Channel for 3 sec, dealing $d Shadow damage each second. Damage increases with Spell Power."
+   },
+   {
+    "id": "flash_heal",
+    "name": "Urgent Prayer",
+    "cost": 75,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 20,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heal a friendly target for $d. Healing increases with Spell Power."
+   },
+   {
+    "id": "veilstep",
+    "name": "Veilstep",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 18,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "blinkForward"
+    ],
+    "desc": "Step 10 yards forward through the veil."
+   },
+   {
+    "id": "psychic_scream",
+    "name": "Terror Canticle",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "aoeFear"
+    ],
+    "desc": "Frighten enemies within 8 yards for up to 4 sec. Damage may break the effect."
+   },
+   {
+    "id": "scouring_mercy",
+    "name": "Scouring Mercy",
+    "cost": 75,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "targetType": "any",
+    "effects": [
+     "directDamage",
+     "heal"
+    ],
+    "desc": "Deal $d Holy damage to an enemy or heal a friendly target for $h. Damage increases with Spell Power; healing increases with Healing Power. D"
+   },
+   {
+    "id": "prayer_of_healing",
+    "name": "Choirmend",
+    "cost": 130,
+    "castTime": 3,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "aoeHeal"
+    ],
+    "desc": "Heal allies within 30 yards for $d. Healing increases with Spell Power. (Benison)"
+   },
+   {
+    "id": "holy_nova",
+    "name": "Sunburst Canticle",
+    "cost": 70,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "aoeHeal",
+     "aoeDamage"
+    ],
+    "desc": "Heal allies within 10 yards for $d and deal 24 to 30 Holy damage to enemies in the same area. Both amounts increase with Spell Power. (Benis"
+   },
+   {
+    "id": "seraphic_vigil",
+    "name": "Seraphic Vigil",
+    "cost": 80,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 30,
+    "school": "holy",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Protect one ally for 30 sec. The first hit that leaves them below 35% health consumes the Vigil and heals them for $b. (Benison signature)"
+   },
+   {
+    "id": "shadowform",
+    "name": "Gloamveil",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Enter Gloamveil, increasing your Shadow damage by 25%. Cast it again to leave Gloamveil. (Vespers signature)"
+   },
+   {
+    "id": "summon_tithefiend",
+    "name": "Call Tithefiend",
+    "cost": 60,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "effects": [],
+    "desc": "Consume all Gloomtithe to summon a Tithefiend. It lasts 6, 8, 10, 12, or 15 sec at 1 to 5 stacks and attacks every 2 sec. Each attack deals "
+   },
+   {
+    "id": "prayer_of_returning",
+    "name": "Prayer of Returning",
+    "cost": 250,
+    "castTime": 7,
+    "cooldown": 300,
+    "range": 0,
+    "school": "holy",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "massResurrectGroup"
+    ],
+    "desc": "Call every fallen member of your group or raid within 40 yards and in your line of sight back to your side with 30% health and mana. Cannot "
+   }
+  ]
+ },
+ "shaman": {
+  "resource": "mana",
+  "color": 5147370,
+  "baseStats": {
+   "str": 18,
+   "agi": 16,
+   "sta": 20,
+   "int": 18,
+   "spi": 18,
+   "armor": 40
+  },
+  "statsPerLevel": {
+   "str": 1,
+   "agi": 1,
+   "sta": 2,
+   "int": 2,
+   "spi": 2,
+   "armor": 10
+  },
+  "baseHp": 48,
+  "hpPerLevel": 15,
+  "baseMana": 90,
+  "manaPerLevel": 22,
+  "startWeapon": "training_mace",
+  "abilities": [
+   {
+    "id": "lightning_bolt",
+    "name": "Arc Bolt",
+    "cost": 15,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Deal $d Nature damage. Damage increases with Spell Power. Thundercall: a hit grants 1 Thunder."
+   },
+   {
+    "id": "thunder_reservoir",
+    "name": "Thunder Reservoir",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: Arc Bolt and Skybranch grant Thunder, up to 5. At 5 Thunder, Earthen Jolt deals 125% more damage or Faultwake deals 100% more damag"
+   },
+   {
+    "id": "chain_lightning",
+    "name": "Skybranch",
+    "cost": 80,
+    "castTime": 2.5,
+    "cooldown": 6,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "effects": [
+     "chainDamage"
+    ],
+    "desc": "Strike up to 3 enemies within 10 yards for $d Nature damage each. Thundercall: a hit grants 1 Thunder. Damage increases with Spell Power."
+   },
+   {
+    "id": "rockbiter_weapon",
+    "name": "Stonebound Weapon",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Imbue your weapon for 30 min. Each swing deals $d extra damage. Warspirit also gains 40% armor and 20% Stamina, takes 15% less damage, is im"
+   },
+   {
+    "id": "galeheart_weapon",
+    "name": "Galeheart Weapon",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Imbue both weapons for 30 min, enabling Warspirit Cadence."
+   },
+   {
+    "id": "warspirit_cadence",
+    "name": "Warspirit Cadence",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: Dual-wield attacks have no extra miss chance. Every 3rd landed weapon attack triggers 2 Galeheart Echoes for 25% Nature damage and "
+   },
+   {
+    "id": "stormsurge",
+    "name": "Stormsurge",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Passive: While Ancestral Strike is on cooldown, consuming Stormcast has a 25% chance to reset it. If the first 3 chances fail, the 4th alway"
+   },
+   {
+    "id": "lifespring_weapon",
+    "name": "Lifespring Weapon",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Imbue your weapon for 30 min. Mending Waters and Tidecall add 20% more healing to Mending Current."
+   },
+   {
+    "id": "unleash_weapon",
+    "name": "Unleash Weapon",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "targetType": "any",
+    "effects": [],
+    "desc": "Trigger your active weapon enchant. Pyrebrand: deal 54 to 64 Fire damage plus 30% of your Spell Power and gain 2 Thunder. Galeheart: strike "
+   },
+   {
+    "id": "elemental_trance",
+    "name": "Elemental Trance",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Enter an elemental trance for 15 sec, reducing damage taken by 30% and converting 20% of all damage you deal into mana. (Warspirit signature"
+   },
+   {
+    "id": "healing_wave",
+    "name": "Mending Waters",
+    "cost": 25,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heal a friendly target for $d. Healing increases with Spell Power. Spiritcall: store 50% of the full heal before overhealing as Mending Curr"
+   },
+   {
+    "id": "tidecall",
+    "name": "Tidecall",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heal a friendly target for $d. Healing increases with Spell Power. Add the full heal before overhealing to Mending Current, up to 30% of the"
+   },
+   {
+    "id": "ancestor_return",
+    "name": "Ancestors' Return",
+    "cost": 250,
+    "castTime": 7,
+    "cooldown": 300,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "massResurrectGroup"
+    ],
+    "desc": "Call every fallen member of your group or raid within 40 yards and in your line of sight back to your side with 30% health and mana. Cannot "
+   },
+   {
+    "id": "earth_shock",
+    "name": "Earthen Jolt",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 20,
+    "school": "nature",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Deal $d Nature damage. Damage increases with Spell Power. Thundercall: at 5 Thunder, deal 125% more damage and consume all Thunder. Stonebou"
+   },
+   {
+    "id": "lightning_shield",
+    "name": "Thunder Ward",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 3,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Surround yourself with lightning for 10 min. The next 3 melee attacks against you deal $b Nature damage to the attacker, at most once every "
+   },
+   {
+    "id": "flame_shock",
+    "name": "Cinder Jolt",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 20,
+    "school": "fire",
+    "learnLevel": 4,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Deal $d Fire damage, then $o Fire damage over 12 sec. The initial hit increases with Spell Power."
+   },
+   {
+    "id": "flametongue_weapon",
+    "name": "Pyrebrand Weapon",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "imbue"
+    ],
+    "desc": "Imbues your weapon for 30 min. Each swing deals $d additional Fire damage."
+   },
+   {
+    "id": "frost_shock",
+    "name": "Rime Jolt",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 6,
+    "range": 20,
+    "school": "frost",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "slow"
+    ],
+    "desc": "Deal $d Frost damage and slow the target by 50% for 8 sec. Damage increases with Spell Power."
+   },
+   {
+    "id": "ghost_wolf",
+    "name": "Shadewolf",
+    "cost": 35,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Become a Shadewolf and move 40% faster. Cast again to return to your normal form."
+   },
+   {
+    "id": "earthquake",
+    "name": "Faultwake",
+    "cost": 80,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "groundAoE"
+    ],
+    "desc": "Shake an 8-yard area for 6 sec, dealing $d Nature damage every 1.5 sec. Damage increases with Spell Power. Thundercall: at 5 Thunder, deal 1"
+   },
+   {
+    "id": "bloodlust",
+    "name": "Storm Chorus",
+    "cost": 85,
+    "castTime": 0,
+    "cooldown": 300,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "aoeAllyHaste"
+    ],
+    "desc": "Increase the attack, casting, and channeling speed of group or raid allies within 30 yards by 30% for 15 sec. Affected allies cannot benefit"
+   }
+  ]
+ },
+ "warlock": {
+  "resource": "mana",
+  "color": 10978790,
+  "baseStats": {
+   "str": 11,
+   "agi": 12,
+   "sta": 15,
+   "int": 21,
+   "spi": 21,
+   "armor": 22
+  },
+  "statsPerLevel": {
+   "str": 0,
+   "agi": 0,
+   "sta": 1,
+   "int": 3,
+   "spi": 2,
+   "armor": 4
+  },
+  "baseHp": 42,
+  "hpPerLevel": 12,
+  "baseMana": 105,
+  "manaPerLevel": 25,
+  "startWeapon": "gnarled_staff",
+  "abilities": [
+   {
+    "id": "shadow_bolt",
+    "name": "Gloom Bolt",
+    "cost": 25,
+    "castTime": 1.7,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Sends a shadowy bolt at the enemy for $d Shadow damage."
+   },
+   {
+    "id": "summon_imp",
+    "name": "Summon Emberkin",
+    "cost": 50,
+    "castTime": 5,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "effects": [
+     "summonDemon"
+    ],
+    "desc": "Summons an Emberkin under the command of the Warlock. The Emberkin casts Felbolt at your enemies from afar. Summoning a new demon dismisses "
+   },
+   {
+    "id": "demon_skin",
+    "name": "Fiendhide",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 1,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Demonic skin increases your armor by $b for 30 min. Pact Deepened can double this armor and reduce magic damage taken while Fiendhide is act"
+   },
+   {
+    "id": "immolate",
+    "name": "Burning Pact",
+    "cost": 25,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Burns the enemy for $d Fire damage and an additional $o over 15 sec."
+   },
+   {
+    "id": "corruption",
+    "name": "Blackrot",
+    "cost": 35,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "Corrupts the target, causing $d Shadow damage over 18 sec."
+   },
+   {
+    "id": "evil_eye",
+    "name": "Evil Eye",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 1,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionEvilEye"
+    ],
+    "desc": "Marks one enemy as the focus of your curses. Moving the Eye preserves Condemnation but does not refresh its 20 sec expiry."
+   },
+   {
+    "id": "maledict_gaze",
+    "name": "Maledict Gaze",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "Your Maledict Eye attacks your selected primary Evil Eye every 2.5 sec for Shadow damage. Possess the Evil Eye doubles its attack speed."
+   },
+   {
+    "id": "needle_of_fate",
+    "name": "Needle of Fate",
+    "cost": 25,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionNeedle",
+     "directDamage"
+    ],
+    "desc": "Pierces the enemy for $d Shadow damage and generates 7 Condemnation on impact if it still bears your Evil Eye. Completing a cast moves your "
+   },
+   {
+    "id": "sentence",
+    "name": "Sentence",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionSentence"
+    ],
+    "desc": "Consumes all Condemnation and Fate Threads to pass sentence on the enemy. Each Thread increases damage by 6%. Added effects escalate at 20, "
+   },
+   {
+    "id": "life_tap",
+    "name": "Hard Bargain",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "effects": [
+     "lifeTap"
+    ],
+    "desc": "Converts $d health into $d mana."
+   },
+   {
+    "id": "cursed_accomplice",
+    "name": "Cursed Accomplice",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 40,
+    "school": "shadow",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "afflictionAccomplice"
+    ],
+    "desc": "Links your Maledict Eye when no ally is selected, making its Gaze generate 2 Condemnation. Linking one selected group member makes only thei"
+   },
+   {
+    "id": "summon_voidwalker",
+    "name": "Summon Duskmurk",
+    "cost": 80,
+    "castTime": 5,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "summonDemon"
+    ],
+    "desc": "Summons a Duskmurk under the command of the Warlock. This sturdy demon taunts enemies and uses Abyssal Chain to drag distant normal enemies "
+   },
+   {
+    "id": "curse_of_agony",
+    "name": "Hex of Anguish",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "Curses the target with agony: $d Shadow damage over 24 sec."
+   },
+   {
+    "id": "drain_life",
+    "name": "Consume",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 20,
+    "school": "shadow",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "channel": {
+     "duration": 3,
+     "ticks": 3
+    },
+    "effects": [
+     "drainTick"
+    ],
+    "desc": "Consumes the target's vitality, dealing $d Shadow damage each second and transferring 70% of it as health. Affliction transfers all of it in"
+   },
+   {
+    "id": "searing_pain",
+    "name": "Sear",
+    "cost": 35,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Sears the enemy with agonizing fire for $d Fire damage. Quick to cast."
+   },
+   {
+    "id": "soul_lance",
+    "name": "Soul Lance",
+    "cost": 35,
+    "castTime": 1.6,
+    "cooldown": 8,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 9,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Hurls a spectral lance for $d Shadow damage. Against your Ossuary Mark, 50% of its damage is added to the mark."
+   },
+   {
+    "id": "litany_of_guilt",
+    "name": "Litany of Guilt",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionLitany"
+    ],
+    "desc": "Curses your primary Evil Eye for 6 sec. Condemnation gains release a wave that damages up to 2 other enemies within 8 yd, at most once per s"
+   },
+   {
+    "id": "umbral_anchor",
+    "name": "Umbral Anchor",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 3,
+    "requiresTarget": false,
+    "effects": [
+     "warlockUmbralAnchor"
+    ],
+    "desc": "First cast: anchors your shadow at your feet for 5 min. Recast within 40 m to return there, consuming the anchor and starting a 45 sec coold"
+   },
+   {
+    "id": "soulwell",
+    "name": "Soulwell",
+    "cost": 80,
+    "castTime": 3,
+    "cooldown": 300,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "summonSoulwell"
+    ],
+    "desc": "Summons a Soulwell for 3 min. While outside combat, group members can refill their Soul Stones up to 3. A Soul Stone restores 25% of maximum"
+   },
+   {
+    "id": "chaos_bolt",
+    "name": "Ruinbolt",
+    "cost": 65,
+    "castTime": 2.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Spends 3 Wrack to hurl a heavy bolt of chaotic fire for $d Fire damage. Desolation shortens its cast by 30%."
+   },
+   {
+    "id": "hex_of_violence",
+    "name": "Hex of Violence",
+    "cost": 55,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionViolence"
+    ],
+    "desc": "Hexes the enemy for 8 sec. Its next 3 damaging actions each generate 7 Condemnation and lash it for 17 Shadow damage."
+   },
+   {
+    "id": "ossuary_mark",
+    "name": "Ossuary Mark",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "effects": [
+     "necromancyOssuaryMark"
+    ],
+    "desc": "Marks an enemy for 15 sec, storing 20% of damage dealt by you and your undead. Recast to detonate it. If the marked enemy dies, it explodes "
+   },
+   {
+    "id": "fear",
+    "name": "Harrow",
+    "cost": 40,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 20,
+    "school": "shadow",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "incapacitate"
+    ],
+    "desc": "Strikes terror into the enemy, leaving it cowering for up to 5 sec. Damage totaling 8% of the target's maximum health breaks the effect."
+   },
+   {
+    "id": "cruel_pact",
+    "name": "Cruel Pact",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 9,
+    "requiresTarget": false,
+    "effects": [
+     "afflictionCruelPact"
+    ],
+    "desc": "Sacrifices 12% of your maximum health to restore 1.5% of your maximum mana and generate 20 Condemnation. Cannot be used at or below 20% heal"
+   },
+   {
+    "id": "shadowburn",
+    "name": "Duskfire",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 12,
+    "requiresTarget": true,
+    "executeThreshold": 0.2,
+    "effects": [
+     "duskfireClaim",
+     "directDamage"
+    ],
+    "desc": "Spends 1 Wrack to execute an enemy below 20% health for $d Shadow damage. Refunds its Wrack if the claimed target dies within 5 sec."
+   },
+   {
+    "id": "ruinous_brand",
+    "name": "Ruinous Brand",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 20,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "ruinousBrand"
+    ],
+    "desc": "Brands an enemy for 15 sec. Your next 3 direct spells echo for 25% damage against the branded enemy, or copy 50% damage to it when cast agai"
+   },
+   {
+    "id": "cinderhide",
+    "name": "Cinderhide",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 120,
+    "range": 0,
+    "school": "fire",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Hardens your skin to cooling slag for 10 sec, reducing all damage taken by 25%."
+   },
+   {
+    "id": "vicarious_suffering",
+    "name": "Vicarious Suffering",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 40,
+    "school": "shadow",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "afflictionVicarious"
+    ],
+    "desc": "Links your suffering for 8 sec and generates up to 15 Condemnation from hostile hits. On yourself, reduces damage taken by 20%. On an ally, "
+   },
+   {
+    "id": "summon_infernal",
+    "name": "Summon Pyre Colossus",
+    "cost": 100,
+    "castTime": 0,
+    "cooldown": 180,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 13,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "aoeDamage",
+     "summonPyreColossus"
+    ],
+    "desc": "Calls a Pyre Colossus down at the target area, dealing 64-79 Fire damage on impact. It fights for 30 sec without replacing your demon, burns"
+   },
+   {
+    "id": "rain_of_fire",
+    "name": "Rain of Fire",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "fire",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "groundAoE"
+    ],
+    "desc": "Spends 3 Wrack to rain fire over the target area for 4 sec, increasing to 6 sec at rank 2. Desolation calls down the first wave immediately."
+   },
+   {
+    "id": "spell_lock",
+    "name": "Abyssal Gag",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 24,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts spellcasting and prevents any spell in that school from being cast for 4 sec. (Warlock talent)"
+   },
+   {
+    "id": "possess_evil_eye",
+    "name": "Possess the Evil Eye",
+    "cost": 75,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 13,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "afflictionPossession"
+    ],
+    "desc": "The Maledictor possesses your primary Evil Eye for 15 sec and generates 35 Condemnation. Needle of Fate casts in 1 sec and generates 2 extra"
+   },
+   {
+    "id": "hour_of_judgment",
+    "name": "Hour of Judgment",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 90,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 20,
+    "requiresTarget": true,
+    "offGcd": true,
+    "effects": [
+     "afflictionJudgment"
+    ],
+    "desc": "Calls judgment upon your primary Evil Eye for 15 sec, granting 40 Condemnation and 3 Fate Threads, activating Possession, doubling Condemnat"
+   },
+   {
+    "id": "coven",
+    "name": "Coven",
+    "cost": 120,
+    "castTime": 0,
+    "cooldown": 90,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 17,
+    "requiresTarget": true,
+    "effects": [
+     "afflictionCoven"
+    ],
+    "desc": "Creates secondary Evil Eyes on up to 4 nearby enemies for 15 sec. They feed the shared Condemnation pool at 50%, and Sentence echoes to them"
+   },
+   {
+    "id": "soul_harvest",
+    "name": "Essence Reap",
+    "cost": 30,
+    "castTime": 1.8,
+    "cooldown": 0,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "gainSoulFragments"
+    ],
+    "desc": "Tears at the enemy soul for $d Shadow damage and creates 1 Soul Fragment, up to 5."
+   },
+   {
+    "id": "raise_graveguard",
+    "name": "Raise Graveguard",
+    "cost": 0,
+    "castTime": 2.5,
+    "cooldown": 3,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "summonUndead"
+    ],
+    "desc": "Raises a permanent defensive companion. Graveguard automatically taunts, intercepts 20% of your damage through Grave Dominion, and Reaping C"
+   },
+   {
+    "id": "raise_skeletal_warrior",
+    "name": "Raise Skeletal Warrior",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "effects": [
+     "summonUndead"
+    ],
+    "desc": "Spends 1 Soul Fragment to add a persistent Skeletal Warrior to your 2-slot Dominion. Only one may serve you. It cleaves nearby enemies for 4"
+   },
+   {
+    "id": "raise_bone_mage",
+    "name": "Raise Bone Mage",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "summonUndead"
+    ],
+    "desc": "Spends 2 Soul Fragments to add a persistent ranged Bone Mage to your 2-slot Dominion. Only one may serve you. Its attacks expose the target "
+   },
+   {
+    "id": "bone_armor",
+    "name": "Bone Armor",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "selfAbsorbPctMax"
+    ],
+    "desc": "Wraps you in bone, absorbing damage equal to 20% of your maximum health."
+   },
+   {
+    "id": "corpse_explosion",
+    "name": "Corpse Explosion",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Sacrifices a Skeletal Warrior first, then a Bone Mage, and a Gravewing only as a last resort. Among duplicates it chooses the one with the l"
+   },
+   {
+    "id": "funeral_harvest",
+    "name": "Funeral Harvest",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 5,
+    "requiresTarget": false,
+    "passive": true,
+    "effects": [],
+    "desc": "When an enemy recently damaged by you or your undead dies, you gain 1 Soul Fragment. This can occur once every 3 sec."
+   },
+   {
+    "id": "unholy_command",
+    "name": "Unholy Command",
+    "cost": 40,
+    "castTime": 0,
+    "cooldown": 45,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 13,
+    "requiresTarget": false,
+    "effects": [
+     "commandUndead"
+    ],
+    "desc": "Spends 3 Soul Fragments to command all of your undead to deal 25% more damage and act 20% faster for 12 sec."
+   },
+   {
+    "id": "reaping_command",
+    "name": "Reaping Command",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "shadow",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "effects": [
+     "reapingCommand"
+    ],
+    "desc": "Spends 2 Soul Fragments to command every undead servant to strike in unison. Graveguards taunt and brace, Warriors pin, Bone Mages expose ma"
+   },
+   {
+    "id": "sacrifice_undead",
+    "name": "Sacrifice Undead",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 7,
+    "requiresTarget": false,
+    "effects": [
+     "sacrificeUndead"
+    ],
+    "desc": "Destroys one Dominion servant to restore 25% of your maximum health."
+   },
+   {
+    "id": "raise_gravewing",
+    "name": "Raise Gravewing",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 17,
+    "requiresTarget": false,
+    "effects": [
+     "summonUndead"
+    ],
+    "desc": "Spends 2 Soul Fragments to add a persistent Gravewing to your 2-slot Dominion. Only one may serve you. It cleaves nearby enemies for 65% dam"
+   },
+   {
+    "id": "army_of_the_dead",
+    "name": "Army of the Dead",
+    "cost": 100,
+    "castTime": 1.5,
+    "cooldown": 120,
+    "range": 0,
+    "school": "shadow",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "effects": [
+     "armyOfDead"
+    ],
+    "desc": "Tears open a grave portal to raise a temporary Skeletal Warrior, Bone Mage, and Gravewing for 20 sec, filling the ranks your standing Domini"
+   }
+  ]
+ },
+ "druid": {
+  "resource": "mana",
+  "color": 16747546,
+  "baseStats": {
+   "str": 15,
+   "agi": 15,
+   "sta": 17,
+   "int": 19,
+   "spi": 20,
+   "armor": 30
+  },
+  "statsPerLevel": {
+   "str": 1,
+   "agi": 1,
+   "sta": 2,
+   "int": 2,
+   "spi": 2,
+   "armor": 6
+  },
+  "baseHp": 45,
+  "hpPerLevel": 13,
+  "baseMana": 95,
+  "manaPerLevel": 22,
+  "startWeapon": "gnarled_staff",
+  "abilities": [
+   {
+    "id": "wrath",
+    "name": "Wildbolt",
+    "cost": 20,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Hurls a bolt of nature energy for $d Nature damage."
+   },
+   {
+    "id": "healing_touch",
+    "name": "Wildmend",
+    "cost": 25,
+    "castTime": 2.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal"
+    ],
+    "desc": "Heals a friendly target for $d."
+   },
+   {
+    "id": "mark_of_the_wild",
+    "name": "Wildward",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 1,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Places the Wildward on the party, increasing all attributes of all party members by $b% for 30 min."
+   },
+   {
+    "id": "moonfire",
+    "name": "Lunar Tempest",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 2,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "dot"
+    ],
+    "desc": "Burns the enemy with moonfire for $d Arcane damage plus damage over time."
+   },
+   {
+    "id": "moonseed",
+    "name": "Moonseed",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 8,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage",
+     "extendDot"
+    ],
+    "desc": "Moonwing Form only. Strikes for $d Arcane damage, adds 1 Moontide (max 3), and extends your Lunar Tempest by 6 sec, up to $t sec per applica"
+   },
+   {
+    "id": "rejuvenation",
+    "name": "Wildbloom",
+    "cost": 25,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 3,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "hot"
+    ],
+    "desc": "Heals the target for $d over 12 sec."
+   },
+   {
+    "id": "thorns",
+    "name": "Briarguard",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "buffTarget"
+    ],
+    "desc": "Thorns sprout from the target: melee attackers take $b Nature damage."
+   },
+   {
+    "id": "entangling_roots",
+    "name": "Gripping Roots",
+    "cost": 35,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "effects": [
+     "root"
+    ],
+    "desc": "Roots the target in place for up to 12 sec."
+   },
+   {
+    "id": "bear_form",
+    "name": "Bruin Form",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Shapeshift into a bear: armor +110%, maximum health +30%, greatly increased attack power, your attacks build rage and generate 30% more thre"
+   },
+   {
+    "id": "bear_charge",
+    "name": "Bruin Rush",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 25,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "offGcd": true,
+    "requiresForm": "bear",
+    "effects": [
+     "charge",
+     "stun"
+    ],
+    "desc": "Rush an enemy, generating 9 rage and stunning it for 1 sec. 8-25 yd range. Bruin Form only."
+   },
+   {
+    "id": "maul",
+    "name": "Bonecrush",
+    "cost": 15,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "onNextSwing": true,
+    "offGcd": true,
+    "requiresForm": "bear",
+    "effects": [
+     "weaponDamage"
+    ],
+    "desc": "A mauling attack that increases melee damage by $d and causes a high amount of threat. Activates on your next swing. Bruin Form only."
+   },
+   {
+    "id": "growl",
+    "name": "Menace",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 10,
+    "range": 8,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "offGcd": true,
+    "requiresForm": "bear",
+    "effects": [
+     "taunt"
+    ],
+    "desc": "Menaces the target: your threat rises to match its most hated enemy and it is compelled to attack you for 3 sec. Bruin Form only."
+   },
+   {
+    "id": "challenging_roar",
+    "name": "Baleful Roar",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 12,
+    "requiresTarget": false,
+    "requiresForm": "bear",
+    "effects": [
+     "aoeTaunt"
+    ],
+    "desc": "A baleful roar: every enemy within 10 yards is taunted, its threat toward you rising to match its most hated enemy, and it is compelled to a"
+   },
+   {
+    "id": "demoralizing_roar",
+    "name": "Craven Roar",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "requiresForm": "bear",
+    "effects": [
+     "aoeAttackPower"
+    ],
+    "desc": "Demoralizes nearby enemies, reducing their attack power by 20 for 20 sec. Bruin Form only."
+   },
+   {
+    "id": "frenzied_regeneration",
+    "name": "Savage Mending",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 10,
+    "requiresTarget": false,
+    "requiresForm": "bear",
+    "effects": [
+     "hot"
+    ],
+    "desc": "Restores 40% of your maximum health over 10 sec. Bruin Form only."
+   },
+   {
+    "id": "cat_form",
+    "name": "Wolf Form",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Shapeshift into a wolf: agility rises with your level, attack power +8 plus 2 per level, your attacks use energy and combo points, and you g"
+   },
+   {
+    "id": "prowl",
+    "name": "Stalk",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 4,
+    "requiresTarget": false,
+    "requiresForm": "cat",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Enter stealth while in Wolf Form, moving 5% slower. Cannot be used in combat."
+   },
+   {
+    "id": "rake",
+    "name": "Flense",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "requiresForm": "cat",
+    "effects": [
+     "weaponStrike",
+     "dot"
+    ],
+    "desc": "Flense the enemy for weapon damage plus $d and cause bleeding damage over 18 sec. Awards 1 combo point. Wolf Form only."
+   },
+   {
+    "id": "claw",
+    "name": "Rendclaw",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 5,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "requiresForm": "cat",
+    "effects": [
+     "weaponStrike"
+    ],
+    "desc": "Claw the enemy for weapon damage plus $d. Awards 1 combo point. Wolf Form only."
+   },
+   {
+    "id": "regrowth",
+    "name": "Second Bloom",
+    "cost": 55,
+    "castTime": 2,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "heal",
+     "hot"
+    ],
+    "desc": "Heals a friendly target for $d and an additional amount over 21 sec."
+   },
+   {
+    "id": "ferocious_bite",
+    "name": "Gorebite",
+    "cost": 35,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 6,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "requiresForm": "cat",
+    "effects": [
+     "finisherDamage"
+    ],
+    "desc": "Finishing move that causes $d. Wolf Form only."
+   },
+   {
+    "id": "barkskin",
+    "name": "Oakhide",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Your skin hardens like bark, increasing armor by 150 for 15 sec."
+   },
+   {
+    "id": "swipe",
+    "name": "Sweeping Claws",
+    "cost": 20,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "requiresForm": "bear",
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Sweep your claws through nearby enemies for $d damage. Causes extra threat. Bruin Form only."
+   },
+   {
+    "id": "starfire",
+    "name": "Skyfall",
+    "cost": 80,
+    "castTime": 3,
+    "cooldown": 0,
+    "range": 30,
+    "school": "arcane",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "effects": [
+     "directDamage"
+    ],
+    "desc": "Calls down a bolt of stellar fire, causing $d Arcane damage."
+   },
+   {
+    "id": "travel_form",
+    "name": "Fleet Form",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 11,
+    "requiresTarget": false,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Instantly shift into a swift travel form, increasing movement speed by 40%. You cannot use other abilities while shifted, but can shift in o"
+   },
+   {
+    "id": "enrage",
+    "name": "Stoke",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 16,
+    "requiresTarget": false,
+    "offGcd": true,
+    "requiresForm": "bear",
+    "effects": [
+     "gainResource"
+    ],
+    "desc": "Generates 20 rage instantly. Bruin Form only."
+   },
+   {
+    "id": "bash",
+    "name": "Concuss",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 8,
+    "school": "physical",
+    "learnLevel": 8,
+    "requiresTarget": true,
+    "requiresForm": "bear",
+    "effects": [
+     "stun"
+    ],
+    "desc": "Stuns the target for 2 sec. Bruin Form only."
+   },
+   {
+    "id": "faerie_fire",
+    "name": "Witchlight",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 18,
+    "requiresTarget": true,
+    "effects": [
+     "faerieFire"
+    ],
+    "desc": "Decreases the target's armor by $d% for 40 sec."
+   },
+   {
+    "id": "hibernate",
+    "name": "Slumber",
+    "cost": 50,
+    "castTime": 1.5,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 18,
+    "requiresTarget": true,
+    "effects": [
+     "incapacitate"
+    ],
+    "desc": "Forces the target into a deep sleep for up to 8 sec. Any damage will awaken it."
+   },
+   {
+    "id": "dash",
+    "name": "Dash",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "offGcd": true,
+    "requiresForm": "cat",
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Sprint forward, increasing movement speed by 50% for 15 sec. Wolf Form only."
+   },
+   {
+    "id": "pounce",
+    "name": "Slinkstrike",
+    "cost": 50,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 8,
+    "school": "physical",
+    "learnLevel": 7,
+    "requiresTarget": true,
+    "awardsCombo": 1,
+    "requiresStealth": true,
+    "requiresForm": "cat",
+    "effects": [
+     "stun"
+    ],
+    "desc": "A stealth opener that stuns the target for 2 sec. Awards 1 combo point. Wolf Form only."
+   },
+   {
+    "id": "insect_swarm",
+    "name": "Stinging Swarm",
+    "cost": 45,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": true,
+    "effects": [
+     "dot"
+    ],
+    "desc": "The enemy is swarmed by insects, taking $d Nature damage over 12 sec."
+   },
+   {
+    "id": "tigers_fury",
+    "name": "Wolfsblood",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 30,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "requiresForm": "cat",
+    "effects": [
+     "selfBuff",
+     "gainResource"
+    ],
+    "desc": "Surges 30 energy and increases attack power by $b for $t sec. Wolf Form only."
+   },
+   {
+    "id": "rip",
+    "name": "Bloodrift",
+    "cost": 30,
+    "castTime": 0,
+    "cooldown": 0,
+    "range": 0,
+    "school": "physical",
+    "learnLevel": 14,
+    "requiresTarget": true,
+    "spendsCombo": true,
+    "requiresForm": "cat",
+    "effects": [
+     "dot"
+    ],
+    "desc": "Finishing move that makes the target bleed every 2 sec for 24 sec: 36 damage plus 24 per combo point spent (5 combo points: $d total). Wolf "
+   },
+   {
+    "id": "hurricane",
+    "name": "Galeheart",
+    "cost": 90,
+    "castTime": 0,
+    "cooldown": 12,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 18,
+    "requiresTarget": false,
+    "targetMode": "position",
+    "channel": {
+     "duration": 6,
+     "ticks": 6
+    },
+    "effects": [
+     "aoeDamage"
+    ],
+    "desc": "Calls a hurricane onto the target area for 6 sec, battering enemies for $d Nature damage each second."
+   },
+   {
+    "id": "skull_bash",
+    "name": "Headbutt",
+    "cost": 10,
+    "castTime": 0,
+    "cooldown": 15,
+    "range": 8,
+    "school": "physical",
+    "learnLevel": 10,
+    "requiresTarget": true,
+    "effects": [
+     "interrupt"
+    ],
+    "desc": "Interrupts spellcasting and prevents any spell in that school from being cast for 4 sec. (Druid talent)"
+   },
+   {
+    "id": "primal_reflexes",
+    "name": "Primal Reflexes",
+    "cost": 0,
+    "castTime": 0,
+    "cooldown": 60,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "offGcd": true,
+    "effects": [
+     "selfBuff"
+    ],
+    "desc": "Your instincts sharpen, increasing your chance to dodge by 50% for 6 sec."
+   },
+   {
+    "id": "wildwake",
+    "name": "Wildwake",
+    "cost": 60,
+    "castTime": 2,
+    "cooldown": 300,
+    "range": 30,
+    "school": "nature",
+    "learnLevel": 16,
+    "requiresTarget": true,
+    "targetType": "friendly",
+    "effects": [
+     "resurrectAlly"
+    ],
+    "desc": "Coax a fallen ally into sudden bloom, returning them to life at your side with 35% of their health and mana, even in the thick of combat. (G"
+   },
+   {
+    "id": "grove_awakening",
+    "name": "Grove Awakening",
+    "cost": 250,
+    "castTime": 7,
+    "cooldown": 300,
+    "range": 0,
+    "school": "nature",
+    "learnLevel": 20,
+    "requiresTarget": false,
+    "effects": [
+     "massResurrectGroup"
+    ],
+    "desc": "Call every fallen member of your group or raid within 40 yards and in your line of sight back to your side with 30% health and mana. Cannot "
+   }
+  ]
+ }
+}

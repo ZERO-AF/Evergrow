@@ -6,12 +6,21 @@ import type { EnemyKind, Input, WorldQuery } from '../src/model.ts';
 import { awardExperience, enemyXPReward, xpForNextLevel, xpLevelFactor } from '../src/progression.ts';
 import { MAX_CONTENT_LEVEL } from '../src/progression-content.ts';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
+import { createCharacterSheet } from '../src/items.ts';
+import { refreshCharacter } from '../src/character.ts';
 
 const emptyWorld: WorldQuery = {
   blocked: () => false,
   move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }),
 };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 200, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
+// Undead has no XP-gain passive, so authored rewards stay exact.
+const killSim = () => {
+  const sim = new Simulation(emptyWorld, { spawn: false });
+  sim.player.character = createCharacterSheet('warrior', 'undead');
+  refreshCharacter(sim.player);
+  return sim;
+};
 function advance(sim: Simulation, seconds: number, input: Partial<Input> = {}): void {
   for (let i = 0; i < Math.round(seconds / FIXED_STEP); i++) sim.update(FIXED_STEP, { ...idle, ...input });
 }
@@ -81,7 +90,7 @@ test('invalid rewards are ignored and extreme rewards remain bounded with exact 
 test('each enemy archetype awards its authored XP once on lethal melee contact', () => {
   const expectedRewards: Record<EnemyKind, number> = { thornReaver: 32, mireSpitter: 31, frostRevenant: 43, emberAcolyte: 34, duneScuttler: 25, stormSentinel: 39, briarMatriarch: 160, ashColossus: 160, graveMarshal: 160, warden: 120, goblin: 6, goblinChief: 65, stalker: 20, caster: 30, brute: 50, hound: 22, archer: 28, wisp: 32 };
   for (const kind of Object.keys(expectedRewards) as EnemyKind[]) {
-    const sim = new Simulation(emptyWorld, { spawn: false });
+    const sim = killSim();
     const enemy = sim.spawnEnemy(kind, 36, 0, 'normal', undefined, {base:1,min:1,max:1,fixed:true})!;
     enemy.hp = 24;
     enemy.stateDuration = 999;
@@ -97,7 +106,7 @@ test('each enemy archetype awards its authored XP once on lethal melee contact',
 });
 
 test('nonlethal damage awards no XP and a kill can cross a level without healing or changing stats', () => {
-  const sim = new Simulation(emptyWorld, { spawn: false });
+  const sim = killSim();
   sim.player.xp = 90;
   sim.player.hp = 40;
   const beforeStats = { ...sim.player.stats };

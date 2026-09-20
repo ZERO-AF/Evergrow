@@ -1,6 +1,8 @@
 import { dungeonTheme } from './dungeon-content.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import { cryptFloorContains, cryptHash, cryptOutline } from './dungeon-contours.ts';
+import { isBlackrockTheme } from './dungeon2-content.ts';
+import { drawBlackrockSurface } from './dungeon2-art.ts';
 
 /** World-aligned masonry and eroded wall faces; tile crops always sample the same surface. */
 export function drawCryptSurface(c: CanvasRenderingContext2D, f: DungeonFloor, tx: number, ty: number, size: number) {
@@ -57,6 +59,7 @@ export function drawCryptSurface(c: CanvasRenderingContext2D, f: DungeonFloor, t
             c.restore();
         }
     }
+    if(isBlackrockTheme(theme.id)) drawBlackrockSurface(c, f, ox, oy, size);
     if(theme.id==='foundry') {
         for(let y=Math.floor(oy/80)*80;y<oy+size;y+=80)for(let x=Math.floor(ox/96)*96;x<ox+size;x+=96){
             const h=cryptHash(x,y,f.seed);if(h%3)continue;

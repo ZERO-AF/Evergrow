@@ -1,0 +1,622 @@
+{
+ "DRUID_TALENTS": {
+  "class": "druid",
+  "specs": [
+   {
+    "id": "balance",
+    "class": "druid",
+    "name": "Moongrove",
+    "role": "dps",
+    "icon": "*",
+    "description": "A Moonwing caster whose casts fill the Moontide; at 3 you choose how to spend it: Moonsurge for damage or Sunwake for mana.",
+    "signature": "moonkin_form",
+    "mastery": {
+     "name": "Moonrage",
+     "description": "Increases your spell damage by 15% and your spell haste by 10%.",
+     "effect": {
+      "global": {
+       "spellDmgPct": 0.15,
+       "spellHastePct": 0.1
+      }
+     }
+    }
+   },
+   {
+    "id": "feral",
+    "class": "druid",
+    "name": "Wildfang",
+    "role": "tank",
+    "icon": "x",
+    "description": "A shapeshifter whose landed hits build Old Blood in both forms: Wolf spends it for damage, Bruin spends it to tank.",
+    "signature": "feral_charge",
+    "mastery": {
+     "name": "Primal Heart",
+     "description": "Increases your physical ability damage by 50%, your bleed damage by 50%, your threat by 45%, and your armor by 15%.",
+     "effect": {
+      "global": {
+       "meleeDmgPct": 0.5,
+       "dotDmgPct": 0.5,
+       "threatPct": 0.45
+      },
+      "stats": {
+       "armorPct": 0.15
+      }
+     }
+    }
+   },
+   {
+    "id": "restoration",
+    "class": "druid",
+    "name": "Groveheart",
+    "role": "healer",
+    "icon": "+",
+    "description": "A healer who grows Verdance with completed HoT casts and harvests the garden with Overbloom.",
+    "signature": "swiftmend",
+    "mastery": {
+     "name": "Grove's Gift",
+     "description": "Your heal-over-time effects heal 25% more.",
+     "effect": {
+      "global": {
+       "hotHealPct": 0.25
+      }
+     }
+    }
+   }
+  ]
+ },
+ "HUNTER_TALENTS": {
+  "class": "hunter",
+  "specs": [
+   {
+    "id": "beast_mastery",
+    "class": "hunter",
+    "name": "Packlord",
+    "role": "dps",
+    "icon": "+",
+    "description": "A wild commander who builds Pack Ferocity and unleashes a growing companion.",
+    "signature": "bestial_wrath",
+    "mastery": {
+     "name": "Packbond",
+     "description": "Your pet deals 25% more damage and your maximum health is increased by 8%.",
+     "effect": {
+      "global": {
+       "petDmgPct": 0.25
+      },
+      "stats": {
+       "maxHpPct": 0.08
+      }
+     }
+    }
+   },
+   {
+    "id": "marksmanship",
+    "class": "hunter",
+    "name": "Coldsight",
+    "role": "dps",
+    "icon": "x",
+    "description": "A deliberate archer who builds Focus and commits to precision shots.",
+    "signature": "cold_focus",
+    "mastery": {
+     "name": "Cold Read",
+     "description": "Increases physical ability damage by 12% and critical strike chance by 3%.",
+     "effect": {
+      "global": {
+       "meleeDmgPct": 0.12
+      },
+      "stats": {
+       "crit": 0.03
+      }
+     }
+    }
+   },
+   {
+    "id": "survival",
+    "class": "hunter",
+    "name": "Fieldcraft",
+    "role": "dps",
+    "icon": "o",
+    "description": "A melee-first skirmisher who tears one wound and controls re-entry.",
+    "signature": "bloodhook",
+    "mastery": {
+     "name": "Quickblood",
+     "description": "Increases your Agility by 15% and your dodge chance by 4%.",
+     "effect": {
+      "stats": {
+       "agiPct": 0.15,
+       "dodge": 0.04
+      }
+     }
+    }
+   }
+  ]
+ },
+ "MAGE_TALENTS": {
+  "class": "mage",
+  "specs": [
+   {
+    "id": "arcane",
+    "class": "mage",
+    "name": "Chronomancy",
+    "role": "healer",
+    "icon": "*",
+    "description": "A mage who manipulates time and aether to protect allies. They can anticipate wounds, repeat healing, and reverse damage before it is too late.",
+    "signature": "temporal_mend",
+    "mastery": {
+     "name": "Chronoweave",
+     "description": "Increases all healing you do by 15%, your maximum mana by 5%, and your mana regeneration by 20%.",
+     "effect": {
+      "global": {
+       "healPct": 0.15,
+       "manaPct": 0.05,
+       "manaRegenPct": 0.2
+      }
+     }
+    }
+   },
+   {
+    "id": "fire",
+    "class": "mage",
+    "name": "Pyromancy",
+    "role": "dps",
+    "icon": "x",
+    "description": "A master of flame who chains critical strikes into devastating explosions. Fast, aggressive, and capable of igniting many enemies.",
+    "signature": "pyroblast",
+    "mastery": {
+     "name": "Ignition",
+     "description": "Your spell critical strikes burn the target for 30% of the damage dealt over 6 sec, stacking. Increases critical strike chance by 2%.",
+     "effect": {
+      "global": {
+       "ignitionPct": 0.3
+      },
+      "stats": {
+       "crit": 0.02
+      }
+     }
+    }
+   },
+   {
+    "id": "frost",
+    "class": "mage",
+    "name": "Cryomancy",
+    "role": "dps",
+    "icon": "#",
+    "description": "A spellcaster who controls the battlefield with ice, slows, and freezes. They build glacial power to destroy enemies with precise attacks.",
+    "signature": "ice_lance",
+    "mastery": {
+     "name": "Brittlebreak",
+     "description": "Increases your Frost spell damage by 25%. Increases armor by 10%.",
+     "effect": {
+      "ability": [
+       {
+        "ability": "frostbolt",
+        "dmgPct": 0.25
+       },
+       {
+        "ability": "frost_nova",
+        "dmgPct": 0.25
+       }
+      ],
+      "stats": {
+       "armorPct": 0.1
+      }
+     }
+    }
+   }
+  ]
+ },
+ "PALADIN_TALENTS": {
+  "class": "paladin",
+  "specs": [
+   {
+    "id": "holy",
+    "class": "paladin",
+    "name": "Sunmender",
+    "role": "healer",
+    "icon": "+",
+    "description": "A devoted healer who turns the Light into steady single-target recovery.",
+    "signature": "mercy_lance",
+    "mastery": {
+     "name": "Kindled Faith",
+     "description": "Your healing spells critically heal for double.",
+     "effect": {
+      "global": {
+       "critDmgHealPct": 0.5
+      }
+     }
+    }
+   },
+   {
+    "id": "protection",
+    "class": "paladin",
+    "name": "Faithwarden",
+    "role": "tank",
+    "icon": "#",
+    "description": "A shield-bearing defender who converts Holy power into threat and mitigation.",
+    "signature": "sunward_disc",
+    "mastery": {
+     "name": "Oathward",
+     "description": "Increases all threat you generate by 40%, your armor by 20% and your Stamina by 35%.",
+     "effect": {
+      "global": {
+       "threatPct": 0.4
+      },
+      "stats": {
+       "armorPct": 0.2,
+       "staPct": 0.35
+      }
+     }
+    }
+   },
+   {
+    "id": "retribution",
+    "class": "paladin",
+    "name": "Dawnreaver",
+    "role": "dps",
+    "icon": "x",
+    "description": "A holy warrior who judges enemies with weapon strikes and radiant burst.",
+    "signature": "final_edict",
+    "mastery": {
+     "name": "Blood Debt",
+     "description": "Increases your Holy and physical ability damage by 20%.",
+     "effect": {
+      "global": {
+       "meleeDmgPct": 0.2,
+       "spellDmgPct": 0.2
+      }
+     }
+    }
+   }
+  ]
+ },
+ "PRIEST_TALENTS": {
+  "class": "priest",
+  "specs": [
+   {
+    "id": "discipline",
+    "class": "priest",
+    "name": "Doctrine",
+    "role": "healer",
+    "icon": "#",
+    "description": "A mitigator who shields allies and heals through controlled efficiency.",
+    "signature": "scouring_mercy",
+    "mastery": {
+     "name": "Fixed Purpose",
+     "description": "Your shields absorb 30% more. Increases maximum health by 8%.",
+     "effect": {
+      "global": {
+       "absorbPct": 0.3
+      },
+      "stats": {
+       "maxHpPct": 0.08
+      }
+     }
+    }
+   },
+   {
+    "id": "holy",
+    "class": "priest",
+    "name": "Benison",
+    "role": "healer",
+    "icon": "+",
+    "description": "A direct healer with strong throughput and restorative prayers.",
+    "signature": "seraphic_vigil",
+    "mastery": {
+     "name": "Grave Mercy",
+     "description": "Increases all healing you do by 20%.",
+     "effect": {
+      "global": {
+       "healPct": 0.2
+      }
+     }
+    }
+   },
+   {
+    "id": "shadow",
+    "class": "priest",
+    "name": "Vespers",
+    "role": "dps",
+    "icon": "*",
+    "description": "A damage caster built around Shadow damage over time and mind spells.",
+    "signature": "summon_tithefiend",
+    "mastery": {
+     "name": "Gloamveil",
+     "description": "Increases your damage-over-time damage by 15% and your spell damage by 10%.",
+     "effect": {
+      "global": {
+       "dotDmgPct": 0.15,
+       "spellDmgPct": 0.1
+      }
+     }
+    }
+   }
+  ]
+ },
+ "ROGUE_TALENTS": {
+  "class": "rogue",
+  "specs": [
+   {
+    "id": "assassination",
+    "class": "rogue",
+    "name": "Knifework",
+    "role": "dps",
+    "icon": "x",
+    "description": "A poison specialist. Your strikes add Venom Ritual; at 6, Dirt Nap becomes Venomrend, which cashes in all your bleeds at once and plants a fresh wound.",
+    "signature": "cold_blood",
+    "mastery": {
+     "name": "Redhanded",
+     "description": "Increases Craven Thrust's critical strike chance by 30% and your poison damage by 10%.",
+     "effect": {
+      "ability": [
+       {
+        "ability": "backstab",
+        "critPct": 0.3
+       },
+       {
+        "ability": "instant_poison",
+        "buffPct": 0.1
+       },
+       {
+        "ability": "deadly_poison",
+        "buffPct": 0.1
+       },
+       {
+        "ability": "crippling_poison",
+        "dmgPct": 0.1
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "combat",
+    "class": "rogue",
+    "name": "Thuggery",
+    "role": "dps",
+    "icon": "/",
+    "description": "A stand-up brawler. A 4+ combo Dirt Nap starts Redline for 8 sec: your strikes become Haymakers that build it up, and Lights Out spends it all before the timer ends.",
+    "signature": "blade_flurry",
+    "mastery": {
+     "name": "Scrapper's Edge",
+     "description": "Increases attack speed by 10%, and your auto-attacks have a 5% chance to trigger an extra attack.",
+     "effect": {
+      "global": {
+       "meleeHastePct": 0.1,
+       "extraAttackPct": 0.05
+      }
+     }
+    }
+   },
+   {
+    "id": "subtlety",
+    "class": "rogue",
+    "name": "Skulduggery",
+    "role": "dps",
+    "icon": ">",
+    "description": "A stealth striker. Openers from Duskveil add Gloam; at 3 Gloam your openers work without stealth, and the next one is free and starts the Shadow Veil, doubling your first Lurker's Strike inside it.",
+    "signature": "hemorrhage",
+    "mastery": {
+     "name": "False Face",
+     "description": "Increases the damage of your critical strikes by 25%, and you move at 100% speed while in Duskveil.",
+     "effect": {
+      "global": {
+       "critDmgPhysPct": 0.25
+      },
+      "ability": [
+       {
+        "ability": "stealth",
+        "buffPct": 1
+       },
+       {
+        "ability": "vanish",
+        "buffPct": 1
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "SHAMAN_TALENTS": {
+  "class": "shaman",
+  "specs": [
+   {
+    "id": "elemental",
+    "class": "shaman",
+    "name": "Thundercall",
+    "role": "dps",
+    "icon": "*",
+    "description": "A ranged caster who calls lightning, flame, and frost.",
+    "signature": "elemental_mastery",
+    "mastery": {
+     "name": "Earthen Fury",
+     "description": "Increases your spell damage by 15% and your spell haste by 10%.",
+     "effect": {
+      "global": {
+       "spellDmgPct": 0.15,
+       "spellHastePct": 0.1
+      }
+     }
+    }
+   },
+   {
+    "id": "enhancement",
+    "class": "shaman",
+    "name": "Warspirit",
+    "role": "dps",
+    "icon": "x",
+    "description": "A weapon fighter who channels the storm through melee swings.",
+    "signature": "stormstrike",
+    "mastery": {
+     "name": "Skyrend",
+     "description": "Increases your melee attack speed by 10% and your physical ability damage by 10%.",
+     "effect": {
+      "global": {
+       "meleeHastePct": 0.1,
+       "meleeDmgPct": 0.1
+      }
+     }
+    }
+   },
+   {
+    "id": "restoration",
+    "class": "shaman",
+    "name": "Spiritcall",
+    "role": "healer",
+    "icon": "+",
+    "description": "A healer using ancestral waves and efficient nature magic.",
+    "signature": "chain_heal",
+    "mastery": {
+     "name": "Cleansing Tides",
+     "description": "Mending Waters and Cascading Mend cost 20% less Mana.",
+     "effect": {
+      "ability": [
+       {
+        "ability": "chain_heal",
+        "costPct": -0.2
+       },
+       {
+        "ability": "healing_wave",
+        "costPct": -0.2
+       }
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "WARLOCK_TALENTS": {
+  "class": "warlock",
+  "specs": [
+   {
+    "id": "affliction",
+    "class": "warlock",
+    "name": "Hexcraft",
+    "role": "dps",
+    "icon": "*",
+    "description": "A curse-weaver who turns enemy and allied actions into Condemnation.",
+    "signature": "evil_eye",
+    "mastery": {
+     "name": "Sentence",
+     "description": "Increases Needle of Fate, Sentence, and Litany of Guilt damage by 10%.",
+     "effect": {
+      "ability": [
+       {
+        "ability": "needle_of_fate",
+        "dmgPct": 0.1
+       },
+       {
+        "ability": "sentence",
+        "dmgPct": 0.1
+       },
+       {
+        "ability": "litany_of_guilt",
+        "dmgPct": 0.1
+       }
+      ]
+     }
+    }
+   },
+   {
+    "id": "demonology",
+    "class": "warlock",
+    "name": "Necromancy",
+    "role": "dps",
+    "icon": "+",
+    "description": "A master of Soul Fragments who raises and commands an undead army.",
+    "signature": "metamorphosis",
+    "mastery": {
+     "name": "Grave Dominion",
+     "description": "Your undead deal 20% more damage, and your Graveguard intercepts 20% of damage you take. Increases Stamina by 10%.",
+     "effect": {
+      "global": {
+       "petDmgPct": 0.2,
+       "petDmgSharePct": 0.2
+      },
+      "stats": {
+       "staPct": 0.1
+      }
+     }
+    }
+   },
+   {
+    "id": "destruction",
+    "class": "warlock",
+    "name": "Ruination",
+    "role": "dps",
+    "icon": "x",
+    "description": "A siege caster who builds Wrack and spends it on overwhelming fire.",
+    "signature": "conflagrate",
+    "mastery": {
+     "name": "Desolation",
+     "description": "Conflagrate grants Desolation. It significantly shortens your next Ruinbolt cast or calls down the first wave of Rain of Fire immediately.",
+     "effect": {}
+    }
+   }
+  ]
+ },
+ "WARRIOR_TALENTS": {
+  "class": "warrior",
+  "specs": [
+   {
+    "id": "arms",
+    "class": "warrior",
+    "name": "Battlecraft",
+    "role": "dps",
+    "icon": "x",
+    "description": "A master of arms who turns discipline and technique into his greatest strength. Every blow is calculated to break the enemy defense, exploit their weak points, and set up a devastating finisher. His combat is precise, methodical, and lethal, rewarding those who master the rhythm of battle.",
+    "signature": "mortal_strike",
+    "mastery": {
+     "name": "Master Armorer",
+     "description": "While wielding a two-handed weapon, all damage you deal is increased by 10%.",
+     "effect": {
+      "global": {
+       "masteryTwoHandDmgPct": 0.1
+      }
+     }
+    }
+   },
+   {
+    "id": "fury",
+    "class": "warrior",
+    "name": "Bloodrush",
+    "role": "dps",
+    "icon": "x",
+    "description": "A berserker who fights with a weapon in each hand and lets rage drive his every move. The longer he fights, the greater his Enrage, unleashing a relentless storm of attacks that gives his enemies no respite. A frenzied, savage, aggressive style where the offensive never stops. Committing to Bloodrush unlocks dual wielding, and through Titan's Grip even a two-handed weapon in each hand, though wielding two-handers in both hands reduces physical damage dealt by 12%.",
+    "signature": "bloodthirst",
+    "mastery": {
+     "name": "Bloodletter",
+     "description": "Increases your critical strike chance by 5% and attack power by 10.",
+     "effect": {
+      "stats": {
+       "crit": 0.05,
+       "ap": 10
+      }
+     }
+    }
+   },
+   {
+    "id": "prot",
+    "class": "warrior",
+    "name": "Ironguard",
+    "role": "tank",
+    "icon": "O",
+    "description": "The guardian who leads the front line with shield raised and unbreakable will. He withstands the assault of countless foes, protects his allies, and controls the battlefield with authority. He turns every blocked blow into a chance to answer with force.",
+    "signature": "shield_slam",
+    "mastery": {
+     "name": "Recompense",
+     "description": "Increases all threat you generate by 80% and your armor by 10%. Vanguard: your Stamina is increased by 40% and you gain armor equal to 70% of your Strength.",
+     "effect": {
+      "global": {
+       "threatPct": 0.8
+      },
+      "stats": {
+       "armorPct": 0.1,
+       "staPct": 0.4,
+       "armorFromStrPct": 0.7
+      }
+     }
+    }
+   }
+  ]
+ }
+}

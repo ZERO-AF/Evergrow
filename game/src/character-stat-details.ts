@@ -79,7 +79,7 @@ export function characterStatDetails(p: Player): StatDetailGroup[] {
     addAttribute(row('critChance', 'Critical chance', s.critChance, pct(s.critChance), 'Chance to critically strike. Burn damage cannot crit.', `+${attributeBonus('dexterity', DEXTERITY_BONUSES.critChance)}% Dexterity + critical bonuses\nCap: 75%`, ['dexterity', 'critChance']), 'dexterity'),
     row('critDamage', 'Critical damage', s.critMultiplier, pct(s.critMultiplier), 'Damage on a critical hit. 150% = 1.5× damage.', `150% + critical damage bonuses\nLimit: 100–500%`, ['critDamage']),
   ];
-  const armor = effectiveArmor(p), armorSources = sources(['armor']);
+  const armor = effectiveArmor(p), armorSources = sources(['armor', 'armorPercent']);
   if(auraPower(p,'ironroot'))armorSources.push({label:'Ironroot · active',value:`+${n(auraPower(p,'ironroot'))}% armor · ${n(auraPower(p,'ironroot')/8)}% less physical hit damage`});
   if (sheet.blessing?.remaining && sheet.blessing.kind === 'bulwark') armorSources.push({ label: 'Bulwark blessing', value: '×1.4 armor' });
   if (armor !== s.armor) armorSources.push({ label: 'Afterguard · active', value: `+${n(s.afterguardPercent)}% armor` });

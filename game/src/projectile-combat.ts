@@ -18,6 +18,8 @@ export interface ProjectileContext {
   player: Player; enemies: Enemy[]; world: WorldQuery;
   damage(enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, offense?: HitSnapshot, authoredBurn?: boolean, elementalDamage?:number): void;
   hurt(amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind): void;
+  /** Enemy projectile strikes a player ally (pet/minion/totem). */
+  hurtAlly?(ally: import('./model.ts').Ally, amount: number): void;
   onScreen(enemy: Enemy): boolean;
   visible(ax: number, ay: number, bx: number, by: number): boolean;
   emit(event: CombatEvent): void;
@@ -156,7 +158,13 @@ export function advanceProjectiles(projectiles: Projectile[], dt: number, contex
           &&(!playerHit||Math.hypot(decoy.x-oldX,decoy.y-oldY)<Math.hypot(p.x-oldX,p.y-oldY))){
           hurtDecoy(p,decoy.id,projectile.damage);context.emit({type:'blast',x:decoy.x,y:decoy.y,radius:12,style:'spirit'});projectile.life=0;continue;
         }
-        if (segmentDistanceSquared(p.x, p.y, oldX, oldY, projectile.x, projectile.y) <= (projectile.radius + p.radius) ** 2) {
+        const allyHit = context.hurtAlly ? (p.allies ?? []).filter(ally => ally.hp > 0
+          && segmentDistanceSquared(ally.x, ally.y, oldX, oldY, projectile.x, projectile.y) <= (projectile.radius + ally.radius) ** 2)
+          .sort((a, b) => Math.hypot(a.x - oldX, a.y - oldY) - Math.hypot(b.x - oldX, b.y - oldY) || a.id - b.id)[0] : undefined;
+        if (allyHit && (!playerHit || Math.hypot(allyHit.x - oldX, allyHit.y - oldY) < Math.hypot(p.x - oldX, p.y - oldY))) {
+          context.hurtAlly!(allyHit, projectile.damage); projectile.life = 0; continue;
+        }
+        if (playerHit) {
           context.hurt(projectile.damage, projectile.angle, projectile.sourceLevel, projectileDamageType(projectile.effects?.style ?? 'arcane'), projectile.sourceKind); projectile.life = 0;
         }
         continue;

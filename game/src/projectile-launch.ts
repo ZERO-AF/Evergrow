@@ -11,7 +11,8 @@ export function weaponReleasePose(launch: WeaponLaunch): CharacterPose {
     offHand: launch.hand === 'off' ? { kind: 'weapon', visual: launch.weapon } : null, grip: launch.hands === 2 ? 'two-handed' : 'one-handed',
     angle: launch.facing, attackAngle: launch.facing, time: launch.time, gaitPhase: launch.gaitPhase,
     moving: launch.moving, moveAngle: launch.moveAngle, attack: launch.skill ? 0 : launch.start, cast: launch.skill ? 1 : 0, attackStart: launch.start,
-    attackEnd: launch.end, attackKind: 'ranged', attackHand: launch.hand, hitFlash: 0, dodging: false };
+    attackEnd: launch.end, attackKind: 'ranged', attackHand: launch.hand, hitFlash: 0, dodging: false,
+    ...(launch.raceId ? { raceId: launch.raceId } : {}) };
 }
 export function weaponReleasePoint(launch: WeaponLaunch) {
   let point = releasePoints.get(launch);

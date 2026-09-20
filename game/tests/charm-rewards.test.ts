@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { isSetPiece } from '../src/item-set-content.ts';
 import assert from 'node:assert/strict';
 import { generateItem, generateRewardItem } from '../src/items.ts';
 import { eventRewards } from '../src/poi-rewards.ts';
@@ -18,8 +19,8 @@ test('every item-giving event can roll charms, including themed rewards and boss
       items += reward.items.length;
       for (const item of reward.items) {
         if (item.kind !== 'charm') {
-          if (kind === 'beastDen' && item.tier!=='unique') assert.equal(item.recipe.materialId,'leather');
-          if (kind === 'corruptedGrove' && item.tier!=='unique' && item.kind === 'weapon') assert.equal(item.recipe.profileId,'ember-staff');
+          if (kind === 'beastDen' && item.tier!=='unique' && !isSetPiece(item)) assert.equal(item.recipe.materialId,'leather');
+          if (kind === 'corruptedGrove' && item.tier!=='unique' && item.tier!=='legendary' && item.kind === 'weapon') assert.equal(item.recipe.profileId,'ember-staff');
           continue;
         }
         charms++;

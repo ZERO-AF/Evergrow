@@ -1,3 +1,5 @@
+import type { WowRaceId } from './wow-types.ts';
+
 /** Presentation recipes for the character-editor study. Not part of saved sheets yet. */
 export interface AppearancePalette { readonly id: string; readonly name: string; readonly base: string; readonly shadow: string; readonly light: string; }
 export const SKIN_PALETTES: readonly AppearancePalette[] = [
@@ -17,6 +19,17 @@ export const SKIN_PALETTES: readonly AppearancePalette[] = [
   { id: 'moss', name: 'Moss', base: '#91a183', shadow: '#586b53', light: '#c4ce9d' },
   { id: 'lavender', name: 'Lavender', base: '#ad92b2', shadow: '#715a7e', light: '#d9bddc' },
   { id: 'duskwine', name: 'Dusk wine', base: '#855b69', shadow: '#523b4c', light: '#b68692' },
+  { id: 'fel', name: 'Fel green', base: '#7ba05b', shadow: '#4a6b3f', light: '#a8c47e' },
+  { id: 'swamp', name: 'Swamp', base: '#5d7a4a', shadow: '#3a5233', light: '#8aa468' },
+  { id: 'cerulean', name: 'Cerulean', base: '#5f87a8', shadow: '#3d5a74', light: '#8fb4cc' },
+  { id: 'deepsea', name: 'Deep sea', base: '#4a6b8a', shadow: '#2e4459', light: '#7499b4' },
+  { id: 'pelt', name: 'Pelt', base: '#8a6a4e', shadow: '#54402e', light: '#b39272' },
+  { id: 'stonepelt', name: 'Stone pelt', base: '#6e6258', shadow: '#453d36', light: '#9a8d80' },
+  { id: 'grave', name: 'Grave', base: '#9aa08b', shadow: '#5f665a', light: '#c6c9ae' },
+  { id: 'pale', name: 'Pale', base: '#c9c4b2', shadow: '#8a8577', light: '#e8e3cf' },
+  { id: 'azure', name: 'Azure', base: '#6f8fc4', shadow: '#46598a', light: '#a4bce0' },
+  { id: 'indigohide', name: 'Indigo hide', base: '#5a6aa8', shadow: '#39427a', light: '#8b9bd0' },
+  { id: 'violet', name: 'Violet', base: '#9a86c0', shadow: '#5f4d85', light: '#c4b2de' },
 ];
 export const HAIR_PALETTES: readonly AppearancePalette[] = [
   { id: 'chestnut', name: 'Chestnut', base: '#4c3b32', shadow: '#282527', light: '#8f7457' },
@@ -67,9 +80,33 @@ export interface CharacterAppearance {
   hair: typeof HAIR_STYLES[number]['id'];
   facialHair: typeof FACIAL_HAIR[number]['id'];
   accessory: typeof ACCESSORIES[number]['id'];
+  /** Race signature option (horn style, tusk size, markings…); absent on humans. */
+  feature?: RaceFeatureId;
 }
 export const DEFAULT_APPEARANCE: Readonly<CharacterAppearance> = Object.freeze({
   skin: 'warm', hairColor: 'chestnut', hair: 'swept', facialHair: 'none', accessory: 'none',
+});
+/** Race-specific feature choices; ids are stable save data, names face the editor. */
+export const RACE_FEATURES = [
+  { id: 'horns-curved', name: 'Curved horns' }, { id: 'horns-swept', name: 'Swept horns' },
+  { id: 'horns-grand', name: 'Grand horns' }, { id: 'crest', name: 'Crest' },
+  { id: 'horns-back', name: 'Swept-back horns' }, { id: 'tusks-small', name: 'Small tusks' },
+  { id: 'tusks-large', name: 'Large tusks' }, { id: 'tusks-long', name: 'Long tusks' },
+  { id: 'tusks-upcurved', name: 'Upcurved tusks' }, { id: 'markings', name: 'Face markings' },
+  { id: 'markings-none', name: 'No markings' }, { id: 'tendrils', name: 'Tendrils' },
+  { id: 'tendrils-none', name: 'No tendrils' }, { id: 'bone-bare', name: 'Exposed bone' },
+  { id: 'bone-covered', name: 'Covered bone' }, { id: 'beard-ringed', name: 'Ringed beard' },
+] as const;
+export type RaceFeatureId = typeof RACE_FEATURES[number]['id'];
+/** Feature ids a race actually offers; the first entry is the creation default. */
+export const RACE_FEATURE_OPTIONS: Readonly<Partial<Record<WowRaceId, readonly RaceFeatureId[]>>> = Object.freeze({
+  dwarf: ['beard-ringed'],
+  nightElf: ['markings', 'markings-none'],
+  draenei: ['crest', 'horns-back', 'tendrils'],
+  orc: ['tusks-small', 'tusks-large'],
+  undead: ['bone-bare', 'bone-covered'],
+  tauren: ['horns-curved', 'horns-swept', 'horns-grand'],
+  troll: ['tusks-long', 'tusks-upcurved', 'tusks-small'],
 });
 export function appearancePalette(catalog: readonly AppearancePalette[], id: string): AppearancePalette {
   return catalog.find(palette => palette.id === id) ?? catalog[0];

@@ -1,0 +1,51 @@
+/* Spellbook panel (B) — WoW-style class spell listing (docs/wow-deepening.md). */
+.spellbook-panel[hidden] { display:none; }
+.spellbook-panel { position:absolute; inset:0; z-index:25; display:grid; place-items:center; background:#03090b80; padding:24px; font-family:var(--ui-font); }
+.spellbook-window { width:min(920px,100%); max-height:85vh; display:flex; flex-direction:column; }
+.spellbook-window .ui-window-header { gap:12px; }
+.spellbook-window .ui-window-header h2 { flex:1; }
+.spellbook-heading-icon { width:22px; height:22px; display:flex; color:#d8c894; }
+.spellbook-heading-icon svg { width:100%; height:100%; }
+.spellbook-summary { display:flex; align-items:baseline; gap:10px; padding:0 4px 12px; color:#a3b4bc; font-size:13px; }
+.spellbook-summary strong { font-weight:500; font-size:15px; font-variant-numeric:tabular-nums; }
+.spellbook-summary-spacer { flex:1; }
+.spellbook-points { color:#d8c894; font-variant-numeric:tabular-nums; }
+.spellbook-toolbar { display:flex; align-items:center; gap:10px; padding:0 4px 14px; flex-wrap:wrap; }
+.spellbook-search { flex:1; min-width:160px; font:inherit; font-size:12.5px; color:#d5ded8; background:#0b151e88; border:1px solid #8ba5ae2a; border-radius:3px; padding:6px 10px; }
+.spellbook-search:focus-visible { outline:1px solid var(--ui-silver); outline-offset:-1px; }
+.spellbook-search::placeholder { color:#6b828a; }
+.spellbook-filters { display:flex; flex-wrap:wrap; gap:4px; }
+.spellbook-filters button { font:inherit; font-size:12px; letter-spacing:.04em; color:#8fa1a8; background:transparent; border:1px solid #8ba5ae22; border-radius:3px; padding:5px 10px; cursor:pointer; }
+.spellbook-filters button:hover { color:#c7d4d6; border-color:#8ba5ae44; }
+.spellbook-filters button[aria-pressed="true"] { color:#e0dac4; border-color:#b3b69d55; background:#c2b37714; }
+.spellbook-filters button:focus-visible { outline:1px solid var(--ui-silver); outline-offset:-1px; }
+.spellbook-list { overflow:auto; padding:2px 4px 6px; }
+.spellbook-group + .spellbook-group { margin-top:16px; }
+.spellbook-group-title { display:flex; align-items:baseline; gap:8px; margin:0 0 7px; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:#b3b69d; }
+.spellbook-group-count { color:#6b828a; letter-spacing:.03em; font-variant-numeric:tabular-nums; }
+.spellbook-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:8px; }
+.spellbook-spell { position:relative; display:flex; gap:11px; align-items:flex-start; padding:11px 12px; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; }
+.spellbook-spell.is-learned { border-color:#b3b69d3a; }
+.spellbook-spell.is-locked { background:#0b151e44; }
+.spellbook-icon { flex:none; width:34px; height:34px; display:grid; place-items:center; border:1px solid #8ba5ae2a; border-radius:3px; background:#060d12; }
+.spellbook-icon svg { width:30px; height:30px; }
+.is-learned .spellbook-icon { border-color:#b3b69d44; }
+.is-locked .spellbook-icon { filter:grayscale(.9) brightness(.62); }
+.spellbook-body { flex:1; min-width:0; }
+.spellbook-head { display:flex; align-items:baseline; gap:8px; }
+.spellbook-name { font-size:13px; color:#c9d6d4; }
+.is-learned .spellbook-name { color:#e3ddc4; }
+.is-locked .spellbook-name { color:#7d8f96; }
+.spellbook-rank { margin-left:auto; font-size:10px; letter-spacing:.05em; color:#6b828a; white-space:nowrap; }
+.spellbook-rank.is-known { color:#a9c98f; }
+.spellbook-meta { margin-top:3px; font-size:10.5px; line-height:1.4; color:#8fa1a8; font-variant-numeric:tabular-nums; }
+.spellbook-desc { margin-top:4px; font-size:11.5px; line-height:1.35; color:#8298a0; }
+.is-locked .spellbook-desc { color:#67797f; }
+.spellbook-facts { margin-top:4px; font-size:10px; line-height:1.4; color:#6b828a; font-variant-numeric:tabular-nums; }
+.spellbook-tags { margin-top:4px; font-size:10px; letter-spacing:.03em; color:#a08d62; }
+.spellbook-lock { margin-top:7px; display:flex; align-items:center; gap:7px; font-size:10.5px; color:#8fa1a8; }
+.spellbook-lock .ui-icon { width:12px; height:12px; color:#7d949c; }
+.spellbook-lock strong { color:#c9b98a; font-weight:500; }
+.spellbook-atlas { margin-left:auto; font-size:10.5px; padding:2px 8px; }
+.spellbook-empty { padding:34px 0; text-align:center; color:#7d949c; font-size:13px; }
+@media(max-width:650px) { .spellbook-panel { padding:10px; } .spellbook-grid { grid-template-columns:1fr; } }

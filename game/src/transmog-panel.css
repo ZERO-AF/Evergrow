@@ -1,0 +1,43 @@
+/* Transmogrification window — per-slot appearance picker with a live paper doll. */
+.transmog-panel[hidden] { display:none; }
+.transmog-panel { position:absolute; inset:0; z-index:25; display:grid; place-items:center; background:#03090b80; padding:24px; font-family:var(--ui-font); }
+.transmog-window { width:min(860px,100%); max-height:85vh; display:flex; flex-direction:column; }
+.transmog-window .ui-window-header { gap:12px; }
+.transmog-window .ui-window-header h2 { flex:1; }
+.transmog-heading-icon { width:22px; height:22px; display:flex; color:#d8c894; }
+.transmog-heading-icon svg { width:100%; height:100%; }
+.transmog-body { display:grid; grid-template-columns:minmax(180px,220px) 1fr; gap:14px; padding:4px 4px 8px; min-height:0; }
+.transmog-slots { display:flex; flex-direction:column; gap:6px; overflow:auto; padding:2px; }
+.transmog-slot { display:flex; flex-direction:column; align-items:stretch; gap:1px; padding:8px 10px; text-align:left; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; color:inherit; font:inherit; cursor:pointer; }
+.transmog-slot:hover { border-color:#8ba5ae55; }
+.transmog-slot.is-selected { border-color:#d8c89488; background:#16222c99; }
+.transmog-slot.is-transmogged .transmog-slot-name::after { content:'◆'; margin-left:6px; color:#b895ef; font-size:9px; }
+.transmog-slot-name { font-size:10.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:#d8c894; }
+.transmog-slot-item { font-size:12.5px; color:#e3ddc4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.transmog-slot-as { font-size:11px; color:#b895ef; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.transmog-detail { display:flex; flex-direction:column; gap:10px; min-width:0; min-height:0; }
+.transmog-preview-canvas { width:100%; height:230px; border:1px solid #8ba5ae1e; border-radius:3px; background:radial-gradient(ellipse at 50% 30%, #12202b 0%, #060d13 75%); }
+.transmog-slot-summary { display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:12.5px; color:#e3ddc4; padding:0 2px; }
+.transmog-current { color:#a3b4bc; font-size:12px; display:inline-flex; align-items:center; gap:8px; }
+.transmog-current.is-dim { color:#8fa1a8; }
+.transmog-sources { display:flex; flex-direction:column; gap:6px; max-height:220px; padding:2px; }
+.transmog-source { display:flex; align-items:center; gap:10px; padding:6px 8px; text-align:left; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; color:inherit; font:inherit; cursor:pointer; }
+.transmog-source:hover { border-color:#8ba5ae55; }
+.transmog-source.is-selected { border-color:#b895ef88; background:#1a1d2b99; }
+.transmog-source-icon { width:36px; height:36px; flex:none; display:grid; place-items:center; }
+.transmog-source-icon svg { width:36px; height:36px; }
+.transmog-source-text { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.transmog-source-name { font-size:12.5px; color:#e3ddc4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.transmog-source-text small { color:#8fa1a8; font-size:11px; }
+.transmog-empty { margin:4px 2px; color:#8fa1a8; }
+.transmog-actions { display:flex; align-items:center; gap:12px; padding-top:2px; }
+.transmog-notice { margin:0; flex:1; font-size:12px; color:#a3b4bc; }
+.transmog-gold { margin-left:auto; color:#e0b56a; font-size:12.5px; font-variant-numeric:tabular-nums; }
+.transmog-notice + .transmog-gold { margin-left:0; }
+@media(max-width:700px) {
+  .transmog-panel { padding:10px; }
+  .transmog-body { grid-template-columns:1fr; }
+  .transmog-slots { flex-direction:row; flex-wrap:wrap; }
+  .transmog-slot { flex:1 1 30%; }
+  .transmog-preview-canvas { height:190px; }
+}

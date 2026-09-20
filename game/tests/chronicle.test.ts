@@ -8,7 +8,7 @@ import { Simulation } from '../src/simulation.ts';
 import { damageEnemy, damagePlayer } from '../src/combat-damage.ts';
 import { CharacterSession } from '../src/character-session.ts';
 import { CharacterRepository, type SaveResult } from '../src/character-storage.ts';
-import type { CharacterSave } from '../src/character-save.ts';
+import { CHARACTER_SAVE_VERSION, type CharacterSave } from '../src/character-save.ts';
 import { openSaveDatabase } from '../src/save-database.ts';
 import { makeSaveBundle } from '../src/save-bundle.ts';
 import { openCloudCache, type CloudRow } from '../src/cloud-cache.ts';
@@ -16,7 +16,7 @@ import { WORLD_GENERATION_VERSION } from '../src/world.ts';
 import type { CombatEvent, Input } from '../src/model.ts';
 const world={seed:7319,isSanctuary:()=>false,blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};
 const counts=(c:ChronicleLedger)=>chronicleValues(Object.values(c.sources));
-function record(id='rowan',kills=0):CharacterSave {const sim=new Simulation(world,{spawn:false}),c=sim.captureCheckpoint();c.chronicle=freshChronicle(id,id,1);metric(c.chronicle,'kills',kills);return {version:4,id,name:id,createdAt:1,updatedAt:100,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:c};}
+function record(id='rowan',kills=0):CharacterSave {const sim=new Simulation(world,{spawn:false}),c=sim.captureCheckpoint();c.chronicle=freshChronicle(id,id,1);metric(c.chronicle,'kills',kills);return {version:CHARACTER_SAVE_VERSION,id,name:id,createdAt:1,updatedAt:100,worldSeed:7319,worldVersion:WORLD_GENERATION_VERSION,checkpoint:c};}
 const input:Input={moveX:0,moveY:0,aimX:100,aimY:0,attack:false,dodge:false,heal:false,skillSlot:null};
 test('cumulative checkpoints, retries and out-of-order reads do not double-count',()=>{const a=record('a',80),old=record('a',20),b=record('b',70);let ledger=recordChronicle(emptyChronicle(),a);ledger=recordChronicle(ledger,b);ledger=recordChronicle(ledger,a);ledger=recordChronicle(ledger,old);assert.equal(counts(ledger).kills,150);assert.equal(ledger.unlocked['slayer:1'],100);assert.deepEqual(mergeChronicles(ledger,ledger),ledger);});
 test('import shares old history and counts new play separately, including re-imports',()=>{const a=record('a',80),b=record('b');b.checkpoint.chronicle=forkChronicle(a,'b');metric(b.checkpoint.chronicle,'kills',10);const c=record('c');c.checkpoint.chronicle=forkChronicle(b,'c');metric(c.checkpoint.chronicle,'kills',5);let ledger=emptyChronicle();for(const r of[a,b,c,a,c])ledger=recordChronicle(ledger,r);assert.equal(counts(ledger).kills,95);assert.equal(chronicleValues(b.checkpoint.chronicle.sources).kills,90);assert.equal(chronicleValues(c.checkpoint.chronicle.sources).kills,95);});

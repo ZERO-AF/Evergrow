@@ -5,7 +5,7 @@ export function skillMechanicFacts(id: SkillId, r: SkillExecution): string {
   const n = (v: number) => Number(v.toFixed(2));
   const parts: string[] = [];
   const utility = skillUtilityLabel(id, r); if (utility) parts.push(utility);
-  if ('radius' in r && r.kind !== 'projectile' && r.kind !== 'dash') parts.push(`${n(r.radius)} radius`);
+  if ('radius' in r && r.radius !== undefined && r.kind !== 'projectile' && r.kind !== 'dash') parts.push(`${n(r.radius)} radius`);
   if ('arc' in r) parts.push(`${Math.round(r.arc * 180 / Math.PI)}° arc`);
   if ('stun' in r && r.stun) parts.push(`${n(r.stun)}s ${id === 'iceNova' || id === 'absoluteZero' ? 'Frozen' : 'stun'}`);
   if ('slow' in r && r.slow && !(r.kind === 'radial' && r.shelter)) parts.push(`${n((1-r.slow.factor)*100)}% slow · ${n(r.slow.duration)}s`);

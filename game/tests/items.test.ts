@@ -6,6 +6,8 @@ import { affixPotency, itemAffixCount, INVENTORY_CAPACITY } from '../src/items.t
 import { createCharacterSheet, EQUIPMENT_SLOTS, generateItem, generateRewardItem, ITEM_KINDS, itemModifiers, TIER_NAMES } from '../src/items.ts';
 import { STARTING_SWORD } from '../src/equipment.ts';
 import { SHIELD_PROFILES, WEAPON_PROFILES } from '../src/weapon-content.ts';
+import { BAR_TOTAL } from '../src/action-bar.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import type { ItemTier } from '../src/character-types.ts';
 
 test('equipment generation is reproducible, independent and safe at level boundaries', () => {
@@ -35,7 +37,7 @@ test('the reward seed corpus generates all six tiers and every item kind with co
     assert.equal(Boolean(item.shield), item.kind === 'shield');
   }
   assert.deepEqual([...tiers].sort(), Object.keys(TIER_NAMES).sort());
-  assert.deepEqual([...kinds].sort(), [...ITEM_KINDS].sort());
+  assert.deepEqual([...kinds].sort(), ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey').sort());
 });
 
 test('item level raises power, requirements and stats without changing a seeded weapon identity or cadence', () => {
@@ -79,11 +81,12 @@ test('explicit authored profiles cover one-hand, two-hand, bow, staff, and shiel
   assert.throws(() => generateItem(1, 1, 'chest', 'greatblade'), RangeError);
 });
 
-test('the starter sheet has neutral worn gear, an empty bag, independent leather outfit and five empty skill slots', () => {
+test('the starter sheet has neutral worn gear, an empty bag, independent leather outfit and the free class starter on the bar', () => {
   const first = createCharacterSheet(), other = createCharacterSheet();
   assert.equal(first.inventory.length, INVENTORY_CAPACITY); assert.equal(first.inventory.filter(Boolean).length, 0);
-  assert.deepEqual(first.skillSlots, [null, null, null, null, null]);
-  assert.deepEqual(first.allocatedNodes, ['origin']);
+  // The class starter skill is free, pre-allocated and on bar slot 1.
+  assert.deepEqual(first.skillSlots, [WOW_CLASSES[first.classId].starterSkill, ...Array.from({ length: BAR_TOTAL - 1 }, () => null)]);
+  assert.deepEqual(first.allocatedNodes, ['origin', `wow-${first.classId}-${WOW_CLASSES[first.classId].starterSkill}`]);
   assert.equal(first.statPoints, 0); assert.equal(first.skillPoints, 0);
   assert.equal(first.equipped.weapon!.weapon!.damage, 24);
   assert.equal(first.equipped.weapon!.weapon!.baseAttacksPerSecond, 2);
@@ -123,7 +126,7 @@ test('explicit reward tiers control quality and affix count, preserving the base
 
 test('percentage affixes approach bounded quality ranges while flat stats and base item power keep scaling', () => {
   const percentBounds: Partial<Record<import('../src/character-types.ts').StatKey, number>> = {
-    fireResistance: 10 + 25 * .12, frostResistance: 10 + 25 * .12, lightningResistance: 10 + 25 * .12, arcaneResistance: 10 + 25 * .12, allResistance: 3 + 25 * .035, goldFindPercent: 8 + 25 * .16, xpGainPercent: 5 + 25 * .1,
+    fireResistance: 10 + 25 * .12, frostResistance: 10 + 25 * .12, lightningResistance: 10 + 25 * .12, arcaneResistance: 10 + 25 * .12, holyResistance: 10 + 25 * .12, shadowResistance: 10 + 25 * .12, natureResistance: 10 + 25 * .12, allResistance: 3 + 25 * .035, goldFindPercent: 8 + 25 * .16, xpGainPercent: 5 + 25 * .1,
     manaCostPercent: 4 + 25 * .15, castSpeedPercent: 3 + 25 * .18, damagePercent: 4 + 25 * .35, attackSpeedPercent: 3 + 25 * .18,
     critChance: 1 + 25 * .08, critDamage: 6 + 25 * .35,
     moveSpeedPercent: 2 + 25 * .12, spellDamagePercent: 5 + 25 * .45,
@@ -131,7 +134,7 @@ test('percentage affixes approach bounded quality ranges while flat stats and ba
     cooldownPercent: 2 + 25 * .1, blockChance: 2 + 25 * .08, blockReduction: 4 + 25 * .12,
   };
   const seen = new Set<string>();
-  for (const kind of ITEM_KINDS) for (let seed = 0; seed < 200; seed++) {
+  for (const kind of ITEM_KINDS.filter(k => k !== 'consumable' && k !== 'riftKey')) for (let seed = 0; seed < 200; seed++) {
     const low = generateItem(seed, 1, kind, undefined, 'legendary');
     const mid = generateItem(seed, 100, kind, undefined, 'legendary', low.recipe.materialId);
     const high = generateItem(seed, 1_000_000, kind, undefined, 'legendary', low.recipe.materialId);

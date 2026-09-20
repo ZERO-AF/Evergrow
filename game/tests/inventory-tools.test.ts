@@ -12,7 +12,7 @@ import { directionalControl } from '../src/ui-navigation.ts';
 const ids = (sheet: CharacterSheet) => [...sheet.inventory, ...Object.values(sheet.equipped)].filter(i => i !== null).map(i => i.id).sort();
 
 test('Equip Best upgrades rings and armor, respects level and stow capacity, and preserves all items in a full bag', () => {
-  const sheet = createCharacterSheet('sword-shield');
+  const sheet = createCharacterSheet('paladin');
   sheet.inventory = Array.from({ length: 64 }, (_, i) => generateItem(4000 + i, 1, 'head', undefined, 'common'));
   const sword = generateItem(81, 1, 'weapon', 'longsword', 'rare');
   const staff = generateItem(82, 1, 'weapon', 'ember-staff', 'legendary');
@@ -33,7 +33,7 @@ test('Equip Best upgrades rings and armor, respects level and stow capacity, and
 });
 
 test('a different best weapon type requires a choice before any equipment changes', () => {
-  const sheet = createCharacterSheet('sword-shield');
+  const sheet = createCharacterSheet('paladin');
   const staff = generateItem(181, 1, 'weapon', 'ember-staff', 'legendary');
   const ring = generateItem(182, 1, 'ring', undefined, 'rare');
   addInventoryItem(sheet, staff); addInventoryItem(sheet, ring);
@@ -46,7 +46,7 @@ test('a different best weapon type requires a choice before any equipment change
 });
 
 test('Keep current weapon only preserves that exact weapon while upgrading other gear', () => {
-  const sheet = createCharacterSheet('sword-shield'), weapon = sheet.equipped.weapon;
+  const sheet = createCharacterSheet('paladin'), weapon = sheet.equipped.weapon;
   addInventoryItem(sheet, generateItem(191, 1, 'weapon', 'ember-staff', 'legendary'));
   addInventoryItem(sheet, generateItem(192, 1, 'weapon', 'longsword', 'epic'));
   const ring = generateItem(193, 1, 'ring', undefined, 'rare'); addInventoryItem(sheet, ring);
@@ -58,7 +58,7 @@ test('Keep current weapon only preserves that exact weapon while upgrading other
 
 test('Equip anyway replaces weapon type and safely stows the shield without healing or losing skills', () => {
   const player = new Simulation({ blocked: () => false, move: (x, y) => ({ x, y }) }, { spawn: false }).player;
-  player.character = createCharacterSheet('sword-shield');
+  player.character = createCharacterSheet('paladin');
   const sheet = player.character, shield = sheet.equipped.offhand;
   const staff = generateItem(201, 1, 'weapon', 'ember-staff', 'legendary'); addInventoryItem(sheet, staff);
   const before = ids(sheet), assignments = [...sheet.skillSlots]; player.hp = 29; player.mana = 11;
@@ -69,7 +69,7 @@ test('Equip anyway replaces weapon type and safely stows the shield without heal
 });
 
 test('same-type weapon upgrades need no warning; locked weapons and invalid choices never bypass validation', () => {
-  const sheet = createCharacterSheet('sword-shield');
+  const sheet = createCharacterSheet('paladin');
   const sword = generateItem(211, 1, 'weapon', 'longsword', 'rare'); addInventoryItem(sheet, sword);
   addInventoryItem(sheet, generateItem(212, 30, 'weapon', 'ember-staff', 'legendary'));
   const plan = planBestEquipment(sheet, 1); assert.ok(plan.ok); assert.equal(plan.weaponChange, null);

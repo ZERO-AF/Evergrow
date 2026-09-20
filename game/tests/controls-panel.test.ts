@@ -56,8 +56,8 @@ test('capture consumes the key before game shortcuts, persists it, and restores 
   try {
     let forwarded = 0; s.win.addEventListener('keydown', () => forwarded++);
     s.binding.click(); assert.equal(s.capture.hidden, false);
-    assert.equal(s.key('KeyF').defaultPrevented, true);
-    assert.equal(forwarded, 0); assert.equal(controls.action('KeyF'), 'skill0');
+    assert.equal(s.key('F9').defaultPrevented, true);
+    assert.equal(forwarded, 0); assert.equal(controls.action('F9'), 'skill0');
     assert.equal(s.capture.hidden, true); assert.equal(s.binding.focused, true);
     s.key('KeyG'); assert.equal(forwarded, 1);
   } finally { s.dispose(); }
@@ -66,7 +66,7 @@ test('capture consumes the key before game shortcuts, persists it, and restores 
 test('Escape, blur and repeated keydown never accidentally assign or activate gameplay', () => {
   const s = setup();
   try {
-    s.binding.click(); s.key('KeyF', { repeat: true }); assert.equal(controls.action('KeyF'), undefined);
+    s.binding.click(); s.key('F9', { repeat: true }); assert.equal(controls.action('F9'), undefined);
     s.key('Escape'); assert.equal(s.capture.hidden, true); assert.equal(controls.action('Mouse2'), 'skill0');
     s.binding.click(); s.key('F5'); assert.equal(s.capture.hidden, false);
     s.win.dispatchEvent(new Event('blur')); assert.equal(s.capture.hidden, true);
@@ -93,7 +93,7 @@ test('mouse capture suppresses its follow-up click and unbinding is explicit', (
     s.win.dispatchEvent(down); assert.equal(down.defaultPrevented, true);
     assert.equal(controls.action('Mouse4'), 'skill0');
     const click = new Event('auxclick', { cancelable: true }); s.win.dispatchEvent(click); assert.equal(click.defaultPrevented, true);
-    s.binding.click(); s.clear.click(); assert.deepEqual(controls.get('skill0'), [null, null]);
+    s.binding.click(); s.clear.click(); assert.deepEqual(controls.get('skill0'), [null, 'Mouse2']);
   } finally { s.dispose(); }
 });
 

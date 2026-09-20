@@ -1,4 +1,5 @@
 import { EXPEDITION_MODIFIERS } from './expedition-modifiers.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import type { Expeditions } from './dungeon-state.ts';
 import type { DungeonAction } from './dungeon-command.ts';
 import { newExpeditionRoute, EXPEDITION_RULES } from './expedition-route.ts';
@@ -30,6 +31,7 @@ export class ExpeditionPanel {
     this.element.setAttribute('aria-modal', 'true');
     this.element.setAttribute('aria-labelledby', 'expedition-title');
     mount.append(this.element);
+    attachPanelFrame(this.element, 'expedition');
     const signal = this.abort.signal;
     this.element.addEventListener('click', async e => {
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>('button');

@@ -8,6 +8,9 @@ import { trapDialogFocus, uiIcon } from './ui-components.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
 import type { GamepadInput } from './gamepad-input.ts';
 import './pause-system-windows.css';
+import { castBarOptionsMarkup, bindCastBarOptions } from './cast-bar-settings.ts';
+import { nameplateOptionsMarkup, bindNameplateOptions } from './nameplate-settings.ts';
+import { attachPanelFrame, detachPanelFrame } from './panel-frames.ts';
 
 export type SystemDestination = 'options' | 'controls' | 'changelog' | 'leaderboard';
 export interface SystemWindowActions extends AudioControlActions {
@@ -24,7 +27,7 @@ function optionsMarkup(): string {
       <div class="pause-option pause-option--loot"><span id="ground-loot-names-label">Loot names</span><div class="pause-loot-modes" role="group" aria-labelledby="ground-loot-names-label"><button type="button" data-loot-names="always" class="ui-button ui-button--quiet" aria-pressed="true">Always</button><button type="button" data-loot-names="ctrl" class="ui-button ui-button--quiet" aria-pressed="false" data-loot-hold>Hold key</button></div></div>
       <div class="pause-option"><span>Camera zoom</span><div class="pause-stepper"><button type="button" data-zoom="out" class="ui-button ui-button--icon" aria-label="Zoom camera out">${uiIcon('minus')}</button><button type="button" data-zoom="in" class="ui-button ui-button--icon" aria-label="Zoom camera in">${uiIcon('plus')}</button></div></div>
       <div class="pause-option" data-fullscreen-row hidden><span>Fullscreen</span><button type="button" data-fullscreen aria-label="Fullscreen" class="ui-button pause-toggle" aria-pressed="false">Off</button></div>
-    </section><p class="system-window-status" role="status"></p>`;
+    </section><section class="system-option-group" aria-labelledby="options-combat"><h3 id="options-combat">Combat</h3>${castBarOptionsMarkup()}${nameplateOptionsMarkup()}</section><p class="system-window-status" role="status"></p>`;
 }
 
 /** Independent windows within the paused phase. Closing restores the menu, never gameplay. */
@@ -35,6 +38,7 @@ export class PauseSystemWindows {
   private changelog?: ChangelogPanel;
   private leaderboard?: LeaderboardPanel;
   private refreshAudio?: () => void;
+  private refreshNameplates?: () => void;
   private controller = new GamepadMenu();
   private lastPadTime = 0;
   private readonly root: HTMLElement;
@@ -77,6 +81,7 @@ export class PauseSystemWindows {
         this.leaderboard.open();
       }
       trapDialogFocus(this.window, { signal, restoreFocus: false, initialFocus: () => this.window?.querySelector('[data-system-close]') ?? null });
+      if (destination === 'controls' || destination === 'leaderboard') attachPanelFrame(this.window, destination);
     }
     this.window.addEventListener('keydown', event => {
       if (event.key === 'Escape') { event.preventDefault(); this.back(); }
@@ -104,10 +109,12 @@ export class PauseSystemWindows {
       }, { signal });
       document.addEventListener('fullscreenchange', () => this.refresh(), { signal });
     }
+    bindCastBarOptions(root, signal);
+    this.refreshNameplates = bindNameplateOptions(root, signal);
     this.refresh();
   }
   refresh(): void {
-    this.refreshAudio?.(); this.controls?.refresh();
+    this.refreshAudio?.(); this.refreshNameplates?.(); this.controls?.refresh();
     const hold = this.window?.querySelector<HTMLButtonElement>('[data-loot-hold]');
     if (hold) {
       hold.disabled = !this.actions.setGroundLootNames || !controls.has('revealLoot');
@@ -129,6 +136,7 @@ export class PauseSystemWindows {
     this.life?.abort(); this.life = undefined;
     this.changelog?.dispose(); this.changelog = undefined;
     this.leaderboard?.dispose(); this.leaderboard = undefined;
+    if (this.window) detachPanelFrame(this.window);
     this.window?.remove(); this.window = undefined; this.refreshAudio = undefined;
     this.root.querySelector<HTMLElement>('.pause-menu-stack')!.hidden = false;
     this.root.setAttribute('role', 'dialog'); this.root.setAttribute('aria-modal', 'true'); this.root.setAttribute('aria-labelledby', 'menu-title');

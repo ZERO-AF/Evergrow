@@ -37,12 +37,12 @@ test('name, tile and only qualifying affix rows carry the same quality distincti
   const gear = deriveItem(item);
   const content = itemTooltipMarkup(gear, {sheet:createCharacterSheet(), level:35, compare:false});
   assert.equal((content.match(/aria-label="Greater affix/g) ?? []).length, 3);
-  assert.match(content, /<h4>Ashen Echo <span class="ui-greater-affix"/);
+  assert.match(content, /<h4>Quarterstaff of the Ashen Verdict <span class="ui-greater-affix"/);
   assert.match(content, /<span class="ui-greater-affix".*?<\/span>Spell damage/);
   assert.match(content, /<span>Mana \/ 5 sec<\/span>/);
   assert.match(itemSlotMarkup(gear), /ui-item-greater/);
   gear.recipe.enhancement = 3;
-  assert.equal(itemDisplayName(gear), 'Ashen Echo +3 ✦');
+  assert.equal(itemDisplayName(gear), 'Quarterstaff of the Ashen Verdict +3 ✦');
   gear.recipe.rolls.fill(.5);
   assert.doesNotMatch(itemSlotMarkup(gear), /ui-item-greater/);
 });

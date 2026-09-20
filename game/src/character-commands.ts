@@ -4,9 +4,10 @@ export { executeAppearanceChange } from './appearance-command.ts';
 import { upgradeSkill, configureSkill, OVERLOAD_NODE } from './skill-progression.ts';
 import type { Player } from './model.ts';
 import type { ActionResult, Attribute, EquipmentSlot, SkillId } from './character-types.ts';
-import { equipItem, unequipItem, moveInventoryItem, allocateAttribute } from './inventory.ts';
+import { unequipItem, moveInventoryItem, allocateAttribute, useInventoryItem } from './inventory.ts';
 import { allocateSkillRoute } from './skill-tree-routes.ts';
 import { assignSkill, refreshCharacter } from './character.ts';
+import { refreshBuffStats } from './player-skill-effects.ts';
 import { equipBest, sortInventory, sortStorage, type InventorySort, type EquipBestChoice } from './inventory-tools.ts';
 
 export type CharacterCommand =
@@ -41,7 +42,7 @@ export function executeCharacterCommand(player: Player, command: CharacterComman
     case 'overload':
       if (!player.character.allocatedNodes.includes(OVERLOAD_NODE)) return { ok: false, message: 'Unlock Arcane Overload first.' };
       player.character.arcaneOverload = command.enabled; result = { ok: true }; break;
-    case 'equip': result = equipItem(player.character, command.index, player.level, command.slot); break;
+    case 'equip': result = useInventoryItem(player, command.index, command.slot); break;
     case 'unequip': result = unequipItem(player.character, command.slot, command.index); break;
     case 'moveItem': result = moveInventoryItem(player.character, command.from, command.to); break;
     case 'allocateAttribute': result = allocateAttribute(player.character, command.attribute); break;
@@ -52,6 +53,6 @@ export function executeCharacterCommand(player: Player, command: CharacterComman
       throw new Error(`Unknown character command: ${unhandled}`);
     }
   }
-  if (result.ok) refreshCharacter(player);
+  if (result.ok) { refreshCharacter(player); if (command.type === 'equip' && player.buffs?.length) refreshBuffStats(player); }
   return result;
 }

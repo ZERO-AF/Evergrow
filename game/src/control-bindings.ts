@@ -5,34 +5,55 @@ export const CONTROL_ACTIONS = [
   { id: 'down', label: 'Move down', group: 'Movement', defaults: ['KeyS', 'ArrowDown'], pad: 'Left stick' },
   { id: 'right', label: 'Move right', group: 'Movement', defaults: ['KeyD', 'ArrowRight'], pad: 'Left stick' },
   { id: 'attack', label: 'Basic attack', group: 'Combat', defaults: ['Mouse0', null], pad: 'RT' },
-  { id: 'skill0', label: 'Skill slot 1', group: 'Combat', defaults: ['Mouse2', null], pad: 'LT' },
-  { id: 'skill1', label: 'Skill slot 2', group: 'Combat', defaults: ['Digit1', null], pad: 'RB' },
-  { id: 'skill2', label: 'Skill slot 3', group: 'Combat', defaults: ['Digit2', null], pad: 'X' },
-  { id: 'skill3', label: 'Skill slot 4', group: 'Combat', defaults: ['Digit3', null], pad: 'Y' },
-  { id: 'skill4', label: 'Skill slot 5', group: 'Combat', defaults: ['Digit4', null], pad: 'RS' },
+  { id: 'cycleTarget', label: 'Target next enemy', group: 'Combat', defaults: ['Tab', null], pad: '—' },
+  { id: 'skill0', label: 'Skill slot 1', group: 'Combat', defaults: ['Digit1', 'Mouse2'], pad: 'LT' },
+  { id: 'skill1', label: 'Skill slot 2', group: 'Combat', defaults: ['Digit2', null], pad: 'RB' },
+  { id: 'skill2', label: 'Skill slot 3', group: 'Combat', defaults: ['Digit3', null], pad: 'X' },
+  { id: 'skill3', label: 'Skill slot 4', group: 'Combat', defaults: ['Digit4', null], pad: 'Y' },
+  { id: 'skill4', label: 'Skill slot 5', group: 'Combat', defaults: ['Digit5', null], pad: 'RS' },
+  { id: 'skill5', label: 'Skill slot 6', group: 'Combat', defaults: ['Digit6', null], pad: '—' },
+  { id: 'skill6', label: 'Skill slot 7', group: 'Combat', defaults: ['Digit7', null], pad: '—' },
+  { id: 'skill7', label: 'Skill slot 8', group: 'Combat', defaults: ['Digit8', null], pad: '—' },
+  { id: 'skill8', label: 'Skill slot 9', group: 'Combat', defaults: ['Digit9', null], pad: '—' },
+  { id: 'skill9', label: 'Skill slot 10', group: 'Combat', defaults: ['Digit0', null], pad: '—' },
+  { id: 'skill10', label: 'Skill slot 11', group: 'Combat', defaults: ['Minus', null], pad: '—' },
+  { id: 'skill11', label: 'Skill slot 12', group: 'Combat', defaults: ['Equal', null], pad: '—' },
+  { id: 'racial', label: 'Racial skill', group: 'Combat', defaults: ['KeyR', null], pad: '—' },
   { id: 'dodge', label: 'Dodge', group: 'Combat', defaults: ['Space', null], pad: 'B' },
   { id: 'heal', label: 'Potion', group: 'Combat', defaults: ['KeyQ', null], pad: 'LB' },
   { id: 'revealLoot', label: 'Reveal loot names', group: 'Combat', defaults: ['ShiftLeft', 'ShiftRight'], pad: '—' },
+  { id: 'petCommand', label: 'Pet command', group: 'Combat', defaults: ['KeyF', null], pad: '—' },
   { id: 'interact', label: 'Interact', group: 'World & menus', defaults: ['KeyE', null], pad: 'A' },
   { id: 'portal', label: 'Town portal', group: 'World & menus', defaults: ['KeyP', null], pad: 'D-pad ↓' },
   { id: 'character', label: 'Character / inventory', group: 'World & menus', defaults: ['KeyC', 'KeyI'], pad: 'D-pad ← / →' },
   { id: 'skills', label: 'Skill atlas', group: 'World & menus', defaults: ['KeyT', null], pad: 'D-pad ↑' },
   { id: 'journeys', label: 'Journeys', group: 'World & menus', defaults: ['KeyJ', null], pad: 'Menu drawer' },
-  { id: 'map', label: 'World map', group: 'World & menus', defaults: ['KeyM', 'Tab'], pad: 'View' },
+  { id: 'map', label: 'World map', group: 'World & menus', defaults: ['KeyM', null], pad: 'View' },
   { id: 'sound', label: 'Toggle sound', group: 'World & menus', defaults: ['KeyN', null], pad: 'Options' },
   { id: 'debug', label: 'Performance overlay', group: 'World & menus', defaults: ['F3', null], pad: '—' },
+  { id: 'mount', label: 'Mount / dismount', group: 'World & menus', defaults: ['KeyX', null], pad: '—' },
+  { id: 'hearthstone', label: 'Hearthstone', group: 'World & menus', defaults: ['KeyH', null], pad: '—' },
+  { id: 'questLog', label: 'Quest log', group: 'World & menus', defaults: ['KeyL', null], pad: '—' },
+  { id: 'professions', label: 'Professions', group: 'World & menus', defaults: ['KeyK', null], pad: '—' },
+ { id: 'achievements', label: 'Achievements', group: 'World & menus', defaults: ['KeyY', null], pad: '—' },
+ { id: 'spellbook', label: 'Spellbook', group: 'World & menus', defaults: ['KeyB', null], pad: '—' },
+{ id: 'stats', label: 'Character stats', group: 'World & menus', defaults: ['KeyZ', null], pad: '—' },
+ { id: 'reputation', label: 'Reputation', group: 'World & menus', defaults: ['KeyO', null], pad: '—' },
+ { id: 'editLayout', label: 'Edit UI layout', group: 'World & menus', defaults: ['KeyU', null], pad: '—' },
+  { id: 'transmog', label: 'Transmogrify', group: 'World & menus', defaults: ['KeyG', null], pad: '—' },
+  { id: 'nameplates', label: 'Enemy nameplates', group: 'World & menus', defaults: ['KeyV', null], pad: '—' },
 ] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number]['id'];
 export function isGameplayAction(action: ControlAction | undefined): boolean {
   return isMovementAction(action) || action === 'revealLoot' || action === 'attack' || action === 'dodge' || action === 'heal'
-    || SKILL_ACTIONS.some(skill => skill === action);
+    || action === 'cycleTarget' || action === 'racial' || SKILL_ACTIONS.some(skill => skill === action);
 }
 export function isMovementAction(action: ControlAction | undefined): boolean {
   return action === 'up' || action === 'down' || action === 'left' || action === 'right';
 }
 export type ControlMap = Record<ControlAction, readonly [string | null, string | null]>;
-export const SKILL_ACTIONS = ['skill0', 'skill1', 'skill2', 'skill3', 'skill4'] as const;
-export const CONTROL_STORAGE_KEY = 'evergrow-controls-v1';
+export const SKILL_ACTIONS = ['skill0', 'skill1', 'skill2', 'skill3', 'skill4', 'skill5', 'skill6', 'skill7', 'skill8', 'skill9', 'skill10', 'skill11'] as const;
+export const CONTROL_STORAGE_KEY = 'evergrow-controls-v2';
 export interface ControlStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; }
 export function defaultControls(): ControlMap {
   return Object.fromEntries(CONTROL_ACTIONS.map(a => [a.id, [...a.defaults]])) as unknown as ControlMap;
@@ -56,7 +77,7 @@ export function parseControls(raw: string | null): ControlMap {
     for (const { id } of CONTROL_ACTIONS) {
       const pair = map[id];
       if (pair === undefined) {
-        if (id === 'revealLoot') continue;
+        if (id === 'revealLoot' || id === 'petCommand') continue;
         return defaultControls();
       }
       if (!Array.isArray(pair) || pair.length !== 2) return defaultControls();

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateItem, deriveItem, createCharacterSheet, STARTER_LOADOUTS } from '../src/items.ts';
+import { generateItem, deriveItem, createCharacterSheet } from '../src/items.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { MATERIAL_POOLS, itemMaterialPool, itemMaterialScale, rollItemMaterial } from '../src/item-materials.ts';
 import { equipmentExhibits } from '../src/equipment-review-fixtures.ts';
 import { validItem } from '../src/item-validation.ts';
@@ -56,8 +57,8 @@ test('improving and repricing a precious base preserves its recipe without compo
 });
 
 test('new characters keep ordinary authored starts and existing unspecified bases stay unchanged',()=>{
-  for(const loadout of STARTER_LOADOUTS){
-    const sheet=createCharacterSheet(loadout.id);
+  for(const wowClass of Object.values(WOW_CLASSES)){
+    const sheet=createCharacterSheet(wowClass.id);
     for(const item of Object.values(sheet.equipped).filter(i=>i!==null)){
       assert.ok(validItem(item));assert.equal(itemMaterialScale(item),1);assert.equal(item.tier,'common');
     }

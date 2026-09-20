@@ -5,16 +5,18 @@ import { lungeReturn } from './unique-combat.ts';
 import { skillSustain } from './skill-sustain.ts';
 import { OVERLOAD_NODE } from './skill-progression.ts';
 import type { GroundEffect, Player } from './model.ts';
-import type { SkillId } from './character-types.ts';
+import type { SkillId, StatKey } from './character-types.ts';
 import { AFFIX_COMBAT_RULES } from './equipment-affix-content.ts';
 import { SKILL_DEFINITIONS, canUseSkill } from './skill-content.ts';
 import { resolveSkill } from './skill-progression.ts';
 import { spellweaveMultiplier, canSpellweave } from './affix-combat.ts';
+import { consumableBuffCategory, consumableBuffDef } from './consumable-content.ts';
+import { STAT_LABELS, formatStatValue } from './items.ts';
 
 export interface ActiveBuff {
   persistent?: boolean; reservation?: number; progress?: number;
   id: string; name: string; remaining: number; duration: number; color: string;
-  icon: SkillId | 'weave-melee' | 'weave-spell'; summary: string; term?: string; charges?: number;
+  icon: SkillId | 'weave-melee' | 'weave-spell' | `consumable:${string}`; summary: string; term?: string; charges?: number;
 }
 const percent = (n: number) => `${Math.round(n * 100)}%`;
 /** Read-only projection: no timers, combat mutations or save ownership in the HUD. */
@@ -32,7 +34,7 @@ export function activeBuffs(p: Player, groundEffects: readonly GroundEffect[] = 
   const skill = (id: SkillId, remaining: number, summary: string, term?: string, charges?: number, initialDuration?: number) => {
     if (!canUseSkill(id, p.equipment)) return;
     const recipe = resolveSkill(id, p.derived, p.character).recipe;
-    const duration = initialDuration ?? ('duration' in recipe ? recipe.duration : recipe.kind === 'radial' ? recipe.shelter?.duration ?? remaining : remaining);
+    const duration = initialDuration ?? ('duration' in recipe ? recipe.duration ?? remaining : recipe.kind === 'radial' ? recipe.shelter?.duration ?? remaining : remaining);
     add({ id, name: SKILL_DEFINITIONS[id].name, icon: id, color: SKILL_DEFINITIONS[id].color,
       remaining, duration: Math.max(remaining, duration), summary, term, charges });
   };
@@ -75,5 +77,26 @@ export function activeBuffs(p: Player, groundEffects: readonly GroundEffect[] = 
   if (storm) skill('tempest', storm.remaining, `Storm active · ${Number(storm.upkeep.toFixed(1))} mana / second.`, 'tempest', undefined, Math.max(...groundEffects.filter(e=>e.kind==='storm').map(e=>e.initialDuration ?? 0)) || undefined);
   if (p.character.arcaneOverload && p.character.allocatedNodes.includes(OVERLOAD_NODE)) add({ id: 'arcane-overload', name: 'Arcane Overload', icon: 'arcLightning', color: '#c7a0ef', remaining: 1, duration: 1, persistent: true,
     summary: 'Arcana damage +30%; mana cost +60%.', term: 'overload' });
+  // Consumables (flasks, Well Fed food, elixirs, potions) — category glyph icons.
+  for (const buff of p.buffs ?? []) {
+    const category = consumableBuffCategory(buff);
+    if (!category) continue;
+    const def = consumableBuffDef(buff);
+    const parts = Object.entries(buff.stats ?? {}).map(([key, value]) => `${STAT_LABELS[key as StatKey] ?? key} ${formatStatValue(key as StatKey, value)}`);
+    if (buff.absorb) parts.push(`Absorbs ${Math.round(buff.absorbRemaining ?? 0)} damage`);
+    if (buff.reduction) parts.push(`${percent(buff.reduction)} hit damage prevented`);
+    if (buff.healPerSecond) parts.push(`+${buff.healPerSecond} health / second`);
+    if (buff.manaPerSecond) parts.push(`+${buff.manaPerSecond} mana / second`);
+    if (buff.resourcePerSecond) parts.push(`+${buff.resourcePerSecond} resource / second`);
+    if (buff.stealth) parts.push('Stealthed');
+    if (buff.imbue) parts.push(`Imbued: +${percent(buff.imbue.fraction)} ${buff.imbue.element} damage`);
+    if (buff.reflect) parts.push(`Reflects ${percent(buff.reflect)} damage`);
+    if (buff.immunity) parts.push('Immune to crowd control');
+    if (buff.leech) parts.push(`${percent(buff.leech)} of damage returns as health`);
+    if (buff.allyDamage) parts.push(`Allies deal +${percent(buff.allyDamage)} damage`);
+    buffs.push({ id: buff.id, name: buff.name, icon: `consumable:${category}`, color: buff.color,
+      remaining: buff.remaining, duration: buff.duration, persistent: buff.duration >= 300,
+      summary: parts.join(' · ') || (def?.useText ?? 'Consumable effect.') });
+  }
   return buffs;
 }

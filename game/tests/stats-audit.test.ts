@@ -45,7 +45,7 @@ test('spirit hits are recorded as arcane damage instead of physical damage',()=>
 });
 
 test('channel upkeep contributes actual mana spent, with no charge for a cancelled pulse',()=>{
-  const sim=new Simulation(world,{spawn:false}),p=sim.player;p.character=createCharacterSheet('fire');refreshCharacter(p);p.mana=100;
+  const sim=new Simulation(world,{spawn:false}),p=sim.player;p.character=createCharacterSheet('mage');refreshCharacter(p);p.mana=100;
   const effect:ActiveGroundEffect={id:1,kind:'storm',x:0,y:0,radius:20,delay:0,duration:3,interval:.5,tick:0,damage:1,skill:'tempest',style:'lightning',upkeep:12,pulsesLeft:4};
   const context={player:p,enemies:[],visible:()=>true,damage:()=>{},emit:()=>{}};
   advanceGroundEffects([effect],.5,context);assert.equal(p.mana,94);assert.equal(values(sim).manaSpent,6);

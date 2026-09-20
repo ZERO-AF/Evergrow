@@ -2,8 +2,10 @@ import { AURA_IDS, AURAS } from './aura-content.ts';
 import { SKILL_SPECIALIZATIONS, specializationNode, OVERLOAD_NODE } from './skill-progression.ts';
 import type { ActionResult, CharacterSheet, SkillId, StatKey, StatModifiers } from './character-types.ts';
 import { SKILL_DEFINITIONS } from './skill-content.ts';
-import { SKILL_TERRITORIES, TERRITORY_SPECIALTIES, SKILL_DOCTRINES, BORDER_GARDENS, OUTER_SPECIALTIES } from './skill-tree-content.ts';
+import { SKILL_TERRITORIES, TERRITORY_SPECIALTIES, SKILL_DOCTRINES, BORDER_GARDENS, OUTER_SPECIALTIES, CLASS_SANCTUMS, specSignatureNode } from './skill-tree-content.ts';
 import { PASSIVE_CLUSTER_SHAPES, passiveClusterShape, type PassiveClusterShape } from './skill-tree-shapes.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import type { WowClassId } from './wow-types.ts';
 export { SKILL_TERRITORIES, SKILL_DOCTRINES } from './skill-tree-content.ts';
 export type SkillDomain = 'Might' | 'Cunning' | 'Arcana';
 export interface SkillNode {
@@ -13,13 +15,21 @@ export interface SkillNode {
   readonly domain: SkillDomain; readonly territory?: string;
   readonly bonuses: Readonly<StatModifiers>;
   readonly skill?: SkillId; readonly specialization?: string; readonly developmentSkill?: SkillId;
+  /** Owning WotLK class; absent = open to every class. Foreign clusters stay visible but dimmed. */
+  readonly classId?: WowClassId;
   readonly doctrine?: string; readonly keystone?: boolean;
+  /** Specialization signature id (skill-tree-content SpecSignature); the node also carries `doctrine: spec:<classId>` for exclusivity. */
+  readonly spec?: string;
+  /** Granted at creation without spending a point (origin + the class starter skill). */
+  readonly free?: boolean;
   readonly cluster?: string; readonly role?: 'travel' | 'cluster' | 'choice';
   readonly neighbors: readonly string[];
 }
 interface Point { x: number; y: number; }
-export interface SkillEdge { readonly from: string; readonly to: string; readonly control?: Readonly<Point>; }
-export interface SkillCluster { readonly id: string; readonly name: string; readonly domain: SkillDomain; readonly territory?: string; readonly shape?: PassiveClusterShape; readonly x: number; readonly y: number; readonly radius: number; }
+export interface SkillEdge { readonly from: string; readonly to: string; readonly control?: Readonly<Point>;
+  /** A class gateway from the Root to a sanctum starter; spans the atlas and is exempt from local-connector checks. */
+  readonly classGate?: boolean; }
+export interface SkillCluster { readonly id: string; readonly name: string; readonly domain: SkillDomain; readonly territory?: string; readonly classId?: WowClassId; readonly shape?: PassiveClusterShape; readonly x: number; readonly y: number; readonly radius: number; }
 export const SKILL_TREE_ORIGIN = 'origin';
 export const SKILL_TREE_VERSION = 3;
 type MutableNode = Omit<SkillNode, 'neighbors'> & { neighbors: string[] };
@@ -34,10 +44,11 @@ const ACTIVE_ROUTES: Readonly<Record<string, readonly [SkillId,number,number][]>
 };
 function buildTree() {
  const nodes: MutableNode[] = [], edges: SkillEdge[] = [], clusters: SkillCluster[] = [];
+ const link=(a:string,b:string)=>{const x=byId.get(a)!,y=byId.get(b)!;if(x.neighbors.includes(b))return;x.neighbors.push(b);y.neighbors.push(a);edges.push({from:a,to:b});};
+ const linkGate=(a:string,b:string)=>{const x=byId.get(a)!,y=byId.get(b)!;if(x.neighbors.includes(b))return;x.neighbors.push(b);y.neighbors.push(a);edges.push({from:a,to:b,classGate:true});};
  const byId = new Map<string,MutableNode>();
  const potential = new Map<string,number>();
  const add=(n:Omit<MutableNode,'neighbors'>,depth:number)=>{if(byId.has(n.id))throw Error(n.id);const v={...n,bonuses:Object.freeze({...n.bonuses}),neighbors:[] as string[]};nodes.push(v);byId.set(v.id,v);potential.set(v.id,depth);return v;};
- const link=(a:string,b:string)=>{const x=byId.get(a)!,y=byId.get(b)!;if(x.neighbors.includes(b))return;x.neighbors.push(b);y.neighbors.push(a);edges.push({from:a,to:b});};
  const distance=(a:Point,b:Point)=>Math.hypot(a.x-b.x,a.y-b.y);
  const lens=(n:MutableNode)=>n.kind==='major'?40:n.kind==='notable'?24:n.role==='travel'?12:18;
  const segmentDistance=(p:Point,a:Point,b:Point)=>{const dx=b.x-a.x,dy=b.y-a.y,d=dx*dx+dy*dy,t=d?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/d)):0;return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy);};
@@ -53,7 +64,7 @@ function buildTree() {
  };
  interface Hub extends Point {id:string; members:MutableNode[]; territory:typeof SKILL_TERRITORIES[number]; external:number; road:boolean;}
  const hubs:Hub[]=[];
- add({id:'origin',name:'The Root',description:'Six active-skill branches meet an open network of passive neighborhoods. Follow a branch, cut across a nearby cluster, or develop your current skills.',x:0,y:0,domain:'Might',kind:'origin',bonuses:{}},0);
+ add({id:'origin',name:'The Root',description:'Six active-skill branches meet an open network of passive neighborhoods. Follow a branch, cut across a nearby cluster, or develop your current skills.',x:0,y:0,domain:'Might',kind:'origin',bonuses:{},free:true},0);
  // The six readable trunks retain their exact active-skill purchase distances.
  for(const t of SKILL_TERRITORIES)for(let i=1;i<=32;i++){
    const n=add({id:`road:${t.id}:${i}`,name:`${t.name} route ${i}`,description:`A useful step through ${t.name}. Nearby neighborhoods offer alternate routes.`,...roadPoint(t,i),domain:t.domain,territory:t.id,kind:'minor',role:'travel',bonuses:routeBonus(t,i-1)},i);
@@ -202,6 +213,123 @@ function buildTree() {
    const aura=AURAS[skill],t=SKILL_TERRITORIES.find(t=>t.id===aura.territory)!,depth=Math.min(aura.points-1,Math.max(...nodes.filter(n=>n.id.startsWith(`road:${t.id}:`)).map(n=>Number(n.id.split(':')[2]))));
    pocket(byId.get(`road:${t.id}:${depth}`)!,t,skill==='elementalSpikes'?1:-1,p=>[{id:`skill:${skill}`,name:aura.name,description:aura.description,...p,kind:'major',domain:t.domain,territory:t.id,skill,cluster:`development:${skill}`,bonuses:{}}],depth+1,`development:${skill}`);
  }
+ // The Class Sanctum: ten class-gated clusters ringing the Root, appended last so
+ // every existing node id, edge and neighborhood stays exactly where saves left
+ // it. The inner band is saturated, so clusters claim the first free discs in
+ // kit-size order — the biggest land inside ~25% of the atlas extent, the rest
+ // on a second band farther out. Each cluster is a planar wheel: a passive
+ // triangle inside two concentric skill rings joined by order-preserving spokes,
+ // entered through two or three short spokes from the nearest road nodes.
+ // Adds 233 nodes and 453 edges on top of the existing 1,831 / 2,125.
+ {
+   const sorted=[...SKILL_TERRITORIES].sort((a,b)=>a.angle-b.angle);
+   // A coarse occupancy grid rejects crowded disc candidates without scanning
+   // every node and edge; survivors get the exact checks below.
+   const cell=100,grid=new Map<string,Point[]>();
+   const mark=(p:Point)=>{const key=`${Math.floor(p.x/cell)},${Math.floor(p.y/cell)}`;const list=grid.get(key)??[];list.push(p);grid.set(key,list);};
+   for(const n of nodes)mark(n);
+   for(const e of edges){const a=byId.get(e.from)!,b=byId.get(e.to)!,steps=Math.max(1,Math.ceil(distance(a,b)/40));for(let i=0;i<=steps;i++)mark({x:a.x+(b.x-a.x)*i/steps,y:a.y+(b.y-a.y)*i/steps});}
+   const gridClear=(c:Point,need:number)=>{
+     const reach=Math.ceil((need+cell*1.5)/cell);
+     for(let gx=Math.floor(c.x/cell)-reach;gx<=Math.floor(c.x/cell)+reach;gx++)
+       for(let gy=Math.floor(c.y/cell)-reach;gy<=Math.floor(c.y/cell)+reach;gy++){
+         const list=grid.get(`${gx},${gy}`);if(!list)continue;
+         for(const p of list)if(distance(c,p)<=need)return false;
+       }
+     return true;
+   };
+   for(const sanctum of [...CLASS_SANCTUMS].sort((a,b)=>b.skills.length-a.skills.length)){
+    // Split skills across 2-3 concentric rings so each ring keeps >36 unit spacing.
+    const ringCount=sanctum.skills.length>44?3:2;
+    const base=Math.floor(sanctum.skills.length/ringCount),extra=sanctum.skills.length%ringCount;
+    const ringSizes=Array.from({length:ringCount},(_,i)=>base+(i<extra?1:0));
+    // Ring 0 is the specialization ring: three signature keystones between the
+    // passive triangle and the skill rings. Skill rings grow outward from it.
+    const specRadius=Math.max(108,3*40/(Math.PI*2));
+    const ringRadii:number[]=[];{let r=specRadius;for(const n of ringSizes){r=Math.max(r+44,n*40/(Math.PI*2));ringRadii.push(r);}}
+    const r2=ringRadii[ringRadii.length-1]+33;
+    if(sanctum.specs.length!==3||sanctum.specs.some((spec,i)=>!specSignatureNode(sanctum.classId,spec.id).endsWith(WOW_CLASSES[sanctum.classId].specs[i].toLowerCase().replace(/[^a-z]+/g,'-'))))throw Error(`Spec signatures must match WowClassDef.specs order for ${sanctum.classId}`);
+     const make=(center:Point)=>{
+       const members:Array<Omit<MutableNode,'neighbors'>>=sanctum.passives.map((p,i)=>{
+         const a=Math.atan2(-center.y,-center.x)+i*Math.PI*2/3;
+         return {id:`wow-${sanctum.classId}-passive-${i}`,name:p.name,description:p.description,
+           x:center.x+Math.cos(a)*42,y:center.y+Math.sin(a)*42,kind:'notable' as const,domain:sanctum.domain,
+           classId:sanctum.classId,cluster:`sanctum:${sanctum.classId}`,role:'cluster' as const,bonuses:p.small};
+       });
+       for(const [i,spec] of sanctum.specs.entries()){
+         // Offset each spec keystone half a passive step and place it between the
+         // passive triangle and the first skill ring: clear of the passive edges and
+         // of every passive→skill spoke, so no route edge crosses a spec node.
+         const a=Math.atan2(-center.y,-center.x)+(i+0.5)*Math.PI*2/3;
+         members.push({id:specSignatureNode(sanctum.classId,spec.id),name:spec.name,
+           description:`${spec.spec} specialization: choose one of three. ${spec.description} Other specializations are mutually exclusive.`,
+           x:center.x+Math.cos(a)*70,y:center.y+Math.sin(a)*70,kind:'notable' as const,domain:sanctum.domain,
+           classId:sanctum.classId,cluster:`sanctum:${sanctum.classId}`,role:'choice' as const,doctrine:`spec:${sanctum.classId}`,spec:spec.id,bonuses:spec.bonuses});
+       }
+       let idx=0;
+       for(let ring=0;ring<ringCount;ring++){
+         for(let i=0;i<ringSizes[ring];i++,idx++){
+           const skill=sanctum.skills[idx],a=Math.atan2(-center.y,-center.x)+i*Math.PI*2/ringSizes[ring];
+           members.push({id:`wow-${sanctum.classId}-${skill.id}`,name:skill.name,description:skill.description,
+             x:center.x+Math.cos(a)*ringRadii[ring],y:center.y+Math.sin(a)*ringRadii[ring],kind:'notable' as const,domain:skill.domain,
+             classId:sanctum.classId,cluster:`sanctum:${sanctum.classId}`,role:'cluster' as const,skill:skill.id,bonuses:{},
+             free:skill.id===WOW_CLASSES[sanctum.classId].starterSkill||undefined});
+         }
+       }
+       return members;
+     };
+     let placed:Array<Omit<MutableNode,'neighbors'>>|undefined,center:Point|undefined;
+     for(let radius=380;radius<=3200&&!placed;radius+=15){
+       for(let deg=-180;deg<180&&!placed;deg+=3){
+         const a=deg*Math.PI/180,c={x:Math.cos(a)*radius,y:Math.sin(a)*radius};
+         if(!gridClear(c,r2+20))continue;
+         if(!nodes.every(o=>distance(c,o)>r2+lens(o)+20))continue;
+         if(!edges.every(e=>segmentDistance(c,byId.get(e.from)!,byId.get(e.to)!)>r2+20))continue;
+         const candidate=make(c);
+         if(candidate.every(n=>nodes.every(o=>distance(n,o)>36+lens(o))
+           &&edges.every(e=>segmentDistance(n,byId.get(e.from)!,byId.get(e.to)!)>30))){placed=candidate;center=c;}
+       }
+     }
+     if(!placed||!center)throw Error(`No sanctum pocket for ${sanctum.classId}`);
+     const members=placed.map(n=>add(n,2));
+     const passives=members.slice(0,3),specRing=members.slice(3,6);
+     const rings:MutableNode[][]=[];{let off=6;for(const n of ringSizes){rings.push(members.slice(off,off+n));off+=n;}}
+     const outer=rings[rings.length-1];
+     // Planar wheel: passive triangle hub, concentric skill cycles, order-preserving
+     // spokes. Spec signatures are leaf choices off their aligned passive — never on
+     // the route to a skill, so their mutual exclusivity can't gate progression.
+     for(let i=0;i<3;i++)link(passives[i].id,passives[(i+1)%3].id);
+     for(const ring of rings)for(let i=0;i<ring.length;i++)link(ring[i].id,ring[(i+1)%ring.length].id);
+     for(const o of rings[0])link(o.id,[...passives].sort((a,b)=>distance(o,a)-distance(o,b))[0].id);
+     for(let r=1;r<rings.length;r++)for(const o of rings[r])link(o.id,[...rings[r-1]].sort((a,b)=>distance(o,a)-distance(o,b))[0].id);
+     for(let i=0;i<3;i++)link(passives[i].id,specRing[i].id);
+     // Entrances: the nearest nodes on the two flanking roads, then the Root,
+     // then any nearby node as a last resort.
+     const actual=Math.atan2(center.y,center.x);
+     const depth=Math.max(1,Math.min(30,Math.round((Math.hypot(center.x,center.y)-240)/80)));
+     const near=sorted.reduce((a,b)=>Math.abs(Math.atan2(Math.sin(actual-a.angle),Math.cos(actual-a.angle)))
+       <Math.abs(Math.atan2(Math.sin(actual-b.angle),Math.cos(actual-b.angle)))?a:b);
+     const far=sorted.find(t=>t!==near&&Math.abs(Math.atan2(Math.sin(actual-t.angle),Math.cos(actual-t.angle)))<Math.PI/2)??near;
+     const anchors=[...[depth,depth+2,depth-2,depth+4,depth-4,depth+6,depth-6,depth+8].flatMap(d=>[byId.get(`road:${near.id}:${d}`),byId.get(`road:${far.id}:${d}`)]),
+       byId.get('origin')!,
+       ...[...nodes].filter(n=>!n.classId&&!n.skill&&!n.keystone&&!n.doctrine&&!n.id.startsWith('specialization:')).sort((a,b)=>distance(a,center!)-distance(b,center!)).slice(0,30)]
+       .filter((a):a is MutableNode=>!!a);
+     const used=new Set<string>();let entrances=0;
+     for(const anchor of anchors){
+       if(entrances>=3)break;
+       const target=[...outer].sort((a,b)=>distance(anchor,a)-distance(anchor,b)).find(t=>!used.has(t.id)&&clearLine(anchor,t));
+       if(target){link(anchor.id,target.id);used.add(target.id);entrances++;}
+     }
+     // The class gateway below already makes the whole sanctum reachable through the
+     // starter's ring, so road entrances are a bonus, not a requirement.
+     if(entrances<1)linkGate('origin',outer[0].id);
+     // Class gateway: the Root reaches the free starter skill directly, so a level-1
+     // character owns one class skill and the whole sanctum is one point away.
+     linkGate('origin',`wow-${sanctum.classId}-${WOW_CLASSES[sanctum.classId].starterSkill}`);
+     clusters.push({id:`sanctum:${sanctum.classId}`,name:`${WOW_CLASSES[sanctum.classId].name} Sanctum`,
+       domain:sanctum.domain,classId:sanctum.classId,x:center.x,y:center.y,radius:r2});
+   }
+ }
  // Keep every displayed connection straight and local; authored silhouettes supply the rhythm.
  for(const n of nodes){Object.freeze(n.neighbors);Object.freeze(n);}for(const e of edges)Object.freeze(e);
  const bounds=Object.freeze({minX:Math.min(...nodes.map(n=>n.x))-180,minY:Math.min(...nodes.map(n=>n.y))-180,maxX:Math.max(...nodes.map(n=>n.x))+180,maxY:Math.max(...nodes.map(n=>n.y))+180});
@@ -210,9 +338,12 @@ function buildTree() {
 export const SKILL_TREE=buildTree();
 export const SKILL_NODES:ReadonlyMap<string,SkillNode>=new Map(SKILL_TREE.nodes.map(n=>[n.id,n]));
 export function getTreeBonuses(ids:readonly string[]):StatModifiers {const result:StatModifiers={};const families=new Set<string>();for(const id of new Set(ids)){const n=SKILL_NODES.get(id);if(!n || n.doctrine&&families.has(n.doctrine))continue;if(n.doctrine)families.add(n.doctrine);for(const [key,value]of Object.entries(n.bonuses) as [StatKey,number][])result[key]=(result[key]??0)+value;}return result;}
+export function allocateNode(sheet:CharacterSheet,id:string):ActionResult {const n=SKILL_NODES.get(id);if(!n)return{ok:false,message:'Unknown node.'};if(sheet.allocatedNodes.includes(id))return{ok:false,message:'Already allocated.'};if(n.classId&&n.classId!==sheet.classId)return{ok:false,message:`Only a ${WOW_CLASSES[n.classId].name} can learn this.`};if(doctrineConflict(sheet.allocatedNodes,n))return{ok:false,message:n.spec?'Choose only one specialization for your class.':'Choose only one Doctrine in each family.'};if(!n.free&&(!Number.isSafeInteger(sheet.skillPoints)||sheet.skillPoints<1))return{ok:false,message:'Requires one skill point.'};if(!n.neighbors.some(id=>sheet.allocatedNodes.includes(id)))return{ok:false,message:'Connect this node first.'};sheet.allocatedNodes.push(id);if(!n.free)sheet.skillPoints--;if(n.specialization&&n.developmentSkill)sheet.skillSpecializations[n.developmentSkill]=n.specialization;return{ok:true};}
 export function unlockedSkills(ids:readonly string[]):SkillId[]{return [...new Set(ids.flatMap(id=>{const s=SKILL_NODES.get(id)?.skill;return s?[s]:[];}))];}
 export function doctrineConflict(ids:Iterable<string>,node:SkillNode):boolean{return !!node.doctrine&&[...ids].some(id=>id!==node.id&&SKILL_NODES.get(id)?.doctrine===node.doctrine);}
-export function allocateNode(sheet:CharacterSheet,id:string):ActionResult {const n=SKILL_NODES.get(id);if(!n)return{ok:false,message:'Unknown node.'};if(sheet.allocatedNodes.includes(id))return{ok:false,message:'Already allocated.'};if(doctrineConflict(sheet.allocatedNodes,n))return{ok:false,message:'Choose only one Doctrine in each family.'};if(!Number.isSafeInteger(sheet.skillPoints)||sheet.skillPoints<1)return{ok:false,message:'Requires one skill point.'};if(!n.neighbors.some(id=>sheet.allocatedNodes.includes(id)))return{ok:false,message:'Connect this node first.'};sheet.allocatedNodes.push(id);sheet.skillPoints--;if(n.specialization&&n.developmentSkill)sheet.skillSpecializations[n.developmentSkill]=n.specialization;return{ok:true};}
+/** Allocated nodes granted without spending a point (origin + the class starter). */
+export function freeNodeCount(ids:readonly string[]):number{return ids.reduce((n,id)=>n+(SKILL_NODES.get(id)?.free?1:0),0);}
+
 
 /** An owned Doctrine is one paid choice. Reconfiguring it preserves the point ledger and connectivity. */
 export function chooseDoctrine(sheet:CharacterSheet,id:string):ActionResult {

@@ -43,7 +43,9 @@ export class EnemyFocus {
   }
 
   update(enemies: readonly Enemy[], view: CameraView, pointer: { x: number; y: number } | null,
-    alpha: number, dt: number, enabled = true, inspectedId: number | null = null): Enemy | null {
+    alpha: number, dt: number, enabled = true, inspectedId: number | null = null,
+    /** Player's tab/click combat target; the plate follows it even off-screen. */
+    lockedId: number | null = null): Enemy | null {
     if (!enabled) { this.reset(); return null; }
     const elapsed = Number.isFinite(dt) ? Math.max(0, dt) : 0;
     const interpolation = Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
@@ -96,7 +98,12 @@ export class EnemyFocus {
       this.hitRemaining = HIT_RETENTION;
     }
 
-    this.targetId = inspectedId !== null && visible.has(inspectedId) ? inspectedId : this.retainedHoverId ?? this.recentHitId;
+    // A locked combat target outranks hover/hit memory and needs no viewport presence.
+    const locked = lockedId !== null && !this.killedIds.has(lockedId)
+      ? enemies.find(enemy => enemy.id === lockedId && enemy.hp > 0 && enemy.state !== 'dead') ?? null : null;
+    this.targetId = inspectedId !== null && visible.has(inspectedId) ? inspectedId
+      : locked?.id ?? this.retainedHoverId ?? this.recentHitId;
+    if (locked) return locked;
     return this.targetId === null ? null : visible.get(this.targetId)?.enemy ?? null;
   }
 }

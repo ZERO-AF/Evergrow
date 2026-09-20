@@ -1,11 +1,15 @@
 import type { Attack, Player } from './model.ts';
+import type { SkillId } from './character-types.ts';
 import { getActiveSwingOffset } from './attack-motion.ts';
 import { line, polygon, type Point } from './art-primitives.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
+import { SKILL_EXECUTION } from './skill-execution-content.ts';
+import { PROJECTILE_COLORS } from './projectile-colors.ts';
 
 interface Sweep {
   attack: Attack; x: number; y: number; progress: number; fade: number;
   reach: number; arc: number; angle: number; hand: 'main' | 'off';
-  skill: 'cleave' | 'whirlwind'; color: string;
+  skill: SkillId; color: string;
 }
 const AFTERIMAGE = .24;
 /** The same angular progression and outer reach as swept combat, in world coordinates. */
@@ -17,21 +21,22 @@ export function skillSweepPoint(angle: number, arc: number, hand: 'main' | 'off'
 /** Skill reach is an energy blade beyond the actual metal blade; basic attacks retain their ribbon. */
 export class SkillMeleeArt {
   private sweeps: Sweep[] = [];
-  private dashes: Array<{ x: number; y: number; angle: number; radius: number; life: number }> = [];
+  private dashes: Array<{ x: number; y: number; angle: number; radius: number; life: number; color: string }> = [];
   reset(): void { this.sweeps = []; this.dashes = []; }
   update(p: Player, dt: number, alpha = 1): void {
     for (const dash of this.dashes) dash.life -= dt;
-    if (p.dash && Math.hypot(p.x-p.prevX,p.y-p.prevY)>0) this.dashes.push({ x:p.x,y:p.y,angle:p.dash.angle,radius:p.dash.radius,life:.18 });
+    if (p.dash && Math.hypot(p.x-p.prevX,p.y-p.prevY)>0) this.dashes.push({ x:p.x,y:p.y,angle:p.dash.angle,radius:p.dash.radius,life:.18,
+      color: SKILL_DEFINITIONS[p.dash.skill]?.color ?? (p.dash.style ? PROJECTILE_COLORS[p.dash.style] : '#b7ead8') });
     this.dashes = this.dashes.filter(d=>d.life>0).slice(-24);
     for (const sweep of this.sweeps) sweep.fade -= dt;
     const attack = p.attack;
-    if (attack?.kind === 'melee' && (attack.skill === 'cleave' || attack.skill === 'whirlwind')
+    if (attack?.kind === 'melee' && attack.skill && SKILL_EXECUTION[attack.skill].kind === 'sweep'
       && attack.elapsed >= attack.activeStart && attack.elapsed <= attack.activeEnd) {
       let sweep = this.sweeps.find(s => s.attack === attack);
       if (!sweep) {
         sweep = { attack, skill: attack.skill, x: p.x, y: p.y, progress: 0, fade: AFTERIMAGE,
           reach: attack.range, arc: attack.arc, angle: attack.angle, hand: attack.hand,
-          color: attack.specialization?.endsWith('-force') ? '#ffc078' : attack.specialization?.endsWith('-reach') ? '#ffe4a8' : '#eec274' };
+          color: attack.specialization?.endsWith('-force') ? '#ffc078' : attack.specialization?.endsWith('-reach') ? '#ffe4a8' : SKILL_DEFINITIONS[attack.skill!]?.color ?? '#eec274' };
         this.sweeps.push(sweep);
       }
       sweep.x = p.prevX + (p.x - p.prevX) * alpha;
@@ -49,7 +54,7 @@ export class SkillMeleeArt {
     for (const d of this.dashes) {
       const width = d.radius * .5;
       c.save(); c.translate(d.x,d.y-14); c.rotate(d.angle); c.globalAlpha = d.life/.18*.5;
-      polygon(c, [[-22,-width],[4,0],[-22,width],[-14,0]], '#b7ead8'); c.restore();
+      polygon(c, [[-22,-width],[4,0],[-22,width],[-14,0]], d.color); c.restore();
     }
     for (const s of this.sweeps) {
       const life = Math.min(1, s.fade / AFTERIMAGE), end = s.progress;
@@ -69,8 +74,8 @@ export class SkillMeleeArt {
       c.globalAlpha = life * .15; line(c, outer, s.color, 13);
       c.globalAlpha = life * .62; polygon(c, [...outer, ...inner.reverse()], s.color);
       c.globalAlpha = life * .95; line(c, edge, '#fff1ce', 1.8);
-      // A second, tighter wake separates Whirlwind's revolving steel from the broad Cleave.
-      if (s.skill === 'whirlwind') {
+      // A second, tighter wake separates a full-circle spin from a broad crescent.
+      if (s.arc > Math.PI * 1.5) {
         const wake = outer.map(([x,y]): Point => [x * .72, y * .72]);
         c.globalAlpha = life * .45; line(c, wake, '#d6e6df', 2.2);
       }

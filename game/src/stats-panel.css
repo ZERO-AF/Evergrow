@@ -1,0 +1,23 @@
+/* WoW-style character stats sheet (docs/wow-deepening.md) — WotLK character-pane readout. */
+.stats-panel[hidden] { display:none; }
+.stats-panel { position:absolute; inset:0; z-index:25; display:grid; place-items:center; background:#03090b80; padding:24px; font-family:var(--ui-font); }
+.stats-window { width:min(760px,100%); max-height:85vh; display:flex; flex-direction:column; }
+.stats-window .ui-window-header { gap:12px; }
+.stats-window .ui-window-header h2 { flex:1; }
+.stats-heading-icon { width:22px; height:22px; display:flex; color:#d8c894; }
+.stats-heading-icon svg { width:100%; height:100%; }
+.stats-identity { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:0 4px 12px; color:#a3b4bc; font-size:13px; }
+.stats-identity b { font-weight:500; }
+.stats-power { color:#8fa1a8; font-size:11.5px; letter-spacing:.04em; font-variant-numeric:tabular-nums; }
+.stats-groups { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:10px; overflow:auto; padding:2px 4px 6px; }
+.stats-group { padding:10px 12px 11px; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; }
+.stats-group h3 { margin:0 0 7px; font-size:10.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:#d8c894; }
+.stats-group dl { margin:0; display:flex; flex-direction:column; gap:3px; }
+.stats-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; font-size:12.5px; }
+.stats-row.is-dim { opacity:.45; }
+.stats-label { color:#8fa1a8; }
+.stats-value { margin:0; display:flex; align-items:center; gap:6px; color:#e3ddc4; font-variant-numeric:tabular-nums; text-align:right; }
+.stats-pips { display:inline-flex; gap:3px; }
+.stats-pip { width:7px; height:7px; transform:rotate(45deg); border:1px solid #4a5a64; background:#101a22; }
+.stats-pip.is-filled { background:var(--pip); border-color:var(--pip); box-shadow:0 0 4px var(--pip); }
+@media(max-width:650px) { .stats-panel { padding:10px; } .stats-groups { grid-template-columns:1fr; } }

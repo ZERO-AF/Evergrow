@@ -13,12 +13,12 @@ import { addInventoryItem } from '../src/inventory.ts';
 const levels=[1,12,30,60,100,300,1000];
 const round=(n:number)=>Math.round(n*100)/100;
 const builds=[
-  {name:'Melee',starter:'sword-shield' as const,weapon:'longsword',domain:'Might',attributes:{strength:3,vitality:2},weights:{damagePercent:1,strength:2,maxHp:.13,vitality:.8,armor:.15,attackSpeedPercent:1,critChance:2}},
-  {name:'Bow',starter:'bow' as const,weapon:'thorn-shortbow',domain:'Cunning',attributes:{dexterity:3,vitality:2},weights:{damagePercent:1,dexterity:1,maxHp:.13,vitality:.8,attackSpeedPercent:1,critChance:2,critDamage:.5}},
-  {name:'Caster',starter:'fire' as const,weapon:'ember-staff',domain:'Arcana',attributes:{intelligence:3,vitality:2},weights:{spellDamagePercent:1,intelligence:3,maxHp:.13,vitality:.8,castSpeedPercent:1,manaRegen:8}},
+  {name:'Melee',classId:'paladin' as const,weapon:'longsword',domain:'Might',attributes:{strength:3,vitality:2},weights:{damagePercent:1,strength:2,maxHp:.13,vitality:.8,armor:.15,attackSpeedPercent:1,critChance:2}},
+  {name:'Bow',classId:'hunter' as const,weapon:'thorn-shortbow',domain:'Cunning',attributes:{dexterity:3,vitality:2},weights:{damagePercent:1,dexterity:1,maxHp:.13,vitality:.8,attackSpeedPercent:1,critChance:2,critDamage:.5}},
+  {name:'Caster',classId:'mage' as const,weapon:'ember-staff',domain:'Arcana',attributes:{intelligence:3,vitality:2},weights:{spellDamagePercent:1,intelligence:3,maxHp:.13,vitality:.8,castSpeedPercent:1,manaRegen:8}},
 ];
 const sheets=builds.flatMap(build=>levels.map(level=>{
-  const p=initialPlayer(0,0);p.character=createCharacterSheet(build.starter);p.level=level;
+  const p=initialPlayer(0,0);p.character=createCharacterSheet(build.classId);p.level=level;
   for(const [key,points] of Object.entries(build.attributes))p.character.attributes[key as keyof typeof p.character.attributes]+=points!*(level-1);
   const gearSeed=8427;
   for(const [i,slot] of EQUIPMENT_SLOTS.entries()){

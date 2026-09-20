@@ -1,4 +1,5 @@
 import type { DungeonJourney } from './dungeon-journey.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import { settlementBenefits } from './settlement-services.ts';
 import { formatWorldDistance } from './world-distance.ts';
 import { journeyXP } from './journey-rewards.ts';
@@ -19,6 +20,7 @@ export class JourneyPanel {
   private dungeon:DungeonJourney|null=null;
   constructor(mount:HTMLElement,hudMount:HTMLElement,hooks:Hooks){
     this.element=document.createElement('section');this.element.className='journey-panel';this.element.hidden=true;mount.append(this.element);
+    attachPanelFrame(this.element, 'journey');
     this.mini=document.createElement('aside');this.mini.className='journey-mini hud-sidebar-surface';this.mini.hidden=true;this.mini.setAttribute('aria-label','Journeys');hudMount.append(this.mini);
     this.mini.addEventListener('click',event=>{
       const b=(event.target as HTMLElement).closest<HTMLButtonElement>('button');if(!b||!this.state)return;

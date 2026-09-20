@@ -34,7 +34,7 @@ test('workspace navigation preserves review variants and rejects external or unr
   assert.equal(toolForPath('/tools/forge.html?level=50')?.id,'forge');
 });
 test('forge produces deterministic, internally derived items for every kind and allowed material',()=>{
-  for(const kind of ITEM_KINDS){const profile=forgeProfiles(kind)[0]?.id??'';
+  for(const kind of ITEM_KINDS.filter(k=>k!=='consumable'&&k!=='riftKey')){const profile=forgeProfiles(kind)[0]?.id??'';
     for(const material of forgeMaterials(kind,profile)){
       const recipe={seed:7319,level:25,kind,profile,tier:'legendary' as const,material:material.id,enhancement:10};
       const item=forgeItem(recipe);assert.deepEqual(item,forgeItem(recipe));assert.deepEqual(item,deriveItem(structuredClone(item)));assert.equal(item.kind,kind);assert.equal(item.recipe.enhancement,10);
@@ -46,6 +46,9 @@ test('forge produces deterministic, internally derived items for every kind and 
 test('all active skills and specialization recipes activate in the isolated study',()=>{
   for(const skill of Object.values(SKILL_DEFINITIONS))for(const specialization of ['',...SKILL_SPECIALIZATIONS.filter(s=>s.skill===skill.id).map(s=>s.id)]){
     const study=new SkillStudy(emptyWorld,{skill:skill.id,rank:specialization?3:1,specialization,weapon:studyWeapons(skill.id)[0].id,facing:0,targets:'fan',enemy:'brute',x:0,y:0});
+    // Sandbox gates: ally-consuming casts get their minion; frozen-only casts get a frozen target.
+    if(study.resolved.requiresAlly)study.simulation.summonAlly(study.resolved.requiresAlly==='demon'?'imp':study.resolved.requiresAlly);
+    if(study.resolved.requiresFrozen)for(const enemy of study.simulation.enemies)enemy.freezeTime=999;
     const seen=new Set<string>();for(let i=0;i<240;i++)for(const event of study.step())seen.add(event.type);
     if(isAura(skill.id)){assert.ok(study.simulation.player.auras?.powers[skill.id]);assert.equal(study.casts,0);}else {assert.equal(study.didCast,true,`${skill.id}/${specialization}`);assert.ok(seen.has('cast')||seen.has('swing'));}
     assert.equal(study.simulation.kills,0);assert.equal(study.simulation.groundItems.length,0);assert.equal(study.simulation.enemies.length,7);

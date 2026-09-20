@@ -155,7 +155,7 @@ export function shoulderArmor(ctx: CanvasRenderingContext2D, anchor: Point, elbo
   ctx.restore();
 }
 
-export function headArmor(ctx: CanvasRenderingContext2D, piece: ArmorPiece | null, color: Color, facing: number, appearance?: Readonly<CharacterAppearance>): void {
+export function headArmor(ctx: CanvasRenderingContext2D, piece: ArmorPiece | null, color: Color, facing: number, appearance?: Readonly<CharacterAppearance>, raceId?: import('./wow-types.ts').WowRaceId): void {
   ctx.save(); ctx.translate(Math.cos(facing) * 1.4, PLAYER_ATTACHMENTS.head[1]);
   const back = Math.sin(facing) < -.16;
   const side = Math.cos(facing), look = side * .8;
@@ -165,7 +165,7 @@ export function headArmor(ctx: CanvasRenderingContext2D, piece: ArmorPiece | nul
   polygon(ctx, [[-3.5, 5.4], [-1.9, 5.8], [0, 6.9], [2.3, 5.6], [3.6, 5.2], [3.1, 7.3], [0, 8], [-3.1, 7]], color(m.shadow));
   line(ctx, [[-3, 5.8], [0, 7.2], [3.1, 5.6]], color(m.edge), .65);
   if (appearance) {
-    drawGearShapes(ctx, appearanceHeadShapes(appearance, facing, !!piece), color);
+    drawGearShapes(ctx, appearanceHeadShapes(appearance, facing, !!piece, raceId), color);
     if (piece) drawGearShapes(ctx, armorShapes('head', piece, facing), color);
     ctx.restore(); return;
   }

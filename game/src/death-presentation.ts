@@ -36,3 +36,4 @@ export class EnemyDeaths {
   }
   reset(): void { this.remains.length = 0; }
 }
+

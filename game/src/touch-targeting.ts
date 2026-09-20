@@ -10,5 +10,11 @@ export function touchTargeting(recipe: SkillExecution): TouchTargeting {
     case 'sweep': case 'cone': case 'backstab': return recipe.arc >= Math.PI * 1.9 ? 'self' : 'direction';
     case 'step':
     case 'dash': case 'projectile': case 'chain': return 'direction';
+    // WoW kinds: strikes ride the weapon direction; dots/cc/pulls aim at a target;
+    // heals/buffs/forms/stealth/summons/cleanses are self-cast.
+    case 'strike': case 'comboStrike': case 'runeStrike': case 'interrupt': case 'taunt': case 'tame':
+    case 'dot': case 'cc': case 'pull': case 'channel': return 'direction';
+    case 'heal': case 'hot': case 'buff': case 'form': case 'stealth': case 'summon':
+    case 'cleanse': return 'self';
   }
 }

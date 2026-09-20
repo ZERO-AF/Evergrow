@@ -7,7 +7,10 @@ import { RewardFeedback } from '../src/reward-feedback.ts';
 import { xpLevelFactor, xpForNextLevel } from '../src/progression.ts';
 import { scaledEnemyStats } from '../src/zone-progression.ts';
 import { decodeCharacterSave, CHARACTER_SAVE_VERSION } from '../src/character-save.ts';
-const sim=()=>new Simulation({seed:7319,blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})},{spawn:false});
+import { createCharacterSheet } from '../src/items.ts';
+import { refreshCharacter } from '../src/character.ts';
+// Undead: no racial XP bonus, so authored rewards stay exact.
+const sim=()=>{const s=new Simulation({seed:7319,blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})},{spawn:false});s.player.character=createCharacterSheet('warrior','undead');refreshCharacter(s.player);return s;};
 const site={id:'site:7319:caravan-test',kind:'caravan' as const,name:'Lost Caravan',x:0,y:30,seed:18,biome:'deadwood' as const,level:1};
 test('unlisted POIs complete atomically with XP, reject failed writes and do not replay after reload',async()=>{
   const s=sim();s.player.xp=95;s.player.hp=31;s.player.mana=12;const before=s.captureCheckpoint();

@@ -4,6 +4,8 @@ import { Simulation } from '../src/simulation.ts';
 import { CHARACTER_SAVE_VERSION, decodeCharacterSave, type CharacterSave } from '../src/character-save.ts';
 import { SKILL_TREE_VERSION } from '../src/skill-tree.ts';
 import { ATLAS_V2_NODE_IDS, ATLAS_V2_EDGES } from '../src/skill-tree-v2.ts';
+import { BAR_TOTAL } from '../src/action-bar.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 
 const graph = ATLAS_V2_NODE_IDS.map(() => [] as number[]);
 for (const [a, b] of ATLAS_V2_EDGES) { graph[a].push(b); graph[b].push(a); }
@@ -28,7 +30,7 @@ function v2Save(): CharacterSave {
   sheet.skillRanks = { fireball: 20, sidestep: 4 };
   sheet.activeSkillRanks = { fireball: 7, sidestep: 2 };
   sheet.skillSpecializations = { fireball: 'fireball-fork' };
-  sheet.skillSlots = ['fireball', 'sidestep', null, null, null];
+  sheet.skillSlots = Array.from({ length: BAR_TOTAL }, () => null); sheet.skillSlots[0] = 'fireball'; sheet.skillSlots[1] = 'sidestep';
   sheet.gold = 1234;
   Object.assign(save.checkpoint, { x: 91, y: -157, xp: 17, hp: 41, mana: 23, kills: 11, time: 243,
     clearedCamps: ['camp:v2'], skillCooldowns: { fireball: 2, sidestep: 1 } });
@@ -40,8 +42,8 @@ test('the published version-two atlas refunds its exact points and preserves all
   const original = v2Save(), bytes = JSON.stringify(original), upgraded = decodeCharacterSave(bytes);
   assert.ok(upgraded);
   const expected = structuredClone(original), sheet = expected.checkpoint.character;
-  Object.assign(sheet, { treeVersion: SKILL_TREE_VERSION, treeRefunded: true, skillPoints: 99, allocatedNodes: ['origin'],
-    skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, skillSlots: [null, null, null, null, null], arcaneOverload: false });
+  Object.assign(sheet, { treeVersion: SKILL_TREE_VERSION, treeRefunded: true, skillPoints: 99, allocatedNodes: ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`],
+    skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, skillSlots: Array.from({ length: BAR_TOTAL }, () => null), arcaneOverload: false });
   expected.checkpoint.skillCooldowns = {};
   assert.deepEqual(upgraded, expected);
   assert.equal(JSON.stringify(original), bytes, 'reading never mutates the source record');
@@ -51,7 +53,7 @@ test('the published version-two atlas refunds its exact points and preserves all
 test('an untouched version-two origin upgrades without announcing a refund', () => {
   const save = v2Save(), sheet = save.checkpoint.character;
   Object.assign(sheet, { allocatedNodes: ['origin'], skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {},
-    skillSlots: [null, null, null, null, null], arcaneOverload: false });
+    skillSlots: Array.from({ length: BAR_TOTAL }, () => null), arcaneOverload: false });
   save.checkpoint.skillCooldowns = {}; ledger(save);
   const upgraded = decodeCharacterSave(JSON.stringify(save));
   assert.ok(upgraded); assert.equal(upgraded.checkpoint.character.treeVersion, SKILL_TREE_VERSION);

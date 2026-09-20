@@ -51,6 +51,8 @@ export interface CharacterPose {
   dungeonTheme?: import('./dungeon-content.ts').DungeonThemeId;
   /** Personal appearance for players; enemy recipes use their own art. */
   appearance?: Readonly<CharacterAppearance>;
+  /** Player race — drives body scale and head features. */
+  raceId?: import('./wow-types.ts').WowRaceId;
   kind: 'player' | EnemyKind;
   command?: 'rush' | 'surround' | 'rout';
   commandWarning?: boolean;

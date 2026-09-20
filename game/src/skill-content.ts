@@ -1,8 +1,10 @@
 import { AURA_IDS, AURAS } from './aura-content.ts';
-import type { SkillId } from './character-types.ts';
+import type { SkillId, WowSkillId } from './character-types.ts';
 import type { Equipment, WeaponDefinition } from './model.ts';
+import { WOW_SKILLS } from './wow-skills.ts';
 
 export type SkillRequirement = 'any' | 'melee' | 'blade' | 'heavy' | 'dagger' | 'bow' | 'magic' | 'shield';
+export type SkillTargetMode = 'enemy' | 'point' | 'self' | 'enemyOrPoint';
 export interface SkillDefinition {
   readonly id: SkillId;
   readonly name: string;
@@ -14,6 +16,39 @@ export interface SkillDefinition {
   readonly cooldown: number;
   readonly damageMultiplier: number;
   readonly color: string;
+  /** Owning class; absent = universal weapon skill. */
+  readonly classId?: import('./wow-types.ts').WowClassId;
+  /** Owning race (racial actives, auto-known). */
+  readonly raceId?: import('./wow-types.ts').WowRaceId;
+  /** Resource spent instead of mana (defaults to the class resource). */
+  readonly resource?: import('./wow-types.ts').ResourceType;
+  /** Rune cost (death knight). */
+  readonly runeCost?: Partial<Record<import('./wow-types.ts').RuneKind, number>>;
+  /** Runic power granted per rune spent. */
+  readonly runicPowerGain?: number;
+  /** Soul shard cost (warlock). */
+  readonly shardCost?: number;
+  /** Combo-point role (rogue/cat builders and finishers). */
+  readonly combo?: 'build' | 'spend';
+  /** Cast time in seconds; 0/absent = instant. */
+  readonly castTime?: number;
+  /** Channeled spell: ticks over duration in the cast slot. */
+  readonly channel?: { readonly duration: number; readonly ticks: number };
+  /** Targeting model; absent = 'point' (cursor). */
+  readonly targetMode?: SkillTargetMode;
+  /** World-unit range for 'enemy' targeted skills. */
+  readonly range?: number;
+  /** Skips the global cooldown (stances, forms, racials, some instants). */
+  readonly offGcd?: boolean;
+  /** Only usable while the target is below this health fraction. */
+  readonly executeThreshold?: number;
+  readonly requiresStealth?: boolean;
+  readonly requiresForm?: import('./wow-types.ts').ShapeshiftForm;
+  readonly requiresBehind?: boolean;
+  /** Only usable on a frozen target (Deep Freeze). */
+  readonly requiresFrozen?: boolean;
+  /** Requires a live ally: a specific kind, or 'demon' for any demon-family summon (Dark Pact). */
+  readonly requiresAlly?: import('./wow-types.ts').AllyKind | 'demon';
 }
 
 /** Costs, potency and equipment requirements are shared by the atlas, HUD and combat. */
@@ -49,6 +84,8 @@ export const SKILL_DEFINITIONS: Readonly<Record<SkillId, Readonly<SkillDefinitio
   frostLance: Object.freeze({ id: 'frostLance', name: 'Frost Lance', description: 'Fire a piercing ice shard that slows its targets.', requirement: 'magic', domain: 'Arcana', tier: 'advanced', manaCost: 28, cooldown: 1.8, damageMultiplier: 1.65, color: '#c1e8f0' }),
   meteor: Object.freeze({ id: 'meteor', name: 'Meteor', description: 'A delayed meteor explodes at your aim and leaves burning ground.', requirement: 'magic', domain: 'Arcana', tier: 'advanced', manaCost: 40, cooldown: 7, damageMultiplier: 3.4, color: '#ef946a' }),
   siphon: Object.freeze({ id: 'siphon', name: 'Soul Siphon', description: 'Fire a spirit that restores life from actual impact damage.', requirement: 'magic', domain: 'Arcana', tier: 'advanced', manaCost: 30, cooldown: 4.5, damageMultiplier: 1.65, color: '#dba3c3' }),
+  // WoW class kits + racial actives (docs/wow-transformation.md §4); execution recipes live in SKILL_EXECUTION.
+  ...Object.fromEntries(WOW_SKILLS.map(({ execution: _execution, ...definition }) => [definition.id, Object.freeze(definition)])) as Record<WowSkillId, Readonly<SkillDefinition>>,
 });
 
 const REQUIREMENT_LABELS: Readonly<Record<SkillRequirement, string>> = Object.freeze({

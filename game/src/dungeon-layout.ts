@@ -14,7 +14,7 @@ const passage = (a:Point,b:Point,width:number,connection:number) => dungeonPassa
 export function buildDungeonLayout(random: () => number, theme: DungeonThemeId, expedition = false): Layout {
     const coreCount = (expedition?7:4) + Math.floor(random()*3);
     const rooms: Room[] = [], edges: [number,number][] = [], corridors: Room[] = [];
-    const dimensions = theme === 'foundry' ? [[832,512],[608,768],[704,576]] : theme === 'drowned' ? [[704,608],[576,768],[832,576]] : [[576,512],[704,576],[576,704]];
+    const dimensions = theme === 'blackrock' ? [[768,576],[640,704],[896,512]] : theme === 'foundry' ? [[832,512],[608,768],[704,576]] : theme === 'drowned' ? [[704,608],[576,768],[832,576]] : [[576,512],[704,576],[576,704]];
     function chamber(id: number, kind: Room['kind']): Room {
         const [baseWidth,baseHeight] = kind === 'boss' ? [1408,1088] : dimensions[Math.floor(random()*dimensions.length)];
         const width=baseWidth*(expedition?1.2:1),height=baseHeight*(expedition?1.2:1);

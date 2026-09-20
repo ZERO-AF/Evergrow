@@ -1,4 +1,5 @@
 import type { Player } from './model.ts';
+import { attachPanelFrame } from './panel-frames.ts';
 import type { Expeditions } from './dungeon-state.ts';
 import type { DungeonAction } from './dungeon-command.ts';
 import { RIFT_RULES, riftModifiers, freshRiftLedger } from './rift-content.ts';
@@ -19,6 +20,7 @@ export class RiftPanel {
   constructor(mount:HTMLElement,actions:RiftPanel['actions']){
     this.actions=actions;this.tooltip=new ItemTooltip(mount,'rift-key-tooltip');
     this.element.className='rift-panel ui-window';this.element.hidden=true;this.element.setAttribute('role','dialog');this.element.setAttribute('aria-modal','true');this.element.setAttribute('aria-label','Crimson Rift');mount.append(this.element);
+    attachPanelFrame(this.element, 'rift');
     this.element.addEventListener('pointerover',e=>this.hover(e.target));
     this.element.addEventListener('focusin',e=>this.hover(e.target));
     this.element.addEventListener('pointerout',e=>{const cell=e.target instanceof Element?e.target.closest('[data-key]'):null;if(cell&&(!(e.relatedTarget instanceof Node)||!cell.contains(e.relatedTarget)))this.tooltip.hide();});

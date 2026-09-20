@@ -5,11 +5,49 @@ import type { Enemy, Player } from './model.ts';
 import type { ActiveBuff } from './active-buffs.ts';
 import { UNIQUE_RULES } from './unique-content.ts';
 import { AURA_RULES } from './aura-content.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
+import { SKILL_ICON_RECIPES } from './skill-icon-content.ts';
+import type { SkillId } from './character-types.ts';
+import type { CcKind, DotSchool } from './wow-types.ts';
 
 export type EnemyDebuffState = Pick<Enemy, 'hp'> & Partial<Pick<Enemy,
-  'id' | 'state' | 'burnTime' | 'burnDps' | 'slowTime' | 'slowFactor' | 'stagger' | 'freezeTime' | 'stunTime' | 'statusDurations' | 'auraExposure'>>;
+  'id' | 'state' | 'burnTime' | 'burnDps' | 'slowTime' | 'slowFactor' | 'stagger' | 'freezeTime' | 'stunTime' | 'statusDurations' | 'auraExposure'
+  | 'dots' | 'cc' | 'sundered' | 'taunted'>>;
 export interface EnemyDebuff extends ActiveBuff { label: string }
 const active = (n: number | undefined): n is number => Number.isFinite(n) && n! > 0;
+
+/** WoW debuff presentation: school/kind fallbacks keep icons valid before class art lands. */
+const DOT_COLORS: Record<string, string> = {
+  physical: '#d9a08a', bleed: '#e26a6a', poison: '#8fd06a', nature: '#7fd06a',
+  fire: '#f5ab75', frost: '#9bdbea', lightning: '#e5cf8b', arcane: '#c7a0ef', shadow: '#8a6fb8', holy: '#ffd76e',
+};
+const DOT_ICONS: Record<string, SkillId> = {
+  physical: 'cleave', bleed: 'backstab', poison: 'smokeVeil', nature: 'smokeVeil',
+  fire: 'fireball', frost: 'frostLance', lightning: 'arcLightning', arcane: 'meteor', shadow: 'siphon', holy: 'runicWard',
+};
+const CC_META: Record<CcKind, { name: string; icon: SkillId; color: string; summary: string }> = {
+  root: { name: 'Rooted', icon: 'earthshatter', color: '#a8c686', summary: 'Cannot move.' },
+  fear: { name: 'Feared', icon: 'smokeVeil', color: '#c5b6ef', summary: 'Flees in terror; cannot attack.' },
+  incapacitate: { name: 'Incapacitated', icon: 'brace', color: '#e5bd80', summary: 'Cannot act; breaks on damage.' },
+  polymorph: { name: 'Polymorphed', icon: 'smokeVeil', color: '#ef82ad', summary: 'Transformed; cannot act; breaks on damage.' },
+  silence: { name: 'Silenced', icon: 'runicWard', color: '#9db8c7', summary: 'Cannot cast.' },
+  stun: { name: 'Stunned', icon: 'shieldBash', color: '#ffe1a1', summary: 'Cannot move or attack.' },
+  freeze: { name: 'Frozen', icon: 'absoluteZero', color: '#c0f5ff', summary: 'Cannot move or attack.' },
+  slow: { name: 'Slowed', icon: 'smokeVeil', color: '#9bdbea', summary: 'Reduced movement speed.' },
+};
+/** Dots/CC carry no applied duration; the longest observed remaining time drives the drain sweep. */
+const debuffSeen = new WeakMap<object, Map<string, number>>();
+function seenDuration(enemy: object, key: string, remaining: number): number {
+  let seen = debuffSeen.get(enemy);
+  if (!seen) debuffSeen.set(enemy, seen = new Map());
+  const longest = Math.max(remaining, seen.get(key) ?? 0);
+  seen.set(key, longest);
+  return longest;
+}
+function dotIcon(id: string, school: DotSchool): SkillId {
+  const skill = id as SkillId;
+  return SKILL_ICON_RECIPES[skill] ? skill : DOT_ICONS[school] ?? 'cleave';
+}
 /** Target-owned presentation. Original durations come from application, never inferred from elapsed time. */
 export function enemyDebuffs(enemy: EnemyDebuffState, player?: Pick<Player, 'skillEffects'>): EnemyDebuff[] {
   if (enemy.hp <= 0 || enemy.state === 'dead') return [];
@@ -33,6 +71,27 @@ export function enemyDebuffs(enemy: EnemyDebuffState, player?: Pick<Player, 'ski
     if (e && active(e.remaining) && active(e.power)) add(`exposure:${element}`, `${element[0].toUpperCase()+element.slice(1)} Exposure`, 'elementalResonance', colors[element], e.remaining, AURA_RULES.exposureDuration,
       `Takes ${Number(e.power.toFixed(1))}% more ${element} damage.`, 'exposure');
   }
+  for (const dot of enemy.dots ?? []) {
+    if (!active(dot.remaining)) continue;
+    const skill = SKILL_DEFINITIONS[dot.id as SkillId];
+    const school = dot.school;
+    add(`dot:${dot.id}`, skill?.name ?? `${school[0].toUpperCase()}${school.slice(1)}`, dotIcon(dot.id, school),
+      DOT_COLORS[school] ?? '#d9a08a', dot.remaining, seenDuration(enemy, `dot:${dot.id}`, dot.remaining),
+      `${Number(dot.dps.toFixed(1))} ${school} damage / second.`, 'dot');
+  }
+  for (const cc of enemy.cc ?? []) {
+    if (!active(cc.remaining)) continue;
+    const meta = CC_META[cc.kind];
+    add(`cc:${cc.kind}`, meta.name, meta.icon, meta.color, cc.remaining,
+      seenDuration(enemy, `cc:${cc.kind}`, cc.remaining), meta.summary, 'cc');
+  }
+  if (enemy.sundered && active(enemy.sundered.remaining))
+    add('sundered', 'Sundered', 'cleave', '#d9a08a', enemy.sundered.remaining,
+      seenDuration(enemy, 'sundered', enemy.sundered.remaining),
+      `Takes ${Math.round(enemy.sundered.fraction * 100)}% more damage.`, 'sunder');
+  if (enemy.taunted && active(enemy.taunted.remaining))
+    add('taunted', 'Taunted', 'bulwark', '#e5bd80', enemy.taunted.remaining,
+      seenDuration(enemy, 'taunted', enemy.taunted.remaining), 'Compelled to attack its taunter.', 'taunt');
   return result;
 }
 export function debuffDuration(remaining: number): string {

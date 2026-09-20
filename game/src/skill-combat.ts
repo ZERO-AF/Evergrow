@@ -2,15 +2,16 @@ import { isAura } from './aura-content.ts';
 import { hasUnique, UNIQUE_RULES } from './unique-content.ts';
 import { harvestRear, lungeReturn, returningProjectile, storeFireballs, type StoredFireball } from './unique-combat.ts';
 import { skillEffects, consumeRally, snapshotSkillOffense, queueSkillEcho } from './player-skill-effects.ts';
-import { chainLifeOnHitMultiplier, groundEffectPulseCount } from './skill-execution-content.ts';
+import { chainLifeOnHitMultiplier, groundEffectPulseCount, type WowSkillPayload } from './skill-execution-content.ts';
 import { metric } from './chronicle.ts';
 import { consumeSpellweave } from './affix-combat.ts';
 import { weaponImpactStyle } from './elemental-weapon.ts';
+import { castSchoolStyle, schoolProjectileStyle } from './spell-school.ts';
 import type { ProjectileStyle, HitSnapshot, Projectile, WeaponLaunch } from './model.ts';
 import { containerVisible, strikeContainers, type ContainerAttackContext } from './breakable-containers.ts';
 import { skillTargetPoint } from './skill-target-point.ts';
-import { resolveSkill } from './skill-progression.ts';
-import type { CombatEvent, Enemy, GroundEffect, Player, ProjectileEffects, WorldQuery } from './model.ts';
+import { knowsSkill, sheetClassId, sheetRaceId } from './skill-progression.ts';
+import type { Ally, CombatEvent, Enemy, GroundEffect, Player, ProjectileEffects, WorldQuery } from './model.ts';
 import type { SkillId } from './character-types.ts';
 import { skillWeapon, SKILL_DEFINITIONS } from './skill-content.ts';
 import { unlockedSkills } from './skill-tree.ts';
@@ -19,6 +20,43 @@ import { BASIC_ATTACK_PHASES, type ProjectileDefinition } from './combat-content
 import { SKILL_TARGETING, type SkillExecution } from './skill-execution-content.ts';
 import { applySlow, applyStun } from './combat-status.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { racialSkillId } from './character.ts';
+import { WOW_COMBAT, isWowRaceId } from './wow-types.ts';
+import type { AllyKind, BuffSpec, CcKind, DotSpec, HotSpec, RuneKind } from './wow-types.ts';
+import { RACIAL_SLOT } from './action-bar.ts';
+import { resolvePlayerSkill } from './glyph-state.ts';
+import { tameableFamily, freshPetStable, PET_RULES, demonFamilyForAlly } from './pet-content.ts';
+import { isBossKind } from './wilderness-boss-content.ts';
+
+/** Simulation-owned mechanics the skill handlers drive (frozen contract — implemented in simulation.ts). */
+export interface SkillSimApi {
+  applyDot(enemy: Enemy, spec: DotSpec, baseDamage: number, id?: string): void;
+  applyCc(enemy: Enemy, kind: CcKind, duration: number, breakOnDamage: boolean, factor?: number): void;
+  addBuff(name: string, color: string, spec: BuffSpec, id?: string): void;
+  summonAlly(kind: AllyKind, count: number, duration?: number): void;
+  /** Convert a live beast enemy into a PetRecord + summoned ally; consumes the enemy. */
+  tameBeast(enemy: Enemy): 'tamed' | 'untameable' | 'full';
+  /** The live ally bound to the active PetRecord, if it is alive. */
+  petAlly(): Ally | undefined;
+  /** Heal an ally (Mend Pet); amount ≤1 is a fraction of the ally's maxHp. */
+  healAlly(ally: Ally, amount: number, color?: string): void;
+  /** Summon the active PetRecord's ally when none is live (Call Pet / Revive Pet). */
+  summonActivePet(): boolean;
+  addComboPoint(): void;
+  spendComboPoints(): number;
+  spendRuneCost(cost: Partial<Record<RuneKind, number>>): boolean;
+  addRunicPower(amount: number): void;
+  playerHeal(amount: number, color?: string): void;
+  setTarget(id: number | null): void;
+  tabTarget(direction: 1 | -1): void;
+}
+
+export { schoolProjectileStyle } from './spell-school.ts';
+
+/** Non-damaging instant kinds that flash a school-colored activation ring at the player. */
+const ACTIVATION_RING: Record<string, true> = { buff: true, heal: true, hot: true, cleanse: true, summon: true,
+  stealth: true, form: true, stance: true, ward: true, step: true, tame: true };
 
 export interface SkillContext {
   allowReturn?: boolean;
@@ -26,6 +64,12 @@ export interface SkillContext {
   containers?: ContainerAttackContext;
   availableGroundEffects: number;
   availableProjectiles: number;
+  /** Current simulation time (GCD, cooldown gates). */
+  time: number;
+  /** Set when a cast-time skill already paid costs and passed gates at cast start. */
+  prepaid?: boolean;
+  /** Simulation mechanics surface for WoW recipes. */
+  sim: SkillSimApi;
   player: Player; world: WorldQuery; enemies: Enemy[]; aimX: number; aimY: number;
   damage(enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, elementalDamage?: number, offense?: HitSnapshot): void;
   onScreen(enemy: Enemy): boolean;
@@ -35,15 +79,19 @@ export interface SkillContext {
   emit(event: CombatEvent): void;
 }
 
+
 const angularDistance = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 
 /** Rules and effects for every active skill; simulation owns collision, damage and effect timing. */
 export function activateSkill(context: SkillContext, slot: number): boolean {
   const { player: p, enemies } = context;
-  if (!Number.isInteger(slot) || slot < 0 || slot >= 5 || p.dead || p.attack || p.dash || p.dodgeTime > 0 || p.castTime > 0) return false;
-  const id = p.character.skillSlots[slot];
+  if (!Number.isInteger(slot) || slot < 0 || slot > RACIAL_SLOT || p.dead || p.attack || p.dash || p.dodgeTime > 0) return false;
+  const id = slot === RACIAL_SLOT ? (isWowRaceId(p.character.raceId) ? racialSkillId(p.character) : undefined) : p.character.skillSlots[slot];
   if(isAura(id))return false;
-  if (!id || !unlockedSkills(p.character.allocatedNodes).includes(id)) return false;
+  if (!id || (!unlockedSkills(p.character.allocatedNodes).includes(id) && !knowsSkill(p.character, id))) return false;
+  // A cast or channel in progress blocks new skills; the channel's own ticks pass through.
+  const channeling = !!(p.cast?.channel && p.cast.skill === id);
+  if ((p.castTime > 0 || p.cast) && !channeling) return false;
   const weapon = skillWeapon(id, p.equipment);
   if (!weapon) return false;
   const returnStep=lungeReturn(p);
@@ -58,7 +106,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     context.emit({type:'cast',x:p.x,y:p.y,angle,skill:id,style:'arcane'});return true;
   }
   const definition = SKILL_DEFINITIONS[id];
-  const costs = resolveSkill(id, p.derived, p.character);
+  const costs = resolvePlayerSkill(id, p);
   const recipe: SkillExecution = costs.recipe;
   const storeEmbers=id==='fireball'&&hasUnique(p.character,'cinderheart-testament');
   const throwShield=id==='shieldBash'&&hasUnique(p.character,'returning-verdict');
@@ -70,13 +118,20 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     : recipe.kind === 'projectile' && recipe.effects.groundDuration ? projectileSlots : 0;
   if (projectileSlots > context.availableProjectiles) return false;
   if (groundSlots > context.availableGroundEffects) return false;
-  if ((p.skillCooldowns[id] ?? 0) > 0) return false;
-  if (p.mana < costs.mana) {
-    context.emit({ type: 'insufficient-mana', x: p.x, y: p.y, skill: id });
-    return false;
+  // Channel ticks and cast completions re-enter prepaid; costs/cooldowns were settled at start.
+  if (!context.prepaid) {
+    if ((p.skillCooldowns[id] ?? 0) > 0) return false;
+    if (p.mana < costs.mana) {
+      context.emit({ type: 'insufficient-mana', x: p.x, y: p.y, skill: id });
+      return false;
+    }
   }
 
   const attack = deriveAttackStats(p.stats, weapon);
+  // Spell base for heals/HoTs: the same base staff/wand bolts use (weapon damage ×
+  // spellDamageMultiplier + enchantment), independent of the skill's damageMultiplier.
+  const spellBase = weapon.attackKind === 'bolt' ? attack.damage
+    : deriveAttackStats({ ...p.stats, attackDamageMultiplier: p.stats.spellDamageMultiplier }, weapon).damage;
   const draw = id==='piercingShot'&&hasUnique(p.character,'heartwood-draw') ? Math.max(0,Math.min(1,Number.isFinite(context.drawStrength)?context.drawStrength!:0)) : 0;
   attack.range *= 1 + draw * (UNIQUE_RULES.drawReach-1);
   // Staff weapon derivation already applies spell bonuses; applying them here again would square scaling.
@@ -86,22 +141,141 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
   const offense: HitSnapshot = snapshotSkillOffense(p,id);
   let launch: WeaponLaunch | undefined;
   const color = definition.color;
-  const hitStyle = 'style' in recipe ? recipe.style : weaponImpactStyle(weapon);
+  const novaPoint=(recipe.kind==='radial'||recipe.kind==='channel')&&recipe.targetRange ? skillTargetPoint(context.world,p,{x:context.aimX,y:context.aimY},recipe.targetRange):p;
+  const hitStyle = 'style' in recipe ? recipe.style : schoolProjectileStyle(castSchoolStyle(p, id)) ?? weaponImpactStyle(weapon);
   const damageTarget = (enemy: Enemy, amount: number, angle: number, melee: boolean, contactOffense = offense) => context.damage(enemy, amount, angle, melee, hitStyle, weapon.attackKind === 'melee' ? attack.elementalDamage * (damage > 0 ? amount / attack.damage : 0) : undefined, contactOffense);
   const living = () => enemies.filter(enemy => enemy.state !== 'dead');
   const visible = (enemy: Enemy) => context.visible(p.x, p.y, enemy.x, enemy.y);
-  const novaPoint=recipe.kind==='radial'&&recipe.targetRange ? skillTargetPoint(context.world,p,{x:context.aimX,y:context.aimY},recipe.targetRange):p;
-  const radial = (radius: number, hit: (enemy: Enemy, angle: number) => void) => {
-    for (const enemy of living()) if (Math.hypot(enemy.x - novaPoint.x, enemy.y - novaPoint.y) <= radius + enemy.radius && context.visible(novaPoint.x,novaPoint.y,enemy.x,enemy.y)) {
-      hit(enemy, Math.atan2(enemy.y - novaPoint.y, enemy.x - novaPoint.x));
+  const radialAround = (cx: number, cy: number, radius: number, hit: (enemy: Enemy, angle: number) => void) => {
+    for (const enemy of living()) if (Math.hypot(enemy.x - cx, enemy.y - cy) <= radius + enemy.radius && context.visible(cx,cy,enemy.x,enemy.y)) {
+      hit(enemy, Math.atan2(enemy.y - cy, enemy.x - cx));
     }
   };
-  const blast = (radius: number, style?: ProjectileEffects['style']) => context.emit({ type: 'blast', x: novaPoint.x, y: novaPoint.y,
+  const radial = (radius: number, hit: (enemy: Enemy, angle: number) => void) => radialAround(novaPoint.x, novaPoint.y, radius, hit);
+  const blastAt = (x: number, y: number, radius: number, style?: ProjectileEffects['style']) => context.emit({ type: 'blast', x, y,
     skill: id, color, radius, duration: SKILL_TARGETING.blastDuration, ...(style ? { style } : {}) });
-  const aimedPoint = () => skillTargetPoint(context.world,p,{x:context.aimX,y:context.aimY},attack.range);
+  const blast = (radius: number, style?: ProjectileEffects['style']) => blastAt(novaPoint.x, novaPoint.y, radius, style);
+  const aimedPoint = () => skillTargetPoint(context.world,p,{x:context.aimX,y:context.aimY},costs.range ?? attack.range);
 
-  p.mana -= costs.mana; metric(p.chronicle,'manaSpent',costs.mana); metric(p.chronicle,'casts'); metric(p.chronicle,'skillUses:'+id);
-  p.skillCooldowns[id] = costs.cooldown;
+
+  // ── WoW targeting & mechanics (docs/wow-transformation.md §3) ──
+  const reach = (t: Enemy) => Math.hypot(t.x - p.x, t.y - p.y) <= (costs.range ?? attack.range) + t.radius;
+  const resolveTarget = (): Enemy | undefined => {
+    const mode = costs.targetMode ?? 'point';
+    if (mode === 'self') return undefined;
+    const stored = p.targetId != null ? enemies.find(e => e.id === p.targetId) : undefined;
+    if (stored && stored.state !== 'dead' && reach(stored) && visible(stored)) { p.angle = Math.atan2(stored.y - p.y, stored.x - p.x); return stored; }
+    if (mode === 'enemy') return undefined;
+    // enemyOrPoint/point fall back to the nearest enemy inside a narrow aim sector.
+    const fallback = living().filter(e => reach(e) && visible(e) && angularDistance(Math.atan2(e.y - p.y, e.x - p.x), p.angle) <= Math.PI / 3)
+      .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+    if (fallback) p.angle = Math.atan2(fallback.y - p.y, fallback.x - p.x);
+    return fallback;
+  };
+  const target = resolveTarget();
+  const behind = (t: Enemy) => angularDistance(Math.atan2(p.y - t.y, p.x - t.x), t.angle) > Math.PI * .6;
+  const hasCc = (t: Enemy, kinds: readonly CcKind[]) => !!t.cc?.some(c => c.remaining > 0 && kinds.includes(c.kind));
+  const dotCount = (t: Enemy) => t.dots?.filter(d => d.remaining > 0).length ?? 0;
+  const frozen = (t: Enemy) => (t.freezeTime ?? 0) > 0 || hasCc(t, ['freeze']);
+  const rooted = (t: Enemy) => hasCc(t, ['root']);
+  const sunder = (t: Enemy, fraction: number) => { t.sundered = { fraction: Math.max(fraction, t.sundered?.fraction ?? 0), remaining: Math.max(15, t.sundered?.remaining ?? 0) }; };
+  const healBase = (amount: number | undefined, maxHpFrac: number | undefined) => (amount ?? 0) * spellBase + (maxHpFrac ?? 0) * p.maxHp;
+  // BuffSpec.healPerSecond is a fraction of maxHp per second: convert the per-tick
+  // spell-base amount to hp/s, then to a maxHp fraction; maxHpFrac spreads over duration.
+  const hotToBuff = (hot: HotSpec, maxHpFrac?: number): BuffSpec => ({ duration: hot.duration,
+    healPerSecond: ((hot.perTick ?? 0) * spellBase + (hot.flatTick ?? 0)) / Math.max(.1, hot.interval ?? 1) / p.maxHp + (maxHpFrac ?? 0) / hot.duration });
+  const applyPayload = (r: WowSkillPayload, t: Enemy) => {
+    if (r.dot) context.sim.applyDot(t, r.dot, damage, id);
+    if (r.cc) context.sim.applyCc(t, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
+    if (r.slow) applySlow(t, r.slow);
+    if (r.sunder) sunder(t, r.sunder);
+    if (r.taunt) { t.taunted = { remaining: r.taunt }; t.awareness = Math.max(t.awareness, 1); }
+  };
+  const applySelfPayload = (r: WowSkillPayload) => {
+    if (r.heal) context.sim.playerHeal(r.heal * p.maxHp, color);
+    if (r.buff) context.sim.addBuff(definition.name, color, r.buff, id);
+    if (r.resourceGain) p.mana = Math.min(p.maxMana, p.mana + r.resourceGain);
+  };
+  const strikeWhiff = () => context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: p.angle, range: costs.range ?? attack.range, arc: Math.PI / 2, rear: false });
+  const strikeExtras = (r: { dot?: DotSpec; slow?: { duration: number; factor: number }; stun?: number; silence?: number; healFrac?: number; sunder?: number; cc?: { kind: CcKind; duration: number; factor?: number } }, t: Enemy, dealt: number) => {
+    if (r.dot) context.sim.applyDot(t, r.dot, dealt, id);
+    if (r.slow) applySlow(t, r.slow);
+    if (r.stun) applyStun(t, r.stun);
+    if (r.silence) context.sim.applyCc(t, 'silence', r.silence, false);
+    if (r.cc) context.sim.applyCc(t, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
+    if (r.healFrac) context.sim.playerHeal(dealt * r.healFrac, color);
+    if (r.sunder) sunder(t, r.sunder);
+  };
+  const channelTick = (r: Extract<SkillExecution, { kind: 'channel' }>) => {
+    if (r.manaPerTick) { const restored = r.manaPerTick * p.maxMana; p.mana = Math.min(p.maxMana, p.mana + restored); metric(p.chronicle, 'manaRestored', restored); }
+    if (r.radius) {
+      radial(r.radius, (e, a) => { damageTarget(e, damage * (r.executeBonus && e.hp / e.maxHp <= (costs.executeThreshold ?? .35) ? 1 + r.executeBonus : 1), a, false); if (r.slow) applySlow(e, r.slow); });
+      blast(r.radius);
+    } else if (target && target.state !== 'dead') {
+      damageTarget(target, damage * (r.executeBonus && target.hp / target.maxHp <= (costs.executeThreshold ?? .35) ? 1 + r.executeBonus : 1), Math.atan2(target.y - p.y, target.x - p.x), false);
+      if (r.slow) applySlow(target, r.slow);
+    }
+    if (r.healFrac) context.sim.playerHeal(damage * r.healFrac, color);
+  };
+
+  if (channeling && recipe.kind === 'channel') { channelTick(recipe); return true; }
+
+  // ── Activation gates (docs/wow-transformation.md §3) ──
+  // Cast-time skills run gates and pay costs at cast start (prepaid); completion skips them.
+  if (!context.prepaid) {
+    if (costs.classId && costs.classId !== sheetClassId(p.character)) return false;
+    if (costs.raceId && costs.raceId !== sheetRaceId(p.character)) return false;
+    if (!costs.offGcd && (p.gcdReady ?? 0) > context.time) return false;
+    if ((costs.targetMode ?? 'point') === 'enemy' && !target) return false;
+    if (costs.requiresStealth && !p.stealthed) return false;
+    if (costs.requiresForm && p.buffs?.find(b => b.form && b.remaining > 0)?.form !== costs.requiresForm) return false;
+    if (costs.requiresFrozen && (!target || !frozen(target))) return false;
+    if (costs.requiresAlly) {
+      const allies = p.allies ?? [];
+      const found = costs.requiresAlly === 'demon'
+        ? allies.some(a => a.hp > 0 && (demonFamilyForAlly(a.kind) !== undefined || a.kind === 'doomguard' || a.kind === 'infernal'))
+        : allies.some(a => a.hp > 0 && a.kind === costs.requiresAlly);
+      if (!found) return false;
+    }
+    if ((costs.requiresBehind || (recipe.kind === 'comboStrike' && recipe.requiresBehind)) && (!target || !behind(target))) return false;
+    if (recipe.kind === 'comboStrike' && recipe.requiresStealth && !p.stealthed) return false;
+    if (costs.executeThreshold && (costs.targetMode ?? 'point') === 'enemy' && (!target || target.hp / target.maxHp > costs.executeThreshold)) return false;
+    if (costs.combo === 'spend' && (p.comboPoints ?? 0) < 1) return false;
+    if ((costs.shardCost ?? 0) > (p.soulShards ?? 0)) return false;
+    if (costs.runeCost && !context.sim.spendRuneCost(costs.runeCost)) return false;
+    if (recipe.kind === 'tame') {
+      // Tame Beast refuses non-beasts, elites and bosses, and a full stable — before mana is spent.
+      const stable = p.character.pets ?? freshPetStable();
+      const tameable = !!target && target.state !== 'dead' && !!tameableFamily(target.kind)
+        && target.rank !== 'elite' && target.bossPhases === undefined && !isBossKind(target.kind);
+      const room = tameable && (!stable.active || stable.stabled.length < PET_RULES.stableSlots);
+      if (!tameable || !room) {
+        context.emit({ type: 'notice', x: p.x, y: p.y, message: tameable ? 'Your stable is full.' : 'That beast cannot be tamed.' });
+        return false;
+      }
+    }
+    p.mana -= costs.mana; metric(p.chronicle,'manaSpent',costs.mana); metric(p.chronicle,'casts'); metric(p.chronicle,'skillUses:'+id);
+    if (costs.shardCost) p.soulShards = Math.max(0, (p.soulShards ?? 0) - costs.shardCost);
+    if (costs.runeCost) context.sim.addRunicPower((costs.runicPowerGain ?? WOW_COMBAT.runicPowerPerRune) * Object.values(costs.runeCost).reduce((a, b) => a + (b ?? 0), 0));
+    else if (costs.runicPowerGain) context.sim.addRunicPower(costs.runicPowerGain);
+    if (!costs.offGcd) p.gcdReady = context.time + (costs.classId === 'rogue' || p.buffs?.some(b => b.form === 'cat' && b.remaining > 0) ? WOW_COMBAT.gcdRogueCat : costs.classId ? WOW_CLASSES[costs.classId].gcd : WOW_COMBAT.gcdDefault);
+    // Acting breaks stealth; stealth-granting recipes re-apply it below. Non-damaging
+    // control that requires stealth (Sap) leaves it up.
+    if (recipe.kind !== 'stealth' && !(recipe.kind === 'cc' && costs.requiresStealth)) p.stealthed = false;
+    p.skillCooldowns[id] = costs.cooldown;
+    // Cast-time skills start the cast here: the sim owns the clock and re-invokes
+    // prepaid on completion against the snapshotted target/point.
+    if ((costs.castTime ?? 0) > 0 && !costs.channel) {
+      p.cast = { skill: id, remaining: costs.castTime!, duration: costs.castTime!,
+        ...(target ? { targetId: target.id } : { x: context.aimX, y: context.aimY }),
+        ...(recipe.kind === 'tame' && target ? { breakRange: (costs.range ?? attack.range) + target.radius } : {}) };
+      p.castAngle = target ? Math.atan2(target.y - p.y, target.x - p.x) : Math.atan2(context.aimY - p.y, context.aimX - p.x);
+      p.angle = p.castAngle;
+      p.activeSkill = id;
+      context.emit({ type: 'cast', x: p.x, y: p.y, angle: p.castAngle, skill: id });
+      return true;
+    }
+  }
   p.activeSkill = id;
   if (recipe.kind === 'sweep') {
     const duration = 1 / attack.attacksPerSecond;
@@ -109,6 +283,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       activeStart: duration * BASIC_ATTACK_PHASES.activeStart, activeEnd: duration * BASIC_ATTACK_PHASES.activeEnd,
       angle: p.angle, range: attack.range * recipe.reachMultiplier,
       arc: recipe.arc, damage, elementalDamage: attack.elementalDamage * costs.damageMultiplier * weave * rally, hitIds: new Set() };
+    applySelfPayload(recipe);
     context.emit({ type: 'swing', x: p.x, y: p.y, angle: p.angle, skill: id, color });
     return true;
   }
@@ -126,6 +301,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         const shot=context.projectile(p.x,p.y,angle,shotDef,id,effects);if(shot)launch=shot.launch;
         queueSkillEcho(p,p.x,p.y,angle,shotDef,effects,{x:context.aimX,y:context.aimY});
       }
+      applySelfPayload(recipe);
       break;
     }
     case 'ward': {
@@ -133,6 +309,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       skillEffects(p).ward={remaining:recipe.duration,capacity:p.maxHp*recipe.fraction,
         ...(hasUnique(p.character,'broken-seal')?{rupture:{absorbed:0,cap:attack.damage*UNIQUE_RULES.wardSpellCap,radius:UNIQUE_RULES.wardRadius*p.derived.areaMultiplier,offense:{...offense,critChance:0,lifeOnHit:0,directDamageMultiplier:1}}}:{})};
       if(p.skillEffects?.borrowed)p.skillEffects.borrowed.capacity=Math.min(p.skillEffects.borrowed.capacity,Math.max(0,p.maxHp*UNIQUE_RULES.borrowedLife-p.skillEffects.ward!.capacity));
+      applySelfPayload(recipe);
       break;
     }
     case 'stance': {
@@ -140,13 +317,18 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       const key=id==='ghostHunt'?'ghostHunt':id==='rallyOfIron'?'rallyOfIron':'brace';
       skillEffects(p)[key]={remaining:recipe.duration,reduction:recipe.reduction,charges:recipe.charges,bonus:recipe.bonus};
       if(id==='ghostHunt'&&hasUnique(p.character,'pale-huntsman')){skillEffects(p).archer={x:p.x,y:p.y,angle:p.angle,remaining:recipe.duration};skillEffects(p).echoes=[];}
+      applySelfPayload(recipe);
       break;
     }
     case 'dash':
       if(id==='lunge'&&hasUnique(p.character,'duelists-return'))skillEffects(p).returnStep={x:p.x,y:p.y,remaining:UNIQUE_RULES.returnWindow,speed:recipe.speed};
+      if(recipe.toTarget&&target)p.angle=Math.atan2(target.y-p.y,target.x-p.x);
       p.dash = { angle: p.angle, remaining: recipe.duration, speed: recipe.speed, damage, offense, elementalDamage: attack.elementalDamage * costs.damageMultiplier * weave * rally, radius: recipe.radius, skill: id, style: hitStyle, hitIds: new Set() };
+      // Carried for the sim's dash-hit loop (Player.dash.stun is owned by simulation).
+      if(recipe.stun)Object.assign(p.dash,{stun:recipe.stun});
       if(p.skillEffects?.returnStep)p.skillEffects.returnStep.outward=p.dash;
       p.castTime = Math.max(p.castTime, recipe.duration);
+      applySelfPayload(recipe);
       break;
     case 'radial':
       if(id==='smokeVeil'&&hasUnique(p.character,'ashen-double')){
@@ -165,10 +347,12 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         if(damage)damageTarget(enemy, damage, angle, recipe.melee);
         if (recipe.stun) applyStun(enemy, recipe.stun, recipe.style === 'frost' ? 'freeze' : 'stun');
         if (recipe.slow) applySlow(enemy, recipe.slow);
+        applyPayload(recipe, enemy);
       });
       if (recipe.echo) context.schedule({ kind: 'frost', x: novaPoint.x, y: novaPoint.y, radius: recipe.radius * 1.2, delay: .6, duration: 0, interval: 1,
         damage: damage * .6, offense, skill: id, style: 'frost', slow: recipe.slow });
       blast(recipe.radius, recipe.style);
+      applySelfPayload(recipe);
       break;
     case 'cone':
       if(throwShield){
@@ -181,10 +365,11 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: p.angle, range: recipe.radius, arc: recipe.arc, rear: false });
       strikeContainers(context.containers, p.x, p.y, recipe.radius, p.angle, recipe.arc);
       for (const enemy of living()) if (circleIntersectsSector(enemy.x, enemy.y, enemy.radius, p.x, p.y, p.angle, recipe.radius, recipe.arc) && visible(enemy)) {
-        damageTarget(enemy, damage, p.angle, true); applyStun(enemy, recipe.stun);
+        damageTarget(enemy, damage, p.angle, true); applyStun(enemy, recipe.stun); applyPayload(recipe, enemy);
       }
+      applySelfPayload(recipe);
       break;
-    case 'guard': p.guardTime = Math.max(p.guardTime, recipe.duration); p.guardReduction = recipe.reduction; break;
+    case 'guard': p.guardTime = Math.max(p.guardTime, recipe.duration); p.guardReduction = recipe.reduction; applySelfPayload(recipe); break;
     case 'backstab': {
       const targets = living().filter(enemy => circleIntersectsSector(enemy.x, enemy.y, enemy.radius, p.x, p.y, p.angle, Math.max(recipe.minRange, attack.range * recipe.reachMultiplier), recipe.arc) && visible(enemy))
         .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0,recipe.targets??1);
@@ -192,6 +377,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         const behind = harvestRear(p,target.id,angularDistance(Math.atan2(p.y - target.y, p.x - target.x), target.angle) > recipe.rearAngle);
         const contactAngle=Math.atan2(target.y-p.y,target.x-p.x);
         damageTarget(target, damage * (behind ? recipe.rearMultiplier : 1), contactAngle, true);
+        applyPayload(recipe, target);
         context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: contactAngle, range: Math.hypot(target.x - p.x, target.y - p.y), arc: recipe.arc, rear: behind });
       }
       if (!targets.length) {
@@ -199,6 +385,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         strikeContainers(context.containers, p.x, p.y, range, p.angle, recipe.arc);
         context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: p.angle, range, arc: recipe.arc, rear: false });
       }
+      applySelfPayload(recipe);
       break;
     }
     case 'projectile': {
@@ -209,6 +396,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         ...(id==='siphon'&&hasUnique(p.character,'borrowed-life')?{borrowedLife:true}:{}),
         ...(groundDamageMultiplier !== undefined ? { groundDps: damage * groundDamageMultiplier } : {}),
         ...(burnDamageMultiplier !== undefined ? { burnDps: damage * burnDamageMultiplier } : {}) };
+      applySelfPayload(recipe);
       if(storeEmbers){
         storeFireballs(p,recipe.offsets.map(offset=>({sourceLevel:p.level,offset,definition:{owner:'player',speed:recipe.speed,life:Math.max(SKILL_TARGETING.minimumProjectileLife,attack.range/recipe.speed),radius:recipe.radius,damage},effects:{...effects,offense:{...offense}}} satisfies StoredFireball)));
         break;
@@ -236,6 +424,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
           ...(recipe.scorch ? { scorch: { duration: recipe.scorch.duration, interval: recipe.scorch.interval, dps: damage * recipe.scorch.damageMultiplier } } : {}),
           ...(recipe.burn ? { burn: { duration: recipe.burn.duration, dps: damage * recipe.burn.damageMultiplier } } : {}) });
       }
+      applySelfPayload(recipe);
       break;
     }
     case 'chain': {
@@ -261,11 +450,208 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         context.emit({ type: 'chain', x: from.x, y: from.y, toX: target.x, toY: target.y, skill: id, color, style: recipe.style, duration: recipe.duration });
         damageTarget(target, amount, Math.atan2(target.y - from.y, target.x - from.x), false,
           { ...offense, lifeOnHit: offense.lifeOnHit * chainLifeOnHitMultiplier(jump, hit.has(target.id)) });
+        applyPayload(recipe, target);
         hit.add(target.id); from = { x: target.x, y: target.y }; amount *= recipe.falloff;
         next = living().filter(enemy => context.onScreen(enemy) && enemy.id !== target.id && (recipe.revisit || !hit.has(enemy.id)) && Math.hypot(enemy.x - from.x, enemy.y - from.y) <= recipe.range + enemy.radius
           && context.visible(from.x, from.y, enemy.x, enemy.y))
           .sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y) - Math.hypot(b.x - from.x, b.y - from.y))[0];
       }
+      applySelfPayload(recipe);
+      break;
+    }
+    case 'strike': {
+      const t = target;
+      if (!t) { strikeWhiff(); break; }
+      const angle = Math.atan2(t.y - p.y, t.x - p.x);
+      let amount = damage;
+      if (recipe.bonusVsDot && dotCount(t) > 0) amount *= 1 + recipe.bonusVsDot;
+      if (recipe.bonusVsFrozen && frozen(t)) amount *= 1 + recipe.bonusVsFrozen;
+      if (recipe.bonusBehind && behind(t)) amount *= 1 + recipe.bonusBehind;
+      if (recipe.bonusVsRooted && rooted(t)) amount *= 1 + recipe.bonusVsRooted;
+      if (recipe.consumeDot) {
+        const dot = t.dots?.find(d => d.school === recipe.consumeDot!.school && d.remaining > 0);
+        // A detonating dot pays its own detonate fraction of unpaid damage; otherwise the
+        // consuming skill's multiplier converts the remaining ticks into burst.
+        if (dot) { amount += dot.dps * dot.remaining * (dot.detonate ?? recipe.consumeDot.multiplier); t.dots = t.dots!.filter(d => d !== dot); }
+      }
+      damageTarget(t, amount, angle, true);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle, range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      strikeExtras(recipe, t, amount);
+      break;
+    }
+    case 'dot': {
+      const t = target;
+      if (!t) { strikeWhiff(); break; }
+      const angle = Math.atan2(t.y - p.y, t.x - p.x);
+      if (recipe.direct) damageTarget(t, damage * recipe.direct, angle, false);
+      context.sim.applyDot(t, recipe.dot, damage, id);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle, range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      break;
+    }
+    case 'heal': {
+      if (recipe.pet) {
+        // Mend Pet / Revive Pet act on the active pet ally, never the player.
+        const pet = context.sim.petAlly();
+        if (pet) {
+          context.sim.healAlly(pet, (recipe.amount ?? 0) * spellBase + (recipe.maxHpFrac ?? 0) * pet.maxHp, color);
+          if (recipe.hot || recipe.hotFrac) pet.regen = { remaining: recipe.hot?.duration ?? 5,
+            perSecond: (recipe.hotFrac ?? 0) + ((recipe.hot?.perTick ?? 0) * spellBase + (recipe.hot?.flatTick ?? 0)) / Math.max(.1, recipe.hot?.interval ?? 1) / pet.maxHp };
+        } else if (recipe.pet === 'revive' && context.sim.summonActivePet()) {
+          // The fallen pet returns at full health.
+        } else {
+          context.emit({ type: 'notice', x: p.x, y: p.y, message: 'You have no active pet.' });
+        }
+        p.castTime = .18;
+        break;
+      }
+      if (recipe.consumeAlly) {
+        const allies = p.allies ?? [];
+        const victim = recipe.consumeAlly === 'demon'
+          ? allies.find(a => a.hp > 0 && (demonFamilyForAlly(a.kind) !== undefined || a.kind === 'doomguard' || a.kind === 'infernal'))
+          : allies.find(a => a.hp > 0 && a.kind === recipe.consumeAlly);
+        if (!victim) { context.emit({ type: 'notice', x: p.x, y: p.y, message: 'No minion to sacrifice.' }); break; }
+        victim.hp = 0;
+        context.emit({ type: 'notice', x: victim.x, y: victim.y, message: 'Sacrificed' });
+        blastAt(victim.x, victim.y, 56, hitStyle);
+      }
+      const base = healBase(recipe.amount, recipe.maxHpFrac);
+      if (base > 0) context.sim.playerHeal(base, color);
+      if (recipe.hot) {
+        const hot = hotToBuff(recipe.hot);
+        context.sim.addBuff(definition.name, color, hot, id);
+        if (base <= 0) context.emit({ type: 'heal', x: p.x, y: p.y, color, value: (hot.healPerSecond ?? 0) * p.maxHp * hot.duration });
+      }
+      if (recipe.consumeHot) {
+        const hot = p.buffs?.find(b => (b.healPerSecond ?? 0) > 0 && b.remaining > 0);
+        if (hot) { p.buffs = p.buffs!.filter(b => b !== hot); context.sim.playerHeal(spellBase * recipe.consumeHot, color); }
+      }
+      p.castTime = .18;
+      break;
+    }
+    case 'hot': {
+      const hot = hotToBuff(recipe.hot, recipe.maxHpFrac);
+      context.sim.addBuff(definition.name, color, hot, id);
+      context.emit({ type: 'heal', x: p.x, y: p.y, color, value: (hot.healPerSecond ?? 0) * p.maxHp * hot.duration });
+      p.castTime = .18;
+      break;
+    }
+    case 'buff': context.sim.addBuff(definition.name, color, recipe.buff, id); p.castTime = .18; break;
+    case 'cc': {
+      if (recipe.radius) {
+        // Point-targeted control centers on the aim point; otherwise on the player.
+        const center = (costs.targetMode ?? 'point') === 'point' ? aimedPoint() : p;
+        let hit = 0;
+        radialAround(center.x, center.y, recipe.radius, enemy => { if (hit < (recipe.maxTargets ?? 99)) { hit++; context.sim.applyCc(enemy, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); } });
+        blastAt(center.x, center.y, recipe.radius, hitStyle);
+      } else if (target) { context.sim.applyCc(target, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); blastAt(target.x, target.y, 56, hitStyle); }
+      else blastAt(p.x, p.y, 56, hitStyle);
+      if (recipe.resourceGain) p.mana = Math.min(p.maxMana, p.mana + recipe.resourceGain);
+      p.castTime = .18;
+      break;
+    }
+    case 'interrupt': {
+      const t = target;
+      if (!t) { strikeWhiff(); blastAt(p.x, p.y, 56, hitStyle); break; }
+      context.sim.applyCc(t, 'silence', recipe.silence, false);
+      t.interrupted = true;
+      applyStun(t, .15, 'stagger');
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: Math.atan2(t.y - p.y, t.x - p.x), range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      blastAt(t.x, t.y, 56, hitStyle);
+      break;
+    }
+    case 'pull': {
+      const t = target;
+      if (!t) { strikeWhiff(); blastAt(p.x, p.y, 56, hitStyle); break; }
+      const angle = Math.atan2(p.y - t.y, p.x - t.x);
+      const distance = Math.max(0, Math.hypot(t.x - p.x, t.y - p.y) - (p.radius + t.radius + 8));
+      const to = context.world.move(t.x, t.y, Math.cos(angle) * distance, Math.sin(angle) * distance, t.radius);
+      t.x = to.x; t.y = to.y;
+      t.awareness = Math.max(t.awareness, 1);
+      if (recipe.stun) applyStun(t, recipe.stun);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle, range: distance, arc: Math.PI / 2, rear: false });
+      blastAt(t.x, t.y, 56, hitStyle);
+      break;
+    }
+    case 'taunt': {
+      const t = target;
+      if (!t) { strikeWhiff(); blastAt(p.x, p.y, 56, hitStyle); break; }
+      t.taunted = { remaining: recipe.duration };
+      if (recipe.expose) sunder(t, recipe.expose);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: Math.atan2(t.y - p.y, t.x - p.x), range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      blastAt(t.x, t.y, 56, hitStyle);
+      break;
+    }
+    case 'summon': {
+      context.sim.summonAlly(recipe.ally, recipe.count, recipe.duration);
+      if (recipe.stun) {
+        const point = aimedPoint();
+        for (const enemy of living()) {
+          if (Math.hypot(enemy.x - point.x, enemy.y - point.y) <= (recipe.radius ?? 40)) context.sim.applyCc(enemy, 'stun', recipe.stun, false);
+        }
+      }
+      p.castTime = .18;
+      break;
+    }
+    case 'tame': {
+      const t = target;
+      if (!t) break;
+      const result = context.sim.tameBeast(t);
+      if (result !== 'tamed') context.emit({ type: 'notice', x: p.x, y: p.y,
+        message: result === 'full' ? 'Your stable is full.' : 'That beast cannot be tamed.' });
+      p.castTime = .18;
+      break;
+    }
+    case 'channel': {
+      // Initiate the channel; the sim owns subsequent ticks and re-invokes this handler per tick.
+      // The initial channelTick below counts as the first tick.
+      p.cast = { skill: id, remaining: recipe.duration, duration: recipe.duration, channel: true, ticksDone: 1,
+        ...(target ? { targetId: target.id } : {}), ...(target ? {} : { x: context.aimX, y: context.aimY }) };
+      channelTick(recipe);
+      break;
+    }
+    case 'form': context.sim.addBuff(definition.name, color, { ...recipe.buff, exclusiveGroup: 'form', form: recipe.form }, id); p.castTime = .18; break;
+    case 'stealth': {
+      p.stealthed = true;
+      context.sim.addBuff(definition.name, color, { duration: recipe.duration, stealth: true }, id);
+      if (recipe.dropAggro) for (const e of enemies) { e.awareness = 0; e.seesPlayer = false; }
+      p.castTime = .18;
+      break;
+    }
+    case 'comboStrike': {
+      const t = target;
+      if (!t) { strikeWhiff(); break; }
+      const angle = Math.atan2(t.y - p.y, t.x - p.x);
+      const pts = recipe.spend ? context.sim.spendComboPoints() : 0;
+      const dealt = damage * (recipe.spend ? Math.max(1, pts) : 1);
+      damageTarget(t, dealt, angle, true);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle, range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      if (recipe.dot) context.sim.applyDot(t, recipe.dot, dealt, id);
+      if (recipe.sunder) sunder(t, recipe.sunder);
+      if (recipe.stunPerCombo) applyStun(t, recipe.stunPerCombo * (recipe.spend ? pts : 1));
+      if (recipe.buffPerCombo) context.sim.addBuff(definition.name, color, { ...recipe.buffPerCombo, duration: recipe.buffPerCombo.duration * (recipe.spend ? pts : 1) }, id);
+      if (recipe.build) for (let i = 0; i < recipe.build; i++) context.sim.addComboPoint();
+      break;
+    }
+    case 'runeStrike': {
+      const t = target;
+      if (!t) { strikeWhiff(); break; }
+      const angle = Math.atan2(t.y - p.y, t.x - p.x);
+      const dealt = damage * (1 + (recipe.diseaseBonus ?? 0) * dotCount(t));
+      damageTarget(t, dealt, angle, true);
+      context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle, range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
+      if (recipe.dot) context.sim.applyDot(t, recipe.dot, dealt, id);
+      if (recipe.healFrac) context.sim.playerHeal(dealt * recipe.healFrac, color);
+      break;
+    }
+    case 'cleanse': {
+      if (recipe.hpCost) p.hp = Math.max(1, p.hp - p.maxHp * recipe.hpCost);
+      // removeCc clears player CC and leaves a 1s control-immunity window (breakControl).
+      if (recipe.removeCc) context.sim.addBuff(definition.name, color, { duration: 1, breakControl: true }, id);
+      if (recipe.heal) context.sim.playerHeal(recipe.heal * p.maxHp, color);
+      if (recipe.resourceGainFrac) p.mana = Math.min(p.maxMana, p.mana + p.maxMana * recipe.resourceGainFrac);
+      else if (recipe.resourceGain) p.mana = Math.min(p.maxMana, p.mana + recipe.resourceGain);
+      if (recipe.buff) context.sim.addBuff(definition.name, color, recipe.buff);
+      p.castTime = .18;
       break;
     }
     default: {
@@ -274,6 +660,8 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       throw new Error(`Missing skill execution handler: ${unimplemented}`);
     }
   }
+  // Non-damaging activations ring in the skill's school color (class color when unschooled), never the weapon's impact style.
+  if (ACTIVATION_RING[recipe.kind]) blastAt(p.x, p.y, ('radius' in recipe ? recipe.radius : undefined) ?? 56, schoolProjectileStyle(castSchoolStyle(p, id)));
   p.castDuration = p.castTime;
   context.emit({ type: 'cast', x: p.x, y: p.y, angle: p.angle, skill: id, color, ...(launch ? { launch } : {}) });
   return true;

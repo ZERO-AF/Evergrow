@@ -6,8 +6,9 @@ export interface SkillRouteStep {
   readonly previous: string | null;
 }
 
-/** Fewest additional points from any owned node. This is a preview, never an allocation. */
-export function buildSkillRoutes(allocated: ReadonlySet<string>): Map<string, SkillRouteStep> {
+/** Fewest additional points from any owned node. This is a preview, never an allocation.
+ *  Class-gated nodes are only routable for the matching class; no classId previews none. */
+export function buildSkillRoutes(allocated: ReadonlySet<string>, classId?: string): Map<string, SkillRouteStep> {
   const routes = new Map<string, SkillRouteStep>();
   // Sort both roots and branches so equivalent builds always preview the same tied route.
   const queue = [...allocated].filter(id => SKILL_NODES.has(id)).sort();
@@ -16,7 +17,8 @@ export function buildSkillRoutes(allocated: ReadonlySet<string>): Map<string, Sk
   for (let index = 0; index < queue.length; index++) {
     const id = queue[index], cost = routes.get(id)!.cost;
     for (const neighbor of [...SKILL_NODES.get(id)!.neighbors].sort()) {
-      if (routes.has(neighbor) || doctrineConflict(allocated,SKILL_NODES.get(neighbor)!)) continue;
+      const neighborNode=SKILL_NODES.get(neighbor)!;
+      if (routes.has(neighbor) || neighborNode.classId && neighborNode.classId !== classId || doctrineConflict(allocated,neighborNode)) continue;
       routes.set(neighbor, { cost: cost + 1, previous: id });
       queue.push(neighbor);
     }
@@ -38,14 +40,18 @@ export function previewSkillRoute(routes: ReadonlyMap<string, SkillRouteStep>, n
   return path.reverse();
 }
 
-/** Allocate the same shortest route shown in the atlas, all or nothing. */
+/** Allocate the same shortest route shown in the atlas, all or nothing. Class-gated nodes reject foreign classes. */
 export function allocateSkillRoute(sheet: CharacterSheet, nodeId: string): ActionResult {
-  if (!SKILL_NODES.has(nodeId)) return { ok: false, message: 'Unknown node.' };
-  if(doctrineConflict(sheet.allocatedNodes,SKILL_NODES.get(nodeId)!))return{ok:false,message:'Choose only one Doctrine in each family.'};
+  const target = SKILL_NODES.get(nodeId);
+  if (!target) return { ok: false, message: 'Unknown node.' };
+  if (target.classId && target.classId !== sheet.classId) return { ok: false, message: 'Only a member of this class can learn this.' };
+  if(doctrineConflict(sheet.allocatedNodes,target))return{ok:false,message:target.spec?'Choose only one specialization for your class.':'Choose only one Doctrine in each family.'};
   const owned = new Set(sheet.allocatedNodes);
   if (owned.has(nodeId)) return { ok: false, message: 'Already allocated.' };
-  const path = previewSkillRoute(buildSkillRoutes(owned), nodeId).filter(id => !owned.has(id));
+  const path = previewSkillRoute(buildSkillRoutes(owned, sheet.classId), nodeId).filter(id => !owned.has(id));
   if (!path.length) return { ok: false, message: 'No connected path.' };
+  if (path.some(id => { const n = SKILL_NODES.get(id)!; return n.classId && n.classId !== sheet.classId; }))
+    return { ok: false, message: 'Only a member of this class can learn this.' };
   if (!Number.isSafeInteger(sheet.skillPoints) || sheet.skillPoints < path.length)
     return { ok: false, message: `Requires ${path.length} skill ${path.length === 1 ? 'point' : 'points'}.` };
   delete sheet.treeRefunded;

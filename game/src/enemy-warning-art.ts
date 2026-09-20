@@ -8,10 +8,18 @@ import { enemyAttackDefinition } from './combat-content.ts';
 import { WARDEN_RULES, wardenProfile } from './dungeon-boss.ts';
 import { drawAttackWarning, type WarningShape } from './attack-warning-art.ts';
 import { drawGlow, type PointLight } from './lighting.ts';
+import { raidBossWarnings, drawRaidBossEffects, raidBossWarningLight } from './raid-boss-art.ts';
+import { raid2BossWarnings, drawRaid2BossEffects, raid2BossWarningLight } from './raid2-boss-art.ts';
+import { raid3BossWarnings, drawRaid3BossEffects, raid3BossWarningLight } from './raid3-boss-art.ts';
+import { raid4BossWarnings, drawRaid4BossEffects, raid4BossWarningLight } from './raid4-boss-art.ts';
 
 interface Warning { x: number; y: number; angle: number; shape: WarningShape; color: string; progress: number; locked: boolean }
 export function enemyWarnings(e: Enemy, alpha = 1): Warning[] {
   if(e.hp>0&&e.riftWarning){const w=e.riftWarning;return [{x:w.x,y:w.y,angle:w.angle,progress:1-w.remaining/RT.warning,locked:true,color:w.kind==='storm'?'#cca3ff':'#ff935f',shape:w.kind==='storm'?{kind:'circle',radius:RT.stormRadius}:{kind:'sector',radius:RT.fireRadius,arc:RT.fireArc}}];}
+  const raid = raidBossWarnings(e, alpha); if (raid.length) return raid;
+  const raid2 = raid2BossWarnings(e, alpha); if (raid2.length) return raid2;
+  const raid3 = raid3BossWarnings(e, alpha); if (raid3.length) return raid3;
+  const raid4 = raid4BossWarnings(e, alpha); if (raid4.length) return raid4;
   if (e.hp <= 0 || (e.state !== 'windup' && e.state !== 'attack')) return [];
   const d = enemyAttackDefinition(e), x = e.prevX + (e.x - e.prevX) * alpha, y = e.prevY + (e.y - e.prevY) * alpha;
   const progress = e.state === 'attack' ? 1 : Math.min(1, e.stateTime / Math.max(.01, e.stateDuration));
@@ -48,6 +56,10 @@ export function enemyWarnings(e: Enemy, alpha = 1): Warning[] {
 }
 export function drawEnemyWarning(c: CanvasRenderingContext2D, e: Enemy, alpha: number, time: number, reduced: boolean): void {
   drawWildernessBossImpact(c,e,time,reduced);
+  drawRaidBossEffects(c, e, time, reduced);
+  drawRaid2BossEffects(c, e, time, reduced);
+  drawRaid3BossEffects(c, e, time, reduced);
+  drawRaid4BossEffects(c, e, time, reduced);
   if(riftMechanic(e)==='ritual'&&riftCanChannel(e)&&e.awareness>=1){
     c.save();c.strokeStyle='#9ae0c7';c.globalAlpha=.2;c.lineWidth=1.5;
     c.beginPath();c.arc(e.x,e.y,RT.wardRadius,0,Math.PI*2);c.stroke();c.restore();
@@ -64,6 +76,7 @@ export function drawEnemyWarning(c: CanvasRenderingContext2D, e: Enemy, alpha: n
 }
 export function enemyWarningLight(e: Enemy): PointLight | null {
   const w = enemyWarnings(e)[0];
+  const raid = raidBossWarningLight(e) ?? raid2BossWarningLight(e) ?? raid3BossWarningLight(e) ?? raid4BossWarningLight(e); if (raid) return raid;
   if (!w) return null;
   return { x: w.x, y: w.y, radius: w.shape.kind === 'circle' ? w.shape.radius * 1.3 : 65,
     color: w.color, power: .12 + w.progress * .3 };

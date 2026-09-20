@@ -1,0 +1,114 @@
+import type { WowClassId, WowRaceDef, WowRaceId } from './wow-types.ts';
+
+const ALL_DK: readonly WowClassId[] = Object.freeze([
+  'warrior', 'paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'shaman', 'mage', 'warlock', 'druid',
+]);
+
+/** WotLK races: class availability, racial active, passive modifiers. */
+export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze({
+  human: Object.freeze({
+    id: 'human', name: 'Human',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
+    racial: 'everyMan', racialName: 'Every Man for Himself',
+    racialDescription: 'Break all stuns, roots and control effects, and take 30% less damage for 2 sec. 2 min cooldown.',
+    passives: Object.freeze({ xpGainPercent: 5, manaRegen: 1.5 }),
+    passiveDescription: '+5% experience gained · +1.5 mana per 5 sec',
+    skinTones: Object.freeze(['porcelain', 'sand', 'warm', 'rose']),
+    visual: Object.freeze({ hairColor: 'chestnut', height: 1, width: 1 }),
+  }),
+  dwarf: Object.freeze({
+    id: 'dwarf', name: 'Dwarf',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'hunter', 'rogue', 'priest', 'deathKnight']),
+    racial: 'stoneform', racialName: 'Stoneform',
+    racialDescription: 'Harden skin: +25% armor and bleed/poison cleanse for 8 sec. 2 min cooldown.',
+    passives: Object.freeze({ frostResistance: 5, critDamage: 3 }),
+    passiveDescription: '+5 frost resistance · +3% critical damage',
+    skinTones: Object.freeze(['sand', 'copper', 'umber', 'rose']),
+    visual: Object.freeze({ hairColor: 'copper', facialHair: 'fullbeard', feature: 'beard-ringed', height: 0.8, width: 1.22, nose: 'broad' }),
+  }),
+  nightElf: Object.freeze({
+    id: 'nightElf', name: 'Night Elf',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage', 'druid']),
+    racial: 'shadowmeld', racialName: 'Shadowmeld',
+    racialDescription: 'Fade into shadow for 6 sec, hidden from distant enemies. 2 min cooldown.',
+    passives: Object.freeze({ moveSpeedPercent: 2, lightningResistance: 3 }),
+    passiveDescription: '+2% movement speed · +3 lightning resistance',
+    skinTones: Object.freeze(['violet', 'lavender', 'moonblue', 'duskwine', 'ashen']),
+    visual: Object.freeze({ hairColor: 'silver', feature: 'markings', height: 1.07, width: 0.94, ears: 'elf', eyeGlow: '#f4d97b', markings: true }),
+  }),
+  gnome: Object.freeze({
+    id: 'gnome', name: 'Gnome',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
+    racial: 'escapeArtist', racialName: 'Escape Artist',
+    racialDescription: 'Slip free of roots and slows, moving 30% faster for 3 sec. 1.75 min cooldown.',
+    passives: Object.freeze({ intelligence: 5, arcaneResistance: 3 }),
+    passiveDescription: '+5 intellect · +3 arcane resistance',
+    skinTones: Object.freeze(['porcelain', 'sand', 'rose', 'warm']),
+    visual: Object.freeze({ hairColor: 'golden', height: 0.66, width: 0.88, headScale: 1.3, eyeScale: 1.35 }),
+  }),
+  draenei: Object.freeze({
+    id: 'draenei', name: 'Draenei',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'hunter', 'priest', 'deathKnight', 'shaman', 'mage']),
+    racial: 'giftNaaru', racialName: 'Gift of the Naaru',
+    racialDescription: 'Blessed light restores 20% of maximum life over 5 sec. 3 min cooldown.',
+    passives: Object.freeze({ arcaneResistance: 5, critChance: 1 }),
+    passiveDescription: '+5 arcane resistance · +1% critical chance',
+    skinTones: Object.freeze(['azure', 'indigohide', 'moonblue', 'lavender', 'ashen']),
+    visual: Object.freeze({ hairColor: 'silver', feature: 'crest', height: 1.05, width: 1.0, horns: 'draenei', tendrils: true, hooves: true, tail: 'smooth', eyeGlow: '#bfe3ff' }),
+  }),
+  orc: Object.freeze({
+    id: 'orc', name: 'Orc',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'deathKnight', 'shaman', 'warlock']),
+    racial: 'bloodFury', racialName: 'Blood Fury',
+    racialDescription: 'Unleash fury: +15% damage for 15 sec. 2 min cooldown.',
+    passives: Object.freeze({ damagePercent: 2 }),
+    passiveDescription: '+2% damage',
+    skinTones: Object.freeze(['fel', 'swamp', 'moss', 'olive']),
+    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-small', height: 1.03, width: 1.16, tusks: 'short', jaw: 'wide', hunch: 0.5 }),
+  }),
+  undead: Object.freeze({
+    id: 'undead', name: 'Undead',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
+    racial: 'willForsaken', racialName: 'Will of the Forsaken',
+    racialDescription: 'Shake off fear and all control effects, taking 30% less damage for 2 sec. 2 min cooldown.',
+    passives: Object.freeze({ arcaneResistance: 5 }),
+    passiveDescription: '+5 arcane resistance',
+    skinTones: Object.freeze(['grave', 'pale', 'ashen', 'moonblue']),
+    visual: Object.freeze({ hairColor: 'espresso', feature: 'bone-bare', height: 0.97, width: 0.9, decay: true, jaw: 'bone', hunch: 0.65, eyeGlow: '#e8d44d' }),
+  }),
+  tauren: Object.freeze({
+    id: 'tauren', name: 'Tauren',
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'deathKnight', 'shaman', 'druid']),
+    racial: 'warStomp', racialName: 'War Stomp',
+    racialDescription: 'Stomp the ground, stunning nearby enemies for 1.5 sec. 2 min cooldown.',
+    passives: Object.freeze({ maxHp: 25, lightningResistance: 3 }),
+    passiveDescription: '+25 maximum life · +3 lightning resistance',
+    skinTones: Object.freeze(['pelt', 'umber', 'mahogany', 'stonepelt', 'ebony']),
+    visual: Object.freeze({ hairColor: 'walnut', feature: 'horns-curved', height: 1.15, width: 1.3, horns: 'tauren', ears: 'bovine', muzzle: true, hooves: true, tail: 'tuft', hunch: 0.7 }),
+  }),
+  troll: Object.freeze({
+    id: 'troll', name: 'Troll',
+    classes: ALL_DK,
+    racial: 'berserking', racialName: 'Berserking',
+    racialDescription: 'Enter a frenzy: +20% attack and cast speed for 10 sec. 3 min cooldown.',
+    passives: Object.freeze({ lifeRegen: 0.5 }),
+    passiveDescription: '+0.5 life per second',
+    skinTones: Object.freeze(['cerulean', 'deepsea', 'moonblue', 'moss']),
+    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-long', height: 1.09, width: 0.88, ears: 'long', tusks: 'long', nose: 'hooked', hunch: 0.55 }),
+  }),
+  bloodElf: Object.freeze({
+    id: 'bloodElf', name: 'Blood Elf',
+    classes: Object.freeze<WowClassId[]>(['paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage']),
+    racial: 'arcaneTorrent', racialName: 'Arcane Torrent',
+    racialDescription: 'Silence nearby enemies for 2 sec and restore 15 resource. 2 min cooldown.',
+    passives: Object.freeze({ arcaneResistance: 5, critChance: 2 }),
+    passiveDescription: '+5 arcane resistance · +2% critical chance',
+    skinTones: Object.freeze(['porcelain', 'rose', 'sand', 'honey']),
+    visual: Object.freeze({ hairColor: 'golden', height: 1.0, width: 0.92, ears: 'elf', eyeGlow: '#7ce87c' }),
+  }),
+});
+
+/** Classes a race can play; deathKnight is universal. */
+export function raceAllowsClass(race: WowRaceId, classId: WowClassId): boolean {
+  return classId === 'deathKnight' || WOW_RACES[race].classes.includes(classId);
+}

@@ -1,0 +1,44 @@
+/* Quest log dialog + HUD tracker (docs/wow-deepening.md §1). */
+.quest-panel { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(8, 10, 6, .45); }
+.quest-panel[hidden] { display: none; }
+.quest-window { width: min(760px, 92vw); max-height: min(560px, 86vh); display: flex; flex-direction: column; }
+.quest-heading-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; color: #f0c33c; }
+.quest-columns { display: grid; grid-template-columns: minmax(190px, 240px) 1fr; gap: 10px; min-height: 0; flex: 1; padding: 10px; }
+.quest-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.quest-list h3 { margin: 8px 4px 4px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: #97a08a; }
+.quest-list-row { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid transparent; border-radius: 3px; background: none; color: #d8d4c2; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.quest-list-row:hover { background: #1a2416; }
+.quest-list-row.is-selected { border-color: #6d828a; background: #16202a; }
+.quest-list-row.is-selected:focus-visible { outline: 1px solid var(--ui-silver); outline-offset: -2px; }
+.quest-list-level { font-size: 10px; color: #97a08a; font-variant-numeric: tabular-nums; }
+.quest-mark { color: #f0c33c; font-weight: 700; text-align: center; }
+.quest-mark--pending, .quest-mark--locked { color: #9aa4a6; }
+.quest-mark--done { color: #8fbf6a; }
+.quest-empty { padding: 14px 10px; color: #97a08a; font-size: 12px; line-height: 1.5; }
+.quest-detail { overflow-y: auto; padding: 4px 10px 10px; }
+.quest-detail h3 { margin: 2px 0 6px; font-size: 15px; color: #ead7a1; }
+.quest-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 11px; color: #97a08a; }
+.quest-description { margin: 0 0 10px; font-size: 12px; line-height: 1.55; color: #c9c4b2; }
+.quest-objectives { margin: 0 0 10px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #d8d4c2; }
+.quest-objectives li::before { content: '· '; color: #f0c33c; }
+.quest-objectives li.is-done { color: #8fbf6a; }
+.quest-objectives--plain { color: #97a08a; }
+.quest-ready { margin: 0 0 10px; font-size: 12px; color: #f0c33c; }
+.quest-rewards h4 { margin: 0 0 3px; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: #97a08a; }
+.quest-rewards p { margin: 0 0 10px; font-size: 12px; color: #d8d4c2; }
+.quest-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* HUD tracker — docks under the journey mini-log column. */
+.quest-tracker { position: absolute; z-index: 3; padding: 0 3px 3px; pointer-events: auto; }
+.quest-tracker[hidden] { display: none; }
+.quest-tracker header { display: flex; }
+.quest-tracker-title { display: flex; align-items: center; gap: 8px; width: 100%; padding: 3px 7px; border: 0; background: none; color: #ead7a1; font: inherit; font-size: 12px; letter-spacing: .035em; text-transform: uppercase; cursor: pointer; text-align: left; }
+.quest-tracker-title .hud-sidebar-key { margin-left: auto; opacity: 0; transition: opacity 140ms; }
+.quest-tracker:hover .hud-sidebar-key, .quest-tracker-title:focus-visible .hud-sidebar-key { opacity: 1; }
+.quest-tracker-title:focus-visible { outline: 1px solid var(--ui-silver); outline-offset: -2px; }
+.quest-tracker-row { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 4px 7px; border: 0; border-top: 1px solid #93aab021; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.quest-tracker-row strong { font-size: 12px; color: #ead7a1; font-weight: 600; }
+.quest-tracker-row.is-complete strong { color: #f0c33c; }
+.quest-tracker-objective { font-size: 11px; color: #b9b4a2; }
+.quest-tracker-objective.is-done { color: #8fbf6a; }
+.quest-tracker-row:focus-visible { outline: 1px solid var(--ui-silver); outline-offset: -2px; }

@@ -10,14 +10,21 @@ import { directionalControl } from './ui-navigation.ts';
 import { titleSlotAction, shouldRefreshCloudSlot } from './title-slot-action.ts';
 import { FramePacer } from './frame-pacer.ts';
 import { escapeUI, uiIcon, trapDialogFocus } from './ui-components.ts';
+import type { UIIconName } from './ui-icons.ts';
 import { previewCharacter } from './character-summary.ts';
 import { drawCharacterPortrait } from './character-portrait.ts';
+import { createAppearanceEditor, type AppearanceEditor } from './character-editor.ts';
 import type { CharacterSave } from './character-save.ts';
 import type { SaveSlot } from './character-storage.ts';
 import type { SaveMode, SaveSourceUI } from './save-hub.ts';
 import type { Player } from './model.ts';
-import { STARTER_LOADOUTS, createStarterLoadout, isStarterLoadoutId, type StarterLoadoutId } from './items.ts';
-import { itemIconSVG } from './item-art.ts';
+import { createCharacterSheet } from './items.ts';
+import { createCharacterLook, type CharacterLook } from './character-look.ts';
+import { SKIN_PALETTES, HAIR_PALETTES, HAIR_STYLES, FACIAL_HAIR, ACCESSORIES, RACE_FEATURES, RACE_FEATURE_OPTIONS, type AppearancePalette, type CharacterAppearance } from './appearance-content.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
+import { specIdentity } from './skill-progression.ts';
+import { WOW_RACES, raceAllowsClass } from './wow-races.ts';
+import { WOW_CLASS_IDS, WOW_RACE_IDS, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { parseWorldSeed } from './world-seed.ts';
 import './title-screen.css';
 import './game-wordmark.css';
@@ -25,7 +32,7 @@ import './home-screen.css';
 export interface TitleActions extends AudioControlActions {
   leaderboard?: LeaderboardLoader;
   chronicle?(onCached?:(ledger:ChronicleLedger)=>void): Promise<ChronicleLedger>;
-  create(index: number, name: string, weapon: StarterLoadoutId, seed: number): void;
+  create(index: number, name: string, classId: WowClassId, raceId: WowRaceId, look: CharacterLook, seed: number): void;
   continueRecovery?(index: number, token: string): void;
   continue(index: number): void; remove(index: number, expected: string | null): void;
   read?(index: number): Promise<SaveSlot>; source?(mode: SaveMode): void;
@@ -36,6 +43,14 @@ export type HomePage = 'characters' | 'chronicle' | 'leaderboard' | 'changelog';
 const homePages: readonly HomePage[] = ['characters','chronicle','leaderboard','changelog'];
 const homeLabels = { characters: 'Characters', chronicle: 'Chronicle', leaderboard: 'Leaderboard', changelog: 'What’s new' };
 const format = (n: number) => Math.round(n).toLocaleString('en-US');
+interface CreationDraft { classId?: WowClassId; raceId?: WowRaceId; look: CharacterLook; }
+const roleIcons: Record<string, UIIconName> = {
+  'Melee damage': 'sword', 'Ranged damage': 'center', 'Spell damage': 'star', Healing: 'plus',
+  Tank: 'shield', Pet: 'skull', Stealth: 'dodge', Control: 'diamond',
+};
+const lookCatalogs: Record<keyof CharacterAppearance, readonly { id: string }[]> = {
+  skin: SKIN_PALETTES, hairColor: HAIR_PALETTES, hair: HAIR_STYLES, facialHair: FACIAL_HAIR, accessory: ACCESSORIES, feature: RACE_FEATURES,
+};
 /** One compact screen; storage and validated character mutations remain outside the view. */
 export class TitleScreen {
   readonly element: HTMLDivElement;
@@ -48,11 +63,13 @@ export class TitleScreen {
   private readonly chronicle: ChroniclePanel;
   private slots: SaveSlot[] = [];
   private selected = 0;
-  private starter: StarterLoadoutId = STARTER_LOADOUTS[0].id;
+  private drafts = new Map<number, CreationDraft>();
+  private editor?: AppearanceEditor;
   private seedDrafts = new Map<number, string>();
   private names = new Map<number, string>();
   private player: Player = previewCharacter(null);
   private canvas: HTMLCanvasElement;
+  private heroHome: HTMLElement;
   private abort = new AbortController();
   private focus?: { dispose(): void };
   private frame = 0;
@@ -71,7 +88,7 @@ export class TitleScreen {
       <header class="title-brand"><span aria-hidden="true">${uiIcon('skilltree')}</span><h1>EVERGROW</h1><nav class="title-home-nav" aria-label="Home">${homePages.map(page=>`<button data-home-page="${page}" aria-current="${page==='characters'?'page':'false'}">${homeLabels[page]}${page==='changelog'?'<i class="home-unread" aria-label="Unread update" hidden></i>':''}</button>`).join('')}</nav><span class="home-pad-hint">LB / RB</span></header>
       <section class="title-hero" aria-label="Selected character"><div class="title-halo" aria-hidden="true"></div><canvas width="560" height="720" aria-label="Selected character wearing their saved equipment"></canvas><div class="title-plinth" aria-hidden="true"></div></section>
       <section class="title-roster ui-window" aria-labelledby="roster-title"><header class="title-roster-header"><h2 id="roster-title">Characters</h2><div class="title-sources" role="group" aria-label="Save location" hidden><button data-source="cloud">Cloud</button><button data-source="local">Local</button></div><span class="title-controller-hint"><kbd>A</kbd> Continue</span><span class="title-slot-count"></span></header>
-      <div class="title-hall-body"><div class="title-slot-grid" role="group" aria-label="Eight character slots"></div><div class="title-selection"></div></div>
+      <div class="title-hall-body"><div class="title-slot-grid" role="group" aria-label="Eight character slots" data-slot-grid></div><div class="title-selection"></div></div>
       <footer class="title-roster-footer"><span class="title-storage-status" role="status"></span><a class="title-signout" href="/signout-with-chatgpt?return_to=/" target="_top" hidden>Sign out</a><span class="title-transfer"><button data-action="import">Import</button><button data-action="download">Download</button></span></footer>
       <div class="title-cloud-recovery" hidden><p class="title-cloud-message" role="status"></p><button class="ui-button" data-action="retry">Retry</button><a class="ui-button" href="/signin-with-chatgpt?return_to=/" target="_top" hidden>Sign in again</a></div>
       <p class="title-save-message" role="status" hidden></p><input type="file" class="title-file" accept=".json,application/json" hidden></section><section class="title-library ui-window" hidden aria-label="Home content"></section>`;
@@ -79,7 +96,7 @@ export class TitleScreen {
     this.element.querySelector('details.title-audio')!.addEventListener('toggle', event => {
       refreshAudio(); actions.panelSound?.((event.target as HTMLDetailsElement).open);
     }, { signal: this.abort.signal });
-    this.canvas = this.element.querySelector('canvas')!; mount.append(this.element);
+    this.canvas = this.element.querySelector('canvas')!; this.heroHome = this.canvas.parentElement!; mount.append(this.element);
     const library=this.element.querySelector<HTMLElement>('.title-library')!;
     this.changelog = new ChangelogPanel(library, () => this.selectPage('characters'), true);
     this.chronicle = new ChroniclePanel(library, () => this.selectPage('characters'), true);
@@ -94,10 +111,12 @@ export class TitleScreen {
         event.preventDefault();const pages=this.availablePages(),index=pages.indexOf(this.page);
         this.selectPage(event.key==='Home'?pages[0]:event.key==='End'?pages.at(-1)!:pages[(index+(event.key==='ArrowLeft'?-1:1)+pages.length)%pages.length]);return;
       }
-      if (!target.matches('[data-slot]') || !event.key.startsWith('Arrow')) return;
-      const slots = [...this.element.querySelectorAll<HTMLButtonElement>('[data-slot]')];
-      const next = directionalControl(slots.map(slot => slot.getBoundingClientRect()), slots.indexOf(target as HTMLButtonElement), event.key);
-      event.preventDefault(); slots[next]?.focus({ preventScroll: true });
+      if (!event.key.startsWith('Arrow')) return;
+      const grid = target.closest<HTMLElement>('[data-slot-grid],[data-class-grid],[data-race-grid]');
+      if (!grid || !target.matches('button')) return;
+      const buttons = [...grid.querySelectorAll<HTMLButtonElement>('button')];
+      const next = directionalControl(buttons.map(b => b.getBoundingClientRect()), buttons.indexOf(target as HTMLButtonElement), event.key);
+      event.preventDefault(); buttons[next]?.focus({ preventScroll: true });
     }, { signal: this.abort.signal });
     this.element.addEventListener('focusin', event => {
       const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-slot]');
@@ -108,6 +127,9 @@ export class TitleScreen {
       if (button.dataset.homePage) { this.selectPage(button.dataset.homePage as HomePage); return; }
       if (button.dataset.source) { this.actions.source?.(button.dataset.source as SaveMode); return; }
       if (button.dataset.slot !== undefined) { this.choose(Number(button.dataset.slot)); return; }
+      if (button.dataset.classId) { this.pickClass(button.dataset.classId as WowClassId); return; }
+      if (button.dataset.raceId) { this.pickRace(button.dataset.raceId as WowRaceId); return; }
+      if (button.dataset.look) { this.pickLook(button.dataset.look as keyof CharacterAppearance, button.dataset.value ?? '', button); return; }
       const action = button.dataset.action;
       if (action === 'retry') { if (this.source.status === 'Reload required' || !this.actions.retry) window.location.reload(); else this.actions.retry(); }
       if (action === 'continue') this.actions.continue(this.selected);
@@ -119,27 +141,22 @@ export class TitleScreen {
       if (action === 'download' && this.source.mode === 'local') this.actions.download?.(this.selected);
       if (action === 'import' && this.source.mode === 'local') this.element.querySelector<HTMLInputElement>('.title-file')!.click();
       if (action === 'random-seed') { const input = this.element.querySelector<HTMLInputElement>('[name="world-seed"]'); if (input) { input.value = this.rollSeed(); input.setCustomValidity(''); } }
+      if (action === 'appearance') this.openAppearanceEditor();
     }, { signal: this.abort.signal });
     this.element.addEventListener('input', event => {
-      const input = event.target; if (!(input instanceof HTMLInputElement)) return;
+      const input = event.target;
+      if (input instanceof HTMLSelectElement && input.dataset.look) { this.pickLook(input.dataset.look as keyof CharacterAppearance, input.value); return; }
+      if (!(input instanceof HTMLInputElement)) return;
       if (input.name === 'character-name') this.names.set(this.selected, input.value);
       if (input.name === 'world-seed') { this.seedDrafts.set(this.selected, input.value); this.validateSeed(input); }
-    }, { signal: this.abort.signal });
-    this.element.addEventListener('change', event => {
-      const input = event.target;
-      if (input instanceof HTMLSelectElement && input.name === 'compact-starter' && isStarterLoadoutId(input.value)) {
-        this.starter = input.value; this.player = previewCharacter(null, this.starter);
-        this.element.querySelectorAll<HTMLInputElement>('[name="starter-weapon"]').forEach(radio => { radio.checked = radio.value === this.starter; }); return;
-      }
-      if (!(input instanceof HTMLInputElement)) return;
       if (this.source.mode === 'local' && input.type === 'file' && input.files?.[0]) { this.actions.import?.(this.selected, input.files[0]); input.value = ''; }
-      if (input.name === 'starter-weapon' && isStarterLoadoutId(input.value)) { this.starter = input.value; this.player = previewCharacter(null, this.starter); const select = this.element.querySelector<HTMLSelectElement>('[name="compact-starter"]'); if (select) select.value = this.starter; }
     }, { signal: this.abort.signal });
     this.element.addEventListener('submit', event => {
       event.preventDefault(); const input = this.element.querySelector<HTMLInputElement>('[name="character-name"]');
       const seedInput = this.element.querySelector<HTMLInputElement>('[name="world-seed"]'); if (!seedInput) return;
       const seed = this.validateSeed(seedInput); if (seed === null) { seedInput.reportValidity(); return; }
-      const name = input?.value.trim(); if (name) this.actions.create(this.selected, name, this.starter, seed);
+      const draft = this.drafts.get(this.selected), name = input?.value.trim();
+      if (name && draft?.classId && draft.raceId) this.actions.create(this.selected, name, draft.classId, draft.raceId, draft.look, seed);
     }, { signal: this.abort.signal });
   }
   activateGamepad(target: HTMLElement): boolean {
@@ -150,14 +167,14 @@ export class TitleScreen {
       this.element.inert || this.rosterLoading || this.source.status === 'Loading…', !!this.confirming);
     if (action === 'continue') this.actions.continue(index);
     else if (action === 'create') {
-      this.choose(index); this.element.querySelector<HTMLInputElement>('[name="character-name"]')?.focus();
+      this.choose(index); this.element.querySelector<HTMLButtonElement>('[data-class-id]')?.focus();
     }
     return true;
   }
   setBusy(busy: boolean) { this.element.inert = busy; this.element.classList.toggle('is-busy', busy); this.element.setAttribute('aria-busy', String(busy)); }
   setRosterLoading(loading: boolean) {
     this.rosterLoading = loading;
-    if (loading) { this.inspection++; this.loading = false; this.confirming = null; }
+    if (loading) { this.inspection++; this.loading = false; this.confirming = null; this.closeAppearanceEditor(); }
     this.render();
   }
   setSource(source: SaveSourceUI) {
@@ -187,7 +204,7 @@ export class TitleScreen {
   open(slots: SaveSlot[], preferred?: number) {
     this.selectPage('characters', false); this.element.inert = false;
     this.rosterLoading = this.source.status === 'Loading…';
-    this.slots = slots; this.names.clear(); this.seedDrafts.clear();
+    this.slots = slots; this.names.clear(); this.seedDrafts.clear(); this.drafts.clear(); this.closeAppearanceEditor();
     const latest = [...slots].sort((a, b) => (b.record?.updatedAt ?? b.summary?.updatedAt ?? 0) - (a.record?.updatedAt ?? a.summary?.updatedAt ?? 0))[0]?.index ?? 0;
     this.selected = preferred ?? latest; this.confirming = null; this.element.hidden = false; this.message(''); this.setSource(this.source);
     this.choose(this.selected, false);
@@ -218,12 +235,18 @@ export class TitleScreen {
     if(focus)this.element.querySelector<HTMLElement>(`[data-home-page="${page}"]`)?.focus({preventScroll:true});
   }
   dismissOverlay(): boolean {
+    if (this.editor) { this.editor.cancel(); return true; }
     const audio = this.element.querySelector<HTMLDetailsElement>('.title-audio')!;
     if (audio.open) { audio.open = false; audio.querySelector('summary')!.focus(); return true; }
     if(this.page==='characters')return false;this.selectPage('characters');return true; }
   updateOverlayGamepad(pad: GamepadInput, now: number): boolean {
     if(this.element.inert)return true;
     if(pad.active)this.element.classList.add('is-controller');
+    if (this.editor) {
+      if (pad.pressed.has(PAD.dodge) || pad.pressed.has(PAD.pause)) this.editor.cancel();
+      else this.editor.updateGamepad(pad, now);
+      return true;
+    }
     const audio = this.element.querySelector<HTMLDetailsElement>('.title-audio')!;
     if (pad.pressed.has(PAD.skill4)) {
       audio.open = !audio.open; this.audioPad.clear();
@@ -242,6 +265,7 @@ export class TitleScreen {
   }
   private choose(index: number, focus = true) {
     this.selected = index; this.confirming = null; this.loading = false; const ticket = ++this.inspection;
+    this.closeAppearanceEditor();
     this.render();
     if (focus) this.element.querySelector<HTMLButtonElement>(`[data-slot="${index}"]`)?.focus();
     const slot = this.slots[index];
@@ -255,7 +279,7 @@ export class TitleScreen {
     }).catch(() => { if (ticket === this.inspection) { this.loading = false; this.message('Save unavailable. Please retry.'); this.renderSelection(); } });
   }
   message(text: string) { const target = this.element.querySelector<HTMLElement>('.title-save-message')!; target.textContent = text; target.hidden = !text; }
-  close() { this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; cancelAnimationFrame(this.frame); this.frame = 0; }
+  close() { this.closeAppearanceEditor(); this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; cancelAnimationFrame(this.frame); this.frame = 0; }
   dispose() { this.close(); this.changelog.dispose(); this.chronicle.dispose(); this.leaderboard.dispose(); this.abort.abort(); this.element.remove(); }
   private rollSeed() { const value = String(crypto.getRandomValues(new Uint32Array(1))[0]); this.seedDrafts.set(this.selected, value); return value; }
   private validateSeed(input: HTMLInputElement) { const seed = parseWorldSeed(input.value); input.setCustomValidity(seed === null ? 'Use a whole number from 0 to 4294967295.' : ''); return seed; }
@@ -268,15 +292,20 @@ export class TitleScreen {
       this.renderSelection(); return;
     }
     this.element.querySelector('.title-slot-grid')!.innerHTML = this.slots.map(slot => {
-      const r = slot.record, summary = r ? { name: r.name, level: r.checkpoint.level, gearPower: equippedGearPower(r.checkpoint.character) } : slot.summary;
-      return `<button class="title-slot" data-slot="${slot.index}" aria-pressed="${slot.index === this.selected}" aria-label="Slot ${slot.index + 1}: ${summary ? escapeUI(summary.name) : 'New character'}"><span class="title-slot-number">${slot.index + 1}</span><span class="title-slot-copy"><strong>${summary ? escapeUI(summary.name) : slot.state === 'empty' ? '+ New' : 'Unavailable'}</strong>${summary ? `<small>Lv ${summary.level} ${summary.gearPower!==undefined?`<i>·</i> ${format(summary.gearPower)} gear`:''}</small>` : ''}</span>${slot.conflict ? '<span class="title-slot-alert" aria-label="Save conflict">!</span>' : ''}</button>`;
+      const r = slot.record, summary = r ? { name: r.name, level: r.checkpoint.level, gearPower: equippedGearPower(r.checkpoint.character), classId: r.checkpoint.character.classId, raceId: r.checkpoint.character.raceId } : slot.summary;
+      const cls = summary?.classId ? WOW_CLASSES[summary.classId] : undefined, race = summary?.raceId ? WOW_RACES[summary.raceId] : undefined;
+      const detail = cls && race ? `Lv ${summary!.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${cls.name}</b>`
+        : summary ? `Lv ${summary.level}${summary.gearPower !== undefined ? ` <i>·</i> ${format(summary.gearPower)} gear` : ''}` : '';
+      return `<button class="title-slot" data-slot="${slot.index}" aria-pressed="${slot.index === this.selected}" aria-label="Slot ${slot.index + 1}: ${summary ? escapeUI(summary.name) : 'New character'}"><span class="title-slot-number">${slot.index + 1}</span><span class="title-slot-copy"><strong>${summary ? escapeUI(summary.name) : slot.state === 'empty' ? '+ New' : 'Unavailable'}</strong>${summary ? `<small>${detail}</small>` : ''}</span>${slot.conflict ? '<span class="title-slot-alert" aria-label="Save conflict">!</span>' : ''}</button>`;
     }).join('');
     this.renderSelection();
   }
   private renderSelection() {
     const slot = this.slots[this.selected], record = slot?.record;
-    this.player = previewCharacter(record ?? null, this.starter);
+    if (record) this.closeAppearanceEditor();
+    this.player = previewCharacter(record ?? null, this.drafts.get(this.selected));
     const selection = this.element.querySelector('.title-selection')!;
+    this.setCreating(false);
     const canUse = this.source.mode === 'local' || this.source.signedIn;
     this.element.querySelector<HTMLButtonElement>('[data-action="download"]')!.disabled = this.source.mode !== 'local' || !record || !this.actions.download;
     this.element.querySelector<HTMLButtonElement>('[data-action="import"]')!.disabled = this.source.mode !== 'local' || !canUse || slot?.state !== 'empty' || this.loading || !this.actions.import;
@@ -305,7 +334,9 @@ export class TitleScreen {
     }
     if (record) {
       const power = equippedGearPower(record.checkpoint.character);
+      const cls = WOW_CLASSES[record.checkpoint.character.classId], race = WOW_RACES[record.checkpoint.character.raceId];
       selection.innerHTML = `<div class="title-selection-heading"><h3>${escapeUI(record.name)}</h3><button class="ui-button ui-button--quiet ui-button--icon" data-action="delete" aria-label="Delete character">${uiIcon('close')}</button></div>
+        ${cls && race ? `<p class="title-identity">Level ${record.checkpoint.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${specIdentity(record.checkpoint.character) || cls.name}</b></p>` : ''}
         <div class="title-build-stats"><div><strong>${record.checkpoint.level}</strong><span>Level</span></div><div data-tooltip="Average equipped item power. Two-handed weapons count for both hands." tabindex="0"><strong>${format(power)}</strong><span>Gear power</span></div></div>
         <div class="title-save-meta">${slot.cloudState ? `<span>${slot.cloudState === 'offline' ? 'Device copy · cloud unavailable' : slot.cloudState === 'pending' ? 'This device · awaiting upload' : 'Cloud save'}</span>` : ''}<span>${Math.floor(record.checkpoint.time / 60)} min</span><span>${new Date(record.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span></div>
         ${slot.conflict ? '<div class="title-conflict"><span>Another device has a newer save.</span><button class="ui-button" data-action="cloud">Use cloud version</button></div>' : ''}
@@ -314,12 +345,96 @@ export class TitleScreen {
       if (slot.conflict || slot.pending) {
         selection.innerHTML = '<div class="title-confirm"><h3>Deletion needs attention</h3><p>Resolve this slot’s cloud save before creating another character.</p><button class="ui-button" data-action="retry">Retry</button><button class="ui-button" data-action="delete">Delete character</button></div>'; return;
       }
-      selection.innerHTML = `<form class="title-create"><div class="title-create-fields"><label>Name<input name="character-name" maxlength="24" minlength="1" required autocomplete="off" value="${escapeUI(this.names.get(this.selected) ?? 'Wayfarer')}" pattern=".*\\S.*"/></label><label>World seed<span class="title-seed-controls"><input name="world-seed" inputmode="numeric" required autocomplete="off" value="${escapeUI(this.seedDrafts.get(this.selected) ?? this.rollSeed())}"/><button type="button" data-action="random-seed" aria-label="Random world seed">↻</button></span></label></div>
-        <fieldset class="title-weapons"><legend>Starting gear</legend><select class="title-compact-starter" name="compact-starter" aria-label="Starting gear">${STARTER_LOADOUTS.map(option => `<option value="${option.id}" ${this.starter === option.id ? 'selected' : ''}>${escapeUI(option.label)}</option>`).join('')}</select><div class="title-weapon-grid">${STARTER_LOADOUTS.map(option => {
-          const loadout = createStarterLoadout(option.id);
-          return `<label class="title-weapon-choice" data-tooltip="${escapeUI(option.detail)}"><input type="radio" name="starter-weapon" value="${option.id}" ${this.starter === option.id ? 'checked' : ''}/><span class="title-weapon-icon" aria-hidden="true">${itemIconSVG(loadout.weapon, 40)}${loadout.offhand ? itemIconSVG(loadout.offhand, 32) : ''}</span><strong>${escapeUI(option.label)}</strong></label>`;
-        }).join('')}</div></fieldset><button class="ui-button ui-button--primary title-enter" type="submit"><span>Create character</span>${uiIcon('chevron')}</button></form>`;
+      this.renderCreation(selection);
     } else selection.innerHTML = `<div class="title-confirm"><h3>Save unavailable</h3><p>${slot?.state === 'invalid' ? 'The original file is preserved.' : 'Check storage or connection, then select the slot again.'}</p>${slot?.state === 'invalid' ? '<button class="ui-button" data-action="delete">Delete unreadable save</button>' : ''}</div>`;
+  }
+  private draft(): CreationDraft {
+    let draft = this.drafts.get(this.selected);
+    if (!draft) { draft = { look: createCharacterLook() }; this.drafts.set(this.selected, draft); }
+    return draft;
+  }
+  private pickClass(classId: WowClassId) {
+    const draft = this.draft();
+    if (draft.classId === classId) draft.classId = undefined;
+    else if (!draft.raceId || raceAllowsClass(draft.raceId, classId)) draft.classId = classId;
+    this.renderSelection();
+    this.element.querySelector<HTMLButtonElement>(`[data-class-id="${classId}"]`)?.focus({ preventScroll: true });
+  }
+  private pickRace(raceId: WowRaceId) {
+    const draft = this.draft();
+    if (draft.raceId === raceId) draft.raceId = undefined;
+    else if (!draft.classId || raceAllowsClass(raceId, draft.classId)) draft.raceId = raceId;
+    // Adopt the race's default skin/hair so the preview visibly changes.
+    if (draft.raceId) {
+      const race = WOW_RACES[draft.raceId];
+      const a = draft.look.appearance;
+      if (race.skinTones.length && !race.skinTones.includes(a.skin)) a.skin = race.skinTones[0];
+      if (race.visual.hairColor) a.hairColor = race.visual.hairColor;
+      if (race.visual.facialHair && a.facialHair === 'none') a.facialHair = race.visual.facialHair as CharacterAppearance['facialHair'];
+      const features = RACE_FEATURE_OPTIONS[draft.raceId];
+      if (features?.length) a.feature = features.includes(a.feature as never) ? a.feature : features[0];
+      else delete a.feature;
+    }
+    this.renderSelection();
+    this.element.querySelector<HTMLButtonElement>(`[data-race-id="${raceId}"]`)?.focus({ preventScroll: true });
+  }
+  private pickLook(key: keyof CharacterAppearance, value: string, control?: HTMLButtonElement) {
+    if (!lookCatalogs[key].some(option => option.id === value)) return;
+    const appearance = this.draft().look.appearance as unknown as Record<string, string>;
+    if (appearance[key] === value) return;
+    appearance[key] = value;
+    this.player = previewCharacter(null, this.draft());
+    control?.parentElement?.querySelectorAll('[data-look]').forEach(el => el.setAttribute('aria-pressed', String(el === control)));
+  }
+  private openAppearanceEditor() {
+    if (this.editor) return;
+    const draft = this.draft();
+    const sheet = createCharacterSheet(draft.classId ?? 'warrior', draft.raceId ?? 'human', draft.look);
+    this.editor = createAppearanceEditor(this.element, {
+      sheet, name: this.names.get(this.selected) ?? 'Wayfarer', look: draft.look, saveLabel: 'Done',
+      onCancel: look => { draft.look = look; this.closeAppearanceEditor(); this.renderSelection(); },
+      onSave: async look => { draft.look = look; this.closeAppearanceEditor(); this.renderSelection(); return { ok: true }; },
+    });
+  }
+  private closeAppearanceEditor() { this.editor?.dispose(); this.editor = undefined; }
+  /** The hero canvas doubles as the creation portrait: it moves into the forge while a slot is being created. */
+  private setCreating(creating: boolean) {
+    this.element.classList.toggle('is-creating', creating);
+    const target = creating ? this.element.querySelector<HTMLElement>('.title-forge-portrait') : this.heroHome;
+    if (target && this.canvas.parentElement !== target) target.append(this.canvas);
+  }
+  private renderCreation(selection: Element) {
+    const draft = this.draft(), look = draft.look.appearance;
+    const raceCard = (id: WowRaceId) => {
+      const race = WOW_RACES[id];
+      const blocked = !!draft.classId && !raceAllowsClass(id, draft.classId);
+      return `<button type="button" class="title-race-card" data-race-id="${id}" aria-pressed="${draft.raceId === id}" aria-disabled="${blocked}" title="${escapeUI(`${race.racialName} — ${race.racialDescription} ${race.passiveDescription}`)}"><strong>${race.name}</strong><span class="title-race-classes">${race.classes.map(cid => `<i style="color:${WOW_CLASSES[cid].color}">${WOW_CLASSES[cid].name}</i>`).join('')}</span><span class="title-race-racial">${race.racialName}</span></button>`;
+    };
+    const classCard = (id: WowClassId) => {
+      const cls = WOW_CLASSES[id];
+      const blocked = !!draft.raceId && !raceAllowsClass(draft.raceId, id);
+      return `<button type="button" class="title-class-card" data-class-id="${id}" style="--class-color:${cls.color}" aria-pressed="${draft.classId === id}" aria-disabled="${blocked}"><strong>${cls.name}</strong><span class="title-class-roles">${cls.roles.map(role => `<i>${uiIcon(roleIcons[role] ?? 'diamond')}${role}</i>`).join('')}</span><span class="title-class-resource">${cls.resourceLabel}</span><small>${cls.description}</small></button>`;
+    };
+    const swatches = (key: 'skin' | 'hairColor', palettes: readonly AppearancePalette[]) =>
+      palettes.map(p => `<button type="button" class="title-swatch" style="--swatch:${p.base}" data-look="${key}" data-value="${p.id}" title="${p.name}" aria-label="${key === 'skin' ? 'Skin tone' : 'Hair color'}: ${p.name}" aria-pressed="${look[key] === p.id}"></button>`).join('');
+    const lookSelect = (key: keyof CharacterAppearance, label: string, options: readonly { id: string; name: string }[]) =>
+      `<label>${label}<select data-look="${key}">${options.map(o => `<option value="${o.id}"${look[key] === o.id ? ' selected' : ''}>${o.name}</option>`).join('')}</select></label>`;
+    const cls = draft.classId ? WOW_CLASSES[draft.classId] : undefined, race = draft.raceId ? WOW_RACES[draft.raceId] : undefined;
+    const ready = !!(draft.classId && draft.raceId);
+    selection.innerHTML = `<div class="title-forge">
+      <section class="title-forge-column" aria-label="Race"><h3>Race</h3><div class="title-race-grid" role="group" data-race-grid>${WOW_RACE_IDS.map(raceCard).join('')}</div></section>
+      <form class="title-forge-stage">
+        <div class="title-forge-portrait"><div class="title-halo" aria-hidden="true"></div><div class="title-plinth" aria-hidden="true"></div></div>
+        <p class="title-identity">${race ? `${race.name} ` : ''}${cls ? `<b class="title-slot-class" style="color:${cls.color}">${cls.name}</b>` : ''}${!race && !cls ? 'Choose a race and a class' : ''}</p>
+        <div class="title-create-fields"><label>Name<input name="character-name" maxlength="24" minlength="1" required autocomplete="off" value="${escapeUI(this.names.get(this.selected) ?? 'Wayfarer')}" pattern=".*\\S.*"/></label><label>World seed<span class="title-seed-controls"><input name="world-seed" inputmode="numeric" required autocomplete="off" value="${escapeUI(this.seedDrafts.get(this.selected) ?? this.rollSeed())}"/><button type="button" data-action="random-seed" aria-label="Random world seed">↻</button></span></label></div>
+        <div class="title-look-row"><span class="title-look-label">Skin</span><div class="title-swatches" role="group" aria-label="Skin tone">${swatches('skin', race?.skinTones.length ? SKIN_PALETTES.filter(p => race.skinTones.includes(p.id)) : SKIN_PALETTES)}</div></div>
+        <div class="title-look-row"><span class="title-look-label">Hair</span><div class="title-swatches" role="group" aria-label="Hair color">${swatches('hairColor', HAIR_PALETTES)}</div></div>
+        <div class="title-look-selects">${lookSelect('hair', 'Style', HAIR_STYLES)}${lookSelect('facialHair', 'Facial hair', FACIAL_HAIR)}${lookSelect('accessory', 'Accessory', ACCESSORIES)}${draft.raceId && RACE_FEATURE_OPTIONS[draft.raceId]?.length ? lookSelect('feature', 'Features', (RACE_FEATURE_OPTIONS[draft.raceId] ?? []).map(id => RACE_FEATURES.find(f => f.id === id)!)) : ''}</div>
+        <div class="title-create-actions"><button type="button" class="ui-button" data-action="appearance">${uiIcon('palette')}<span>Armor &amp; details</span></button><button class="ui-button ui-button--primary title-enter" type="submit" ${ready ? '' : 'disabled'}><span>Create character</span>${uiIcon('chevron')}</button></div>
+      </form>
+      <section class="title-forge-column" aria-label="Class"><h3>Class</h3><div class="title-class-grid" role="group" data-class-grid>${WOW_CLASS_IDS.map(classCard).join('')}</div></section>
+    </div>`;
+    this.setCreating(true);
   }
   private animate = (): void => {
     if (this.element.hidden) return;

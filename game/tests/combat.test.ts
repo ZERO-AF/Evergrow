@@ -5,6 +5,7 @@ import { circleIntersectsSector } from '../src/combat-geometry.ts';
 import { FIXED_STEP, HIT_FLASH_DURATION, Simulation } from '../src/simulation.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
 import type { Input, WorldQuery } from '../src/model.ts';
+import { createWowSim } from './fixtures/wow-sim.ts';
 
 const emptyWorld: WorldQuery = {
   blocked: () => false,
@@ -402,7 +403,7 @@ test('swept projectiles hit the first crossed enemy exactly once', () => {
 });
 
 test('simultaneous lethal attacks award one kill, one XP reward, and one pickup', () => {
-  const sim = make();
+  const sim = createWowSim('warrior', 'undead');
   const enemy = target(sim, 35);
   enemy.hp = 20;
   sim.player.attack = { kind: 'melee', weapon: sim.player.equipment.mainHand, hand: 'main', elapsed: 0.079, duration: 0.32, activeStart: 0.08, activeEnd: 0.13, angle: 0, range: 49, arc: Math.PI, damage: 24, hitIds: new Set() };
@@ -416,7 +417,7 @@ test('simultaneous lethal attacks award one kill, one XP reward, and one pickup'
 });
 
 test('healing clamps health, requires a charge, and does not consume at full health', () => {
-  const sim = make();
+  const sim = createWowSim('mage', 'undead');
   sim.update(FIXED_STEP, { ...idle, heal: true });
   assert.equal(sim.player.flasks, 2);
   sim.clearInput();

@@ -2,9 +2,13 @@ import './typography.css';
 import { drawFloatingHUD, getHUDLayout, type HUDOptions } from './hud.ts';
 import { loadGameFont, text, textWidth } from './font.ts';
 import { Simulation } from './simulation.ts';
+import { createCharacter } from './character.ts';
 import { scaledEnemyStats } from './zone-progression.ts';
 import { drawEnemyPlate, getEnemyPlateLayout } from './enemy-plate.ts';
-import type { Player, WorldQuery } from './model.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
+import type { WowClassId, WowRaceId } from './wow-types.ts';
+import type { SkillId } from './character-types.ts';
+import type { Player, WorldQuery, WowBuff } from './model.ts';
 
 // This dev-only entry never binds gameplay input, ticks a simulation or accesses saves.
 const params = new URLSearchParams(location.search);
@@ -46,6 +50,42 @@ function makeStages(): Stage[] {
   depleted.dodgeRecharge = .56; depleted.healCooldown = .65;
   depleted.level = 4; depleted.xp = 220;
   const brute = scaledEnemyStats('brute', 2, 'veteran'), caster = scaledEnemyStats('caster', 4, 'elite');
+  const revenant = scaledEnemyStats('frostRevenant', 8, 'veteran'), acolyte = scaledEnemyStats('emberAcolyte', 9, 'normal');
+  /** WoW stage: real sheet + starter gear via createCharacter, then direct field staging. */
+  const wowPlayer = (name: string, classId: WowClassId, raceId: WowRaceId, level: number,
+    skills: readonly (SkillId | null)[], buffs: WowBuff[] = []) => {
+    const p = player();
+    const created = createCharacter(p, name, classId, raceId);
+    if (!created.ok) throw new Error(`Stage ${name}: ${created.message}`);
+    p.level = level; p.character.skillSlots = [...skills];
+    p.buffs = buffs;
+    return p;
+  };
+  const wowBuff = (skill: SkillId, remaining: number, duration: number, extra: Partial<WowBuff> = {}): WowBuff => ({
+    id: skill, name: SKILL_DEFINITIONS[skill].name, color: SKILL_DEFINITIONS[skill].color,
+    remaining, duration, ...extra });
+  const dkTime = 11.3;
+  const deathKnight = wowPlayer('Gravewarden', 'deathKnight', 'undead', 9,
+    ['icyTouch', 'plagueStrike', 'deathStrike', 'deathCoil', 'deathGrip'],
+    [wowBuff('frostPresence', 2400, 3600)]);
+  deathKnight.mana = 65; deathKnight.maxMana = 100;
+  deathKnight.runes = [dkTime + 7.5, 0, dkTime + 3.5, 0, 0, dkTime + 9];
+  deathKnight.gcdReady = dkTime + .9;
+  deathKnight.cast = { skill: 'armyOfDead', remaining: 2.1, duration: 4 };
+  const rogue = wowPlayer('Nightwhisper', 'rogue', 'nightElf', 8,
+    ['sinisterStrike', 'eviscerate', 'stealth', 'kick', 'sprint']);
+  rogue.mana = 80; rogue.maxMana = 100; rogue.comboPoints = 4; rogue.targetId = 7;
+  const warlock = wowPlayer('Felthorn', 'warlock', 'orc', 10,
+    ['shadowBolt', 'immolate', 'corruption', 'drainLife', 'fear']);
+  warlock.mana = 72; warlock.maxMana = 110; warlock.soulShards = 3;
+  const mage = wowPlayer('Brightgear', 'mage', 'gnome', 10,
+    ['frostbolt', 'pyroblast', 'fireBlast', 'frostNova', 'blink']);
+  mage.mana = 58; mage.maxMana = 120;
+  mage.cast = { skill: 'pyroblast', remaining: 1.3, duration: 3, targetId: 4 };
+  const warrior = wowPlayer('Stonehoof', 'warrior', 'tauren', 12,
+    ['heroicStrike', 'thunderClap', 'mortalStrike', 'execute', 'bladestorm'],
+    [wowBuff('battleShout', 43, 60), wowBuff('sweepingStrikes', 8.2, 12), wowBuff('berserkerRage', 6.5, 10)]);
+  warrior.hp = Math.round(warrior.maxHp * .8); warrior.mana = 45; warrior.maxMana = 100;
   return [
     { name: 'Healthy', detail: 'Full vitality · abilities ready', player: healthy, time: 5.7, options: {},
       enemy: { kind: 'stalker', hp: 48, maxHp: 48, level: 1, rank: 'normal' } },
@@ -54,6 +94,22 @@ function makeStages(): Stage[] {
       enemyOptions: { healthTrail: brute.maxHp * .87, hitPulse: .5 } },
     { name: 'Depleted', detail: 'Low resources · recovery timers · empty flask', player: depleted, time: 14.4, options: {},
       enemy: { kind: 'caster', hp: Math.round(caster.maxHp * .14), maxHp: caster.maxHp, level: 4, rank: 'elite', burnTime: 1.8, burnDps: 8, slowTime: 2.1, slowFactor: .6, stagger: .4 } },
+    { name: 'Death Knight', detail: 'Runes recharging · runic orb · Army of the Dead cast · GCD sweep', player: deathKnight,
+      time: dkTime, options: {},
+      enemy: { kind: 'frostRevenant', hp: Math.round(revenant.maxHp * .7), maxHp: revenant.maxHp, level: 8, rank: 'veteran' } },
+    { name: 'Rogue', detail: 'Energy bar · four combo points on the target frame', player: rogue,
+      time: 7.8, options: {},
+      enemy: { kind: 'stalker', hp: 34, maxHp: 48, level: 8, rank: 'normal' },
+      enemyOptions: { comboPoints: 4, hasDebuffs: true } },
+    { name: 'Warlock', detail: 'Three soul shards under the mana orb', player: warlock,
+      time: 12.6, options: {},
+      enemy: { kind: 'emberAcolyte', hp: Math.round(acolyte.maxHp * .55), maxHp: acolyte.maxHp, level: 9, rank: 'normal', burnTime: 3.2, burnDps: 7 } },
+    { name: 'Mage', detail: 'Pyroblast mid-cast · mana orb', player: mage,
+      time: 16.1, options: {},
+      enemy: { kind: 'caster', hp: Math.round(caster.maxHp * .8), maxHp: caster.maxHp, level: 10, rank: 'elite' } },
+    { name: 'Warrior', detail: 'Rage orb · Battle Shout, Sweeping Strikes and Berserker Rage under the frame', player: warrior,
+      time: 18.9, options: {},
+      enemy: { kind: 'brute', hp: Math.round(brute.maxHp * .9), maxHp: brute.maxHp, level: 12, rank: 'veteran' } },
   ];
 }
 
@@ -130,7 +186,7 @@ async function boot() {
       drawEnemyPlate(c, stage.enemy, logicalWidth, plateViewportHeight, { ...stage.enemyOptions, time: stage.time + motionTime, reducedMotion });
       c.restore();
       c.save(); c.scale(HUD_DISPLAY_SCALE, HUD_DISPLAY_SCALE);
-      if (!platesOnly) drawFloatingHUD(c, stage.player, logicalWidth, panelHeight / HUD_DISPLAY_SCALE, stage.time + motionTime, { ...stage.options, reducedMotion });
+      if (!platesOnly) drawFloatingHUD(c, stage.player, logicalWidth, panelHeight / HUD_DISPLAY_SCALE, stage.time + motionTime, { ...stage.options, reducedMotion, simTime: stage.time + motionTime });
       c.restore();
       c.strokeStyle = '#354642'; c.lineWidth = 1; c.strokeRect(.5, .5, width - 1, panelHeight - 1);
       c.restore();

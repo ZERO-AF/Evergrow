@@ -1,0 +1,32 @@
+/* Stable-master window (WotLK pet stables) — active companion + stabled pet cards. */
+.stable-panel[hidden] { display:none; }
+.stable-panel { position:fixed; inset:8vh max(20px,calc((100vw - 760px)/2)); z-index:35; display:flex; flex-direction:column; max-height:84vh; --stable-color:#8fd18a; box-shadow:0 24px 100px #000c,0 0 0 1px #99b8c22b; font-family:var(--ui-font); }
+.stable-panel .ui-window-header { display:flex; align-items:center; gap:12px; flex:none; }
+.stable-panel .ui-header-emblem { color:var(--stable-color); }
+.stable-panel .ui-window-header h2 { flex:0 1 auto; }
+.stable-master-name { flex:1; color:#8fa1a8; font-size:12px; }
+.stable-body { display:flex; flex-direction:column; gap:14px; overflow:auto; padding:4px 4px 8px; }
+.stable-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+.stable-pet { display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid #8ba5ae1e; border-left:2px solid var(--pet-color,#8fd18a); border-radius:3px; background:#0b151e66; }
+.stable-pet.is-active { background:#0e1c1666; }
+.stable-pet-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.stable-pet-family { font-size:10.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--pet-color,#8fd18a); }
+.stable-pet-level { font-size:11px; color:#8fa1a8; font-variant-numeric:tabular-nums; }
+.stable-pet-name { margin:0; font-size:15px; font-weight:600; color:#e3ddc4; }
+.stable-bars { display:flex; flex-direction:column; gap:4px; }
+.stable-bar { display:flex; align-items:center; gap:8px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#8fa1a8; }
+.stable-bar > span { flex:0 0 44px; }
+.stable-bar-track { flex:1; height:5px; border-radius:2px; background:#101a22; border:1px solid #4a5a6440; overflow:hidden; }
+.stable-bar-track i { display:block; height:100%; background:#7fb3d8; }
+.stable-bar-track.is-loyalty i { background:var(--pet-color,#8fd18a); }
+.stable-skills { display:flex; flex-wrap:wrap; gap:4px; }
+.stable-skill { padding:2px 7px; border:1px solid #8ba5ae2a; border-radius:2px; font-size:11px; color:#cfd8bf; background:#0d1720; }
+.stable-skill.is-locked { opacity:.5; border-style:dashed; }
+.stable-skill small { color:#8fa1a8; }
+.stable-pet-actions { display:flex; gap:6px; margin-top:auto; }
+.stable-slot.is-empty { display:grid; place-items:center; min-height:96px; border:1px dashed #8ba5ae26; border-radius:3px; color:#5d7079; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+.stable-empty { margin:4px 0 2px; color:#8fa1a8; font-size:12.5px; }
+.stable-rename { display:flex; gap:6px; align-items:center; }
+.stable-rename input { flex:1; min-width:0; padding:4px 8px; border:1px solid #8ba5ae3a; border-radius:3px; background:#0d1720; color:#e3ddc4; font:inherit; font-size:13px; }
+.stable-message { color:#b8c7ae; font-size:12px; }
+@media(max-width:650px) { .stable-panel { width:calc(100vw - 16px); } .stable-grid { grid-template-columns:1fr; } }

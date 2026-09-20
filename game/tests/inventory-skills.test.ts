@@ -5,19 +5,22 @@ import { Simulation } from '../src/simulation.ts';
 import { INVENTORY_SKILL_BINDINGS, inventorySkillPickerMarkup, inventoryHUDLayout } from '../src/inventory-skills.ts';
 import { executeCharacterCommand } from '../src/character-commands.ts';
 import { resolveSkill } from '../src/skill-progression.ts';
+import { BAR_TOTAL } from '../src/action-bar.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 
 const make = () => new Simulation({ blocked: () => false, move: (x, y) => ({ x, y }) }, { spawn: false }).player;
 
-test('fresh inventory offers five bindings and an empty-state route to unlock skills', () => {
+test('fresh inventory offers five bindings with the free class starter already assigned', () => {
   const player = make(), before = structuredClone(player);
   assert.deepEqual(INVENTORY_SKILL_BINDINGS.map(slot => slot.key), ['RMB', '1', '2', '3', '4']);
+  // The class starter skill is unlocked at creation and sits on bar slot 1.
+  assert.equal(player.character.skillSlots[0], WOW_CLASSES[player.character.classId].starterSkill);
   for (let slot = 0; slot < 5; slot++) {
     const markup = inventorySkillPickerMarkup(player, slot);
-    assert.match(markup, /No unlocked skills yet/);
     assert.match(markup, /data-skill-details/);
-    assert.match(markup, /data-assign-skill="" disabled/);
-    assert.doesNotMatch(markup, /data-assign-skill="[a-z]/);
-
+    // Only the starter is unlocked; it is the single assignable choice.
+    assert.match(markup, /data-assign-skill="heroicStrike"/);
+    assert.doesNotMatch(markup, /No unlocked skills yet/);
   }
   assert.deepEqual(player, before, 'rendering never changes character state');
 });
@@ -40,7 +43,7 @@ test('picker reflects reassignment and clearing without resetting cooldowns or r
   const player = make(); player.character.allocatedNodes.push('skill:fireball');
   player.skillCooldowns.fireball = .6; player.hp = 30; player.mana = 20;
   executeCharacterCommand(player, { type: 'assignSkill', slot: 0, skill: 'fireball' });
-  assert.match(inventorySkillPickerMarkup(player, 4), /← RMB/);
+  assert.match(inventorySkillPickerMarkup(player, 4), /← 1/);
   assert.ok(executeCharacterCommand(player, { type: 'assignSkill', slot: 4, skill: 'fireball' }).ok);
   assert.match(inventorySkillPickerMarkup(player, 4), /data-assign-skill="fireball" aria-pressed="true"/);
 
@@ -75,8 +78,8 @@ test('inventory assignment labels follow custom controls without changing skill 
   const before = make();
   try {
     controls.bind('skill0', 0, 'Mouse4');
-    assert.equal(inventoryHUDLayout(700, 108).slots[0].key, 'M5');
+    assert.deepEqual(before.character.skillSlots, [WOW_CLASSES[before.character.classId].starterSkill, ...Array.from({ length: BAR_TOTAL - 1 }, () => null)]);
     assert.match(inventorySkillPickerMarkup(before, 0), /Clear M5/);
-    assert.deepEqual(before.character.skillSlots, [null, null, null, null, null]);
   } finally { controls.reset(); }
 });
+

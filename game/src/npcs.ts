@@ -5,9 +5,9 @@ import { getZoneAt } from './zone-progression.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import type { WorldQuery } from './model.ts';
 
-export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash';
+export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable';
 export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string; }
-export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage' };
+export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master' };
 export const NPC_COLORS=Object.fromEntries(Object.keys(NPC_NAMES).map(role=>[role,vendorIdentity(role)!.color])) as Record<NPCRole,string>;
 export function hashService(value: string): number {
   let n = 2166136261;
@@ -33,3 +33,28 @@ export function focusNPC(npcs: readonly TownNPC[], player: { x: number; y: numbe
 }
 
 export function vendorLevel(npc: TownNPC, playerLevel: number): number { return Math.max(npc.level, Math.min(npc.maxLevel ?? npc.level, playerLevel)); }
+
+/** Stable masters (WotLK pet stables) stand beside the settlement stash fixture — a standalone
+ * service NPC like the innkeeper, not a building kind. Every settlement has a stash fixture. */
+export type StableMaster = TownNPC & { role: 'stable' };
+const STABLE_MASTER_NAMES = ['Shellei', 'Balfour', 'Kelsuwa', 'Penny', 'Durik', 'Aesha', 'Grif', 'Lina'] as const;
+export function stableMasterFor(building: Building): StableMaster | null {
+  if (building.kind !== 'stash') return null;
+  const x = building.door.x - 52, y = building.door.y - 2, id = `${building.id}:stable`;
+  const seed = hashService(id);
+  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'stable', x, y, seed,
+    name: STABLE_MASTER_NAMES[seed % STABLE_MASTER_NAMES.length],
+    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+}
+export function stableMastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): StableMaster[] {
+  return (world.getBuildings?.(x, y, width, height) ?? [])
+    .map(stableMasterFor).filter((master): master is StableMaster => master !== null);
+}
+export function canStableAt(master: StableMaster, player: { x: number; y: number; dead?: boolean }, world: WorldQuery): boolean {
+  return canInteractNPC(master, player, world);
+}
+export function focusedStableMaster(masters: readonly StableMaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
+  pointer?: { x: number; y: number }): StableMaster | null {
+  return masters.filter(master => canStableAt(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
+    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+}

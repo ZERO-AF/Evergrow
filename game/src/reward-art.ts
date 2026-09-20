@@ -3,7 +3,7 @@ import type { GroundGold } from './gold.ts';
 import { REWARD_FLIGHT_SECONDS, type RewardFeedback, type LevelCelebration, type JourneyCelebration } from './reward-feedback.ts';
 import { HUD_ART, getHUDLayout } from './hud-layout.ts';
 import { text } from './font.ts';
-import { formatGold } from './currency-format.ts';
+import { formatWallet, formatWalletCompact } from './currency.ts';
 
 function coin(c: CanvasRenderingContext2D, x: number, y: number, scale = 1): void {
   c.save(); c.translate(x, y); c.scale(scale, scale);
@@ -77,15 +77,15 @@ export function drawGoldBalance(c: CanvasRenderingContext2D, feedback: RewardFee
   const pulse = feedback.gold.pulse, pending = Math.max(0, Math.round(feedback.gold.target) - Math.round(feedback.balance));
   c.save(); c.font = '500 14px "Evergrow Numerals", system-ui, sans-serif'; c.textBaseline = 'middle';
   c.shadowColor = '#02070d'; c.shadowBlur = 4;
-  const total = formatGold(Math.round(feedback.balance));
-  const pendingX = 48 + Math.max(54, c.measureText(formatGold(feedback.gold.target)).width);
+  const total = formatWallet(Math.round(feedback.balance));
+  const pendingX = 48 + Math.max(54, c.measureText(formatWalletCompact(feedback.gold.target)).width);
   const glow = c.createRadialGradient(27, 62, 0, 27, 62, 19);
   glow.addColorStop(0, `rgba(255,212,111,${pulse * .45})`); glow.addColorStop(1, '#efb64000');
   c.fillStyle = glow; c.fillRect(8, 43, 38, 38);
   coin(c, 27, 62, 1.4 + pulse * .12);
   c.fillStyle = pulse > .5 ? '#fff1be' : '#e3c880'; c.fillText(total, 41, 62);
   if (pending) {
-    c.fillStyle = '#f5d890'; c.fillText(`+${formatGold(pending)}`, pendingX, 62);
+    c.fillStyle = '#f5d890'; c.fillText(`+${formatWalletCompact(pending)}`, pendingX, 62);
     c.strokeStyle = '#c5a75e70'; c.lineWidth = 1; c.beginPath();
     c.moveTo(pendingX, 73); c.lineTo(pendingX + Math.min(62, 12 + Math.log2(pending + 1) * 4), 73); c.stroke();
   }

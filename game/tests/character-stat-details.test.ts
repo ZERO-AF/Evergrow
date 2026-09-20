@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
-import { createCharacterSheet, generateItem, STARTER_LOADOUTS } from '../src/items.ts';
+import { createCharacterSheet, generateItem } from '../src/items.ts';
+import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { refreshCharacter } from '../src/character.ts';
 import { characterStatDetails, DERIVED_STAT_DETAILS } from '../src/character-stat-details.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
@@ -12,9 +13,9 @@ const world = { blocked: () => false, move: (x:number,y:number,dx:number,dy:numb
 const player = () => new Simulation(world, { spawn: false }).player;
 const rows = (p: ReturnType<typeof player>) => new Map(characterStatDetails(p).flatMap(group => group.rows).map(row => [row.id, row]));
 
-test('every starter shows actual weapon output and every derived stat has a detailed readout', () => {
-  for (const starter of STARTER_LOADOUTS) {
-    const p = player(); p.character = createCharacterSheet(starter.id); refreshCharacter(p);
+test('every class starter shows actual weapon output and every derived stat has a detailed readout', () => {
+  for (const wowClass of Object.values(WOW_CLASSES)) {
+    const p = player(); p.character = createCharacterSheet(wowClass.id); refreshCharacter(p);
     const before = JSON.stringify(p), all = rows(p), attack = deriveAttackStats(p.stats, p.equipment.mainHand);
     assert.equal(all.get('damage')!.amount, attack.damage);
     assert.equal(all.get('rate')!.amount, attack.attacksPerSecond);
@@ -28,7 +29,7 @@ test('every starter shows actual weapon output and every derived stat has a deta
 });
 
 test('armor includes active blessing and Afterguard, and uses the displayed attacker level', () => {
-  const p = player(); p.character = createCharacterSheet('sword-shield'); p.level = 18;
+  const p = player(); p.character = createCharacterSheet('paladin'); p.level = 18;
   p.character.equipped.offhand!.implicit = {}; p.character.equipped.offhand!.affixes = [];
   p.character.equipped.chest!.implicit = { armor: 200, afterguardPercent: 25 };
   p.character.blessing = { kind: 'bulwark', remaining: 40 }; refreshCharacter(p);
@@ -68,7 +69,7 @@ test('source explanations include equipment attributes, allocated tree and live 
 });
 
 test('offhand magic uses casting cadence and weapon-local elemental damage remains separate', () => {
-  const p = player(); p.character = createCharacterSheet('sword-shield'); p.character.equipped.offhand = generateItem(551, 8, 'weapon', 'cinder-wand');
+  const p = player(); p.character = createCharacterSheet('paladin'); p.character.equipped.offhand = generateItem(551, 8, 'weapon', 'cinder-wand');
   p.character.equipped.weapon!.weapon!.enchantment = { damage: 12, element: 'fire' } as NonNullable<typeof p.equipment.mainHand.enchantment>;
   refreshCharacter(p);
   const all = rows(p), off = p.equipment.offHand; assert.ok(off?.kind === 'weapon');
