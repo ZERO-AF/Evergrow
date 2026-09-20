@@ -13,7 +13,7 @@ const world={blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x
 function setup(id:SkillId,weapon='longsword'){
  const sim=new Simulation(world,{spawn:false});const p=sim.player;p.character.classId='mage';p.character.equipped.weapon=generateItem(401,1,'weapon',weapon,'common');p.character.equipped.offhand=null;p.character.allocatedNodes=['origin',`skill:${id}`];p.character.skillSlots[0]=id;refreshCharacter(p);p.mana=p.maxMana=1000;p.derived.manaRegeneration=0;
  let time=0;
- const context:SkillContext={get time(){return time+=2;},sim:skillSimStub(),availableGroundEffects:16,availableProjectiles:128,player:p,world,enemies:sim.enemies,aimX:100,aimY:0,visible:()=>true,onScreen:()=>true,damage:()=>{},projectile:()=>{},schedule:()=>{},emit:()=>{}};return{sim,p,context};
+ const context:SkillContext={chains:[],get time(){return time+=2;},sim:skillSimStub(),availableGroundEffects:16,availableProjectiles:128,player:p,world,enemies:sim.enemies,aimX:100,aimY:0,visible:()=>true,onScreen:()=>true,damage:()=>{},projectile:()=>{},schedule:()=>{},emit:()=>{}};return{sim,p,context};
 }
 test('Sidestep respects movement collision without damage, invulnerability or dodge charges',()=>{
  const sim=new Simulation({...world,move:(x,y,dx,dy)=>({x:Math.min(35,x+dx),y:y+dy})},{spawn:false}),p=sim.player;p.character.classId='mage';p.character.allocatedNodes=['origin','skill:sidestep'];p.character.skillSlots[0]='sidestep';const charges=p.dodgeCharges,enemy=sim.spawnEnemy('brute',25,0)!;enemy.stagger=100;enemy.hp=1000;

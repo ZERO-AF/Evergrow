@@ -6,78 +6,83 @@ import { facialHairShapes, faceAccessoryShapes } from './appearance-face-details
 import { WOW_RACES } from './wow-races.ts';
 import type { AppearancePalette } from './appearance-content.ts';
 import type { WowRaceId } from './wow-types.ts';
+import { isHeadProfile } from './character-facing.ts';
+import { appearanceProfileShapes } from './appearance-profile-shapes.ts';
 
 const fill = (points: readonly Point[], color: string): GearShape => ({ points, fill: color });
 const line = (points: readonly Point[], color: string, width = .6): GearShape => ({ points, stroke: color, width });
 
 /** All shapes are local to the existing head mount. Body proportions never change. */
 export function appearanceHeadShapes(appearance: Readonly<CharacterAppearance>, facing: number, covered: boolean, raceId?: WowRaceId): GearShape[] {
+  if (isHeadProfile(facing)) return appearanceProfileShapes(appearance, facing, covered);
   const skin = appearancePalette(SKIN_PALETTES, appearance.skin);
   const hair = appearancePalette(HAIR_PALETTES, appearance.hairColor);
   const v = raceId ? WOW_RACES[raceId]?.visual : undefined;
   const feat = appearance.feature ?? (raceId ? RACE_FEATURE_OPTIONS[raceId]?.[0] : undefined);
-  const back = Math.sin(facing) < -.16, side = Math.cos(facing), look = side * .8;
+  const back = Math.sin(facing) < -.16, side = Math.cos(facing), look = Math.abs(side) * .8;
   const shapes: GearShape[] = [];
   const shape = (points: readonly Point[], color: string) => shapes.push(fill(points, color));
   const stroke = (points: readonly Point[], color: string, width = .6) => shapes.push(line(points, color, width));
   const hairLayers = covered ? {rear:[],front:[]} : hairShapes(appearance.hair,hair,facing);
   shapes.push(...hairLayers.rear);
-  shape([[-4.2, -.8], [-3.2, -3.9], [.6, -4.8], [3.7, -2.7], [4.2, .6], [2.7, 4.1], [.7, 5.3], [-2, 4.6], [-3.9, 1.8]], back ? skin.shadow : '#403b39');
+  const mirror = side < 0;
+  const mx = (x:number)=>mirror?-x:x;
+  shape([[-4.2, -.8], [-3.2, -3.9], [.6, -4.8], [3.7, -2.7], [4.2, .6], [2.7, 4.1], [.7, 5.3], [-2, 4.6], [-3.9, 1.8]].map(([x,y])=>[mx(x),y]), back ? skin.shadow : '#403b39');
   if (!back) {
-    shape([[-3 + look, -1.4], [.2 + look, -2.6], [2.7 + look, -1.3], [3 + look, 2.4], [1.1 + look, 4.7], [-1.1 + look, 4.4], [-2.6 + look, 2.6]], skin.base);
-    shape([[-3 + look, -1.4], [-1.1 + look, -.7], [-.7 + look, 3.8], [-1.1 + look, 4.4], [-2.6 + look, 2.6]], skin.shadow);
+    shape([[-3 + look, -1.4], [.2 + look, -2.6], [2.7 + look, -1.3], [3 + look, 2.4], [1.1 + look, 4.7], [-1.1 + look, 4.4], [-2.6 + look, 2.6]].map(([x,y])=>[mx(x),y]), skin.base);
+    shape([[-3 + look, -1.4], [-1.1 + look, -.7], [-.7 + look, 3.8], [-1.1 + look, 4.4], [-2.6 + look, 2.6]].map(([x,y])=>[mx(x),y]), skin.shadow);
     // A wide orc jaw bulks out the lower face before nose and mouth sit on it.
     if (v?.jaw === 'wide') {
-      shape([[-3.2 + look, 2.4], [3.2 + look, 2.4], [3.4 + look, 4.6], [1.7 + look, 6.2], [-1.7 + look, 6.2], [-3.4 + look, 4.6]], skin.base);
-      shape([[-3.4 + look, 4.6], [-1.7 + look, 6.2], [1.7 + look, 6.2], [3.4 + look, 4.6], [2.1 + look, 5.1], [0 + look, 5.5], [-2.1 + look, 5.1]], skin.shadow);
+      shape([[-3.2 + look, 2.4], [3.2 + look, 2.4], [3.4 + look, 4.6], [1.7 + look, 6.2], [-1.7 + look, 6.2], [-3.4 + look, 4.6]].map(([x,y])=>[mx(x),y]), skin.base);
+      shape([[-3.4 + look, 4.6], [-1.7 + look, 6.2], [1.7 + look, 6.2], [3.4 + look, 4.6], [2.1 + look, 5.1], [0 + look, 5.5], [-2.1 + look, 5.1]].map(([x,y])=>[mx(x),y]), skin.shadow);
     }
     // The nose is the race's profile: bovine muzzle, dwarf breadth, troll hook.
     if (v?.muzzle) {
-      shape([[-2.5 + look * 1.3, 1.7], [2.5 + look * 1.3, 1.7], [3.2 + look * 1.7, 3.9], [2 + look * 1.7, 6.5], [-2 + look * 1.7, 6.5], [-3.2 + look * 1.7, 3.9]], skin.base);
-      shape([[-3.2 + look * 1.7, 3.9], [-2 + look * 1.7, 6.5], [-1 + look * 1.7, 6.5], [-2.3 + look * 1.7, 3.7]], skin.shadow);
-      shape([[2.3 + look * 1.7, 3.7], [3.2 + look * 1.7, 3.9], [2 + look * 1.7, 6.5], [1 + look * 1.7, 6.5]], mixColor(skin.base, skin.light, .5));
-      shape([[-1.8 + look * 1.8, 4.5], [1.8 + look * 1.8, 4.5], [2.2 + look * 1.8, 6], [look * 1.8, 7], [-2.2 + look * 1.8, 6]], '#413028');
-      for (const n of [-1, 1]) shape([[n * .9 + look * 1.8 - .4, 5.4], [n * .9 + look * 1.8 + .4, 5.4], [n * .9 + look * 1.8 + .3, 6], [n * .9 + look * 1.8 - .3, 6]], '#1d1512');
-      stroke([[look * 1.3, .6], [look * 1.5, 4.1]], skin.shadow, .5);
-      stroke([[-1.2 + look * 1.8, 6.6], [look * 1.8, 6.9], [1.2 + look * 1.8, 6.6]], '#241a16', .6);
+      shape([[-2.5 + look * 1.3, 1.7], [2.5 + look * 1.3, 1.7], [3.2 + look * 1.7, 3.9], [2 + look * 1.7, 6.5], [-2 + look * 1.7, 6.5], [-3.2 + look * 1.7, 3.9]].map(([x,y])=>[mx(x),y]), skin.base);
+      shape([[-3.2 + look * 1.7, 3.9], [-2 + look * 1.7, 6.5], [-1 + look * 1.7, 6.5], [-2.3 + look * 1.7, 3.7]].map(([x,y])=>[mx(x),y]), skin.shadow);
+      shape([[2.3 + look * 1.7, 3.7], [3.2 + look * 1.7, 3.9], [2 + look * 1.7, 6.5], [1 + look * 1.7, 6.5]].map(([x,y])=>[mx(x),y]), mixColor(skin.base, skin.light, .5));
+      shape([[-1.8 + look * 1.8, 4.5], [1.8 + look * 1.8, 4.5], [2.2 + look * 1.8, 6], [look * 1.8, 7], [-2.2 + look * 1.8, 6]].map(([x,y])=>[mx(x),y]), '#413028');
+      for (const n of [-1, 1]) shape([[mx(n * .9 + look * 1.8 - .4), 5.4], [mx(n * .9 + look * 1.8 + .4), 5.4], [mx(n * .9 + look * 1.8 + .3), 6], [mx(n * .9 + look * 1.8 - .3), 6]], '#1d1512');
+      stroke([[mx(look * 1.3), .6], [mx(look * 1.5), 4.1]], skin.shadow, .5);
+      stroke([[mx(-1.2 + look * 1.8), 6.6], [mx(look * 1.8), 6.9], [mx(1.2 + look * 1.8), 6.6]], '#241a16', .6);
       // A chin tuft of beard fur rounds out the bovine jaw.
-      shape([[-1 + look * 1.6, 6.7], [1 + look * 1.6, 6.7], [.5 + look * 1.6, 8.7], [-.5 + look * 1.6, 8.5]], hair.base);
+      shape([[mx(-1 + look * 1.6), 6.7], [mx(1 + look * 1.6), 6.7], [mx(.5 + look * 1.6), 8.7], [mx(-.5 + look * 1.6), 8.5]], hair.base);
     } else if (v?.nose === 'broad') {
-      shape([[-.5 + look, .9], [1.5 + look, 1.9], [1.4 + look, 3.1], [.2 + look, 3.5], [-.9 + look, 3.1], [-1 + look, 1.8]], skin.light);
+      shape([[-.5 + look, .9], [1.5 + look, 1.9], [1.4 + look, 3.1], [.2 + look, 3.5], [-.9 + look, 3.1], [-1 + look, 1.8]].map(([x,y])=>[mx(x),y]), skin.light);
     } else if (v?.nose === 'hooked') {
-      shape([[.1 + look, .6], [1.6 + look, 2.1], [1.3 + look, 3.7], [.4 + look, 4.1], [-.3 + look, 3.4], [-.1 + look, 2.1]], skin.light);
-      stroke([[1.3 + look, 3.7], [.4 + look, 4.1]], skin.shadow, .4);
+      shape([[.1 + look, .6], [1.6 + look, 2.1], [1.3 + look, 3.7], [.4 + look, 4.1], [-.3 + look, 3.4], [-.1 + look, 2.1]].map(([x,y])=>[mx(x),y]), skin.light);
+      stroke([[mx(1.3 + look), 3.7], [mx(.4 + look), 4.1]], skin.shadow, .4);
     } else {
-      shape([[.2 + look, 1.1], [1 + look, 2.2], [.4 + look, 2.7], [-.1 + look, 2.1]], skin.light);
+      shape([[.2 + look, 1.1], [1 + look, 2.2], [.4 + look, 2.7], [-.1 + look, 2.1]].map(([x,y])=>[mx(x),y]), skin.light);
     }
     // Eyes: glowing races replace the dark lash line with a lit iris and halo.
     const eyeScale = v?.eyeScale ?? 1;
     for (const eye of [-1, 1]) {
-      const width = (.9 - Math.max(0, side * eye) * .35) * eyeScale;
-      const ex = eye * 1.6 + look;
+      const width = (.9 - Math.max(0, Math.abs(side) * eye) * .35) * eyeScale;
+      const ex = mx(eye * 1.6 + look);
       if (v?.eyeGlow && !v.decay) {
-        shape([[ex - width * .8, .7], [ex + width * .8, .7], [ex + width * .6, 1.9], [ex - width * .6, 1.9]], `${v.eyeGlow}44`);
-        shape([[ex - width * .55, 1], [ex + width * .55, 1], [ex + width * .4, 1.65], [ex - width * .4, 1.65]], v.eyeGlow);
-        stroke([[ex - width / 2, .95], [ex + width / 2, .95]], mixColor(v.eyeGlow, '#ffffff', .5), .5);
+        shape(mirror?[[ex + width * .6, 1.9], [ex - width * .6, 1.9], [ex - width * .8, .7], [ex + width * .8, .7]]:[[ex - width * .8, .7], [ex + width * .8, .7], [ex + width * .6, 1.9], [ex - width * .6, 1.9]], `${v.eyeGlow}44`);
+        shape(mirror?[[ex + width * .4, 1.65], [ex - width * .4, 1.65], [ex - width * .55, 1], [ex + width * .55, 1]]:[[ex - width * .55, 1], [ex + width * .55, 1], [ex + width * .4, 1.65], [ex - width * .4, 1.65]], v.eyeGlow);
+        stroke(mirror?[[ex + width / 2, .95], [ex - width / 2, .95]]:[[ex - width / 2, .95], [ex + width / 2, .95]], mixColor(v.eyeGlow, '#ffffff', .5), .5);
       } else if (eyeScale > 1) {
-        shape([[ex - width / 2 - .15, .85], [ex + width / 2 + .15, .85], [ex + width / 2, 1.9], [ex - width / 2, 1.9]], '#263239');
-        shape([[ex - width * .2, 1.05], [ex + width * .05, .95], [ex + width * .12, 1.2], [ex - width * .13, 1.3]], '#dfe8ea');
+        shape(mirror?[[ex + width / 2 + .15, .85], [ex - width / 2 - .15, .85], [ex - width / 2, 1.9], [ex + width / 2, 1.9]]:[[ex - width / 2 - .15, .85], [ex + width * .15, .85], [ex + width / 2, 1.9], [ex - width / 2, 1.9]], '#263239');
+        shape(mirror?[[ex + width * .2, 1.05], [ex - width * .05, .95], [ex - width * .12, 1.2], [ex + width * .13, 1.3]]:[[ex - width * .2, 1.05], [ex + width * .05, .95], [ex + width * .12, 1.2], [ex - width * .13, 1.3]], '#dfe8ea');
       } else {
-        stroke([[ex - width / 2, 1.25], [ex + width / 2, 1.25]], '#263239', .65);
+        stroke(mirror?[[ex + width / 2, 1.25], [ex - width / 2, 1.25]]:[[ex - width / 2, 1.25], [ex + width / 2, 1.25]], '#263239', .65);
       }
     }
     if (v?.jaw === 'bone' && feat !== 'bone-covered') {
       // Forsaken bone-bare option: the jaw is exposed bone with teeth lines.
-      shape([[-2.3 + look, 3.5], [2.3 + look, 3.5], [2 + look, 5.6], [look, 6.2], [-2 + look, 5.6]], '#cfc9b0');
-      for (const t of [-1.4, -.7, 0, .7, 1.4]) stroke([[t + look, 3.9], [t + look, 5.2]], '#8a8471', .4);
-      stroke([[-2.1 + look, 4.5], [2.1 + look, 4.5]], '#8a8471', .45);
+      shape([[-2.3 + look, 3.5], [2.3 + look, 3.5], [2 + look, 5.6], [look, 6.2], [-2 + look, 5.6]].map(([x,y])=>[mx(x),y]), '#cfc9b0');
+      for (const t of [-1.4, -.7, 0, .7, 1.4]) stroke([[mx(t + look), 3.9], [mx(t + look), 5.2]], '#8a8471', .4);
+      stroke([[mx(-2.1 + look), 4.5], [mx(2.1 + look), 4.5]], '#8a8471', .45);
     } else if (!v?.muzzle) {
-      stroke([[-.8 + look, 3.1], [.9 + look, 3.3]], mixColor(skin.shadow, '#553c3e', .3), v?.jaw === 'wide' ? .8 : .55);
-      stroke([[-.5 + look, 4.2], [.8 + look, 4.3]], skin.light, .45);
+      stroke([[mx(-.8 + look), 3.1], [mx(.9 + look), 3.3]], mixColor(skin.shadow, '#553c3e', .3), v?.jaw === 'wide' ? .8 : .55);
+      stroke([[mx(-.5 + look), 4.2], [mx(.8 + look), 4.3]], skin.light, .45);
     }
     shapes.push(...facialHairShapes(appearance.facialHair,hair,skin,look));
   } else {
-    shape([[-2.8, -3.4], [.5, -4], [3, -2.5], [3.3, .8], [1.8, 4], [-.7, 4.4], [-2.7, 2.5]], skin.base);
+    shape([[-2.8, -3.4], [.5, -4], [3, -2.5], [3.3, .8], [1.8, 4], [-.7, 4.4], [-2.7, 2.5]].map(([x,y])=>[mx(x),y]), skin.base);
   }
   const underHair = ['eyepatch','spectacles','nosering'].includes(appearance.accessory);
   if(underHair) shapes.push(...faceAccessoryShapes(appearance.accessory,facing,covered));

@@ -274,6 +274,8 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
     }
     // Scourge Invasion state is self-healing: malformed or absent data restarts the schedule.
     p.worldEvents = validWorldEvents(p.worldEvents) ? p.worldEvents : freshWorldEvents();
+    // Retire suppression and opt-out settings; the HUD now follows accepted work.
+    if (object(p.journeys)) { delete p.journeys.dismissed; delete p.journeys.suggestions; }
     // Normalize the validated parsed copy, including stored dungeon loot and buyback.
     for (const item of items) Object.assign(item, roundItemStats(refreshEquipmentBudgets(rebalanceItemRolls(rebalanceItemOffense(rebalanceItemMana(rebalanceCharm(item)))))));
     return v as unknown as CharacterSave;

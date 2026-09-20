@@ -11,7 +11,7 @@ export const SHAMAN_SKILLS: readonly WowSkill[] = Object.freeze([
   { id: 'chainLightning', name: 'Chain Lightning', classId: 'shaman', requirement: 'any', domain: 'Arcana', tier: 'advanced',
     manaCost: 40, cooldown: 6, damageMultiplier: 1.3, color: S, targetMode: 'enemy', range: 420,
     description: 'Strike your target with lightning that arcs to 3 nearby enemies.',
-    execution: { kind: 'chain', jumps: 3, range: 160, falloff: 0.7, duration: 0.3, style: 'lightning' } },
+    execution: { kind: 'chain', travelSpeed: 1400, jumps: 3, range: 160, falloff: 0.7, duration: 0.3, style: 'lightning' } },
   { id: 'earthShock', name: 'Earth Shock', classId: 'shaman', requirement: 'any', domain: 'Arcana', tier: 'basic',
     manaCost: 20, cooldown: 6, damageMultiplier: 0.9, color: S, targetMode: 'enemy', range: 280,
     description: 'Shock your target with earthen force, silencing it for 2 seconds.',

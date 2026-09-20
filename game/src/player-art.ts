@@ -1,7 +1,9 @@
+import { torsoFacing } from './character-facing.ts';
 import { gearSurface } from './gear-material.ts';
 import { projectArmPoint } from './player-arm-rig.ts';
 import type { CharacterPose, CharacterOutfit } from './art-types.ts';
-import { PLAYER_ATTACHMENTS, playerFootCycle, playerMotion } from './character-motion.ts';
+import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
+import { playerLegRig, projectLegPoint } from './player-leg-rig.ts';
 import { STARTER_OUTFIT, heldWeapon, heldShield, heldFocus, upperArm, forearm, gauntlet, armorBoot, armorSegment, kneeArmor, drawGearShapes, chestArmor, shoulderArmor, headArmor } from './equipment-art.ts';
 import { hash, polygon, line, taper, type Color, type Point } from './art-primitives.ts';
 import { WOW_RACES } from './wow-races.ts';
@@ -10,27 +12,20 @@ import { appearancePalette, HAIR_PALETTES, SKIN_PALETTES } from './appearance-co
 export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
   const outfit: CharacterOutfit = { ...STARTER_OUTFIT, ...pose.outfit };
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
-    weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
+    weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
   const rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
   const skin = pose.appearance ? appearancePalette(SKIN_PALETTES, pose.appearance.skin) : undefined;
   const fur = rv?.muzzle && skin;
-  const legs = [-1, 1].map(side => {
-    const foot = playerFootCycle(phase + (side > 0 ? Math.PI : 0));
-    const travel = foot.travel * moving, lift = foot.lift * moving;
-    const mount = side < 0 ? PLAYER_ATTACHMENTS.leftHip : PLAYER_ATTACHMENTS.rightHip;
-    const hip: Point = [mount[0] + hipX, mount[1] + hipY];
-    const ankle: Point = [side * 3.3 + moveX * travel, moveY * travel * 0.7 - lift];
-    const knee: Point = [hip[0] * 0.45 + ankle[0] * 0.55 + moveX * lift * 0.4,
-      -8 + ankle[1] * 0.48 - lift * 0.25];
-    return { side, hip, ankle, knee };
-  }).sort((a, b) => a.ankle[1] - b.ankle[1]);
+  const legs = playerLegRig(pose.angle, pose.moveAngle ?? pose.angle, phase, moving, hipX, hipY);
   const cape = () => {
     const cloth = outfit.cloak;
     if (!cloth) return;
+    const turn = torsoFacing(bodyAngle);
     const fabric = (points:readonly Point[],fill:string) => {
       const cx=points.reduce((sum,p)=>sum+p[0],0)/points.length;
       drawGearShapes(ctx,[{points,fill,surface:gearSurface('cloth',cloth.seed,[Math.max(-.5,Math.min(.5,cx*.06)),-.15,.95])}],color);
     };
+    ctx.save(); ctx.translate(-turn.side * 3.1, 0); ctx.scale(Math.max(.22, turn.surface), 1);
     const offset = (hash(cloth.seed) % 11) * 0.1;
     const wind = Math.sin(pose.time * 3.6 - 0.6 + offset) * (0.8 + moving * 1.1);
     const lag = Math.sin(phase - 0.7) * moving * 1.8;
@@ -60,6 +55,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
       line(ctx, [[-.8, -21.5], [1, -19.1], [-.5, -16.8], [-2.1, -19]], color(cloth.trim), .65);
       line(ctx, [[-.6, -20.6], [-.6, -17.8]], color(cloth.highlight), .5);
     }
+    ctx.restore();
   };
   // The front-facing cape is behind the whole rig, including both legs.
   if (!back) { ctx.save(); ctx.transform(...body); cape(); ctx.restore(); }
@@ -77,25 +73,27 @@ export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
     }
   }
   for (const leg of legs) {
-    const { hip, knee, ankle } = leg;
-    taper(ctx, hip, knee, fur ? 4.6 : 4, fur ? 3.6 : 3.1, color(fur ? skin.shadow : '#293d39'));
-    taper(ctx, knee, [ankle[0], ankle[1] - 2], fur ? 3.6 : 3.1, fur ? 2.8 : 2.4, color(fur ? skin.base : '#4d5a4c'));
+    const hip = projectLegPoint(leg.hip), knee = projectLegPoint(leg.knee), ankle = projectLegPoint(leg.ankle);
+    taper(ctx, hip, knee, fur ? 4.6 : 3.8, fur ? 3.6 : 2.8, color(fur ? skin.shadow : '#293d39'));
+    taper(ctx, knee, ankle, fur ? 3.6 : 2.8, fur ? 2.8 : 2.1, color(fur ? skin.base : '#4d5a4c'));
     if (outfit.legs) {
       const m = outfit.legs.material;
-      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,color,'thigh');
-      kneeArmor(ctx,knee,outfit.legs,color);
+      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,color,'thigh',.65+.35*Math.abs(Math.sin(pose.angle)));
       if (outfit.legs.style === 'plate') {
         taper(ctx, [hip[0], hip[1] - 0.5], [hip[0] + step * 0.25, hip[1] + 3.4], 4.6, 4.1, color(m.shadow));
         line(ctx, [[hip[0] - 1.8, hip[1] + 2], [hip[0] + 1.8, hip[1] + 2.4]], color(m.trim), 0.65);
       }
     }
+    const foot = projectLegPoint(leg.foot);
     if (rv?.hooves && skin) {
       // Cloven hoof: a dark wedge seated on the ground line, fetlock fur above.
       const dir = Math.cos(pose.angle) * .75 + leg.side * .15;
-      polygon(ctx, [[ankle[0] - 2.3, ankle[1] - 2.6], [ankle[0] + 2.3, ankle[1] - 2.6], [ankle[0] + 2.7 + dir, ankle[1] + .6], [ankle[0] - 2.7 + dir, ankle[1] + .6]], color('#2b2119'));
-      line(ctx, [[ankle[0] + dir * .5, ankle[1] - .6], [ankle[0] + dir * .5, ankle[1] + .6]], color('#171008'), .7);
-      if (fur) polygon(ctx, [[ankle[0] - 2.6, ankle[1] - 4.6], [ankle[0] + 2.6, ankle[1] - 4.6], [ankle[0] + 2.4, ankle[1] - 2.2], [ankle[0] - 2.4, ankle[1] - 2.2]], color(skin.base));
-    } else armorBoot(ctx, ankle, outfit.boots, color, Math.cos(pose.angle) * .75 + leg.side * .15);
+      polygon(ctx, [[foot[0] - 2.3, foot[1] - 2.6], [foot[0] + 2.3, foot[1] - 2.6], [foot[0] + 2.7 + dir, foot[1] + .6], [foot[0] - 2.7 + dir, foot[1] + .6]], color('#2b2119'));
+      line(ctx, [[foot[0] + dir * .5, foot[1] - .6], [foot[0] + dir * .5, foot[1] + .6]], color('#171008'), .7);
+      if (fur) polygon(ctx, [[foot[0] - 2.6, foot[1] - 4.6], [foot[0] + 2.6, foot[1] - 4.6], [foot[0] + 2.4, foot[1] - 2.2], [foot[0] - 2.4, foot[1] - 2.2]], color(skin.base));
+    } else armorBoot(ctx, foot, outfit.boots, color, leg.facing, ankle, knee);
+    // The knee cap overlaps the boot cuff when the lower leg is foreshortened.
+    if (outfit.legs) kneeArmor(ctx,knee,outfit.legs,color,pose.angle);
   }
 
   ctx.save();
@@ -154,13 +152,15 @@ export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
   ctx.translate(0, PLAYER_ATTACHMENTS.chest[1]);
   ctx.transform(1 - Math.abs(torsoTurn) * 0.08, torsoTurn * 0.12, 0, 1, 0, 0);
   ctx.translate(0, -PLAYER_ATTACHMENTS.chest[1]);
-  chestArmor(ctx, outfit.chest, color);
+  chestArmor(ctx, outfit.chest, color, bodyAngle);
   if (outfit.cloak && !back) {
+    ctx.save(); const turn = torsoFacing(bodyAngle); ctx.translate(turn.surfaceOffset, 0); ctx.scale(turn.surface, 1);
     const trim = outfit.cloak.trim;
     line(ctx, [[-5.1, -26.3], [-2.5, -24.1], [2.2, -24.1], [5.1, -26.3]], color('#29363d'), 1.7);
     line(ctx, [[-5.1, -26.3], [-2.5, -24.1], [2.2, -24.1], [5.1, -26.3]], color(trim), .65);
     polygon(ctx, [[-5.8, -26.2], [-4.6, -27.5], [-3.5, -26.2], [-4.6, -24.9]], color(trim));
     polygon(ctx, [[3.6, -26.2], [4.8, -27.5], [6, -26.2], [4.8, -24.9]], color(trim));
+    ctx.restore();
   }
   ctx.restore();
   if (back) cape();

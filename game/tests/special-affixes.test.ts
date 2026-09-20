@@ -35,7 +35,7 @@ function make(profile = 'cinder-wand') {
 function skillContext(sim: Simulation, id: SkillId): SkillContext {
   const p = sim.player; p.character.allocatedNodes.push(`skill:${id}`); p.character.skillSlots[0] = id;
   let time = 0;
-  return { get time() { return time += 2; }, sim: skillSimStub(), player: p, enemies: sim.enemies, world, aimX: 300, aimY: 0, availableGroundEffects: 16, availableProjectiles: 128,
+  return { chains: sim.chains, get time() { return time += 2; }, sim: skillSimStub(), player: p, enemies: sim.enemies, world, aimX: 300, aimY: 0, availableGroundEffects: 16, availableProjectiles: 128,
     damage: () => {}, visible: () => true, onScreen: () => true, projectile: () => {}, schedule: () => {}, emit: () => {} };
 }
 test('new affixes retain slot identities and skill family weights favor matching weapons/elements', () => {

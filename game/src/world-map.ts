@@ -1,6 +1,9 @@
+import type { ActivityStatus } from './activity-status.ts';
+import { MapLegend } from './map-legend.ts';
+import { MapIconVisibility, mapIconVisible, enemyMapIconId, MAP_SERVICES, nearestMapService, type MapServiceKind } from './map-legend-content.ts';
 import { drawMapPOIIcon, drawMapPlayerIcon, drawMapEnemyIcon, MAP_ICON_SIZES } from './map-icon-art.ts';
 import { attachPanelFrame } from './panel-frames.ts';
-import { worldTimeLabel, skyAtTime } from './world-time.ts';
+import { drawMinimapFrame } from './minimap-art.ts';
 import { regionLevelLabel } from './encounter-scaling.ts';
 import { bindTouchCanvas } from './touch-canvas.ts';
 import { formatWorldDistance } from './world-distance.ts';
@@ -12,7 +15,7 @@ import type { Prop } from './world.ts';
 import { Exploration, EXPLORATION_REVEAL_RADIUS, EXPLORATION_CELL_SIZE, EXPLORATION_CHUNK_SIZE } from './exploration.ts';
 import { BIOMES, type BiomeId } from './biomes.ts';
 import { roadPaths } from './road-shape.ts';
-import { clampMapCoordinate, fitMapBounds, getMinimapRect, projectMapPoint, unprojectMapPoint, zoomMapAt, type MapView, type MapZoomLimits, MAP_ZOOM } from './map-view.ts';
+import { clampMapCoordinate, fitMapBounds, getMinimapRect, getMinimapChartRect, projectMapPoint, unprojectMapPoint, zoomMapAt, type MapView, type MapZoomLimits, MAP_ZOOM } from './map-view.ts';
 import { POI_DEFINITIONS } from './world-pois.ts';
 import { drawWorldEventMinimapMarkers } from './world-event-art.ts';
 import { worldEventMapMarkers, type WorldEventState } from './world-event-state.ts';
@@ -131,9 +134,9 @@ export function pickMapPOI(pois: readonly MapPOI[], view: MapView, pointer: { x:
 
 const SERVICE_KINDS = new Set(['blacksmith', 'merchant', 'inn', 'chapel', 'jeweler', 'enchanter', 'gambler', 'stash']);
 /** The same stable visible list serves painting and hover; hidden overlapping services never steal focus. */
-export function selectMapPOIs(pois: readonly MapPOI[], view: MapView, mini = false): MapPOI[] {
-  const priority = (poi: MapPOI) => poi.kind === 'portal' ? -1 : poi.kind === 'town' ? 0 : poi.kind === 'camp' ? 1 : SERVICE_KINDS.has(poi.kind) ? 3 : 2;
-  const candidates = pois.filter(poi => (view.zoom >= .10 || !SERVICE_KINDS.has(poi.kind)))
+export function selectMapPOIs(pois: readonly MapPOI[], view: MapView, mini = false, focusedId?: string): MapPOI[] {
+  const priority = (poi: MapPOI) => poi.id === focusedId ? -2 : poi.kind === 'portal' ? -1 : poi.kind === 'town' ? 0 : poi.kind === 'camp' ? 1 : SERVICE_KINDS.has(poi.kind) ? 3 : 2;
+  const candidates = pois.filter(poi => (poi.id === focusedId || view.zoom >= .10 || !SERVICE_KINDS.has(poi.kind)))
     .map(poi => ({ poi, screen: projectMapPoint(poi.x, poi.y, view) }))
     .filter(({ screen }) => screen.x >= view.x + 6 && screen.y >= view.y + 6 && screen.x <= view.x + view.width - 6 && screen.y <= view.y + view.height - 6)
     .sort((a, b) => priority(a.poi) - priority(b.poi) || a.poi.id.localeCompare(b.poi.id));
@@ -171,10 +174,14 @@ export function mapRegionLabels(world: Pick<MapWorld, 'sampleBiome'>, exploratio
   return selected;
 }
 
-export type CampMapState = 'dormant' | 'active' | 'cleared';
-
 /** A continuously translated chart built from cached world-space terrain and discovery tiles. */
 export class WorldMap {
+  readonly iconVisibility: MapIconVisibility;
+  private legend: MapLegend;
+  private unsubscribeIcons: () => void;
+  private focusPOI: MapPOI | null = null;
+  private focusLabel: HTMLDivElement;
+  private legendRevision = -1;
   private journeyMarker: JourneyMarker|null = null;
   setJourneyMarker(marker:JourneyMarker|null) { if(JSON.stringify(marker)===JSON.stringify(this.journeyMarker))return; this.journeyMarker=marker; this.invalidate(); }
   readonly element: HTMLDivElement;
@@ -230,13 +237,13 @@ export class WorldMap {
   private onClose: () => void;
   private encounterLevelReader: (poi: MapPOI) => number | null = () => null;
   setEncounterLevelReader(reader: (poi: MapPOI) => number | null) { this.encounterLevelReader = reader; }
-  private eventStateReader: (poi: MapPOI) => string | null = () => null;
-  setEventStateReader(reader: (poi: MapPOI) => string | null) { this.eventStateReader = reader; }
-  private campStateReader: (id: string) => CampMapState = () => 'dormant';
+  private activityStateReader: (poi: MapPOI) => ActivityStatus | null = () => null;
+  setActivityStateReader(reader: (poi: MapPOI) => ActivityStatus | null) { this.activityStateReader = reader; }
 
   private zoomLimits: MapZoomLimits = MAP_ZOOM;
 
-  constructor(world: MapWorld, exploration: Exploration, mount: HTMLElement, onClose: () => void, zoomLimits: MapZoomLimits = MAP_ZOOM) {
+  constructor(world: MapWorld, exploration: Exploration, mount: HTMLElement, onClose: () => void, zoomLimits: MapZoomLimits = MAP_ZOOM, iconVisibility = new MapIconVisibility()) {
+    this.iconVisibility = iconVisibility;
     this.zoomLimits = zoomLimits;
     this.world = world; this.exploration = exploration; this.onClose = onClose;
     this.element = document.createElement('div');
@@ -247,7 +254,8 @@ export class WorldMap {
           <h2 class="ui-title" id="world-map-title">World map</h2></div>
         <button type="button" class="world-map-close ui-button ui-button--quiet ui-button--icon" aria-label="Close world map" data-tooltip="Close map" data-tooltip-placement="below" data-tooltip-align="end">${uiIcon('close')}</button>
       </header>
-      <div class="world-map-viewport ui-window__body"><canvas class="world-map-canvas" tabindex="0" aria-label="Explored world map"></canvas>
+      <div class="map-legend-layout"><div class="world-map-viewport ui-window__body"><canvas class="world-map-canvas" tabindex="0" aria-label="Explored world map"></canvas>
+        <div class="world-map-focus-label" role="status" aria-live="polite" hidden></div>
         <div class="world-map-focus-ping" aria-hidden="true" hidden><span></span><span></span></div>
         <div class="world-map-toolbar" role="toolbar" aria-label="Map controls">
           <button type="button" class="ui-button ui-button--quiet ui-button--icon" data-map="out" aria-label="Zoom out" data-tooltip="Zoom out">${uiIcon('minus')}</button>
@@ -262,7 +270,7 @@ export class WorldMap {
         </div>
         <div class="world-map-tooltip ui-tooltip" role="status" aria-live="polite" aria-atomic="true" hidden>
           <p class="world-map-poi-kind ui-kicker"></p><h3 class="ui-title"></h3><p class="world-map-poi-description ui-body"></p></div>
-      </div>
+      </div></div>
       <footer class="world-map-footer ui-window__footer">
         <div class="world-map-progress"><span class="world-map-discoveries"></span><span class="world-map-status ui-muted" role="status"></span></div>
         <div class="world-map-position"><span class="ui-kicker">Position</span><span class="world-map-coordinates"></span></div>
@@ -285,15 +293,13 @@ export class WorldMap {
     this.areaBiome = this.areaInfo.querySelector('.world-map-area-biome')!;
     this.areaLevel = this.areaInfo.querySelector('.world-map-area-level')!;
     this.areaCoordinates = this.areaInfo.querySelector('.world-map-area-coordinates')!;
+    this.focusLabel = this.element.querySelector<HTMLDivElement>('.world-map-focus-label')!;
+    this.legend = new MapLegend(this.iconVisibility, this.element.querySelector('.map-legend-layout')!, this.element.querySelector('.world-map-header')!, 'world', () => { this.pointer = null; this.hideTooltip(); this.resize(); }, kind => this.pingNearest(kind));
+    this.unsubscribeIcons = this.iconVisibility.subscribe(() => { this.pointer = null; this.hideTooltip(); this.invalidate(); });
     this.bind();
   }
 
-  /** Run state is supplied by simulation; chart persistence contains discoveries only. */
-  setCampStateReader(reader: (id: string) => CampMapState) {
-    this.campStateReader = reader; this.render();
-  }
-  private isCampCleared(poi: MapPOI): boolean { return poi.kind === 'camp' && this.campStateReader(poi.id) === 'cleared'; }
-  private poiLabel(poi: MapPOI): string { const state = this.eventStateReader(poi); if (poi.sighted) return `${POI_DEFINITIONS[poi.kind].label} · Sighted`; if (state) return `${POI_DEFINITIONS[poi.kind].label} · ${state}`; return this.isCampCleared(poi) ? 'Camp · Cleared' : POI_DEFINITIONS[poi.kind].label; }
+  private poiLabel(poi: MapPOI): string { const state = this.activityStateReader(poi); if (poi.sighted) return `${POI_DEFINITIONS[poi.kind].label} · Sighted`; if (state) return `${POI_DEFINITIONS[poi.kind].label} · ${state.label}`; return POI_DEFINITIONS[poi.kind].label; }
 
   get isOpen() { return this.opened; }
   open(player: MapPlayer, explorationMode = false) {
@@ -334,6 +340,11 @@ export class WorldMap {
   }
   /** Footer text participates in flex layout, so populate it before measuring the chart. */
   private prepareLayout(): boolean {
+    if (this.legendRevision !== this.exploration.revision) {
+      const discovered = this.exploration.getDiscoveredPOIs().filter(p => !p.sighted && this.exploration.isRevealed(p.x, p.y));
+      this.legend.setAvailable(new Set(MAP_SERVICES.filter(kind => discovered.some(p => p.kind === kind))));
+      this.legendRevision = this.exploration.revision;
+    }
     const count = this.exploration.discoveredPOICount;
     setText(this.discoveries, `${count} ${count === 1 ? 'place' : 'places'} charted`);
     const area = mapAreaLabel(this.world, this.player.x, this.player.y);
@@ -377,12 +388,26 @@ export class WorldMap {
 
   private clearTouch: (() => void) | null = null;
 
+  private pingNearest(kind: MapServiceKind) {
+    const poi = nearestMapService(this.exploration.getDiscoveredPOIs().filter(p => this.exploration.isRevealed(p.x, p.y)), kind, this.player);
+    if (!poi) { this.legend.announce('No discovered location of this type.'); return; }
+    this.legend.closeCompact();
+    this.focusLocation(poi);
+    this.focusPOI = poi;
+    const message = `${POI_DEFINITIONS[kind].label} · ${formatWorldDistance(Math.hypot(poi.x - this.player.x, poi.y - this.player.y))} from you`;
+    this.focusLabel.textContent = message; this.focusLabel.hidden = false; this.legend.announce(message);
+  }
+
   private cancelRecenter() {
+    const hadPOI = !!this.focusPOI || (!!this.focusPing && !this.focusPing.hidden && !mapIconVisible(this.iconVisibility, 'player'));
+    this.focusPOI = null;
+    if (this.focusLabel) this.focusLabel.hidden = true;
     this.recenter = null;
     this.focusTarget = null;
     for (const animation of this.pingAnimations) animation.cancel();
     this.pingAnimations = [];
     this.focusPing.hidden = true;
+    if (hadPOI) this.invalidate();
   }
 
   private centerOnPlayer() {
@@ -485,7 +510,7 @@ export class WorldMap {
       if (this.explorationMode) return;
       // Escape/M remain owned by the game's phase/input coordinator.
       if (event.key === 'Tab') {
-        const controls = [...this.element.querySelectorAll<HTMLElement>('button, canvas[tabindex]')];
+        const controls = [...this.element.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), canvas[tabindex]')].filter(el => !el.closest('[hidden]') && el.getClientRects().length > 0);
         const first = controls[0], last = controls[controls.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -608,11 +633,12 @@ export class WorldMap {
   private features(view: MapView, mini: boolean): { pois: MapPOI[]; labels: MapRegionLabel[]; zones: ZoneProgression[] } {
     const pois = selectMapPOIs([...this.exploration.getDiscoveredPOIs(bounds(view))
       .filter(poi => poi.sighted || this.exploration.isRevealed(poi.x, poi.y)), ...this.portalMarkers(),
-      ...worldEventMapMarkers(this.worldEvents()?.state ?? { nextAt: 0, index: 0, active: null, history: [] }, this.worldEvents()?.time ?? 0)
-        .map(marker => ({ ...marker, sighted: true }))], view, mini);
+      ...worldEventMapMarkers(this.worldEvents?.()?.state ?? { nextAt: 0, index: 0, active: null, history: [] }, this.worldEvents?.()?.time ?? 0)
+        .map(marker => ({ ...marker, sighted: true }))]
+      .filter(poi => mapIconVisible(this.iconVisibility, poi.kind) || (!mini && poi.id === this.focusPOI?.id)), view, mini, mini ? undefined : this.focusPOI?.id);
     const labels = mini || this.zoneLevels ? [] : mapRegionLabels(this.world, this.exploration, view, [...pois.filter(poi => poi.kind === 'town'), this.player]);
     const zones = mini || !this.zoneLevels ? [] : mapZoneLabels(view, this.exploration, this.world.seed, pois.filter(p => p.kind === 'town'));
-    return { labels, zones, pois: pois.filter(poi => !zones.some(z => Math.abs((z.x-poi.x)*view.zoom)<82 && Math.abs((z.y-poi.y)*view.zoom)<28)).filter(poi => poi.kind === 'portal' || poi.kind === 'town' || !labels.some(label => {
+    return { labels, zones, pois: pois.filter(poi => (!mini && poi.id === this.focusPOI?.id) || !zones.some(z => Math.abs((z.x-poi.x)*view.zoom)<82 && Math.abs((z.y-poi.y)*view.zoom)<28)).filter(poi => (!mini && poi.id === this.focusPOI?.id) || poi.kind === 'portal' || poi.kind === 'town' || !labels.some(label => {
       const dx = Math.abs((poi.x - label.x) * view.zoom), dy = (poi.y - label.y) * view.zoom;
       return dx < label.name.length * 3.4 + 8 && dy > -9 && dy < 27;
     })) };
@@ -692,17 +718,18 @@ export class WorldMap {
         text(c, poi.name, p.x, p.y + 12, 1.15, palette.ivory, 'center');
       }
     }
-    drawJourneyMapMarker(c,view,this.journeyMarker,mini);
+    drawJourneyMapMarker(c,view,this.journeyMarker,mini,this.iconVisibility);
     c.restore();
     return pois;
   }
 
   private poiIcon(c: CanvasRenderingContext2D, poi: MapPOI, x: number, y: number, size: number, selected: boolean) {
-    const cleared = this.isCampCleared(poi) || ['Claimed', 'Beacon lit'].includes(this.eventStateReader(poi) ?? '');
+    const cleared = this.activityStateReader(poi)?.rewardsClaimed ?? false;
     drawMapPOIIcon(c, poi.kind, x, y, size, selected, cleared);
   }
 
   private playerArrow(c: CanvasRenderingContext2D, player: MapPlayer, view: MapView, mini: boolean) {
+    if (!mapIconVisible(this.iconVisibility, 'player') && !(!mini && this.focusPing && !this.focusPing.hidden && !this.focusTarget)) return;
     const p = projectMapPoint(player.x, player.y, view);
     if (p.x < view.x || p.y < view.y || p.x > view.x + view.width || p.y > view.y + view.height) return;
     drawMapPlayerIcon(c, p.x, p.y, player.angle, mini);
@@ -729,40 +756,19 @@ export class WorldMap {
   drawMinimap(c: CanvasRenderingContext2D, player: MapPlayer, width: number, height: number, time: number,
     enemies: readonly MinimapEnemy[] = []) {
     const r = getMinimapRect(width, height);
-    const view: MapView = { x: r.x + 6, y: r.y + 25, width: r.width - 12, height: r.height - 66,
+    const view: MapView = { ...getMinimapChartRect(r),
       centerX: player.x, centerY: player.y, zoom: .05 };
     const active = this.minimapPointer && this.minimapPointer.x >= r.x && this.minimapPointer.y >= r.y
       && this.minimapPointer.x < r.x + r.width && this.minimapPointer.y < r.y + r.height;
     c.save();
-    const bg = c.createLinearGradient(r.x, r.y, r.x, r.y + r.height);
-    bg.addColorStop(0, `${palette.panelRaised}f5`); bg.addColorStop(1, `${palette.panel}f5`);
-    c.fillStyle = '#00000040'; c.fillRect(r.x + 2, r.y + 4, r.width, r.height);
-    c.fillStyle = bg; c.fillRect(r.x, r.y, r.width, r.height);
-    c.strokeStyle = `${palette.silverDim}${active?'cc':'70'}`; c.lineWidth = 1;
-    c.strokeRect(r.x + .5, r.y + .5, r.width - 1, r.height - 1);
-    c.strokeStyle = `${palette.silver}25`; c.beginPath();
-    c.moveTo(r.x + 7,r.y + .5); c.lineTo(r.x + 25,r.y + .5);
-    c.moveTo(r.x + r.width - 25,r.y + .5); c.lineTo(r.x + r.width - 7,r.y + .5); c.stroke();
-    // A folded chart mark shares the fine-line style of the native menu icons.
-    c.strokeStyle = palette.silverDim; c.beginPath();
-    c.moveTo(r.x + 10, r.y + 9); c.lineTo(r.x + 14, r.y + 7); c.lineTo(r.x + 18, r.y + 9);
-    c.lineTo(r.x + 22, r.y + 7); c.lineTo(r.x + 22, r.y + 17); c.lineTo(r.x + 18, r.y + 19);
-    c.lineTo(r.x + 14, r.y + 17); c.lineTo(r.x + 10, r.y + 19); c.closePath();
-    c.moveTo(r.x + 14, r.y + 7); c.lineTo(r.x + 14, r.y + 17);
-    c.moveTo(r.x + 18, r.y + 9); c.lineTo(r.x + 18, r.y + 19); c.stroke();
-    const area = mapAreaLabel(this.world, player.x, player.y);
-    text(c, area, r.x + 29, r.y + 10, .85, area === 'Sanctuary' ? palette.jade : palette.ivory);
-    c.fillStyle = palette.well; c.fillRect(r.x + r.width - 25, r.y + 6, 16, 15);
-    c.strokeStyle = palette.line; c.strokeRect(r.x + r.width - 24.5, r.y + 6.5, 15, 14);
-    text(c, 'M', r.x + r.width - 17, r.y + 10, .86, palette.muted, 'center');
+    drawMinimapFrame(c, r, this.location(player), mapAreaLabel(this.world, player.x, player.y), time, !!active);
     const pois = this.chart(c, view, true);
-    c.strokeStyle = `${palette.silverDim}40`; c.strokeRect(view.x - .5, view.y - .5, view.width + 1, view.height + 1);
     const center = projectMapPoint(player.x, player.y, view);
     c.save(); c.beginPath(); c.rect(view.x, view.y, view.width, view.height); c.clip();
     c.setLineDash([2, 4]); c.strokeStyle = '#c5d5b127'; c.lineWidth = .8;
     c.beginPath(); c.arc(center.x, center.y, EXPLORATION_REVEAL_RADIUS * view.zoom, 0, Math.PI * 2); c.stroke(); c.setLineDash([]);
     for (const enemy of enemies) {
-      if (!this.exploration.isRevealed(enemy.x, enemy.y)) continue;
+      if (!mapIconVisible(this.iconVisibility, enemyMapIconId(enemy)) || !this.exploration.isRevealed(enemy.x, enemy.y)) continue;
       const p = projectMapPoint(enemy.x, enemy.y, view);
       if (p.x < view.x || p.y < view.y || p.x > view.x + view.width || p.y > view.y + view.height) continue;
       drawMapEnemyIcon(c, p.x, p.y, enemy.kind, enemy.rank);
@@ -770,11 +776,6 @@ export class WorldMap {
     { const we = this.worldEvents(); if (we) drawWorldEventMinimapMarkers(c, view, we.state, we.time); }
     this.playerArrow(c, player, view, true); c.restore();
     text(c, 'N', view.x + view.width / 2, view.y + 3, .8, palette.jade, 'center');
-    const clockY=r.y+r.height-34, night=skyAtTime(time).daylight<.35;
-    text(c, `${night?'Night':'Day'} · ${worldTimeLabel(time)}`,r.x+r.width/2,clockY,.9,night?'#a7c6e4':palette.brass,'center');
-    const name = this.location(player);
-    c.save(); c.beginPath(); c.rect(r.x + 6, r.y + r.height - 19, r.width - 12, 15); c.clip();
-    text(c, name, r.x + r.width / 2, r.y + r.height - 15, .95, palette.text, 'center'); c.restore();
     if (this.minimapPointer) {
       const poi = pickMapPOI(pois.filter(p => p.kind === 'portal' || p.sighted || this.exploration.isRevealed(p.x, p.y)), view, this.minimapPointer, 8);
       if (poi) {
@@ -878,7 +879,7 @@ export class WorldMap {
     }
     this.updateAreaInfo();
     const marker=this.journeyMarker, markerPoint=marker?projectMapPoint(marker.x,marker.y,this.view):null;
-    if(marker&&markerPoint&&this.pointer&&!this.drag&&Math.hypot(markerPoint.x-this.pointer.x,markerPoint.y-this.pointer.y)<15){
+    if(marker&&mapIconVisible(this.iconVisibility,marker.known?'journey:destination':'journey:search')&&markerPoint&&this.pointer&&!this.drag&&Math.hypot(markerPoint.x-this.pointer.x,markerPoint.y-this.pointer.y)<15){
       this.tooltip.hidden=false;setText(this.tooltipName,marker.name);
       setText(this.tooltipKind,'Journey');setText(this.tooltipDescription,marker.known?'Tracked activity':'Explore this area to find the activity');
       this.tooltip.style.setProperty('--poi-color',palette.brass);this.positionTooltip(this.pointer);
@@ -904,7 +905,7 @@ export class WorldMap {
 
   private showTooltip(poi: MapPOI, point: { x: number; y: number }) {
     this.tooltip.hidden = false; setText(this.tooltipName, poi.name);
-    setText(this.tooltipKind, `${this.poiLabel(poi)} · ${this.encounterLevelReader(poi) !== null ? `Lv ${this.encounterLevelReader(poi)}` : mapAreaLabel(this.world, poi.x, poi.y)}`); setText(this.tooltipDescription, this.eventStateReader(poi) ?? (this.isCampCleared(poi) ? 'The watchfire is quiet. All members of this garrison have been defeated for the current run.' : poi.description));
+    setText(this.tooltipKind, `${this.poiLabel(poi)} · ${this.encounterLevelReader(poi) !== null ? `Lv ${this.encounterLevelReader(poi)}` : mapAreaLabel(this.world, poi.x, poi.y)}`); setText(this.tooltipDescription, this.activityStateReader(poi)?.label ?? poi.description);
     this.tooltip.style.setProperty('--poi-color', POI_DEFINITIONS[poi.kind].color);
     this.positionTooltip(point);
   }
@@ -915,6 +916,7 @@ export class WorldMap {
   private hideTooltip() { this.tooltip.hidden = true; this.areaInfo.hidden = true; }
   dispose() {
     if (this.disposed) return;
+    this.legend.dispose(); this.unsubscribeIcons();
     this.close(); this.disposed = true; this.abort.abort(); this.tiles.clear(); this.previewTiles.clear(); this.element.remove(); this.exploration.save();
   }
 }

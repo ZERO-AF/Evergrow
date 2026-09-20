@@ -124,11 +124,17 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
   enemy.freezeTime = Math.max(0, (enemy.freezeTime ?? 0) - dt);
   enemy.stunTime = Math.max(0, (enemy.stunTime ?? 0) - dt);
   enemy.controlImmunity = Math.max(0, (enemy.controlImmunity ?? 0) - dt);
+  enemy.reactionCooldown = Math.max(0, (enemy.reactionCooldown ?? 0) - dt);
+  enemy.chillTime = Math.max(0, (enemy.chillTime ?? 0) - dt);
+  enemy.fractureTime = Math.max(0, (enemy.fractureTime ?? 0) - dt);
   if (enemy.ccDiminishedUntil) for (const [kind, left] of Object.entries(enemy.ccDiminishedUntil) as [CcKind, number][]) {
     const next = left - dt;
     if (next <= 0) { delete enemy.ccDiminishedUntil[kind]; delete enemy.ccDiminished?.[kind]; }
     else enemy.ccDiminishedUntil[kind] = next;
   }
+  if (enemy.reactionCooldown && enemy.reactionCooldown > 0) enemy.reactionCooldown = Math.max(0, enemy.reactionCooldown - dt);
+  if (enemy.fractureTime && enemy.fractureTime > 0) enemy.fractureTime = Math.max(0, enemy.fractureTime - dt);
+  if (enemy.chillTime && enemy.chillTime > 0) enemy.chillTime = Math.max(0, enemy.chillTime - dt);
   if (enemy.slowTime > 0) enemy.slowTime = Math.max(0, enemy.slowTime - dt);
   if (enemy.slowTime <= 0) enemy.slowFactor = 1;
   if (enemy.burnTime > 0) {
@@ -191,6 +197,10 @@ export const ELEMENTAL_CONTACT = Object.freeze({ burnDuration: 2, burnFractionPe
 export function applyElementalContact(enemy: Enemy, style: ProjectileStyle | undefined, damage: number): void {
   if (damage <= 0 || !Number.isFinite(damage) || enemy.state === 'dead') return;
   if (style === 'fire') applyBurn(enemy, { duration: ELEMENTAL_CONTACT.burnDuration, dps: damage * ELEMENTAL_CONTACT.burnFractionPerSecond });
-  else if (style === 'frost') applySlow(enemy, { duration: ELEMENTAL_CONTACT.chillDuration, factor: ELEMENTAL_CONTACT.chillFactor });
+  else if (style === 'frost') {
+    applySlow(enemy, { duration: ELEMENTAL_CONTACT.chillDuration, factor: ELEMENTAL_CONTACT.chillFactor });
+    if (ELEMENTAL_CONTACT.chillDuration >= (enemy.chillTime ?? 0)) (enemy.statusDurations ??= {}).chill = ELEMENTAL_CONTACT.chillDuration;
+    enemy.chillTime = Math.max(enemy.chillTime ?? 0, ELEMENTAL_CONTACT.chillDuration);
+  }
   else if (style === 'lightning') applyStun(enemy, ELEMENTAL_CONTACT.lightningInterrupt, 'stagger');
 }

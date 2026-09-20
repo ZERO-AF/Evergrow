@@ -417,7 +417,8 @@ export function fishingCatch(session: FishingSession, player: Player, time: numb
 }
 
 /** Reel in / clear the bobber (movement, death, panel open, recast). */
-export function fishingCancel(session: FishingSession): void {
+export function fishingCancel(session: FishingSession | undefined): void {
+  if (!session) return;
   session.bobber = null;
 }
 

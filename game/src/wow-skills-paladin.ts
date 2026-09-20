@@ -123,7 +123,7 @@ export const PALADIN_SKILLS: readonly WowSkill[] = Object.freeze([
   { id: 'avengersShield', name: "Avenger's Shield", classId: 'paladin', requirement: 'shield', domain: 'Might', tier: 'ultimate',
     manaCost: 35, cooldown: 30, damageMultiplier: 1.4, color: P, targetMode: 'enemy', range: 420,
     description: 'Hurl your shield at an enemy; it ricochets to two more targets, dealing Holy damage and slowing them.',
-    execution: { kind: 'chain', jumps: 3, range: 160, falloff: 0.8, duration: 0.3, style: 'radiant', slow: { duration: 4, factor: 0.5 } } },
+    execution: { kind: 'chain', travelSpeed: 1400, jumps: 3, range: 160, falloff: 0.8, duration: 0.3, style: 'radiant', slow: { duration: 4, factor: 0.5 } } },
   { id: 'judgementOfLight', name: 'Judgement of Light', classId: 'paladin', requirement: 'melee', domain: 'Might', tier: 'basic',
     manaCost: 25, cooldown: 8, damageMultiplier: 1.0, color: P, targetMode: 'enemy', range: 140,
     description: 'Judge your target with Holy power, healing you for 30% of the damage dealt.',

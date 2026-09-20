@@ -1,7 +1,9 @@
 import { RiftAtmosphereArt } from './rift-atmosphere-art.ts';
+import { AreaBanner } from './area-banner.ts';
+import { drawAreaBanner } from './area-banner-art.ts';
 import { riftMechanic } from './rift-encounters.ts';
 import { riftWardActive } from './rift-tactics.ts';
-import { dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
+import { dungeonInteractionChests, dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
 import { EnemyOutlineArt } from './enemy-outline-art.ts';
 import { RIFT_RULES } from './rift-content.ts';
 import { enemyVisualScale } from './enemy-modifiers.ts';
@@ -36,6 +38,7 @@ import { MaterialResponses } from './material-response.ts';
 import { drawMaterialBurst } from './material-response-art.ts';
 import { hoveredGroundLoot, type GroundLootLabel } from './ground-loot-hover.ts';
 import { eventClaimed } from './poi-content.ts';
+import { projectSiteAftermath, type SiteAftermath } from './poi-aftermath.ts';
 import type { FrameProfiler, FrameStage } from './frame-profiler.ts';
 import { WaterPresentation } from './water-presentation.ts';
 import { WaterArt } from './water-art.ts';
@@ -46,6 +49,7 @@ import { drawEventObjectives, EventArt, drawEventUI } from './poi-art.ts';
 import { eventProgress } from './event-progress.ts';
 import { EventProgressPresentation } from './event-progress-presentation.ts';
 import { drawPortal, drawTownAnchor } from './travel-art.ts';
+import { fitPortalWorldLabel, type PortalDestination } from './portal-destination.ts';
 import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } from './travel.ts';
 import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
@@ -64,7 +68,7 @@ import { World } from './world.ts';
 import { GroundLayer } from './ground-layer.ts';
 import type { Simulation } from './simulation.ts';
 import type { CombatEvent, Enemy, Player } from './model.ts';
-import { text } from './font.ts';
+import { text, textWidth } from './font.ts';
 import { drawFloatingHUD } from './hud.ts';
 import { phoneLandscapeLayout, type TouchViewport } from './touch-layout.ts';
 import { ExperienceFeedback, type ExperienceDisplay } from './hud-experience.ts';
@@ -90,7 +94,7 @@ import { CAMERA_FOLLOW, CameraZoom, cameraFollowTarget, cameraSpawnExclusion,
 import { EnemyFocus } from './enemy-focus.ts';
 import { BattleBarkScene } from './battle-bark-scene.ts';
 import { getHUDLayout } from './hud-layout.ts';
-import { getMinimapRect, getPortalControlRect } from './map-view.ts';
+import { getMinimapRect } from './map-view.ts';
 import { ENEMY_BODY_BOUNDS, enemyBodyBounds } from './enemy-body.ts';
 import { resolveRangedAim, resolveDirectionalAim, PROJECTILE_HEIGHT, type RangedAim } from './ranged-aim.ts';
 import { deriveAttackStats } from './equipment.ts';
@@ -130,6 +134,8 @@ interface Ghost { x: number; y: number; angle: number; gait: number; life: numbe
 export interface RenderSettings {
   liveMap?: boolean;
   showGroundLootNames?: boolean;
+  /** Save-free scene tools can animate presentation without following the player. */
+  fixedCamera?: boolean;
   reducedMotion: boolean;
   /** Save-free reviews can inspect long-session water optics without advancing gameplay. */
   waterAge?: number;
@@ -181,6 +187,7 @@ export class Renderer {
   private playerHealthTrail = 100;
   private playerHealthHold = 0;
   private rewards = new RewardFeedback();
+  readonly areaBanner = new AreaBanner();
   private experienceFeedback = new ExperienceFeedback();
   private experienceDisplay: ExperienceDisplay | undefined;
   private effects = new CombatEffects();
@@ -203,6 +210,7 @@ export class Renderer {
   private biomeArt = new BiomeLifeArt();
   private crownOpacity = new Map<string, number>();
   private visibility = new SceneVisibility();
+  private siteAftermath: ReadonlyMap<string, SiteAftermath> = new Map();
   private get cachedBuildings() { return this.visibility.buildings; }
   private indoorBlend = 0;
   private lighting = new Lighting();
@@ -229,6 +237,7 @@ export class Renderer {
   readonly eventProgressPresentation = new EventProgressPresentation();
   private get eventSites() { return this.visibility.events; }
   portalGuide = 0;
+  portalDestinations: { home: PortalDestination; returnTo: PortalDestination | null } | null = null;
   private portalAnchors: PortalAnchor[] = [];
   private fadingPortal: { x: number; y: number; progress: number; life: number } | null = null;
 
@@ -304,6 +313,7 @@ export class Renderer {
   }
 
   reset() {
+    this.areaBanner.clear();
     this.eventProgressPresentation.reset();
     this.worldEventCard.reset();
     this.outdoorLightEffects.reset();
@@ -364,6 +374,8 @@ export class Renderer {
     this.worldEventCard.update(this.cryptFloor ? null : worldEventProgress(worldEventsOf(sim), sim.time), feedbackStep, settings.reducedMotion);
     this.eventProgressPresentation.update(this.cryptFloor ? null : eventProgress(sim.eventState), feedbackStep, settings.reducedMotion);
     this.rewards.update(goldBalance(p.character), feedbackStep, settings.reducedMotion);
+    if(p.dead)this.areaBanner.clear();
+    else this.areaBanner.update(settings.phase === 'playing' ? dt : 0, !!(this.rewards.level || this.rewards.journey));
     this.experienceDisplay = this.experienceFeedback.update(p, feedbackStep, settings.reducedMotion);
     this.experienceDisplay.pulse = Math.max(this.experienceDisplay.pulse, this.rewards.xpPulse);
     const px = lerp(p.prevX, p.x, alpha), py = lerp(p.prevY, p.y, alpha);
@@ -386,7 +398,7 @@ export class Renderer {
       if (trail.hold <= 0) trail.value += (enemy.hp - trail.value) * (1 - Math.exp(-step * 8));
       if (Math.abs(trail.value - enemy.hp) < .2) this.damageTrails.delete(id);
     }
-    if (active) {
+    if (active && !settings.fixedCamera) {
       // Velocity-based lookahead does not swing the camera when the player merely aims.
       const follow = 1 - Math.exp(-dt * CAMERA_FOLLOW.response);
       const target = cameraFollowTarget({ x: px, y: py, vx: p.vx, vy: p.vy });
@@ -429,6 +441,7 @@ export class Renderer {
       ? focusGatherNode(world, p, sim.time, p,
           this.pointerActive && !this.pointerOverHUD() ? screenToWorld(this.view, this.pointerX, this.pointerY) : undefined)
       : null;
+    this.siteAftermath = projectSiteAftermath(this.visibility.sites, sim.eventState, id => sim.getCampState(id));
     this.residents=this.cryptFloor?[]:world.getSettlements(left,top,worldWidth,worldHeight).flatMap(t=>settlementResidents(t,sim.time)).filter(n=>n.x>=left-90&&n.x<=left+worldWidth+90&&n.y>=top-90&&n.y<=top+worldHeight+90);
     if(active){
       this.residentCooldown=Math.max(0,this.residentCooldown-step);
@@ -498,7 +511,7 @@ export class Renderer {
         drawWorldEventChest(c, event, this.visualTime, settings.reducedMotion);
       }
     }
-    for (const site of this.visibility.sites) drawSiteGround(c, site, settings.reducedMotion ? 0 : this.visualTime);
+    for (const site of this.visibility.sites) drawSiteGround(c, site, settings.reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id));
     this.settlementArt.drawGround(c, this.cachedBuildings, this.visualTime, this.sky);
     this.groundDressing.draw(c, this.cachedProps, this.view);
     this.riftAtmosphere.drawGround(c);
@@ -648,7 +661,7 @@ export class Renderer {
     const headerX = phone ? (phone.left-22*.8)*unit : 0;
     const headerY = phone ? (phone.top-22*.8)*unit : 0;
     const barkReserved = [...lootBounds,
-      getHUDLayout(this.width, this.height), getMinimapRect(this.width, this.height), getPortalControlRect(this.width, this.height),
+      getHUDLayout(this.width, this.height), getMinimapRect(this.width, this.height),
       { x: 0, y: 0, width: this.width, height: 112 + this.touchTopInset }];
     if (this.extraUIBounds) barkReserved.push(this.extraUIBounds);
     if (this.performanceUIBounds) barkReserved.push(this.performanceUIBounds);
@@ -673,20 +686,29 @@ export class Renderer {
     drawRewardFlights(c, this.rewards, (x, y) => worldToScreen(this.view, x, y), this.width, this.height, footer ? {hud:footer,gold:{x:headerX+27*.8*unit,y:headerY+62*.8*unit}} : undefined);
     drawLevelAnnouncement(c, this.rewards.level, worldToScreen(this.view, p.x, p.y), this.width, this.height, settings.reducedMotion);
     if(!this.rewards.level)drawJourneyAnnouncement(c,this.rewards.journey,worldToScreen(this.view,p.x,p.y),this.width,this.height,settings.reducedMotion);
-    c.save();
     const plateScale = phone ? .72*unit : 1;
-    if(phone) c.scale(plateScale,plateScale);
     const plateWidth=this.width/plateScale, plateHeight=this.height/plateScale;
     const plateInset=this.touchTopInset/plateScale;
     const boss=sim.enemies.find(e=>isBossKind(e.kind)&&e.hp>0&&e.state!=='return'&&Math.hypot(e.x-p.x,e.y-p.y)<(isWildernessBoss(e.kind)?650:1100));
     const target = (this.plateOpacity > .01 ? this.plateEnemy : null) ?? boss;
     const debuffs = target ? [...enemyTraitBuffs(target),...enemyDebuffs(target, p)] : [];
-    const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0);
+    const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone);
+    // Visible plates own this space, including their death fade. Dismiss without replaying after focus ends.
+    if(settings.phase==='playing'&&target&&targetPlate.height>0)this.areaBanner.clear();
+    if(settings.phase==='playing'&&!p.dead&&!this.rewards.level&&!this.rewards.journey) {
+      // Use display pixels for banner sizing, independent of world resolution and zoom.
+      const scale=this.cursorPixelScale;
+      c.save();c.scale(scale.x,scale.y);
+      drawAreaBanner(c,this.areaBanner.notice,this.areaBanner.age,p.level,this.width/scale.x,this.height/scale.y,settings.reducedMotion);
+      c.restore();
+    }
+    c.save();
+    if(phone) c.scale(plateScale,plateScale);
     this.targetEffects = target && target.hp > 0 && targetPlate.height > 70 && debuffs.length && settings.phase === 'playing'
       ? { id: target.id, buffs: debuffs, x: (targetPlate.x + targetPlate.width / 2) * plateScale / this.width,
         y: (targetPlate.y + 76) * plateScale / this.height, opacity: boss ? 1 : this.plateOpacity } : null;
     if (target) drawEnemyPlate(c, target, plateWidth, plateHeight, {
-      hasDebuffs: debuffs.length > 0, touch: this.touchActive, topInset: plateInset,
+      hasDebuffs: debuffs.length > 0, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset,
       name: target === boss ? (raidBossName(target) ?? raid2BossName(target) ?? raid3BossName(target) ?? raid4BossName(target) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
       time: this.visualTime, reducedMotion: settings.reducedMotion,
       opacity: target === boss ? 1 : this.plateOpacity,
@@ -695,7 +717,7 @@ export class Renderer {
       comboPoints: p.comboPoints,
     });
     if (boss) {
-      const plate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0);
+      const plate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone);
       if (plate.height && this.focusedEnemy?.id === boss.id) text(c, 'CONTROL DURATION −75% · BRIEF STUN IMMUNITY',
         plateWidth / 2, plate.y + plate.height + 4, .7, '#9db8a7', 'center');
     }
@@ -734,7 +756,7 @@ export class Renderer {
     if (GAME_FEATURES.bossWarnings) drawBossWarnings(c, this.bossWarnings, this.width, this.height, this.visualTime, settings.reducedMotion);
     if (settings.phase === 'playing') {
       const run=currentDungeon(sim.expeditions),f=sim.dungeonFloor;
-      const points=run&&f?[{...f.entry,name:'Leave dungeon'},...(run.states.warden.hp<=0?[{...dungeonRunExit(f,run),name:'Leave dungeon'}]:[]),...f.chests.flatMap((_,i)=>!run.rift||i===2&&run.rift.phase==='complete'?[{...dungeonRunChest(f,run,i),name:'Treasure chest'}]:[])]:this.visibility.entrances;
+      const points=run&&f?[{...f.entry,name:'Leave dungeon'},...(run.states.warden.hp<=0?[{...dungeonRunExit(f,run),name:'Leave dungeon'}]:[]),...dungeonInteractionChests(f,run).map(chest=>({...chest,name:'Treasure chest'}))]:this.visibility.entrances;
       const table=!run&&world.getBuildings(p.x-180,p.y-180,360,360).find(b=>(b.kind==='expedition'||b.kind==='rift')&&Math.hypot(b.door.x-p.x,b.door.y-p.y)<75);
       if(table){const q=worldToScreen(this.view,table.door.x,table.door.y-80);text(c,`${table.kind==='rift'?'Crimson Rift':'Expeditions'}${p.level<20?' · Level 20':''} [${this.gamepadActive?'A':controls.label('interact')}]`,q.x,q.y,1,'#d8c593','center');}
       const target=points.find(q=>Math.hypot(q.x-p.x,q.y-p.y)<75);
@@ -773,17 +795,19 @@ export class Renderer {
   private drawPortalHints(c: CanvasRenderingContext2D, sim: Simulation, world: World) {
     const p = sim.player, anchor = this.portalAnchors.find(a => withinPortalReach(p, a, world));
     let label = '', x = p.x, y = p.y - 79;
-    if (sim.portal.active) label = `Town portal · ${(PORTAL_RULES.channel * (1 - sim.portal.progress)).toFixed(1)}s`;
+    if (sim.portal.active) label = `${this.portalDestinations?.home.name ?? 'Home town'} · ${(PORTAL_RULES.channel * (1 - sim.portal.progress)).toFixed(1)}s`;
     else if (anchor) { x = anchor.x; y = anchor.y - (sim.travel.returnTo?.town === anchor.band ? 82 : 28);
-      label = sim.travel.returnTo?.town === anchor.band ? 'Return to expedition  [E]' : sim.travel.homeTown === anchor.band ? `${anchor.name} · Home  [E]` : 'Set home town  [E]'; }
+      const destination = this.portalDestinations?.returnTo;
+      const shortName = destination?.name.split(' · ', 1)[0];
+      label = sim.travel.returnTo?.town === anchor.band ? `${shortName ?? 'Expedition'}  [E]` : sim.travel.homeTown === anchor.band ? `${anchor.name} · Home  [E]` : 'Set home town  [E]'; }
     if (label) {
       label = label.replace('[E]', `[${this.gamepadActive ? 'A' : controls.label('interact')}]`);
       const point = worldToScreen(this.view, x, y);
-      c.save(); c.font = '12px "Evergrow Numerals", system-ui, sans-serif'; c.textAlign = 'center';
-      const w = c.measureText(label).width + 18;
-      c.fillStyle = '#09121deb'; c.fillRect(point.x - w / 2, point.y - 14, w, 23);
-      c.strokeStyle = '#b7a9d366'; c.strokeRect(point.x - w / 2, point.y - 14, w, 23);
-      c.fillStyle = '#dfd7f0'; c.fillText(label, point.x, point.y + 2); c.restore();
+      const available = Math.max(72, Math.min(180, 2 * Math.min(point.x - 12, this.width - point.x - 12)));
+      label = fitPortalWorldLabel(label, available, value => textWidth(value, .78));
+      c.save(); c.globalAlpha = .62;
+      text(c, label, point.x, point.y, .78, '#d8cbea', 'center');
+      c.restore();
     }
     if (this.portalGuide > 0 && sim.travel.returnTo) {
       const home = world.getPortalAnchor(sim.travel.returnTo.town), pos = worldToScreen(this.view, home.x, home.y - 38);
@@ -858,11 +882,10 @@ export class Renderer {
       entries.push({ y: site.y, draw: () => this.eventArt.draw(c, site, eventClaimed(sim.eventState, site.id) ? { phase: 'claimed' } : sim.eventState.sites[site.id], this.visualTime, dt, settings.reducedMotion, sim.eventChannel.site?.id===site.id ? sim.eventChannel.elapsed/sim.eventChannel.duration : 0) });
     for (const anchor of this.portalAnchors) entries.push({ y: anchor.y, draw: () => {
       drawTownAnchor(c, anchor, sim.travel.homeTown === anchor.band);
-      if (sim.travel.returnTo?.town === anchor.band) drawPortal(c, anchor.x, anchor.y, this.visualTime, 1,
-        '#b5a0ee', settings.reducedMotion);
+      if (sim.travel.returnTo?.town === anchor.band) drawPortal(c, anchor.x, anchor.y, this.visualTime, 1, this.portalDestinations?.returnTo ?? undefined, settings.reducedMotion);
     } });
     if (sim.portal.origin) { const origin = sim.portal.origin;
-      entries.push({ y: origin.y - 1, draw: () => drawPortal(c, origin.x, origin.y, this.visualTime, sim.portal.progress, '#b5a0ee', settings.reducedMotion) });
+      entries.push({ y: origin.y - 1, draw: () => drawPortal(c, origin.x, origin.y, this.visualTime, sim.portal.progress, this.portalDestinations?.home, settings.reducedMotion) });
     }
     if (!sim.portal.active && this.fadingPortal) { const old = this.fadingPortal;
       entries.push({ y: old.y - 1, draw: () => { c.save(); c.globalAlpha = old.life / .25;
@@ -884,7 +907,7 @@ export class Renderer {
       entries.push({ y: remains.y, draw: () => drawMaterialBurst(c, remains, settings.reducedMotion) });
     for (const site of this.visibility.sites) for (const decor of site.decor) {
       if (sim.brokenContainers.has(decor.id)) continue;
-      entries.push({ y: decor.y, draw: () => drawSiteDecor(c, site, decor, settings.reducedMotion ? 0 : this.visualTime) });
+      entries.push({ y: decor.y, draw: () => drawSiteDecor(c, site, decor, settings.reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id)) });
     }
     for (const remains of this.deaths.remains)
       entries.push({ y: deathDepth(remains), draw: () => drawEnemyRemains(c, remains, settings.reducedMotion) });
@@ -903,7 +926,7 @@ export class Renderer {
         moving: Math.min(1, Math.hypot(enemy.vx, enemy.vy) / 70),
         attack: enemy.state === 'windup' ? -Math.max(.001, enemy.stateTime / enemy.stateDuration)
           : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
-        attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, burning: enemy.burnTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
+        attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
         impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },scale,riftMechanic(enemy)==='ritual'?'#9ae0c7':riftWardActive(enemy)?'#80c9b8':scale>1?(enemy.rank==='elite'?'#e9bb70':'#85c9ee'):undefined); } });
     }
     for(const [kind,spirit] of [['decoy',p.skillEffects?.decoy],['archer',p.skillEffects?.archer]] as const){
@@ -1010,7 +1033,7 @@ export class Renderer {
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
     environmentLights.push(...buildingLights.slice(0, 6));
-    const siteLights = this.visibility.sites.flatMap(site => wildernessLights(site, reducedMotion ? 0 : this.visualTime))
+    const siteLights = this.visibility.sites.flatMap(site => wildernessLights(site, reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id)))
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
     environmentLights.push(...siteLights.slice(0, 6));
     for (const prop of this.cachedProps) {
@@ -1071,7 +1094,7 @@ export class Renderer {
     }
     for (const shot of sim.projectiles) {
       const { x, y } = projectilePresentation(shot, alpha);
-      drawProjectile(c, shot, x, y, reducedMotion && shot.effects?.style === 'radiant' ? 0 : this.visualTime);
+      drawProjectile(c, shot, x, y, reducedMotion ? 0 : this.visualTime, reducedMotion);
       if (GAME_FEATURES.spellVfx && shot.effects?.style) schoolCastAura(c, x, y, shot.effects.style, this.visualTime, .6, reducedMotion);
     }
   }

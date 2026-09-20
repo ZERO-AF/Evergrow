@@ -1,4 +1,4 @@
-import { getMinimapRect, projectMapPoint, type MapView } from './map-view.ts';
+import { getMinimapRect, getMinimapChartRect, projectMapPoint, type MapView } from './map-view.ts';
 import type { MapRect } from './exploration.ts';
 import { buildingNPC, NPC_NAMES } from './npcs.ts';
 import { wowBuildingName } from './minimap-zone.ts';
@@ -59,8 +59,7 @@ export function collectTrackingBlips(sources: TrackingSources,
 
 /** The terrain viewport `WorldMap.drawMinimap` uses; tracking dots share its projection. */
 export function minimapView(player: { x: number; y: number }, width: number, height: number): MapView {
-  const r = getMinimapRect(width, height);
-  return { x: r.x + 6, y: r.y + 25, width: r.width - 12, height: r.height - 66,
+  return { ...getMinimapChartRect(getMinimapRect(width, height)),
     centerX: player.x, centerY: player.y, zoom: .05 };
 }
 

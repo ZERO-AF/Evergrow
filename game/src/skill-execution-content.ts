@@ -2,16 +2,18 @@ import { AURA_IDS, auraSummary, type AuraId } from './aura-content.ts';
 import type { SkillId, WowSkillId } from './character-types.ts';
 import type { ProjectileEffects, ProjectileStyle } from './model.ts';
 import type { SlowEffect } from './combat-status.ts';
+import type { AllyKind, BuffSpec, CcKind, DotSchool, DotSpec, HotSpec, ShapeshiftForm } from './wow-types.ts';
+import type { SkillDefinition } from './skill-content.ts';
 import { WOW_SKILLS } from './wow-skills.ts';
 
 /** Optional WoW payloads existing recipes can carry (docs/wow-transformation.md §3):
  *  dot/cc/slow/sunder apply per enemy hit; heal/buff apply once per cast on the player.
  *  heal is a fraction of player max life. */
 export interface WowSkillPayload {
-  readonly dot?: import('./wow-types.ts').DotSpec;
-  readonly cc?: { readonly kind: import('./wow-types.ts').CcKind; readonly duration: number; readonly factor?: number };
+  readonly dot?: DotSpec;
+  readonly cc?: { readonly kind: CcKind; readonly duration: number; readonly factor?: number };
   readonly heal?: number;
-  readonly buff?: import('./wow-types.ts').BuffSpec;
+  readonly buff?: BuffSpec;
   readonly slow?: SlowEffect;
   readonly sunder?: number;
   /** Seconds each struck enemy is compelled to attack the player (Challenging Shout). */
@@ -35,44 +37,44 @@ export type SkillExecution = (
       effects: Readonly<Omit<ProjectileEffects, 'burnDps' | 'groundDps'> & { burnDamageMultiplier?: number; groundDamageMultiplier?: number }> } & WowSkillPayload)
   | ({ kind: 'ground'; effect: 'meteor' | 'arrowRain' | 'storm' | 'frost'; radius: number; delay: number; duration: number; interval: number;
       style: ProjectileStyle; scatterRadiusMultiplier?: number; scorch?: { readonly duration: number; readonly interval: number; readonly damageMultiplier: number }; scatter?: number; slow?: SlowEffect; stun?: number; follow?: boolean; burn?: { readonly duration: number; readonly damageMultiplier: number } } & WowSkillPayload)
-  | ({ kind: 'chain'; jumps: number; range: number; falloff: number; duration: number; style: ProjectileStyle; revisit?: boolean } & WowSkillPayload)
+  | ({ kind: 'chain'; travelSpeed: number; jumps: number; range: number; falloff: number; duration: number; style: ProjectileStyle; revisit?: boolean } & WowSkillPayload)
   // WoW additions — see docs/wow-transformation.md
-  | { kind: 'strike'; school?: import('./wow-types.ts').DotSchool; dot?: import('./wow-types.ts').DotSpec;
+  | { kind: 'strike'; school?: DotSchool; dot?: DotSpec;
       slow?: { duration: number; factor: number }; stun?: number; silence?: number; healFrac?: number;
-      cc?: { readonly kind: import('./wow-types.ts').CcKind; readonly duration: number; readonly factor?: number };
+      cc?: { readonly kind: CcKind; readonly duration: number; readonly factor?: number };
       sunder?: number; bonusVsDot?: number; bonusVsFrozen?: number; bonusBehind?: number; bonusVsRooted?: number;
-      consumeDot?: { school: import('./wow-types.ts').DotSchool; multiplier: number } }
-  | { kind: 'dot'; dot: import('./wow-types.ts').DotSpec; direct?: number }
-  | { kind: 'heal'; amount: number; maxHpFrac?: number; hot?: import('./wow-types.ts').HotSpec; consumeHot?: number;
+      consumeDot?: { school: DotSchool; multiplier: number } }
+  | { kind: 'dot'; dot: DotSpec; direct?: number }
+  | { kind: 'heal'; amount: number; maxHpFrac?: number; hot?: HotSpec; consumeHot?: number;
       /** Hot heals this fraction of the healed target's maxHp per second (pet heals scale off the pet). */ hotFrac?: number;
       /** Pet-targeted heal (Mend Pet / Revive Pet): acts on the active pet ally, not the player. */ pet?: 'mend' | 'revive';
-      /** Sacrifice a live ally of this kind to power the heal (Death Pact). */ consumeAlly?: import('./wow-types.ts').AllyKind | 'demon' }
-  | { kind: 'hot'; hot: import('./wow-types.ts').HotSpec; maxHpFrac?: number }
-  | { kind: 'buff'; buff: import('./wow-types.ts').BuffSpec }
-  | { kind: 'cc'; cc: import('./wow-types.ts').CcKind; duration: number; radius?: number; maxTargets?: number; resourceGain?: number }
+      /** Sacrifice a live ally of this kind to power the heal (Death Pact). */ consumeAlly?: AllyKind | 'demon' }
+  | { kind: 'hot'; hot: HotSpec; maxHpFrac?: number }
+  | { kind: 'buff'; buff: BuffSpec }
+  | { kind: 'cc'; cc: CcKind; duration: number; radius?: number; maxTargets?: number; resourceGain?: number }
   | { kind: 'interrupt'; silence: number }
   | { kind: 'pull'; stun?: number }
   | { kind: 'taunt'; duration: number; expose?: number }
-  | { kind: 'summon'; ally: import('./wow-types.ts').AllyKind; count: number; duration?: number;
+  | { kind: 'summon'; ally: AllyKind; count: number; duration?: number;
       /** Arrival burst: stuns enemies within radius of the summon point (Inferno). */ stun?: number; radius?: number }
   | { kind: 'tame' }
-  | { kind: 'channel'; school: import('./wow-types.ts').DotSchool; ticks: number; duration: number; radius?: number;
+  | { kind: 'channel'; school: DotSchool; ticks: number; duration: number; radius?: number;
       /** Radial channels center on the aimed point at this range instead of the player (Hunter's Volley). */ targetRange?: number;
       slow?: { duration: number; factor: number }; healFrac?: number; executeBonus?: number; manaPerTick?: number }
-  | { kind: 'form'; form: import('./wow-types.ts').ShapeshiftForm; buff: import('./wow-types.ts').BuffSpec }
+  | { kind: 'form'; form: ShapeshiftForm; buff: BuffSpec }
   | { kind: 'stealth'; duration: number; dropAggro?: boolean }
-  | { kind: 'comboStrike'; build?: number; spend?: boolean; school?: import('./wow-types.ts').DotSchool;
-      dot?: import('./wow-types.ts').DotSpec; stunPerCombo?: number; buffPerCombo?: import('./wow-types.ts').BuffSpec;
+  | { kind: 'comboStrike'; build?: number; spend?: boolean; school?: DotSchool;
+      dot?: DotSpec; stunPerCombo?: number; buffPerCombo?: BuffSpec;
       sunder?: number; requiresBehind?: boolean; requiresStealth?: boolean }
-  | { kind: 'runeStrike'; school?: import('./wow-types.ts').DotSchool; dot?: import('./wow-types.ts').DotSpec;
+  | { kind: 'runeStrike'; school?: DotSchool; dot?: DotSpec;
       healFrac?: number; diseaseBonus?: number }
-  | { kind: 'cleanse'; heal?: number; removeCc?: boolean; resourceGain?: number; buff?: import('./wow-types.ts').BuffSpec;
+  | { kind: 'cleanse'; heal?: number; removeCc?: boolean; resourceGain?: number; buff?: BuffSpec;
       /** Fraction of maxHp paid as cost (Life Tap). */ hpCost?: number;
       /** resourceGain as fraction of maxMana instead of flat. */ resourceGainFrac?: number });
 
 /** Authored WoW skill entry: definition fields plus its execution recipe. */
-export interface WowSkill extends Omit<import('./skill-content.ts').SkillDefinition, 'id'> {
-  readonly id: import('./character-types.ts').WowSkillId;
+export interface WowSkill extends Omit<SkillDefinition, 'id'> {
+  readonly id: WowSkillId;
   readonly execution: SkillExecution;
 }
 
@@ -123,7 +125,7 @@ export const SKILL_EXECUTION = {
   meteor: { kind: 'ground', effect: 'meteor', radius: 125, delay: .85, duration: 0, interval: 1, style: 'fire', scorch: { duration: 4, interval: .25, damageMultiplier: .12 }, burn: { duration: 3, damageMultiplier: .12 } },
   // WoW class kits + racial actives (docs/wow-transformation.md §4).
   ...Object.fromEntries(WOW_SKILLS.map(({ execution, id }) => [id, execution])) as Record<WowSkillId, SkillExecution>,
-  arcLightning: { kind: 'chain', jumps: 5, range: 145, falloff: .78, duration: .28, style: 'lightning' },
+  arcLightning: { kind: 'chain', travelSpeed: 1400, jumps: 5, range: 145, falloff: .78, duration: .28, style: 'lightning' },
 } as const satisfies Record<SkillId, SkillExecution>;
 
 function freeze(value: object): void {

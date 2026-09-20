@@ -1,6 +1,6 @@
 import { getZoneAt } from './zone-progression.ts';
 import { regionLevelLabel } from './encounter-scaling.ts';
-import { AreaNoticeTracker } from './notification-queue.ts';
+import { AreaNoticeTracker } from './area-banner.ts';
 import { hashService } from './npcs.ts';
 import { text, textWidth } from './font.ts';
 import { UI_THEME } from './ui-theme.ts';
