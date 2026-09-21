@@ -16,7 +16,7 @@ test('every WotLK continent has zones and derived bounds', () => {
     const b = CONTINENT_BOUNDS[cid];
     assert.ok(b.w > 0 && b.h > 0, `${cid} bounds`);
   }
-  assert.equal(ids.length, 61);
+  assert.equal(ids.length, 62);
 });
 
 test('no two zones on a continent overlap', () => {
@@ -50,7 +50,7 @@ test('every transport endpoint resolves to a real zone', () => {
     assert.ok(ZONES[t.from.zone], `from ${t.from.zone}`);
     assert.ok(ZONES[t.to.zone], `to ${t.to.zone}`);
     assert.ok(t.durationSec > 0);
-    assert.ok(['ship', 'zeppelin', 'portal', 'flightpath'].includes(t.kind));
+    assert.ok(['ship', 'zeppelin', 'portal', 'flightpath', 'turtle', 'tram'].includes(t.kind));
   }
 });
 
@@ -68,7 +68,8 @@ test('continentAt resolves a zone center to its continent', () => {
 
 test('scale keeps WoW travel times (a zone crossing is minutes, not seconds)', () => {
   // A mid zone ~60000 units at 165 u/s ≈ 6 minutes on foot — WoW-scale.
-  const r = rect('barrens');
+
+  const r = rect('barrens-north');
   const seconds = r.w / 165;
   assert.ok(seconds > 120 && seconds < 3600, `barrens crossing ${seconds.toFixed(0)}s`);
   assert.ok(ATLAS_SCALE >= 20 && ATLAS_SCALE <= 30);

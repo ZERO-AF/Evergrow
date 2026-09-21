@@ -1,4 +1,4 @@
-# T01 — World atlas contract + WoW zone data
+# T01 — World atlas contract + WoW zone data — RESOLVED
 
 **Type:** task (AFK) · **Blocks:** T02, T03, T04, T05, T06, T07, T08, T09 · **Blocked by:** —
 
@@ -39,3 +39,16 @@ no agent invents a zone's location. This is the user's core requirement.
 - `wow-zones.json` covers all four continents' zones + the transport route table.
 - A `world-atlas.test.ts` asserts: no zone overlap, adjacency consistency (A borders B ⇔
   B borders A), every transport endpoint resolves to a real dock, level ranges sane.
+
+## Resolution (decided)
+
+- `game/src/world-atlas.ts` is the frozen contract: `ATLAS_SCALE=24` units/yard (165 u/s
+  run ≈ WoW 7 yd/s → travel times match), 4 continent origins on a 1M-unit ocean grid,
+  `ZONES` (62 rects, validated non-overlapping), `TRANSPORTS` (193 routes: 8 ship, 4
+  zeppelin, 2 turtle, 1 tram, 23 portal, 155 flightpath), lookups `zoneAt/zoneRect/
+  zoneLevel/zonePoint/continentAt/CONTINENT_BOUNDS`.
+- `wayfinder/wow-zones.json` (research output) is the content source: 62 zones with
+  cities/dungeons/docks/flightpaths normalized 0..1 inside each rect, borders, biomes,
+  level ranges, factions. Merged into the atlas via `wayfinder/merge-atlas.mjs`.
+- `world-atlas.test.ts` 8/8 green: non-overlap, adjacency, transport endpoints, levels,
+  scale band.
