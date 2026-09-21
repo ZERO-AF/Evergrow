@@ -20,6 +20,11 @@ import { townPortalAnchor, type PortalAnchor } from './travel.ts';
 import type { Place } from './world-geography.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import type { MaterialId } from './material-content.ts';
+// Continent content packs self-register into ZONE_CONTENT on import (T06–T09).
+import './zone-content-kalimdor.ts';
+import './zone-content-eastern-kingdoms.ts';
+import './zone-content-northrend.ts';
+import './zone-content-outland.ts';
 const OCEAN_WATER: Readonly<WaterSample> = Object.freeze({ coverage: 1, depth: 1, flowX: 0, flowY: 0, bank: 0, kind: 'lake' });
 const OCEAN_BIOME: BiomeId = 'swamp';
 const PROP_CELL = 80;

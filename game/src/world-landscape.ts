@@ -14,7 +14,7 @@ import { raid2Entrances } from './raid2-boss-content.ts';
 import { raid3Entrances } from './raid3-boss-content.ts';
 import { raid4Entrances } from './raid4-boss-content.ts';
 import { blackrockEntrances } from './dungeon2-content.ts';
-import { biomeGround, biomeMapColor, proceduralBiomeSample, sampleBiome } from './biomes.ts';
+import { biomeGround, biomeMapColor, proceduralBiomeSample } from './biomes.ts';
 import type { BiomeId, BiomeSample } from './biomes.ts';
 import { chooseBiomeProp, propDefinition, type PropKind } from './biome-props.ts';
 import { circleHitsRect, contains, freezeSettlement, generateSettlement, intersects, MAX_TOWN_RADIUS, settlementPavingWeight, settlementPOIs } from './settlements.ts';

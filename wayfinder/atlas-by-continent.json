@@ -1,0 +1,1732 @@
+{
+ "kalimdor": [
+  {
+   "id": "teldrassil",
+   "name": "Teldrassil",
+   "terrain": "purple world-tree forest",
+   "faction": "alliance",
+   "lvl": "1-10",
+   "rect": {
+    "x": 0,
+    "y": 20000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Darnassus@0.35,0.28:town",
+    "Dolanaar@0.55,0.55:town",
+    "Rut'theran Village@0.55,0.92:town"
+   ],
+   "dungeons": [],
+   "docks": [
+    "Rut'theran Village Dock@0.55,0.96"
+   ],
+   "borders": {
+    "north": null,
+    "south": null,
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "bloodmyst",
+   "name": "Bloodmyst Isle",
+   "terrain": "corrupted red-crystal isle",
+   "faction": "alliance",
+   "lvl": "10-20",
+   "rect": {
+    "x": 0,
+    "y": 100000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Blood Watch@0.50,0.50:town",
+    "Vindicator's Rest@0.30,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "azuremyst",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "azuremyst",
+   "name": "Azuremyst Isle",
+   "terrain": "crystalline pine isle",
+   "faction": "alliance",
+   "lvl": "1-10",
+   "rect": {
+    "x": 0,
+    "y": 140000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "The Exodar@0.30,0.40:town",
+    "Azure Watch@0.50,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [
+    "Valaar's Berth@0.22,0.55"
+   ],
+   "borders": {
+    "north": "bloodmyst",
+    "south": null,
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "moonglade",
+   "name": "Moonglade",
+   "terrain": "sacred druid forest",
+   "faction": "neutral",
+   "lvl": "50-60",
+   "rect": {
+    "x": 140000,
+    "y": 0,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Nighthaven@0.50,0.40:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "felwood",
+    "east": "winterspring",
+    "west": null
+   }
+  },
+  {
+   "id": "winterspring",
+   "name": "Winterspring",
+   "terrain": "snowy mountains",
+   "faction": "contested",
+   "lvl": "55-60",
+   "rect": {
+    "x": 200000,
+    "y": 0,
+    "w": 120000,
+    "h": 60000
+   },
+   "cities": [
+    "Everlook@0.60,0.40:town",
+    "Starfall Village@0.45,0.30:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "felwood",
+    "east": null,
+    "west": "moonglade"
+   }
+  },
+  {
+   "id": "darkshore",
+   "name": "Darkshore",
+   "terrain": "gloomy coastal forest",
+   "faction": "alliance",
+   "lvl": "10-20",
+   "rect": {
+    "x": 80000,
+    "y": 0,
+    "w": 60000,
+    "h": 120000
+   },
+   "cities": [
+    "Auberdine@0.40,0.35:town",
+    "Grove of the Ancients@0.50,0.75:town"
+   ],
+   "dungeons": [],
+   "docks": [
+    "Auberdine Docks@0.34,0.36"
+   ],
+   "borders": {
+    "north": null,
+    "south": "ashenvale",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "felwood",
+   "name": "Felwood",
+   "terrain": "corrupted forest",
+   "faction": "contested",
+   "lvl": "48-55",
+   "rect": {
+    "x": 140000,
+    "y": 60000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Bloodvenom Post@0.40,0.55:town",
+    "Talonbranch Glade@0.55,0.30:town",
+    "Emerald Sanctuary@0.50,0.75:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "moonglade",
+    "south": "ashenvale",
+    "east": "azshara",
+    "west": null
+   }
+  },
+  {
+   "id": "azshara",
+   "name": "Azshara",
+   "terrain": "autumnal cliffs and naga ruins",
+   "faction": "contested",
+   "lvl": "45-55",
+   "rect": {
+    "x": 220000,
+    "y": 60000,
+    "w": 100000,
+    "h": 80000
+   },
+   "cities": [
+    "Valormok@0.30,0.50:town",
+    "Talrendis Point@0.15,0.60:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "durotar",
+    "east": null,
+    "west": "ashenvale"
+   }
+  },
+  {
+   "id": "ashenvale",
+   "name": "Ashenvale",
+   "terrain": "dark ancient forest",
+   "faction": "contested",
+   "lvl": "18-30",
+   "rect": {
+    "x": 80000,
+    "y": 120000,
+    "w": 140000,
+    "h": 80000
+   },
+   "cities": [
+    "Astranaar@0.40,0.55:town",
+    "Splintertree Post@0.72,0.50:town",
+    "Zoram'gar Outpost@0.08,0.45:town",
+    "Forest Song@0.85,0.40:town"
+   ],
+   "dungeons": [
+    "Blackfathom Deeps@0.12,0.20"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "darkshore",
+    "south": "barrens-north",
+    "east": "azshara",
+    "west": null
+   }
+  },
+  {
+   "id": "durotar",
+   "name": "Durotar",
+   "terrain": "arid red canyon",
+   "faction": "horde",
+   "lvl": "1-10",
+   "rect": {
+    "x": 240000,
+    "y": 140000,
+    "w": 80000,
+    "h": 100000
+   },
+   "cities": [
+    "Orgrimmar@0.45,0.10:town",
+    "Razor Hill@0.52,0.55:town",
+    "Sen'jin Village@0.55,0.82:town"
+   ],
+   "dungeons": [
+    "Ragefire Chasm@0.45,0.12"
+   ],
+   "docks": [
+    "Orgrimmar Zeppelin Tower@0.35,0.14"
+   ],
+   "borders": {
+    "north": "azshara",
+    "south": null,
+    "east": null,
+    "west": "barrens-north"
+   }
+  },
+  {
+   "id": "stonetalon",
+   "name": "Stonetalon Mountains",
+   "terrain": "rocky peaks and charred vale",
+   "faction": "contested",
+   "lvl": "15-27",
+   "rect": {
+    "x": 80000,
+    "y": 200000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Stonetalon Peak@0.30,0.15:town",
+    "Sun Rock Retreat@0.55,0.60:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "ashenvale",
+    "south": "desolace",
+    "east": "barrens-north",
+    "west": null
+   }
+  },
+  {
+   "id": "barrens-north",
+   "name": "The Barrens (North)",
+   "terrain": "savanna",
+   "faction": "horde",
+   "lvl": "10-20",
+   "rect": {
+    "x": 140000,
+    "y": 200000,
+    "w": 100000,
+    "h": 60000
+   },
+   "cities": [
+    "The Crossroads@0.50,0.55:town",
+    "Ratchet@0.85,0.55:town"
+   ],
+   "dungeons": [
+    "Wailing Caverns@0.35,0.45"
+   ],
+   "docks": [
+    "Ratchet Dock@0.88,0.56"
+   ],
+   "borders": {
+    "north": "ashenvale",
+    "south": "barrens-south",
+    "east": "durotar",
+    "west": "stonetalon"
+   }
+  },
+  {
+   "id": "barrens-south",
+   "name": "The Barrens (South)",
+   "terrain": "dry savanna and razorfen brambles",
+   "faction": "horde",
+   "lvl": "20-35",
+   "rect": {
+    "x": 140000,
+    "y": 260000,
+    "w": 100000,
+    "h": 40000
+   },
+   "cities": [
+    "Camp Taurajo@0.40,0.60:town"
+   ],
+   "dungeons": [
+    "Razorfen Kraul@0.28,0.85",
+    "Razorfen Downs@0.50,0.95"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "barrens-north",
+    "south": "thousand-needles",
+    "east": "dustwallow",
+    "west": "mulgore"
+   }
+  },
+  {
+   "id": "dustwallow",
+   "name": "Dustwallow Marsh",
+   "terrain": "swamp",
+   "faction": "contested",
+   "lvl": "35-45",
+   "rect": {
+    "x": 240000,
+    "y": 240000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Theramore Isle@0.75,0.55:town",
+    "Brackenwall Village@0.35,0.30:town",
+    "Mudsprocket@0.40,0.75:town"
+   ],
+   "dungeons": [
+    "Onyxia's Lair@0.50,0.70"
+   ],
+   "docks": [
+    "Theramore Dock@0.78,0.56"
+   ],
+   "borders": {
+    "north": "barrens-south",
+    "south": "thousand-needles",
+    "east": null,
+    "west": "barrens-south"
+   }
+  },
+  {
+   "id": "desolace",
+   "name": "Desolace",
+   "terrain": "grey barren wastes",
+   "faction": "contested",
+   "lvl": "30-40",
+   "rect": {
+    "x": 80000,
+    "y": 260000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Nijel's Point@0.60,0.10:town",
+    "Shadowprey Village@0.25,0.70:town"
+   ],
+   "dungeons": [
+    "Maraudon@0.35,0.55"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "stonetalon",
+    "south": "feralas",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "mulgore",
+   "name": "Mulgore",
+   "terrain": "green plains and mesas",
+   "faction": "horde",
+   "lvl": "1-10",
+   "rect": {
+    "x": 140000,
+    "y": 300000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Thunder Bluff@0.45,0.35:town",
+    "Bloodhoof Village@0.50,0.62:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": null,
+    "east": "barrens-south",
+    "west": null
+   }
+  },
+  {
+   "id": "thousand-needles",
+   "name": "Thousand Needles",
+   "terrain": "canyon needles and salt flats",
+   "faction": "contested",
+   "lvl": "25-35",
+   "rect": {
+    "x": 200000,
+    "y": 300000,
+    "w": 40000,
+    "h": 60000
+   },
+   "cities": [
+    "Freewind Post@0.45,0.45:town",
+    "Mirage Raceway@0.75,0.60:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "barrens-south",
+    "south": "tanaris",
+    "east": "dustwallow",
+    "west": "feralas"
+   }
+  },
+  {
+   "id": "feralas",
+   "name": "Feralas",
+   "terrain": "lush jungle forest",
+   "faction": "contested",
+   "lvl": "40-50",
+   "rect": {
+    "x": 80000,
+    "y": 320000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Feathermoon Stronghold@0.15,0.55:town",
+    "Camp Mojache@0.75,0.45:town",
+    "Thalanaar@0.90,0.35:town"
+   ],
+   "dungeons": [
+    "Dire Maul@0.55,0.40"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "desolace",
+    "south": null,
+    "east": "thousand-needles",
+    "west": null
+   }
+  },
+  {
+   "id": "tanaris",
+   "name": "Tanaris",
+   "terrain": "desert",
+   "faction": "contested",
+   "lvl": "40-50",
+   "rect": {
+    "x": 240000,
+    "y": 300000,
+    "w": 80000,
+    "h": 100000
+   },
+   "cities": [
+    "Gadgetzan@0.55,0.30:town",
+    "Steamwheedle Port@0.70,0.12:town"
+   ],
+   "dungeons": [
+    "Zul'Farrak@0.20,0.35",
+    "Caverns of Time@0.65,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "thousand-needles",
+    "south": null,
+    "east": null,
+    "west": "ungoro"
+   }
+  },
+  {
+   "id": "ungoro",
+   "name": "Un'Goro Crater",
+   "terrain": "prehistoric jungle crater",
+   "faction": "contested",
+   "lvl": "48-55",
+   "rect": {
+    "x": 200000,
+    "y": 360000,
+    "w": 40000,
+    "h": 40000
+   },
+   "cities": [
+    "Marshal's Refuge@0.50,0.15:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": null,
+    "east": "tanaris",
+    "west": "silithus"
+   }
+  },
+  {
+   "id": "silithus",
+   "name": "Silithus",
+   "terrain": "silithid desert",
+   "faction": "contested",
+   "lvl": "55-60",
+   "rect": {
+    "x": 80000,
+    "y": 360000,
+    "w": 120000,
+    "h": 40000
+   },
+   "cities": [
+    "Cenarion Hold@0.50,0.35:town"
+   ],
+   "dungeons": [
+    "Ruins of Ahn'Qiraj@0.55,0.90",
+    "Temple of Ahn'Qiraj@0.60,0.93"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": null,
+    "east": "ungoro",
+    "west": null
+   }
+  }
+ ],
+ "eastern-kingdoms": [
+  {
+   "id": "eversong",
+   "name": "Eversong Woods",
+   "terrain": "golden autumn forest",
+   "faction": "horde",
+   "lvl": "1-10",
+   "rect": {
+    "x": 1160000,
+    "y": 0,
+    "w": 120000,
+    "h": 40000
+   },
+   "cities": [
+    "Silvermoon City@0.55,0.25:town",
+    "Falconwing Square@0.45,0.55:town",
+    "Fairbreeze Village@0.42,0.72:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "ghostlands",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "ghostlands",
+   "name": "Ghostlands",
+   "terrain": "dead haunted forest",
+   "faction": "horde",
+   "lvl": "10-20",
+   "rect": {
+    "x": 1160000,
+    "y": 40000,
+    "w": 120000,
+    "h": 20000
+   },
+   "cities": [
+    "Tranquillien@0.45,0.35:town"
+   ],
+   "dungeons": [
+    "Zul'Aman@0.65,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "eversong",
+    "south": "eastern-plaguelands",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "tirisfal",
+   "name": "Tirisfal Glades",
+   "terrain": "forsaken woodland",
+   "faction": "horde",
+   "lvl": "1-10",
+   "rect": {
+    "x": 1000000,
+    "y": 60000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Undercity@0.55,0.35:town",
+    "Brill@0.55,0.55:town",
+    "The Bulwark@0.85,0.60:town"
+   ],
+   "dungeons": [
+    "Scarlet Monastery@0.80,0.25"
+   ],
+   "docks": [
+    "Undercity Zeppelin Tower@0.60,0.30"
+   ],
+   "borders": {
+    "north": null,
+    "south": "silverpine",
+    "east": "western-plaguelands",
+    "west": null
+   }
+  },
+  {
+   "id": "western-plaguelands",
+   "name": "Western Plaguelands",
+   "terrain": "plagued farmland",
+   "faction": "contested",
+   "lvl": "51-58",
+   "rect": {
+    "x": 1080000,
+    "y": 60000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Chillwind Camp@0.45,0.85:town",
+    "The Bulwark@0.15,0.60:town"
+   ],
+   "dungeons": [
+    "Scholomance@0.70,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "alterac",
+    "east": "eastern-plaguelands",
+    "west": "tirisfal"
+   }
+  },
+  {
+   "id": "eastern-plaguelands",
+   "name": "Eastern Plaguelands",
+   "terrain": "blighted deadlands",
+   "faction": "contested",
+   "lvl": "53-60",
+   "rect": {
+    "x": 1160000,
+    "y": 60000,
+    "w": 120000,
+    "h": 60000
+   },
+   "cities": [
+    "Light's Hope Chapel@0.75,0.55:town"
+   ],
+   "dungeons": [
+    "Stratholme@0.30,0.20"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "ghostlands",
+    "south": null,
+    "east": null,
+    "west": "western-plaguelands"
+   }
+  },
+  {
+   "id": "silverpine",
+   "name": "Silverpine Forest",
+   "terrain": "dark pine forest",
+   "faction": "horde",
+   "lvl": "10-20",
+   "rect": {
+    "x": 1000000,
+    "y": 120000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "The Sepulcher@0.45,0.45:town"
+   ],
+   "dungeons": [
+    "Shadowfang Keep@0.35,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "tirisfal",
+    "south": "hillsbrad",
+    "east": "alterac",
+    "west": null
+   }
+  },
+  {
+   "id": "hillsbrad",
+   "name": "Hillsbrad Foothills",
+   "terrain": "green foothills",
+   "faction": "contested",
+   "lvl": "20-30",
+   "rect": {
+    "x": 1060000,
+    "y": 120000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Southshore@0.50,0.80:town",
+    "Tarren Mill@0.60,0.35:town"
+   ],
+   "dungeons": [],
+   "docks": [
+    "Southshore Dock@0.50,0.88"
+   ],
+   "borders": {
+    "north": "alterac",
+    "south": null,
+    "east": "arathi",
+    "west": "silverpine"
+   }
+  },
+  {
+   "id": "hinterlands",
+   "name": "The Hinterlands",
+   "terrain": "forested troll highlands",
+   "faction": "contested",
+   "lvl": "40-50",
+   "rect": {
+    "x": 1160000,
+    "y": 120000,
+    "w": 120000,
+    "h": 60000
+   },
+   "cities": [
+    "Aerie Peak@0.15,0.50:town",
+    "Revantusk Village@0.80,0.80:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "western-plaguelands",
+    "south": "hillsbrad",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "alterac",
+   "name": "Alterac Mountains",
+   "terrain": "snowy ogre highlands",
+   "faction": "contested",
+   "lvl": "30-40",
+   "rect": {
+    "x": 1060000,
+    "y": 180000,
+    "w": 80000,
+    "h": 40000
+   },
+   "cities": [
+    "Alterac Ruins@0.40,0.45:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "western-plaguelands",
+    "south": "hillsbrad",
+    "east": null,
+    "west": "silverpine"
+   }
+  },
+  {
+   "id": "arathi",
+   "name": "Arathi Highlands",
+   "terrain": "grassy highlands",
+   "faction": "contested",
+   "lvl": "30-40",
+   "rect": {
+    "x": 1140000,
+    "y": 180000,
+    "w": 80000,
+    "h": 40000
+   },
+   "cities": [
+    "Refuge Pointe@0.45,0.40:town",
+    "Hammerfall@0.72,0.35:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "wetlands",
+    "east": null,
+    "west": "hillsbrad"
+   }
+  },
+  {
+   "id": "wetlands",
+   "name": "Wetlands",
+   "terrain": "marsh",
+   "faction": "alliance",
+   "lvl": "20-30",
+   "rect": {
+    "x": 1100000,
+    "y": 220000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Menethil Harbor@0.15,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [
+    "Menethil Harbor@0.10,0.55"
+   ],
+   "borders": {
+    "north": "arathi",
+    "south": "loch-modan",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "dun-morogh",
+   "name": "Dun Morogh",
+   "terrain": "snowy dwarf highlands",
+   "faction": "alliance",
+   "lvl": "1-10",
+   "rect": {
+    "x": 1040000,
+    "y": 220000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Ironforge@0.55,0.30:town",
+    "Kharanos@0.45,0.55:town"
+   ],
+   "dungeons": [
+    "Gnomeregan@0.25,0.40"
+   ],
+   "docks": [
+    "Deeprun Tram (Ironforge)@0.60,0.32"
+   ],
+   "borders": {
+    "north": null,
+    "south": "searing-gorge",
+    "east": "loch-modan",
+    "west": null
+   }
+  },
+  {
+   "id": "loch-modan",
+   "name": "Loch Modan",
+   "terrain": "highland lake",
+   "faction": "alliance",
+   "lvl": "10-20",
+   "rect": {
+    "x": 1100000,
+    "y": 260000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Thelsamar@0.35,0.50:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "wetlands",
+    "south": "badlands",
+    "east": null,
+    "west": "dun-morogh"
+   }
+  },
+  {
+   "id": "searing-gorge",
+   "name": "Searing Gorge",
+   "terrain": "volcanic gorge",
+   "faction": "contested",
+   "lvl": "43-50",
+   "rect": {
+    "x": 1060000,
+    "y": 280000,
+    "w": 40000,
+    "h": 40000
+   },
+   "cities": [
+    "Thorium Point@0.35,0.30:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "dun-morogh",
+    "south": "burning-steppes",
+    "east": "badlands",
+    "west": null
+   }
+  },
+  {
+   "id": "badlands",
+   "name": "Badlands",
+   "terrain": "scorched badlands",
+   "faction": "contested",
+   "lvl": "35-45",
+   "rect": {
+    "x": 1120000,
+    "y": 300000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Kargath@0.10,0.45:town"
+   ],
+   "dungeons": [
+    "Uldaman@0.45,0.25"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "loch-modan",
+    "south": "searing-gorge",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "burning-steppes",
+   "name": "Burning Steppes",
+   "terrain": "ashen volcanic steppes",
+   "faction": "contested",
+   "lvl": "50-58",
+   "rect": {
+    "x": 1060000,
+    "y": 320000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Morgan's Vigil@0.80,0.70:town",
+    "Flame Crest@0.60,0.30:town"
+   ],
+   "dungeons": [
+    "Blackrock Depths@0.30,0.40",
+    "Lower Blackrock Spire@0.30,0.42",
+    "Upper Blackrock Spire@0.30,0.44",
+    "Molten Core@0.28,0.40",
+    "Blackwing Lair@0.32,0.42"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "searing-gorge",
+    "south": "redridge",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "elwynn",
+   "name": "Elwynn Forest",
+   "terrain": "green forest",
+   "faction": "alliance",
+   "lvl": "1-10",
+   "rect": {
+    "x": 1000000,
+    "y": 280000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Stormwind City@0.35,0.15:town",
+    "Goldshire@0.45,0.60:town"
+   ],
+   "dungeons": [
+    "The Stockade@0.38,0.18"
+   ],
+   "docks": [
+    "Stormwind Harbor@0.28,0.10",
+    "Deeprun Tram (Stormwind)@0.40,0.16"
+   ],
+   "borders": {
+    "north": null,
+    "south": "duskwood",
+    "east": "redridge",
+    "west": "westfall"
+   }
+  },
+  {
+   "id": "westfall",
+   "name": "Westfall",
+   "terrain": "dry farmland",
+   "faction": "alliance",
+   "lvl": "10-20",
+   "rect": {
+    "x": 1000000,
+    "y": 340000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Sentinel Hill@0.55,0.45:town"
+   ],
+   "dungeons": [
+    "The Deadmines@0.40,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "duskwood",
+    "east": "elwynn",
+    "west": null
+   }
+  },
+  {
+   "id": "redridge",
+   "name": "Redridge Mountains",
+   "terrain": "red mountain ridges",
+   "faction": "alliance",
+   "lvl": "15-25",
+   "rect": {
+    "x": 1060000,
+    "y": 360000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Lakeshire@0.30,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "burning-steppes",
+    "south": "duskwood",
+    "east": null,
+    "west": "elwynn"
+   }
+  },
+  {
+   "id": "swamp-of-sorrows",
+   "name": "Swamp of Sorrows",
+   "terrain": "murky swamp",
+   "faction": "contested",
+   "lvl": "35-45",
+   "rect": {
+    "x": 1120000,
+    "y": 360000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [
+    "Stonard@0.45,0.55:town"
+   ],
+   "dungeons": [
+    "Temple of Atal'Hakkar@0.70,0.55"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "deadwind",
+    "south": "blasted-lands",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "duskwood",
+   "name": "Duskwood",
+   "terrain": "haunted dark forest",
+   "faction": "alliance",
+   "lvl": "18-30",
+   "rect": {
+    "x": 1000000,
+    "y": 400000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "Darkshire@0.75,0.45:town",
+    "Raven Hill@0.20,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "elwynn",
+    "south": "stranglethorn",
+    "east": "deadwind",
+    "west": "westfall"
+   }
+  },
+  {
+   "id": "deadwind",
+   "name": "Deadwind Pass",
+   "terrain": "dead canyon pass",
+   "faction": "contested",
+   "lvl": "55-60",
+   "rect": {
+    "x": 1060000,
+    "y": 400000,
+    "w": 60000,
+    "h": 40000
+   },
+   "cities": [],
+   "dungeons": [
+    "Karazhan@0.45,0.75"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "swamp-of-sorrows",
+    "east": null,
+    "west": "duskwood"
+   }
+  },
+  {
+   "id": "blasted-lands",
+   "name": "Blasted Lands",
+   "terrain": "fel-scorched wastes",
+   "faction": "contested",
+   "lvl": "45-55",
+   "rect": {
+    "x": 1120000,
+    "y": 400000,
+    "w": 100000,
+    "h": 60000
+   },
+   "cities": [
+    "Nethergarde Keep@0.60,0.20:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "swamp-of-sorrows",
+    "south": null,
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "stranglethorn",
+   "name": "Stranglethorn Vale",
+   "terrain": "dense jungle",
+   "faction": "contested",
+   "lvl": "30-45",
+   "rect": {
+    "x": 1000000,
+    "y": 460000,
+    "w": 100000,
+    "h": 40000
+   },
+   "cities": [
+    "Booty Bay@0.30,0.85:town",
+    "Grom'gol Base Camp@0.35,0.30:town",
+    "Rebel Camp@0.40,0.10:town"
+   ],
+   "dungeons": [
+    "Zul'Gurub@0.65,0.35"
+   ],
+   "docks": [
+    "Booty Bay Dock@0.28,0.88",
+    "Grom'gol Zeppelin Tower@0.33,0.28"
+   ],
+   "borders": {
+    "north": "duskwood",
+    "south": null,
+    "east": null,
+    "west": null
+   }
+  }
+ ],
+ "northrend": [
+  {
+   "id": "icecrown",
+   "name": "Icecrown",
+   "terrain": "scourge glacier and citadel",
+   "faction": "contested",
+   "lvl": "77-80",
+   "rect": {
+    "x": 60000,
+    "y": 1000000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "The Argent Vanguard@0.85,0.75:town",
+    "Crusaders' Pinnacle@0.78,0.65:town",
+    "The Shadow Vault@0.45,0.25:town",
+    "Death's Rise@0.20,0.45:town"
+   ],
+   "dungeons": [
+    "Trial of the Champion@0.72,0.20",
+    "Trial of the Crusader@0.72,0.22",
+    "Forge of Souls@0.55,0.80",
+    "Pit of Saron@0.55,0.82",
+    "Halls of Reflection@0.55,0.84",
+    "Icecrown Citadel@0.55,0.86"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "crystalsong",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "storm-peaks",
+   "name": "The Storm Peaks",
+   "terrain": "titan ice mountains",
+   "faction": "contested",
+   "lvl": "76-80",
+   "rect": {
+    "x": 140000,
+    "y": 1000000,
+    "w": 60000,
+    "h": 60000
+   },
+   "cities": [
+    "K3@0.40,0.85:town",
+    "Frosthold@0.30,0.70:town",
+    "Grom'arsh Crash-Site@0.35,0.50:town",
+    "Bouldercrag's Refuge@0.30,0.35:town",
+    "Ulduar@0.40,0.25:town",
+    "Dun Niffelem@0.60,0.60:town"
+   ],
+   "dungeons": [
+    "Halls of Stone@0.42,0.28",
+    "Halls of Lightning@0.45,0.28",
+    "Ulduar@0.40,0.25"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "icecrown",
+    "south": "sholazar",
+    "east": "zuldrak",
+    "west": null
+   }
+  },
+  {
+   "id": "zuldrak",
+   "name": "Zul'Drak",
+   "terrain": "troll temple ziggurats",
+   "faction": "contested",
+   "lvl": "74-77",
+   "rect": {
+    "x": 200000,
+    "y": 1000000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "The Argent Stand@0.40,0.65:town",
+    "Zim'Torga@0.60,0.55:town",
+    "Ebon Watch@0.15,0.75:town",
+    "Light's Breach@0.30,0.75:town"
+   ],
+   "dungeons": [
+    "Gundrak@0.80,0.25"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "grizzly-hills",
+    "east": null,
+    "west": "storm-peaks"
+   }
+  },
+  {
+   "id": "sholazar",
+   "name": "Sholazar Basin",
+   "terrain": "tropical jungle basin",
+   "faction": "contested",
+   "lvl": "75-78",
+   "rect": {
+    "x": 0,
+    "y": 1060000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Nesingwary Base Camp@0.25,0.55:town",
+    "River's Heart@0.50,0.60:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "storm-peaks",
+    "south": "borean-tundra",
+    "east": "wintergrasp",
+    "west": null
+   }
+  },
+  {
+   "id": "crystalsong",
+   "name": "Crystalsong Forest",
+   "terrain": "crystalline forest",
+   "faction": "neutral",
+   "lvl": "74-80",
+   "rect": {
+    "x": 80000,
+    "y": 1060000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Dalaran@0.30,0.45:town",
+    "Windrunner's Overlook@0.72,0.55:town",
+    "Sunreaver's Command@0.78,0.45:town"
+   ],
+   "dungeons": [
+    "The Violet Hold@0.30,0.48"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "icecrown",
+    "south": "dragonblight",
+    "east": "zuldrak",
+    "west": "wintergrasp"
+   }
+  },
+  {
+   "id": "grizzly-hills",
+   "name": "Grizzly Hills",
+   "terrain": "redwood hills",
+   "faction": "contested",
+   "lvl": "73-75",
+   "rect": {
+    "x": 200000,
+    "y": 1060000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Amberpine Lodge@0.30,0.55:town",
+    "Conquest Hold@0.20,0.65:town",
+    "Westfall Brigade Encampment@0.55,0.30:town",
+    "Camp Oneqwah@0.65,0.45:town"
+   ],
+   "dungeons": [
+    "Drak'Tharon Keep@0.15,0.25"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "zuldrak",
+    "south": "howling-fjord",
+    "east": null,
+    "west": "dragonblight"
+   }
+  },
+  {
+   "id": "borean-tundra",
+   "name": "Borean Tundra",
+   "terrain": "frozen tundra",
+   "faction": "contested",
+   "lvl": "68-72",
+   "rect": {
+    "x": 0,
+    "y": 1120000,
+    "w": 80000,
+    "h": 80000
+   },
+   "cities": [
+    "Valiance Keep@0.55,0.75:town",
+    "Warsong Hold@0.40,0.55:town",
+    "Amber Ledge@0.45,0.35:town",
+    "Transitus Shield@0.30,0.35:town",
+    "Unu'pe@0.78,0.55:town"
+   ],
+   "dungeons": [
+    "The Nexus@0.28,0.30",
+    "The Oculus@0.28,0.28",
+    "Eye of Eternity@0.28,0.26"
+   ],
+   "docks": [
+    "Valiance Keep Dock@0.58,0.80",
+    "Warsong Hold Zeppelin Tower@0.40,0.58",
+    "Unu'pe Turtle Dock@0.80,0.57"
+   ],
+   "borders": {
+    "north": "sholazar",
+    "south": null,
+    "east": "dragonblight",
+    "west": null
+   }
+  },
+  {
+   "id": "dragonblight",
+   "name": "Dragonblight",
+   "terrain": "dragon graveyard wastes",
+   "faction": "contested",
+   "lvl": "71-74",
+   "rect": {
+    "x": 80000,
+    "y": 1120000,
+    "w": 120000,
+    "h": 60000
+   },
+   "cities": [
+    "Wintergarde Keep@0.78,0.35:town",
+    "Agmar's Hammer@0.38,0.45:town",
+    "Wyrmrest Temple@0.58,0.50:town",
+    "Stars' Rest@0.28,0.55:town",
+    "Venomspite@0.75,0.60:town",
+    "Moa'ki Harbor@0.48,0.78:town"
+   ],
+   "dungeons": [
+    "Azjol-Nerub@0.25,0.50",
+    "Ahn'kahet: The Old Kingdom@0.25,0.52",
+    "Naxxramas@0.85,0.30",
+    "Obsidian Sanctum@0.58,0.55",
+    "Ruby Sanctum@0.58,0.57"
+   ],
+   "docks": [
+    "Moa'ki Harbor Turtle Dock@0.48,0.82"
+   ],
+   "borders": {
+    "north": "crystalsong",
+    "south": null,
+    "east": "grizzly-hills",
+    "west": "wintergrasp"
+   }
+  },
+  {
+   "id": "howling-fjord",
+   "name": "Howling Fjord",
+   "terrain": "fjord cliffs and pine forest",
+   "faction": "contested",
+   "lvl": "68-72",
+   "rect": {
+    "x": 200000,
+    "y": 1120000,
+    "w": 80000,
+    "h": 80000
+   },
+   "cities": [
+    "Valgarde@0.55,0.60:town",
+    "Vengeance Landing@0.78,0.35:town",
+    "Westguard Keep@0.30,0.45:town",
+    "New Agamand@0.50,0.75:town",
+    "Kamagua@0.25,0.60:town",
+    "Fort Wildervar@0.60,0.20:town",
+    "Camp Winterhoof@0.50,0.15:town"
+   ],
+   "dungeons": [
+    "Utgarde Keep@0.55,0.50",
+    "Utgarde Pinnacle@0.55,0.48"
+   ],
+   "docks": [
+    "Valgarde Dock@0.58,0.65",
+    "Vengeance Landing Zeppelin Tower@0.80,0.33",
+    "Kamagua Turtle Dock@0.23,0.62"
+   ],
+   "borders": {
+    "north": "grizzly-hills",
+    "south": null,
+    "east": null,
+    "west": "dragonblight"
+   }
+  },
+  {
+   "id": "wintergrasp",
+   "name": "Wintergrasp",
+   "terrain": "frozen battlefield lake",
+   "faction": "contested",
+   "lvl": "77-80",
+   "rect": {
+    "x": 80000,
+    "y": 1180000,
+    "w": 80000,
+    "h": 20000
+   },
+   "cities": [
+    "Wintergrasp Fortress@0.50,0.25:town",
+    "Valiance Landing Camp@0.72,0.60:town",
+    "Warsong Camp@0.25,0.60:town"
+   ],
+   "dungeons": [
+    "Vault of Archavon@0.50,0.22"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "icecrown",
+    "south": "dragonblight",
+    "east": "crystalsong",
+    "west": "sholazar"
+   }
+  }
+ ],
+ "outland": [
+  {
+   "id": "hellfire",
+   "name": "Hellfire Peninsula",
+   "terrain": "fel-red shattered wastes",
+   "faction": "contested",
+   "lvl": "58-63",
+   "rect": {
+    "x": 1080000,
+    "y": 1000000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Honor Hold@0.55,0.60:town",
+    "Thrallmar@0.55,0.40:town",
+    "Temple of Telhamat@0.25,0.50:town",
+    "Falcon Watch@0.28,0.60:town",
+    "Shatter Point@0.78,0.35:town"
+   ],
+   "dungeons": [
+    "Hellfire Ramparts@0.48,0.52",
+    "Blood Furnace@0.46,0.52",
+    "Shattered Halls@0.48,0.50",
+    "Magtheridon's Lair@0.46,0.50"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "terokkar",
+    "east": null,
+    "west": "zangarmarsh"
+   }
+  },
+  {
+   "id": "netherstorm",
+   "name": "Netherstorm",
+   "terrain": "arcane shattered islands",
+   "faction": "contested",
+   "lvl": "67-70",
+   "rect": {
+    "x": 1160000,
+    "y": 1000000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Area 52@0.33,0.65:town",
+    "The Stormspire@0.45,0.35:town",
+    "Cosmowrench@0.65,0.65:town"
+   ],
+   "dungeons": [
+    "The Mechanar@0.72,0.55",
+    "The Botanica@0.74,0.55",
+    "The Arcatraz@0.76,0.55",
+    "The Eye@0.74,0.52"
+   ],
+   "docks": [],
+   "borders": {
+    "north": null,
+    "south": "blades-edge",
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "zangarmarsh",
+   "name": "Zangarmarsh",
+   "terrain": "giant mushroom swamp",
+   "faction": "contested",
+   "lvl": "60-64",
+   "rect": {
+    "x": 1000000,
+    "y": 1060000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Telredor@0.68,0.50:town",
+    "Zabra'jin@0.30,0.50:town",
+    "Cenarion Refuge@0.80,0.65:town",
+    "Orebor Harborage@0.42,0.30:town",
+    "Swamprat Post@0.85,0.55:town"
+   ],
+   "dungeons": [
+    "The Slave Pens@0.50,0.40",
+    "The Underbog@0.50,0.38",
+    "The Steamvault@0.50,0.36",
+    "Serpentshrine Cavern@0.50,0.34"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "blades-edge",
+    "south": "terokkar",
+    "east": "hellfire",
+    "west": "nagrand"
+   }
+  },
+  {
+   "id": "terokkar",
+   "name": "Terokkar Forest",
+   "terrain": "misty forest and bone wastes",
+   "faction": "contested",
+   "lvl": "62-65",
+   "rect": {
+    "x": 1080000,
+    "y": 1060000,
+    "w": 80000,
+    "h": 60000
+   },
+   "cities": [
+    "Shattrath City@0.35,0.25:town",
+    "Allerian Stronghold@0.55,0.55:town",
+    "Stonebreaker Hold@0.50,0.45:town"
+   ],
+   "dungeons": [
+    "Mana-Tombs@0.40,0.60",
+    "Auchenai Crypts@0.38,0.62",
+    "Sethekk Halls@0.36,0.62",
+    "Shadow Labyrinth@0.38,0.65"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "hellfire",
+    "south": "shadowmoon",
+    "east": null,
+    "west": "nagrand"
+   }
+  },
+  {
+   "id": "shadowmoon",
+   "name": "Shadowmoon Valley",
+   "terrain": "fel-green volcanic valley",
+   "faction": "contested",
+   "lvl": "67-70",
+   "rect": {
+    "x": 1160000,
+    "y": 1060000,
+    "w": 80000,
+    "h": 100000
+   },
+   "cities": [
+    "Wildhammer Stronghold@0.35,0.55:town",
+    "Shadowmoon Village@0.30,0.30:town",
+    "Sanctum of the Stars@0.55,0.60:town",
+    "Altar of Sha'tar@0.60,0.30:town"
+   ],
+   "dungeons": [
+    "Black Temple@0.70,0.45"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "terokkar",
+    "south": null,
+    "east": null,
+    "west": null
+   }
+  },
+  {
+   "id": "nagrand",
+   "name": "Nagrand",
+   "terrain": "green floating-island plains",
+   "faction": "contested",
+   "lvl": "64-67",
+   "rect": {
+    "x": 1000000,
+    "y": 1120000,
+    "w": 80000,
+    "h": 40000
+   },
+   "cities": [
+    "Telaar@0.55,0.70:town",
+    "Garadar@0.55,0.35:town",
+    "Halaa@0.40,0.45:town",
+    "Aeris Landing@0.30,0.55:town"
+   ],
+   "dungeons": [],
+   "docks": [],
+   "borders": {
+    "north": "zangarmarsh",
+    "south": null,
+    "east": "terokkar",
+    "west": null
+   }
+  },
+  {
+   "id": "blades-edge",
+   "name": "Blade's Edge Mountains",
+   "terrain": "spiky ogre mountains",
+   "faction": "contested",
+   "lvl": "65-68",
+   "rect": {
+    "x": 1080000,
+    "y": 1120000,
+    "w": 80000,
+    "h": 40000
+   },
+   "cities": [
+    "Sylvanaar@0.35,0.65:town",
+    "Thunderlord Stronghold@0.50,0.55:town",
+    "Evergrove@0.60,0.40:town",
+    "Toshley's Station@0.60,0.70:town"
+   ],
+   "dungeons": [
+    "Gruul's Lair@0.68,0.25"
+   ],
+   "docks": [],
+   "borders": {
+    "north": "netherstorm",
+    "south": "zangarmarsh",
+    "east": null,
+    "west": null
+   }
+  }
+ ]
+}
