@@ -6,6 +6,7 @@ import { roadPaths, pathDistance } from './road-shape.ts';
 import type { EnemyKind } from './model.ts';
 import type { EnemyRank } from './progression-content.ts';
 import type { WorldPOI } from './world-pois.ts';
+import type { FactionTag } from './factions.ts';
 
 export const WILDERNESS_RULES = Object.freeze({ cellSize: 1400, maxRadius: 370, cacheLimit: 128, maxQueryCells: 4096 });
 export type WildernessKind = 'bossLair' | 'camp' | 'watchtower' | 'graveyard' | 'standingStones' | 'caravan' | 'cursedChest' | 'ruinedChapel' | 'beastDen' | 'quarry' | 'hamlet' | 'crossing' | 'corruptedGrove';
@@ -17,10 +18,14 @@ export interface SiteDecor {
 }
 export interface CampMember {
   readonly id: string; readonly kind: EnemyKind; readonly rank: EnemyRank; readonly dx: number; readonly dy: number;
+  /** Faction tag stamped on the spawned actor (guard posts, faction camps). */
+  readonly faction?: FactionTag;
 }
 export interface EnemyCamp {
   readonly id: string; readonly x: number; readonly y: number; readonly radius: number;
   readonly members: readonly CampMember[];
+  /** Camp-wide faction default; a member's own tag wins. */
+  readonly faction?: FactionTag;
 }
 export interface WildernessSite extends EnemyCamp {
   readonly kind: WildernessKind; readonly name: string; readonly description: string;
@@ -217,6 +222,23 @@ export function generateWildernessSite(worldSeed: number, cx: number, cy: number
   }
   if(best)return makeSite(seed,`site:${worldSeed}:${cx}:${cy}`,kind,best.x,best.y,false,sampleBiome(best.x,best.y,worldSeed).id,worldSeed);
   return null;
+}
+
+/** Authored atlas content places a site at an exact world position (T02).
+ * `members` replaces the biome roster; `name` replaces the generated label. */
+export function authoredSite(worldSeed: number, id: string, kind: WildernessKind, x: number, y: number, biome: BiomeId,
+  name?: string, members?: readonly EnemyKind[]): WildernessSite {
+  const seed = siteHash(Math.floor(x), Math.floor(y), worldSeed, 0xa71a5);
+  const site = makeSite(seed, id, kind, x, y, false, biome, worldSeed);
+  const roster = members?.length
+    ? Object.freeze(members.map((kind, i) => Object.freeze({
+        id: `${id}:member:${i}`, kind, rank: 'normal' as const,
+        dx: Math.cos(i * Math.PI * 2 / members.length) * 90,
+        dy: Math.sin(i * Math.PI * 2 / members.length) * 90,
+      })))
+    : site.members;
+  const renamed = name === undefined || name === site.name ? site : { ...site, name };
+  return Object.freeze(roster === site.members ? renamed : { ...renamed, members: roster });
 }
 
 export function wildernessPOI(site: WildernessSite): WorldPOI {

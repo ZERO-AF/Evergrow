@@ -1,9 +1,16 @@
 import { planDungeonTravel, type DungeonAction, type PersistDungeon } from './dungeon-command.ts';
 import { executePortalTravel } from './travel-command.ts';
+import { boardTransport, disembarkTransport, executeTransportPortal, startFlight, unlockFlight } from './transport.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Simulation } from './simulation.ts';
 import type { WorldQuery } from './model.ts';
 import type { PortalAnchor } from './travel.ts';
+export type TransportAction =
+    | { kind: 'board'; routeId: string }
+    | { kind: 'disembark' }
+    | { kind: 'portal'; routeId: string }
+    | { kind: 'unlockFlight'; masterId: string }
+    | { kind: 'fly'; fromId: string; toId: string };
 export interface LocationHost {
     simulation(): Simulation;
     surface(): WorldQuery;
@@ -41,6 +48,20 @@ export class LocationController {
             return false;
         }
         host.arrived();
+        return true;
+    }
+    /** Staged transport travel (wayfinder world-t04): vehicle boarding, portal
+     * hops, flight-master unlocks and taxi rides all persist before commit. */
+    async transport(action: TransportAction): Promise<boolean> {
+        const host = this.host, sim = host.simulation();
+        const result = action.kind === 'board' ? await boardTransport(sim, action.routeId, host.persist)
+            : action.kind === 'disembark' ? await disembarkTransport(sim, host.persist)
+            : action.kind === 'portal' ? await executeTransportPortal(sim, action.routeId, host.persist)
+            : action.kind === 'unlockFlight' ? await unlockFlight(sim, action.masterId, host.persist)
+            : await startFlight(sim, action.fromId, action.toId, host.persist);
+        if (!result.ok) { host.notify(result.message); return false; }
+        if (action.kind !== 'unlockFlight') host.arrived();
+        if (result.message) host.notify(result.message);
         return true;
     }
 }

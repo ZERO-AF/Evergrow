@@ -7,6 +7,7 @@ import type { BiomeId } from './biomes.ts';
 import type { EnemyCamp } from './wilderness-sites.ts';
 import type { EnemyRank } from './progression-content.ts';
 import type { CcKind } from './wow-types.ts';
+import type { FactionTag } from './factions.ts';
 
 export interface WorldQuery {
   /** Optional exact accelerations of the shared sampled visibility/walking rules. */
@@ -21,6 +22,8 @@ export interface WorldQuery {
   readonly dungeonBiome?: BiomeId;
   navigationTarget?(x:number,y:number,tx:number,ty:number,radius?:number):{x:number;y:number};
   readonly seed?: number;
+  /** Optional authored spawn; Simulation uses it when startX/startY are omitted. */
+  readonly spawnPoint?: { x: number; y: number };
   blocked(x: number, y: number, radius: number): boolean;
   /** Settlements suppress hostile spawns and protect the player's occupied position. */
   isSanctuary?(x: number, y: number): boolean;
@@ -433,6 +436,10 @@ export interface Enemy {
   patrolPhase: number;
   campId?: string;
   campMemberId?: string;
+  /** Faction tag (factions.ts): opposing-faction actors attack on sight,
+   * same-faction actors are friendly and unattackable, neutral retaliates only.
+   * Absent = ordinary hostile mob. */
+  faction?: FactionTag;
   hitFlash: number;
   hitAngle: number;
   radius: number;

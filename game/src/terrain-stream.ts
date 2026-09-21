@@ -11,6 +11,7 @@ export class TerrainStream {
   private seed = 0;
   private wildernessOnly = false;
   private riftTerrain = false;
+  private authored = false;
   failed = false;
   constructor(create: () => Port = () => new Worker(new URL('./terrain-worker.ts', import.meta.url), { type: 'module' })) {
     this.port = create();
@@ -27,20 +28,21 @@ export class TerrainStream {
   }
   get size() { return this.tiles.size; }
   get queued() { return this.wanted.size - this.tiles.size; }
-  update(seed: number, coordinates: readonly TerrainCoordinate[], wildernessOnly = false, riftTerrain = false) {
+  update(seed: number, coordinates: readonly TerrainCoordinate[], wildernessOnly = false, riftTerrain = false, authored = false) {
     this.riftTerrain = riftTerrain;
     this.wildernessOnly = wildernessOnly;
+    this.authored = authored;
     this.seed = seed;
     this.wanted.clear();
-    for (const p of coordinates.slice(0, 256)) this.wanted.set(`${seed}:${wildernessOnly}:${riftTerrain}:${p.x}:${p.y}`, p);
+    for (const p of coordinates.slice(0, 256)) this.wanted.set(`${seed}:${wildernessOnly}:${riftTerrain}:${authored}:${p.x}:${p.y}`, p);
     for (const [key, tile] of this.tiles) if (!this.wanted.has(key)) { tile.bitmap.close(); this.tiles.delete(key); }
     this.pump();
   }
-  get(x: number, y: number) { return this.tiles.get(`${this.seed}:${this.wildernessOnly}:${this.riftTerrain}:${x}:${y}`); }
+  get(x: number, y: number) { return this.tiles.get(`${this.seed}:${this.wildernessOnly}:${this.riftTerrain}:${this.authored}:${x}:${y}`); }
   private pump() {
     if (this.failed || this.pending) return;
     for (const [key, p] of this.wanted) if (!this.tiles.has(key)) {
-      this.pending = { id: ++this.serial, key }; this.port.postMessage({ id: this.serial, seed: this.seed, wildernessOnly: this.wildernessOnly, riftTerrain: this.riftTerrain, ...p }); return;
+      this.pending = { id: ++this.serial, key }; this.port.postMessage({ id: this.serial, seed: this.seed, wildernessOnly: this.wildernessOnly, riftTerrain: this.riftTerrain, authored: this.authored, ...p }); return;
     }
   }
   dispose() { this.port.terminate(); for (const tile of this.tiles.values()) tile.bitmap.close(); this.tiles.clear(); this.wanted.clear(); this.pending = null; }

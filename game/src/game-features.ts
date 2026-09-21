@@ -34,4 +34,12 @@ export const GAME_FEATURES = {
   dualSpec: true,
   // PvP (wayfinder/pvp-map.md): arena & battlegrounds, honor/arena points, vendor
   pvp: true,
+  // Authored-atlas elevation shading + generalized occluder fade (wayfinder world-t03)
+  elevation: true,
+  // WoW world conversion (wayfinder/world-map.md): atlas transports
+  transport: true,
+  // WoW world (wayfinder world-t05): Alliance/Horde tags, hostility, racial starts
+  factions: true,
+  // WoW world (wayfinder world-t02): authored atlas replaces procedural climate
+  authored: true,
 };

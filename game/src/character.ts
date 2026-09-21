@@ -17,6 +17,8 @@ import type { WowClassId, WowRaceId } from './wow-types.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import { durabilityFactor } from './durability-state.ts';
 import { transmoggedEquipment } from './transmog-state.ts';
+import { startingZone } from './factions.ts';
+import { GAME_FEATURES } from './game-features.ts';
 
 /** Rebuild combat projections from the character's single source of truth. */
 export function refreshCharacter(player: Player): void {
@@ -75,6 +77,12 @@ export function createCharacter(player: Player, name: string, classId: WowClassI
   if (!raceAllowsClass(raceId, classId)) return { ok: false, message: `${WOW_RACES[raceId].name} cannot be a ${WOW_CLASSES[classId].name}.` };
   player.character = createCharacterSheet(classId, raceId, look);
   player.name = name;
+  // World-t05: new heroes wake at their race's authored starting area.
+  if (GAME_FEATURES.factions) {
+    const start = startingZone(raceId);
+    player.x = player.prevX = start.spawn.x;
+    player.y = player.prevY = start.spawn.y;
+  }
   refreshCharacter(player);
   player.hp = player.maxHp;
   const resource = WOW_CLASSES[classId].resource;

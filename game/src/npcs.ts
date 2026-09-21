@@ -4,9 +4,14 @@ import type { Building } from './settlements.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import type { WorldQuery } from './model.ts';
+import { factionAt, factionHostility, raceFaction, type FactionTag } from './factions.ts';
+import type { WowRaceId } from './wow-types.ts';
+import { GAME_FEATURES } from './game-features.ts';
 
 export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable' | 'battlemaster' | 'pvpVendor';
-export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string; }
+export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string;
+  /** Faction the NPC serves (factions.ts); opposing-faction players can't use its services. */
+  faction?: FactionTag; }
 export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master', battlemaster: 'Battlemaster', pvpVendor: 'PvP Quartermaster' };
 export const NPC_COLORS=Object.fromEntries(Object.keys(NPC_NAMES).map(role=>[role,vendorIdentity(role)!.color])) as Record<NPCRole,string>;
 export function hashService(value: string): number {
@@ -20,9 +25,12 @@ export function buildingNPC(building: Building): TownNPC | null {
   if (!role) return null;
   const x = building.door.x, y = building.kind==='stash' ? building.door.y+12 : building.door.y + (building.form==='stall'?22:-57), id = `${building.id}:${role}`;
   const seed = hashService(id), names = ['Mara', 'Oswin', 'Vesper', 'Iona', 'Alden', 'Sable', 'Corvin', 'Edda'];
-  return { settlementTier:building.settlementTier, id, buildingId: building.id, role, x, y, seed, name: names[seed % names.length], level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+  return { settlementTier:building.settlementTier, id, buildingId: building.id, role, x, y, seed, name: names[seed % names.length], level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
 }
-export function canInteractNPC(npc: TownNPC, player: { x: number; y: number; dead?: boolean }, world: WorldQuery): boolean {
+export function canInteractNPC(npc: TownNPC, player: { x: number; y: number; dead?: boolean; character?: { raceId: WowRaceId } }, world: WorldQuery): boolean {
+  // Opposing-faction NPCs refuse service (world-t05); callers without a
+  // character (ambient residents) skip the check. Untagged NPCs are neutral.
+  if (GAME_FEATURES.factions && player.character && factionHostility(npc.faction ?? 'neutral', raceFaction(player.character.raceId)) === 'hostile') return false;
   return !player.dead && !world.blocked(npc.x, npc.y, 0) && !world.blocked(player.x, player.y, 0) && Math.hypot(player.x - npc.x, player.y - npc.y) <= 70
     && hasLineOfSight(world, player.x, player.y, npc.x, npc.y);
 }
@@ -44,7 +52,7 @@ export function stableMasterFor(building: Building): StableMaster | null {
   const seed = hashService(id);
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'stable', x, y, seed,
     name: STABLE_MASTER_NAMES[seed % STABLE_MASTER_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
 }
 export function stableMastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): StableMaster[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])
@@ -70,7 +78,7 @@ export function battlemasterFor(building: Building): Battlemaster | null {
   const seed = hashService(id);
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'battlemaster', x, y, seed,
     name: BATTLEMASTER_NAMES[seed % BATTLEMASTER_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
 }
 export function battlemastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Battlemaster[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])

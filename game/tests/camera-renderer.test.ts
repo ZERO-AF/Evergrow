@@ -65,10 +65,12 @@ class RecordingCanvas {
 class EmptyWorld extends World {
   override getDungeonEntrances() { return []; }
   override getEventSites() { return []; }
+  props: Prop[] = [];
   propQueries: Rect[] = [];
   buildingQueries: Rect[] = [];
   override getProps(left: number, top: number, width: number, height: number): Prop[] {
-    this.propQueries.push({ left, top, width, height }); return [];
+    this.propQueries.push({ left, top, width, height });
+    return this.props.filter(p => p.x >= left && p.x < left + width && p.y >= top && p.y < top + height);
   }
   override getBuildings(left: number, top: number, width: number, height: number): Building[] {
     this.buildingQueries.push({ left, top, width, height }); return [];
@@ -291,4 +293,20 @@ test('renderer anticipates direct skill-dash travel even when player velocity is
   renderer.handleEvents([{ type: 'hurt', remainingHp: 92, heavy: false, x: player.x, y: player.y, value: 8, angle: .7 }], false);
   render(.05);
   containsBounds(guard, renderer.worldBounds, 'direct dash motion and impact still stay inside the prior guard');
+});
+
+test('a tall authored prop between camera focus and player fades through the occlusion field', t => {
+  const { renderer, sim, world, render } = fixture(t);
+  const player = sim.player;
+  // A stump with authored occluder metadata stands south of the player; its
+  // projected silhouette covers the focus→player segment.
+  world.props = [{ id: 'occluder:stump', x: player.x, y: player.y + 100, radius: 10,
+    kind: 'stump', seed: 5, scale: 1, occluder: { height: 120, radius: 40 } }];
+  render();
+  assert.ok(renderer.occlusion.alpha('occluder:stump') < .5,
+    `occluded prop fades, got ${renderer.occlusion.alpha('occluder:stump')}`);
+  // Step out from behind the silhouette: the prop returns to opaque.
+  player.x += 300; player.prevX = player.x;
+  render();
+  assert.equal(renderer.occlusion.alpha('occluder:stump'), 1);
 });

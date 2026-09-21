@@ -7,6 +7,7 @@ import { architectureStyle, roofVariant } from './settlement-style.ts';
 import { drawSettlementFixture, drawMarketCanopy, drawMarketWares, drawCampShelter } from './settlement-fixture-art.ts';
 import { furnitureContainerId } from './breakable-containers.ts';
 import { drawRoofCourses, drawBuildingApron, drawWallWeathering } from './architecture-art.ts';
+import { occluderBlocks, type OccluderVolume } from './occlusion.ts';
 import type { Building, Rect } from './settlements.ts';
 import type { PointLight } from './lighting.ts';
 import { drawGlow } from './lighting.ts';
@@ -31,6 +32,13 @@ function inside(b: Rect, x: number, y: number, margin = 0) {
   return x >= b.x - margin && x <= b.x + b.width + margin && y >= b.y - margin && y <= b.y + b.height + margin;
 }
 function roofRise(b: Building) { if(roofVariant(b)==='terrace')return 3;return (b.biome==='frostpine'?9:0)+ Math.min(36, Math.max(22, b.width * .19)) + (b.kind === 'chapel' ? 7 : 0); }
+
+/** The building's occluder volume (world space): the projected roof plus wall face
+ * that can cover the focus→player segment. Shared with the general occlusion pass. */
+export function buildingOccluder(b: Building): OccluderVolume {
+  const roofBack = WALL_HEIGHT + roofRise(b) + 9;
+  return { x: b.x - 24, y: b.y - roofBack, width: b.width + 48, height: roofBack + b.height + 29 };
+}
 function facadeWindows(b: Building): Array<{ x: number; sign: boolean }> {
   const half = b.door.width / 2;
   const sides = [{ start: b.x, end: b.door.x - half, right: false },
@@ -74,7 +82,8 @@ export class SettlementArt {
 
   reset() { this.cache.clear(); this.reveal.clear(); this.fortifications.clear(); this.fortificationPixels = 0; }
 
-  update(buildings: readonly Building[], playerX: number, playerY: number, dt: number, reducedMotion: boolean) {
+  update(buildings: readonly Building[], playerX: number, playerY: number, dt: number, reducedMotion: boolean,
+    focusX = playerX, focusY = playerY) {
     this.playerX = playerX; this.playerY = playerY; this.reducedMotion = reducedMotion;
     const visible = new Set(buildings.map(b => b.id));
     for (const id of this.reveal.keys()) if (!visible.has(id)) this.reveal.delete(id);
@@ -83,11 +92,10 @@ export class SettlementArt {
       const doorDistance = Math.hypot((playerX - b.door.x) * .9, playerY - b.door.y);
       const approaching = Math.abs(playerX - b.door.x) < b.door.width / 2 + 19
         && playerY >= b.door.y - 14 && playerY <= b.door.y + 49;
-      // Compare the projected roof with the character's silhouette, including
-      // someone beside a wall or just south of it, before their feet enter.
+      // The projected roof is an occluder volume: it opens when it covers the
+      // focus→player segment, including someone beside a wall or just south of it.
       const roofBack = WALL_HEIGHT + roofRise(b) + 9;
-      const roofOccludes = playerX >= b.x - 24 && playerX <= b.x + b.width + 24
-        && playerY >= b.y - roofBack && playerY <= b.y + b.height + 29;
+      const roofOccludes = occluderBlocks(buildingOccluder(b), focusX, focusY, playerX, playerY);
       const nearRoof = playerX >= b.x - 38 && playerX <= b.x + b.width + 38
         && playerY >= b.y - roofBack - 14 && playerY <= b.y + b.height + 43;
       const revealNow = inside(b, playerX, playerY, 3) || approaching || roofOccludes;

@@ -39,6 +39,7 @@ import { interruptTrial, freshEvents, syncTrial, EVENT_RULES } from './poi-conte
 import { EventChannel, advanceTrial } from './poi-runtime.ts';
 import { GROUND_EFFECT_RULES, SKILL_EXECUTION } from './skill-execution-content.ts';
 import { freshTravel, PortalChannel, PORTAL_RULES } from './travel.ts';
+import { advanceTransport, type TransportArrival, type TransportRide } from './transport.ts';
 import { advanceGold, type GroundGold } from './gold.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Attack, CombatEvent, Enemy, EnemyKind, Input, Player, Projectile, ProjectileStyle, ProjectileEffects, GroundEffect, SimulationOptions, WorldQuery, Ally, WowBuff, EnemyDot, EnemyCc } from './model.ts';
@@ -70,6 +71,7 @@ import { sampleBiome } from './biomes.ts';
 import { RoamingEncounters, ROAMING_RULES, ROAMING_GROUPS, roamingSpawnAnchor, shouldRetireRoamer } from './roaming-encounters.ts';
 import { isSpawnHidden, type SpawnExclusion } from './spawn-visibility.ts';
 import { updateEnemyAI, type EnemyAIContext } from './enemy-ai.ts';
+import { playerCanAttack } from './factions.ts';
 import { TAB_TARGETING, WOW_COMBAT, isWowRaceId } from './wow-types.ts';
 import type { AllyKind, BuffSpec, CcKind, DotSpec, RuneKind } from './wow-types.ts';
 import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
@@ -183,6 +185,10 @@ export class Simulation {
   readonly hearthstone = new HearthstoneChannel();
   travel = freshTravel();
   readonly portal = new PortalChannel();
+  /** Live transport ride (ship/zeppelin/taxi); not persisted — a reload lands at the dock. */
+  transportRide: TransportRide | null = null;
+  /** Set while a ridden vehicle is docked at the destination; the host disembarks durably. */
+  transportArrival: TransportArrival | null = null;
   private arrivalProtection = 0;
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
@@ -242,7 +248,7 @@ export class Simulation {
 
   constructor(world: WorldQuery, options: SimulationOptions = {}) {
     this.world = world;
-    this.options = { seed: 74319, spawn: true, startX: 0, startY: 0, ...options };
+    this.options = { seed: 74319, spawn: true, ...(world.spawnPoint ? { startX: world.spawnPoint.x, startY: world.spawnPoint.y } : { startX: 0, startY: 0 }), ...options };
     this.player = initialPlayer(this.options.startX!, this.options.startY!);
     this.reset();
   }
@@ -256,6 +262,7 @@ export class Simulation {
     this.eventState = freshEvents(); this.eventChannel.cancel(); this.eventTimer = 0;
     this.worldEvents = freshWorldEvents();
     this.travel = freshTravel(); this.portal.cancel(); this.hearthstone.cancel(); this.arrivalProtection = 0;
+    this.transportRide = null; this.transportArrival = null;
     this.player = initialPlayer(this.options.startX!, this.options.startY!);
     this.enemies = [];
     this.projectiles = [];
@@ -358,8 +365,8 @@ export class Simulation {
       ...(saved.character.pets ? [saved.character.pets.active, ...saved.character.pets.stabled].map(pet => (pet?.id ?? 0) + 1) : []));
     this.camps.restoreScales(saved.encounterScales);
     for (const actor of saved.actors ?? []) {
-      const enemy=this.spawnEnemy(actor.kind,actor.x,actor.y,actor.rank, actor.campId ? {campId:actor.campId,memberId:actor.memberId!,lootSeed:actor.seed} : undefined);
-      if(enemy){Object.assign(enemy,applyEnemyModifiers(scaledEnemyStats(actor.kind,actor.level,actor.rank),{kind:actor.kind,rank:actor.rank,lootSeed:actor.seed,rift:actor.rift}),{rift:actor.rift,level:actor.level,biome:actor.biome,lootSeed:actor.seed,hp:actor.hp,homeX:actor.homeX,homeY:actor.homeY,bossPhases:actor.bossPhases,state:'idle',stateDuration:1});
+      const enemy=this.spawnEnemy(actor.kind,actor.x,actor.y,actor.rank, actor.campId ? {campId:actor.campId,memberId:actor.memberId!,lootSeed:actor.seed,...(actor.faction?{faction:actor.faction}:{})} : undefined);
+      if(enemy){Object.assign(enemy,applyEnemyModifiers(scaledEnemyStats(actor.kind,actor.level,actor.rank),{kind:actor.kind,rank:actor.rank,lootSeed:actor.seed,rift:actor.rift}),{rift:actor.rift,faction:actor.faction,level:actor.level,biome:actor.biome,lootSeed:actor.seed,hp:actor.hp,homeX:actor.homeX,homeY:actor.homeY,bossPhases:actor.bossPhases,state:'idle',stateDuration:1});
         if(actor.dots?.length)enemy.dots=actor.dots;if(actor.cc?.length)enemy.cc=actor.cc;if(actor.sundered)enemy.sundered=actor.sundered;if(actor.taunted)enemy.taunted=actor.taunted;}
     }
     // Restored enemies hold fresh ids; a taunt aimed at a despawned ally reverts to the player.
@@ -449,6 +456,7 @@ export class Simulation {
     this.chains.length = 0;
     const p = this.player;
     this.clearInput(); this.portal.cancel(); this.hearthstone.cancel();
+    this.transportRide = null; this.transportArrival = null;
     p.x = p.prevX = x; p.y = p.prevY = y;
     p.skillEffects = undefined; p.attack = null; p.dash = null; p.activeSkill = null; p.castTime = p.castDuration = p.dodgeTime = 0; p.cast = null;
     this.arrivalProtection = PORTAL_RULES.protection; p.invulnerable = Math.max(p.invulnerable, this.arrivalProtection);
@@ -636,6 +644,7 @@ export class Simulation {
   tabTarget(step: 1 | -1 = 1): number | null {
     const p = this.player;
     const ranked = this.activeTargets().filter(enemy => enemy.state !== 'dead'
+      && playerCanAttack(enemy, p)
       && Math.hypot(enemy.x - p.x, enemy.y - p.y) <= TAB_TARGETING.queryRadius)
       .map(enemy => {
         const d = Math.hypot(enemy.x - p.x, enemy.y - p.y);
@@ -998,7 +1007,7 @@ export class Simulation {
     const scaled = applyEnemyModifiers(scaledEnemyStats(kind, level, rank),{kind,rank,lootSeed,rift});
     const biome = this.world.dungeonBiome ?? (this.world.sampleBiome?.(x, y) ?? sampleBiome(x, y)).id;
     const enemy: Enemy = {
-      id: this.nextId++, level, rank, biome, lootSeed, ...(rift?{rift}:{}), ...scaled, dungeonTheme:this.world.dungeonTheme,
+      id: this.nextId++, level, rank, biome, lootSeed, ...(rift?{rift}:{}), ...(source?.faction?{faction:source.faction}:{}), ...scaled, dungeonTheme:this.world.dungeonTheme,
       ...(source ? { campId: source.campId, campMemberId: source.memberId } : {}),
       x, y, prevX: x, prevY: y, vx: 0, vy: 0, knockbackX: 0, knockbackY: 0, angle: 0, hp: scaled.maxHp,
       kind, state: 'idle', stateTime: 0, stateDuration: ENCOUNTER_RULES.initialIdleMin + this.random() * ENCOUNTER_RULES.initialIdleRange,
@@ -1036,6 +1045,7 @@ export class Simulation {
     if (input.attack) this.attackBuffer = this.time + COMBAT_TIMING.attackBuffer;
     const beforeX=this.player.x,beforeY=this.player.y;
     if (this.pvpCombatants) this.updateCombatants(dt, input); else this.updatePlayer(dt, input);
+    advanceTransport(this, dt);
     metric(this.player.chronicle,'distance',Math.hypot(this.player.x-beforeX,this.player.y-beforeY));
     if(!this.dungeonFloor&&Math.floor(this.time)!==Math.floor(this.time-dt)) metric(this.player.chronicle,'seen:biome:'+sampleBiome(this.player.x,this.player.y,this.options.seed!).id,1);
     this.updateEnemies(dt);
@@ -1430,6 +1440,8 @@ export class Simulation {
       this.damageCombatant(enemy, damage + (elementalDamage ?? 0), angle, attacker.level, damageType, periodic, style, attacker);
       return;
     }
+    // Friendly faction actors are unattackable (world-t05): no damage, no aggro.
+    if (!playerCanAttack(enemy, attacker)) return;
     this.bumpCombat(attacker);
     if (!periodic && offense !== ALLY_OFFENSE) durabilityLoss(attacker, 'strike', this.time);
     damageEnemy(enemy, damage, angle, melee, {

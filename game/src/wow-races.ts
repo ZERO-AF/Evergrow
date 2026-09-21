@@ -3,7 +3,7 @@ import type { WowClassId, WowRaceDef, WowRaceId } from './wow-types.ts';
 /** WotLK races: class availability, racial active, passive modifiers. */
 export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze({
   human: Object.freeze({
-    id: 'human', name: 'Human',
+    id: 'human', name: 'Human', faction: 'alliance',
     classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
     racial: 'everyMan', racialName: 'Every Man for Himself',
     racialDescription: 'Break all stuns, roots and control effects, and take 30% less damage for 2 sec. 2 min cooldown.',
@@ -13,7 +13,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'chestnut', height: 1, width: 1 }),
   }),
   dwarf: Object.freeze({
-    id: 'dwarf', name: 'Dwarf',
+    id: 'dwarf', name: 'Dwarf', faction: 'alliance',
     classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'hunter', 'rogue', 'priest', 'deathKnight']),
     racial: 'stoneform', racialName: 'Stoneform',
     racialDescription: 'Harden skin: +25% armor and bleed/poison cleanse for 8 sec. 2 min cooldown.',
@@ -23,7 +23,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'copper', facialHair: 'fullbeard', feature: 'beard-ringed', height: 0.8, width: 1.22, nose: 'broad' }),
   }),
   nightElf: Object.freeze({
-    id: 'nightElf', name: 'Night Elf',
+    id: 'nightElf', name: 'Night Elf', faction: 'alliance',
     classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage', 'druid']),
     racial: 'shadowmeld', racialName: 'Shadowmeld',
     racialDescription: 'Fade into shadow for 6 sec, hidden from distant enemies. 2 min cooldown.',
@@ -33,7 +33,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'silver', feature: 'markings', height: 1.07, width: 0.94, ears: 'elf', eyeGlow: '#f4d97b', markings: true }),
   }),
   gnome: Object.freeze({
-    id: 'gnome', name: 'Gnome',
+    id: 'gnome', name: 'Gnome', faction: 'alliance',
     classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
     racial: 'escapeArtist', racialName: 'Escape Artist',
     racialDescription: 'Slip free of roots and slows, moving 30% faster for 3 sec. 1.75 min cooldown.',
@@ -43,7 +43,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'golden', height: 0.66, width: 0.88, headScale: 1.3, eyeScale: 1.35 }),
   }),
   draenei: Object.freeze({
-    id: 'draenei', name: 'Draenei',
+    id: 'draenei', name: 'Draenei', faction: 'alliance',
     classes: Object.freeze<WowClassId[]>(['warrior', 'paladin', 'hunter', 'priest', 'deathKnight', 'shaman', 'mage']),
     racial: 'giftNaaru', racialName: 'Gift of the Naaru',
     racialDescription: 'Blessed light restores 20% of maximum life over 5 sec. 3 min cooldown.',
@@ -53,7 +53,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'silver', feature: 'crest', height: 1.05, width: 1.0, horns: 'draenei', tendrils: true, hooves: true, tail: 'smooth', eyeGlow: '#bfe3ff' }),
   }),
   orc: Object.freeze({
-    id: 'orc', name: 'Orc',
+    id: 'orc', name: 'Orc', faction: 'horde',
     classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'deathKnight', 'shaman', 'warlock']),
     racial: 'bloodFury', racialName: 'Blood Fury',
     racialDescription: 'Unleash fury: +15% damage for 15 sec. 2 min cooldown.',
@@ -63,7 +63,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-small', height: 1.03, width: 1.16, tusks: 'short', jaw: 'wide', hunch: 0.5 }),
   }),
   undead: Object.freeze({
-    id: 'undead', name: 'Undead',
+    id: 'undead', name: 'Undead', faction: 'horde',
     classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
     racial: 'willForsaken', racialName: 'Will of the Forsaken',
     racialDescription: 'Shake off fear and all control effects, taking 30% less damage for 2 sec. 2 min cooldown.',
@@ -73,7 +73,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'espresso', feature: 'bone-bare', height: 0.97, width: 0.9, decay: true, jaw: 'bone', hunch: 0.65, eyeGlow: '#e8d44d' }),
   }),
   tauren: Object.freeze({
-    id: 'tauren', name: 'Tauren',
+    id: 'tauren', name: 'Tauren', faction: 'horde',
     classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'deathKnight', 'shaman', 'druid']),
     racial: 'warStomp', racialName: 'War Stomp',
     racialDescription: 'Stomp the ground, stunning nearby enemies for 1.5 sec. 2 min cooldown.',
@@ -83,7 +83,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'walnut', feature: 'horns-curved', height: 1.15, width: 1.3, horns: 'tauren', ears: 'bovine', muzzle: true, hooves: true, tail: 'tuft', hunch: 0.7 }),
   }),
   troll: Object.freeze({
-    id: 'troll', name: 'Troll',
+    id: 'troll', name: 'Troll', faction: 'horde',
     classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'druid', 'deathKnight']),
     racial: 'berserking', racialName: 'Berserking',
     racialDescription: 'Enter a frenzy: +20% attack and cast speed for 10 sec. 3 min cooldown.',
@@ -93,7 +93,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-long', height: 1.09, width: 0.88, ears: 'long', tusks: 'long', nose: 'hooked', hunch: 0.55 }),
   }),
   bloodElf: Object.freeze({
-    id: 'bloodElf', name: 'Blood Elf',
+    id: 'bloodElf', name: 'Blood Elf', faction: 'horde',
     classes: Object.freeze<WowClassId[]>(['paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage']),
     racial: 'arcaneTorrent', racialName: 'Arcane Torrent',
     racialDescription: 'Silence nearby enemies for 2 sec and restore 15 resource. 2 min cooldown.',

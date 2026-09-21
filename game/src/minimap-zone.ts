@@ -50,8 +50,10 @@ export const WOW_INN_NAMES: readonly string[] = Object.freeze([
 const pick = (list: readonly string[], seed: number | undefined, id: string): string =>
   list[(seed ?? hashService(id)) % list.length];
 
-/** WoW town name for a generated settlement; falls back to the generated name when unknown. */
+/** WoW town name for a generated settlement; authored atlas towns keep their
+ * authored name, others fall back to the generated name when unknown. */
 export function wowTownName(town: { id: string; name: string; kind?: string; seed?: number }): string {
+  if (town.id.startsWith('town:atlas:')) return town.name;
   const tier = town.kind === 'city' ? 'city' : town.kind === 'settlement' ? 'settlement' : 'village';
   return pick(WOW_TOWN_NAMES[tier], town.seed, town.id);
 }
@@ -96,7 +98,8 @@ export function zoneBannerInfo(world: ZoneBannerWorld, x: number, y: number): Zo
     if (townName) return { key: `town:${town!.id}`, title: townName, subtitle: `${wow} · Sanctuary`, sanctuary: true };
     return { key: 'sanctuary', title: 'Sanctuary', subtitle: wow, sanctuary: true };
   }
-  return { key: `zone:${zone.id}:${biome.id}`, title: wow,
+  const authored = zone.id.startsWith('atlas:');
+  return { key: `zone:${zone.id}:${biome.id}`, title: authored ? zone.name : wow,
     subtitle: `${zone.districtName} · ${regionLevelLabel(zone)}`, sanctuary: false };
 }
 

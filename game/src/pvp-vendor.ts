@@ -12,6 +12,7 @@ import type { MountId } from './mount-content.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { canInteractNPC, hashService, type TownNPC } from './npcs.ts';
 import { generateItem } from './items.ts';
+import { factionAt } from './factions.ts';
 import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
 import { refreshCharacter } from './character.ts';
@@ -34,7 +35,7 @@ export function pvpVendorFor(building: Building): PvpVendor | null {
   const seed = hashService(id);
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'pvpVendor', x, y, seed,
     name: PVP_VENDOR_NAMES[seed % PVP_VENDOR_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
 }
 export function pvpVendorsNear(world: WorldQuery, x: number, y: number, width: number, height: number): PvpVendor[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])

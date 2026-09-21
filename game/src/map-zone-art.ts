@@ -6,11 +6,11 @@ import { text } from './font.ts';
 export function mapZoneLabels(view: MapView, exploration: Pick<Exploration, 'isRevealed'>, seed: number, avoid: readonly {
   x: number;
   y: number;
-}[]): ZoneProgression[] {
+}[], zoneKey?: (x: number, y: number) => string | null): ZoneProgression[] {
   const found = new Map<string, ZoneProgression>(), step = Math.max(1800, 60 / view.zoom);
   for (let y = view.centerY - view.height / view.zoom / 2; y < view.centerY + view.height / view.zoom / 2; y += step)
     for (let x = view.centerX - view.width / view.zoom / 2; x < view.centerX + view.width / view.zoom / 2; x += step) {
-      if (exploration.isRevealed(x, y)) {
+      if (exploration.isRevealed(x, y) && zoneKey?.(x, y) !== null) {
         const z = getZoneAt(x, y, seed);
         found.set(z.id, z);
       }
@@ -33,12 +33,12 @@ const CONTOUR_CELLS = 16, CONTOUR_LIMIT = 512;
 const contours = new Map<string, readonly ContourSegment[]>();
 
 /** World-aligned contour geometry survives camera movement and never caches discovery state. */
-function contourTile(tx: number, ty: number, step: number, seed: number): readonly ContourSegment[] {
-  const key = `${seed}:${step}:${tx}:${ty}`, cached = contours.get(key);
+function contourTile(tx: number, ty: number, step: number, seed: number, zoneKey?: (x: number, y: number) => string | null): readonly ContourSegment[] {
+  const key = `${seed}:${step}:${tx}:${ty}:${zoneKey ? 'a' : 'p'}`, cached = contours.get(key);
   if (cached) { contours.delete(key); contours.set(key, cached); return cached; }
   const x0 = tx * step * CONTOUR_CELLS, y0 = ty * step * CONTOUR_CELLS;
   const rows = Array.from({ length: CONTOUR_CELLS + 1 }, (_, y) =>
-    Array.from({ length: CONTOUR_CELLS + 1 }, (_, x) => getZoneAt(x0 + x * step, y0 + y * step, seed).id));
+    Array.from({ length: CONTOUR_CELLS + 1 }, (_, x) => zoneKey ? zoneKey(x0 + x * step, y0 + y * step) ?? 'ocean' : getZoneAt(x0 + x * step, y0 + y * step, seed).id));
   const result: ContourSegment[] = [];
   for (let j = 0; j < CONTOUR_CELLS; j++) for (let i = 0; i < CONTOUR_CELLS; i++) {
     const ids = [rows[j][i], rows[j][i+1], rows[j+1][i+1], rows[j+1][i]];
@@ -55,7 +55,8 @@ function contourTile(tx: number, ty: number, step: number, seed: number): readon
 }
 
 /** Marching boundaries follow gameplay districts and recheck every segment against current fog. */
-export function drawMapZoneLevels(c: CanvasRenderingContext2D, view: MapView, exploration: Pick<Exploration, 'isRevealed'>, seed = 7319, labels: readonly ZoneProgression[] = mapZoneLabels(view, exploration, seed, [])): void {
+export function drawMapZoneLevels(c: CanvasRenderingContext2D, view: MapView, exploration: Pick<Exploration, 'isRevealed'>, seed = 7319, labels?: readonly ZoneProgression[], zoneKey?: (x: number, y: number) => string | null): void {
+  labels ??= mapZoneLabels(view, exploration, seed, [], zoneKey);
   // Stable LOD bands avoid rebuilding geometry for every fractional wheel delta.
   const step = 96 * Math.max(1, Math.ceil(10 / view.zoom / 96)), size = step * CONTOUR_CELLS;
   const left = view.centerX - view.width / view.zoom / 2, top = view.centerY - view.height / view.zoom / 2;
@@ -64,7 +65,7 @@ export function drawMapZoneLevels(c: CanvasRenderingContext2D, view: MapView, ex
   c.lineWidth = 1; c.strokeStyle = '#e6cd9380'; c.setLineDash([3, 4]); c.beginPath();
   for (let ty = Math.floor(top / size); ty <= Math.floor(bottom / size); ty++)
     for (let tx = Math.floor(left / size); tx <= Math.floor(right / size); tx++)
-      for (const { a, b, corners } of contourTile(tx, ty, step, seed)) {
+      for (const { a, b, corners } of contourTile(tx, ty, step, seed, zoneKey)) {
         if (Math.max(a[0],b[0]) < left || Math.min(a[0],b[0]) > right || Math.max(a[1],b[1]) < top || Math.min(a[1],b[1]) > bottom) continue;
         if (!corners.every(p => exploration.isRevealed(...p))) continue;
         const count = Math.max(1, Math.ceil(Math.hypot(b[0]-a[0], b[1]-a[1]) / 24));

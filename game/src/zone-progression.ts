@@ -6,6 +6,7 @@ import { sampleBiome } from './biomes.ts';
 import { normalizeLevel, ENEMY_RANKS, eliteDurabilityMultiplier, monsterDamageScale, monsterExperienceScale, monsterHealthScale, type EnemyRank } from './progression-content.ts';
 import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import type { EnemyKind } from './model.ts';
+import { CONTINENTS, zoneAt } from './world-atlas.ts';
 export const ZONE_RULES = Object.freeze({ regionSize: 3600, travelPerLevel: 6000 });
 export interface ZoneProgression {
   id: string;
@@ -41,7 +42,28 @@ function center(cx: number, cy: number, seed: number): [
     (cy + (geoHash(cx, cy, seed + 59) / 4294967296 - .5) * .6) * ZONE_RULES.regionSize];
 }
 /** Stable geographic districts own level ranges; encounter activation captures the player-relative level. */
+/** Inside an authored atlas zone the answer is the zone itself; elsewhere the
+ * procedural district field still serves RiftWorld and dev scenes. */
+function authoredZone(x: number, y: number): ZoneProgression | null {
+  const zone = zoneAt(x, y);
+  if (!zone) return null;
+  const id = `atlas:${zone.id}`, cached = zones.get(id);
+  if (cached) return cached;
+  const o = CONTINENTS[zone.continent].origin;
+  const cx = zone.rect.x + o.x + zone.rect.w / 2, cy = zone.rect.y + o.y + zone.rect.h / 2;
+  const value: ZoneProgression = Object.freeze({
+    id, name: zone.name, districtName: CONTINENTS[zone.continent].name,
+    level: zone.levelMin, maxLevel: zone.levelMax, originalLevel: zone.levelMin,
+    x: cx, y: cy, hazardous: zone.faction === 'hostile',
+    travel: Math.hypot(cx - o.x, cy - o.y),
+  });
+  if (zones.size >= 2048) zones.delete(zones.keys().next().value!);
+  zones.set(id, value);
+  return value;
+}
 export function getZoneAt(x: number, y: number, seed = 7319): ZoneProgression {
+  const authored = authoredZone(x, y);
+  if (authored) return authored;
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     x = 0;
     y = 0;

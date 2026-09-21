@@ -6,7 +6,9 @@ import { getZoneAt } from './zone-progression.ts';
 
 export const PORTAL_RULES = Object.freeze({ channel: 3, reach: 70, landingSearch: 80, protection: 1 });
 export interface PortalAnchor { band: number; name: string; x: number; y: number; }
-export interface TravelState { homeTown: number; returnTo: { x: number; y: number; town: number; dungeon?: string } | null; }
+export interface TravelState { homeTown: number; returnTo: { x: number; y: number; town: number; dungeon?: string } | null;
+  /** Discovered flight-master ids (transport-content FLIGHT_POINTS); absent until the first unlock. */
+  flightPaths?: string[]; }
 export const freshTravel = (): TravelState => ({ homeTown: 0, returnTo: null });
 export function townPortalAnchor(town: Settlement): PortalAnchor {
   return { band: Number(town.id.split(':').at(-1)), name: town.name,
@@ -15,6 +17,9 @@ export function townPortalAnchor(town: Settlement): PortalAnchor {
 export function validTravel(value: unknown): value is TravelState {
   if (!value || typeof value !== 'object') return false;
   const v = value as TravelState, band = (n: number) => Number.isSafeInteger(n) && n >= 0 && n <= 1000000000;
+  if (v.flightPaths !== undefined && (!Array.isArray(v.flightPaths) || v.flightPaths.length > 128
+    || !v.flightPaths.every(id => typeof id === 'string' && id.length > 0 && id.length <= 120)
+    || new Set(v.flightPaths).size !== v.flightPaths.length)) return false;
   return band(v.homeTown) && (v.returnTo === null || typeof v.returnTo === 'object' && !!v.returnTo
     && (v.returnTo.dungeon === undefined || typeof v.returnTo.dungeon === 'string' && v.returnTo.dungeon.startsWith('dungeon:') && v.returnTo.dungeon.length <= 180) && band(v.returnTo.town) && [v.returnTo.x, v.returnTo.y].every(n => Number.isFinite(n) && Math.abs(n) <= 4e7));
 }

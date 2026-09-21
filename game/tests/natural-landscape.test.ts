@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BIOME_IDS, startingBiome, sampleBiome } from '../src/biomes.ts';
+import { BIOME_IDS, startingBiome, proceduralBiomeSample } from '../src/biomes.ts';
 import { landscapeFields, landscapePropProbability } from '../src/natural-landscape.ts';
 import { World, WORLD_GENERATION_VERSION } from '../src/world.ts';
 import { Simulation } from '../src/simulation.ts';
@@ -9,7 +9,7 @@ test('all nine climates feed the gameplay world through the shared climate sampl
   for(const seed of [7319,18427,90210]) {
     const w=new World(seed),found=new Set<string>();
     for(let y=-36000;y<=36000;y+=960)for(let x=-36000;x<=36000;x+=960) {
-      const sample=sampleBiome(x,y,seed);
+      const sample=proceduralBiomeSample(x,y,seed);
       assert.deepEqual(w.sampleBiome(x,y),sample);
       if(sample.weights[sample.id]>.8)found.add(sample.id);
       assert.ok(Math.abs(Object.values(sample.weights).reduce((a,b)=>a+b,0)-1)<1e-10);

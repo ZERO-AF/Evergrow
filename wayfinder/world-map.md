@@ -29,7 +29,7 @@ routines and zone quests. Travel must feel WoW-scale — a 40-minute journey sta
 
 ## Decisions so far
 
-<!-- one line per closed ticket: gist + link -->
+- [T01 World atlas contract + WoW zone data](world-t01-atlas.md) — `world-atlas.ts`: 62 zones at fixed rects (validated non-overlapping), 193 transports, 154 cities, 70 dungeons, 137 flightpaths; ATLAS_SCALE=24 u/yd matches WoW travel times; `wow-zones.json` is the content source.
 
 ## Not yet specified
 

@@ -1,3 +1,5 @@
+import { CONTINENTS, zoneAt, type AtlasZone } from './world-atlas.ts';
+
 export const BIOME_IDS = Object.freeze(['deadwood', 'verdant', 'swamp', 'frostpine', 'emberfall', 'autumn', 'highlands', 'steppe', 'sunscar'] as const);
 export type BiomeId = typeof BIOME_IDS[number];
 export type BiomeWeights = Record<BiomeId, number>;
@@ -78,8 +80,9 @@ function region(cx: number, cy: number, seed: number): Region {
 const emptyWeights = (): BiomeWeights => ({ deadwood: 0, verdant: 0, swamp: 0, frostpine: 0, emberfall: 0, autumn: 0, highlands: 0, steppe: 0, sunscar: 0 });
 
 /** Warped two-dimensional climate regions. Compact, smooth influence kernels blend
- * all neighboring materials; neither terrain chunks nor dominant IDs form seams. */
-export function sampleBiome(x: number, y: number, seed = 7319): BiomeSample {
+ * all neighboring materials; neither terrain chunks nor dominant IDs form seams.
+ * This is the pure procedural kernel — the procedural `World` samples it directly. */
+export function proceduralBiomeSample(x: number, y: number, seed = 7319): BiomeSample {
   if (!Number.isFinite(x) || !Number.isFinite(y)) { const weights = emptyWeights(); weights.deadwood = 1; return { id: 'deadwood', name: BIOMES.deadwood.name, weights }; }
   seed |= 0;
   const phase = (seed % 997) / 997 * TAU;
@@ -107,6 +110,79 @@ export function sampleBiome(x: number, y: number, seed = 7319): BiomeSample {
   for (const candidate of BIOME_IDS) if (weights[candidate] > weights[id]) id = candidate;
   return { id, name: BIOMES[id].name, weights };
 }
+
+/** World-space biome: authored zone answer inside the atlas, procedural climate
+ * outside. Procedural helpers (hydrology, roads, settlements) call this so they
+ * follow authored terrain inside zones; the procedural `World` bypasses it via
+ * `proceduralBiomeSample`. */
+export function sampleBiome(x: number, y: number, seed = 7319): BiomeSample {
+  return authoredBiomeSample(x, y) ?? proceduralBiomeSample(x, y, seed);
+}
+
+// ── Authored atlas seam (wayfinder world-t02) ────────────────────────────────
+export const TERRAIN_BIOME: Readonly<Record<string, BiomeId>> = Object.freeze({
+  // Kalimdor
+  'purple world-tree forest': 'verdant', 'corrupted red-crystal isle': 'emberfall',
+  'crystalline pine isle': 'verdant', 'sacred druid forest': 'verdant',
+  'snowy mountains': 'frostpine', 'gloomy coastal forest': 'deadwood',
+  'corrupted forest': 'deadwood', 'autumnal cliffs and naga ruins': 'autumn',
+  'dark ancient forest': 'deadwood', 'arid red canyon': 'sunscar',
+  'rocky peaks and charred vale': 'highlands', 'savanna': 'steppe',
+  'dry savanna and razorfen brambles': 'steppe', 'murky swamp': 'swamp',
+  'grey barren wastes': 'sunscar', 'green plains and mesas': 'steppe',
+  'canyon needles and salt flats': 'sunscar', 'lush jungle forest': 'verdant',
+  'desert': 'sunscar', 'prehistoric jungle crater': 'verdant',
+  'silithid desert': 'sunscar',
+  // Eastern Kingdoms
+  'golden autumn forest': 'autumn', 'dead haunted forest': 'deadwood',
+  'forsaken woodland': 'deadwood', 'plagued farmland': 'deadwood',
+  'dark pine forest': 'deadwood', 'green foothills': 'verdant',
+  'forested troll highlands': 'verdant', 'snowy dwarf highlands': 'frostpine',
+  'grassy highlands': 'steppe', 'marsh': 'swamp', 'highland lake': 'highlands',
+  'volcanic gorge': 'emberfall', 'scorched badlands': 'sunscar',
+  'ashen volcanic steppes': 'emberfall', 'green forest': 'verdant',
+  'dry farmland': 'steppe', 'red mountain ridges': 'highlands',
+  'haunted dark forest': 'deadwood', 'dead canyon pass': 'deadwood',
+  'swamp': 'swamp', 'fel-scorched wastes': 'emberfall', 'dense jungle': 'verdant',
+  'blighted deadlands': 'deadwood',
+  // Northrend
+  'frozen tundra': 'frostpine', 'tropical jungle basin': 'verdant',
+  'dragon graveyard wastes': 'frostpine', 'redwood hills': 'verdant',
+  'troll temple ziggurats': 'frostpine', 'crystalline forest': 'frostpine',
+  'titan ice mountains': 'frostpine', 'scourge glacier and citadel': 'frostpine',
+  'fjord cliffs and pine forest': 'highlands', 'frozen battlefield lake': 'frostpine',
+  // Outland
+  'fel-red shattered wastes': 'emberfall', 'giant mushroom swamp': 'swamp',
+  'misty forest and bone wastes': 'deadwood', 'fel-green volcanic valley': 'emberfall',
+  'green floating-island plains': 'steppe', 'spiky ogre mountains': 'highlands',
+  'snowy ogre highlands': 'frostpine', 'arcane shattered islands': 'emberfall',
+});
+export function zoneBiome(terrain: string): BiomeId { return TERRAIN_BIOME[terrain] ?? 'verdant'; }
+
+const ZONE_BLEND = 480;
+const singleWeights = (id: BiomeId): BiomeWeights =>
+  ({ deadwood: 0, verdant: 0, swamp: 0, frostpine: 0, emberfall: 0, autumn: 0, highlands: 0, steppe: 0, sunscar: 0, [id]: 1 });
+
+/** Biome inside an authored zone, blended toward the neighboring zone (or the
+ * ocean's water biome) within 480u of a border. Null outside every zone. */
+export function authoredBiomeSample(x: number, y: number): BiomeSample | null {
+  const zone: AtlasZone | null = zoneAt(x, y);
+  if (!zone) return null;
+  const o = CONTINENTS[zone.continent].origin;
+  const r = { x: zone.rect.x + o.x, y: zone.rect.y + o.y, w: zone.rect.w, h: zone.rect.h };
+  const d = Math.min(x - r.x, r.x + r.w - x, y - r.y, r.y + r.h - y);
+  const own = zoneBiome(zone.terrain);
+  if (d >= ZONE_BLEND) return { id: own, name: zone.name, weights: singleWeights(own) };
+  const neighbor = d === x - r.x ? zoneAt(r.x - 1, y) : d === r.x + r.w - x ? zoneAt(r.x + r.w + 1, y)
+    : d === y - r.y ? zoneAt(x, r.y - 1) : zoneAt(x, r.y + r.h + 1);
+  const other = neighbor ? zoneBiome(neighbor.terrain) : 'swamp';
+  const t = .5 + .5 * Math.max(0, Math.min(1, d / ZONE_BLEND));
+  const weights = singleWeights(own);
+  weights[own] = t; weights[other] += 1 - t;
+  const id = weights[own] >= weights[other] ? own : other;
+  return { id, name: zone.name, weights };
+}
+
 
 export function biomeGround(weights: BiomeWeights, moss = 0): [number, number, number] {
   const color: [number, number, number] = [0, 0, 0];

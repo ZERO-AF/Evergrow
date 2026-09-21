@@ -30,7 +30,7 @@ export class BattleBarkScene {
   noteEvents(events: readonly CombatEvent[]): void { this.barks.noteEvents(events); }
   draw(c: CanvasRenderingContext2D, sim: Simulation, world: World, view: CameraView,
     enabled: boolean, props: SceneVisibility['props'], reserved: BarkRect[],
-    crownOpacity?: ReadonlyMap<string, number>): void {
+    occlusionAlphas?: ReadonlyMap<string, number>): void {
     if (!GAME_FEATURES.battleBarks) { this.reset(); return; }
     const project = (x: number, y: number) => worldToScreen(view, x, y);
     const width = view.width * view.zoom, height = view.height * view.zoom;
@@ -89,7 +89,7 @@ export class BattleBarkScene {
       const headY = at.y + body.top;
       return !props.some(prop => {
         if (prop.y < at.y) return false;
-        if (prop.kind === 'deadTree' || prop.kind === 'charredTree' || (crownOpacity?.get(prop.id) ?? 1) < .5) return false;
+        if (prop.kind === 'deadTree' || prop.kind === 'charredTree' || (occlusionAlphas?.get(prop.id) ?? 1) < .5) return false;
         const crown = propDefinition(prop.kind).canopy;
         return !!crown && Math.abs(at.x - prop.x - crown.offsetX * prop.scale) < crown.radius * prop.scale
           && headY > prop.y - (crown.height + crown.radius) * prop.scale

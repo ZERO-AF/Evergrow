@@ -21,6 +21,10 @@ export function isWowRaceId(v: unknown): v is WowRaceId {
   return typeof v === 'string' && (WOW_RACE_IDS as readonly string[]).includes(v);
 }
 
+/** The war axis a playable race belongs to. Static per race (wow-races.ts). */
+export type PlayerFaction = 'alliance' | 'horde';
+
+
 /** Primary resource riding Player.mana/maxMana. */
 export type ResourceType = 'mana' | 'rage' | 'energy' | 'runicPower';
 export type RuneKind = 'blood' | 'frost' | 'unholy';
@@ -62,6 +66,8 @@ export interface WowClassDef {
 export interface WowRaceDef {
   readonly id: WowRaceId;
   readonly name: string;
+  /** Alliance or Horde — drives the starting zone, NPC hostility and guards. */
+  readonly faction: PlayerFaction;
   /** Playable classes; deathKnight is additionally available to every race. */
   readonly classes: readonly WowClassId[];
   /** Racial active skill id (auto-known, R key). */

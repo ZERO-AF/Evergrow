@@ -1,6 +1,8 @@
 import { sampleBiome } from './biomes.ts';
 import { geoHash, parentPlace, queryPlaces, settlementPlace, type Place } from './world-geography.ts';
 import { validWorldRectangle } from './world-query.ts';
+import { zoneAt } from './world-atlas.ts';
+import { authoredRoadDistance, zoneContent, zonesIn } from './zone-content.ts';
 export interface RoadPath {
   id: string;
   main: boolean;
@@ -80,10 +82,22 @@ export function roadPaths(x: number, y: number, width: number, height: number, s
       result.set(r.id, r);
     }
   }
-  return [...result.values()].filter(r => r.points.some((p, i) => {
+  const procedural = [...result.values()].filter(r => r.points.every(p => !zoneAt(p[0], p[1])) && r.points.some((p, i) => {
     const q = r.points[Math.max(0, i - 1)];
     return Math.max(p[0], q[0]) >= x - 80 && Math.min(p[0], q[0]) <= x + width + 80 && Math.max(p[1], q[1]) >= y - 80 && Math.min(p[1], q[1]) <= y + height + 80;
   }));
+  // Authored zone roads are world-space polylines; stub places satisfy RoadPath.
+  const stub = (id: number, px: number, py: number): Place => ({ id, cx: 0, cy: 0, x: px, y: py, seed: 0, city: false });
+  for (const zone of zonesIn(x, y, width, height, 4000)) {
+    for (const road of zoneContent(zone.id).roads) {
+      const points = road.points.map(p => Object.freeze([p[0], p[1]] as readonly [number, number]));
+      if (!points.some(p => p[0] >= x - 80 && p[0] <= x + width + 80 && p[1] >= y - 80 && p[1] <= y + height + 80)) continue;
+      const length = points.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - points[i][0], p[1] - points[i][1]), 0);
+      procedural.push(Object.freeze({ id: `atlas:${zone.id}:${road.id}`, main: road.main ?? false, points: Object.freeze(points),
+        from: stub(0, points[0][0], points[0][1]), to: stub(1, points[points.length - 1][0], points[points.length - 1][1]), length }));
+    }
+  }
+  return procedural;
 }
 interface Segment {
   ax: number;
@@ -111,6 +125,9 @@ function segmentsAt(x: number, y: number, seed: number): readonly Segment[] {
   return result;
 }
 export function pathDistance(x: number, y: number, seed = 7319): number {
+  const authored = authoredRoadDistance(x, y);
+  if (authored < Infinity) return authored;
+  if (zoneAt(x, y)) return Infinity; // authored zones own their roads
   let distance = Infinity;
   for (const s of segmentsAt(x, y, seed)) {
     const t = clamp(((x - s.ax) * s.dx + (y - s.ay) * s.dy) / s.length2);
@@ -204,7 +221,7 @@ export function roadAnchors(x: number, y: number, width: number, height: number,
         anchors.set(key, anchor);
       }
       const a = anchors.get(key);
-      if (a && a.x >= x && a.x < x + width && a.y >= y && a.y < y + height)
+      if (a && !zoneAt(a.x, a.y) && a.x >= x && a.x < x + width && a.y >= y && a.y < y + height)
         result.push(a);
     }
   return result;

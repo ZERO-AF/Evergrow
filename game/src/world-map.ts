@@ -36,6 +36,8 @@ export interface MapWorld extends ExplorationWorld {
   getBuildings(x: number, y: number, width: number, height: number): Array<MapRect & { name?: string; kind?: string }>;
   getBuildingAt?(x: number, y: number): { name?: string } | null;
   isSanctuary?(x: number, y: number): boolean;
+  /** Optional zone identity for map contours/labels; null marks unzoned ocean. */
+  zoneKey?(x: number, y: number): string | null;
 }
 const TILE_PIXELS = 32;
 export const MAP_TERRAIN_RULES = Object.freeze({ cacheLimit: 384, maximumVisibleTiles: 256, baseWorldSize: 768 });
@@ -108,11 +110,12 @@ const setText = (element: HTMLElement, value: string) => { if (element.textConte
 const palette = UI_THEME.palette;
 
 /** Revealed cells are the boundary for inspecting terrain and danger on the chart. */
-export function chartedMapArea(world: Pick<MapWorld, 'sampleBiome' | 'isSanctuary'> & Partial<Pick<MapWorld, 'seed'>>,
+export function chartedMapArea(world: Pick<MapWorld, 'sampleBiome' | 'isSanctuary'> & Partial<Pick<MapWorld, 'seed' | 'zoneKey'>>,
   exploration: Pick<Exploration, 'isRevealed'>, x: number, y: number) {
   if (![x, y].every(Number.isFinite) || !exploration.isRevealed(x, y)) return null;
-  return { name: getZoneAt(x, y, world.seed).districtName, biome: world.sampleBiome(x, y).name,
-    label: mapAreaLabel(world, x, y), x, y };
+  const ocean = world.zoneKey?.(x, y) === null;
+  return { name: ocean ? 'The Great Sea' : getZoneAt(x, y, world.seed).districtName, biome: world.sampleBiome(x, y).name,
+    label: ocean ? 'Ocean' : mapAreaLabel(world, x, y), x, y };
 }
 
 function mapAreaLabel(world: Pick<MapWorld, 'isSanctuary'> & Partial<Pick<MapWorld, 'seed'>>, x: number, y: number) {
@@ -698,7 +701,7 @@ export class WorldMap {
         c.strokeStyle = '#454a37'; c.beginPath(); c.moveTo(p.x + w / 2, p.y + 2); c.lineTo(p.x + w / 2, p.y + h - 2); c.stroke(); }
     }
     const { pois, labels } = features;
-    if (!mini && !simple && this.zoneLevels) drawMapZoneLevels(c, view, this.exploration, this.world.seed, features.zones);
+    if (!mini && !simple && this.zoneLevels) drawMapZoneLevels(c, view, this.exploration, this.world.seed, features.zones, this.world.zoneKey);
     for (const label of labels) {
       const p = projectMapPoint(label.x, label.y, view), biome = BIOMES[label.id as BiomeId];
       const labelColor = biome?.color ?? palette.jade;

@@ -14,7 +14,7 @@ import { raid2Entrances } from './raid2-boss-content.ts';
 import { raid3Entrances } from './raid3-boss-content.ts';
 import { raid4Entrances } from './raid4-boss-content.ts';
 import { blackrockEntrances } from './dungeon2-content.ts';
-import { biomeGround, biomeMapColor, sampleBiome } from './biomes.ts';
+import { biomeGround, biomeMapColor, proceduralBiomeSample, sampleBiome } from './biomes.ts';
 import type { BiomeId, BiomeSample } from './biomes.ts';
 import { chooseBiomeProp, propDefinition, type PropKind } from './biome-props.ts';
 import { circleHitsRect, contains, freezeSettlement, generateSettlement, intersects, MAX_TOWN_RADIUS, settlementPavingWeight, settlementPOIs } from './settlements.ts';
@@ -36,6 +36,10 @@ export interface Prop {
   biome?: BiomeId;
   seed: number;
   scale: number;
+  /** Authored tall-object metadata (wayfinder world-t03): when set — or when the
+   * kind's definition has a canopy — the renderer fades the prop's silhouette while
+   * it covers the focus→player segment. Explicit null disables a kind's canopy fade. */
+  occluder?: { height: number; radius: number; offsetX?: number } | null;
 }
 
 export const TILE_SIZE = 256;
@@ -91,7 +95,7 @@ function compareProps(a: Prop, b: Prop): number {
 export class WorldLandscape {
   readonly seed: number;
   readonly hydrology;
-  readonly generationVersion = WORLD_GENERATION_VERSION;
+  readonly generationVersion: number = WORLD_GENERATION_VERSION;
   private propCells = new Map<string, Prop | null>();
   private settlements = new Map<number, Settlement>();
   private settlementCells = new Map<string, readonly Place[]>();
@@ -113,10 +117,13 @@ export class WorldLandscape {
 
   get cacheStats() { return { settlements: this.settlements.size, wildernessSites: this.wilderness.size }; }
 
+  /** Fresh characters start here; authored worlds override with a land point. */
+  get spawnPoint(): { x: number; y: number } | undefined { return undefined; }
+
   /** Cached generated content belongs to this world instance, not global module state. */
   dispose() { this.collisionRegions.clear(); this.propCells.clear(); this.settlements.clear(); this.settlementCells.clear(); this.wilderness.clear(); }
 
-  sampleBiome(x: number, y: number): BiomeSample { return sampleBiome(x, y, this.seed); }
+  sampleBiome(x: number, y: number): BiomeSample { return proceduralBiomeSample(x, y, this.seed); }
 
   getNearestSettlement(x:number,y:number):Settlement { return this.settlement(nearestPlace(this.seed,x,y).id); }
 

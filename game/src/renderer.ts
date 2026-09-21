@@ -126,9 +126,13 @@ import { worldEventsOf, worldEventProgress, worldEventChestAt } from './world-ev
 import { drawNecropolis, drawWorldEventChest, worldEventLights, WorldEventCardPresentation, drawWorldEventCard, worldEventChestLabel } from './world-event-art.ts';
 import { drawNameplates } from './nameplate-art.ts';
 import { nameplateSettings } from './nameplate-settings.ts';
+import { transportPrompt, vehiclesNear } from './transport.ts';
+import { drawTransport } from './transport-art.ts';
 
 import { GAME_FEATURES } from './game-features.ts';
-
+import { OcclusionField, occluderBlocks, propOccluder } from './occlusion.ts';
+import { drawElevationRegion } from './elevation-art.ts';
+import type { ElevationQueries } from './elevation.ts';
 import { EnemyDeaths } from './death-presentation.ts';
 import { drawEnemyRemains, deathDepth, resetDeathArt } from './death-art.ts';
 interface Ghost { x: number; y: number; angle: number; gait: number; life: number; }
@@ -208,8 +212,9 @@ export class Renderer {
   private biomeLife = new BiomeLife();
   private water = new WaterPresentation();
   private waterArt = new WaterArt();
+  /** Generalized occluder→alpha field: tree crowns, authored tall props, overhangs. */
+  readonly occlusion = new OcclusionField();
   private biomeArt = new BiomeLifeArt();
-  private crownOpacity = new Map<string, number>();
   private visibility = new SceneVisibility();
   private siteAftermath: ReadonlyMap<string, SiteAftermath> = new Map();
   private get cachedBuildings() { return this.visibility.buildings; }
@@ -325,7 +330,7 @@ export class Renderer {
     this.cameraX = 0; this.cameraY = 0; this.effects.reset(); this.rangedAim = null;
     this.view = cameraView(this.width, this.height, 0, 0, this.cameraZoom.value);
     this.lastDisplayedView = this.view;
-    this.riftAtmosphere.reset(); this.groundLayer.reset(); this.groundDressing.reset(); this.biomeLife.reset(); this.crownOpacity.clear(); this.visualTime = 0;
+    this.riftAtmosphere.reset(); this.groundLayer.reset(); this.groundDressing.reset(); this.biomeLife.reset(); this.occlusion.clear(); this.visualTime = 0;
     this.settlementArt.reset(); this.indoorBlend = 0; this.residents=[]; this.residentSpeech=null; this.residentCooldown=0;
     this.materials.reset(); this.deaths.reset(); resetDeathArt(); this.ghosts = []; this.ghostTimer = 0;
     this.hurt = 0; this.shake = 0; this.kickX = this.kickY = 0;
@@ -457,7 +462,7 @@ export class Renderer {
         if(speaker){this.residentSpeech={id:speaker.id,age:0,line:residentHint(speaker.seed,world.sampleBiome(speaker.x,speaker.y).id,Math.floor(sim.time/18))};this.residentCooldown=12;}
       }
     }
-    this.settlementArt.update(this.cachedBuildings, px, py, dt, settings.reducedMotion);
+    this.settlementArt.update(this.cachedBuildings, px, py, dt, settings.reducedMotion, this.cameraX, this.cameraY);
     this.indoorBlend += ((world.getBuildingAt(px, py) ? 1 : 0) - this.indoorBlend) * (1 - Math.exp(-dt * 5));
     const biome = world.sampleBiome(px, py);
     this.sky = settings.skyHour === undefined ? skyAtTime(sim.time) : skyAtHour(settings.skyHour);
@@ -502,6 +507,13 @@ export class Renderer {
     c.save(); c.translate(offsetX, offsetY); c.scale(zoom, zoom);
     const terrainStart = this.profiler?.start() ?? 0;
     this.groundLayer.draw(c, world, left, top, worldWidth, worldHeight);
+    // Authored elevation shading: lit rims and cliff-face shadows over the ground.
+    if (GAME_FEATURES.elevation && !this.cryptFloor) {
+      const elevated = world as World & ElevationQueries;
+      if (elevated.elevationRegion) drawElevationRegion(c,
+        elevated.elevationRegion(left, top, worldWidth, worldHeight), this.occlusion,
+        { x: this.cameraX, y: this.cameraY }, { x: px, y: py }, dt, settings.reducedMotion);
+    }
     this.profiler?.end('terrain', terrainStart);
     const sceneryStart = this.profiler?.start() ?? 0;
     const dungeonRun=currentDungeon(sim.expeditions);
@@ -677,7 +689,7 @@ export class Renderer {
     if (this.performanceUIBounds) barkReserved.push(this.performanceUIBounds);
     if (this.touchActive) barkReserved.push({ x: 0, y: this.height - 190 * unit, width: this.width, height: 190 * unit });
     this.battleBarks.draw(c, sim, world, this.view, settings.phase === 'playing' && !p.dead,
-      this.cachedProps, barkReserved, this.crownOpacity);
+      this.cachedProps, barkReserved, this.occlusion.alphas);
     if (settings.phase === 'playing' && !p.dead) this.effects.drawManaWarning(c,
       worldToScreen(this.view, lerp(p.prevX, p.x, sim.interpolationAlpha), lerp(p.prevY, p.y, sim.interpolationAlpha) - 43),
       settings.reducedMotion);
@@ -781,6 +793,8 @@ export class Renderer {
       if(table){const q=worldToScreen(this.view,table.door.x,table.door.y-80);text(c,`${table.kind==='rift'?'Crimson Rift':'Expeditions'}${p.level<20?' · Level 20':''} [${this.gamepadActive?'A':controls.label('interact')}]`,q.x,q.y,1,'#d8c593','center');}
       const target=points.find(q=>Math.hypot(q.x-p.x,q.y-p.y)<75);
       if(target){const point=worldToScreen(this.view,target.x,target.y-75);text(c,`${target.name}  [${this.gamepadActive?'A':controls.label('interact')}]`,point.x,point.y,1,'#d6d7b3','center');}
+      if(!run&&GAME_FEATURES.transport){const tp=transportPrompt(sim);
+        if(tp){const point=worldToScreen(this.view,tp.x,tp.y-70);text(c,tp.kind==='wait'?tp.label:`${tp.label}  [${this.gamepadActive?'A':controls.label('interact')}]`,point.x,point.y,1,'#d6d7b3','center');}}
       if(!run){const chest=worldEventChestAt(worldEventsOf(sim),p);const chestLabel=worldEventChestLabel(chest);
         if(chest&&chest.anchor&&chestLabel){const point=worldToScreen(this.view,chest.anchor.x,chest.anchor.y-55);text(c,`${chestLabel}  [${this.gamepadActive?'A':controls.label('interact')}]`,point.x,point.y,1,'#d6d7b3','center');}}
       if(run&&f)for(const event of f.events??[]){
@@ -861,20 +875,14 @@ export class Renderer {
         || prop.y + 10 < this.view.top || prop.y - 230 > this.view.top + this.view.height) return;
       const definition = propDefinition(prop.kind);
       const sprite = this.propSprite(prop);
-      const crown = definition.canopy;
-      const occludes = crown && py < prop.y + 8 && py > prop.y - (crown.height + crown.radius) * prop.scale
-        && Math.abs(px - prop.x - crown.offsetX * prop.scale) < crown.radius * prop.scale;
-      let foliageOpacity = occludes ? .24 : 1;
-      if (settings.reducedMotion) {
-        if (occludes) this.crownOpacity.set(prop.id, foliageOpacity);
-        else this.crownOpacity.delete(prop.id);
-      }
-      if (sprite.foliage && !settings.reducedMotion) {
-        foliageOpacity += ((this.crownOpacity.get(prop.id) ?? 1) - foliageOpacity) * Math.exp(-dt * 13);
-        if (!occludes && foliageOpacity > .995) this.crownOpacity.delete(prop.id);
-        else this.crownOpacity.set(prop.id, foliageOpacity);
-      }
-      if (this.crownOpacity.size > 512) this.crownOpacity.delete(this.crownOpacity.keys().next().value!);
+      // Generalized occluder fade: any tall prop (canopy kind or authored
+      // `occluder` metadata) whose silhouette covers the focus→player segment
+      // turns translucent. Foliage layers fade alone so trunks stay rooted.
+      const occluder = propOccluder(prop);
+      const occludes = !!occluder && occluderBlocks(occluder, this.cameraX, this.cameraY, px, py);
+      const occluderAlpha = occluder
+        ? this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion)
+        : (this.occlusion.delete(prop.id), 1);
       c.save(); c.translate(prop.x, prop.y); c.scale(prop.scale, prop.scale);
       // Trunks stay rooted and opaque. Only the obstructing canopy becomes translucent.
       if (!sprite.foliage && definition.radius[1] === 0) {
@@ -883,14 +891,18 @@ export class Renderer {
         c.transform(1, 0, -bend * .35, 1 - Math.abs(bend) * .18, 0, 0);
         c.transform(1, 0, wind * -.012, 1, 0, 0);
       }
+      // Props without foliage layers fade whole; layered trees keep an opaque trunk.
+      c.save();
+      if (!sprite.foliage) c.globalAlpha *= occluderAlpha;
       c.drawImage(sprite.image, -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
       this.propSurfaceLight.draw(c, prop, sprite, sprite.image, this.cryptFloor ? undefined : this.sky);
       if (!this.cryptFloor) this.propSurfaceLight.drawOutdoor(c, prop, sprite, sprite.image, world, this.visualTime, settings.reducedMotion, this.sky);
+      c.restore();
       for (const [layer, foliage] of (sprite.foliage ?? []).entries()) {
         c.save();
         const gust = biomeWind(prop.x, prop.y, this.visualTime - layer * .18, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway * 2.2;
         c.transform(1, 0, gust * (layer ? -.009 : -.005), 1, 0, 0);
-        c.globalAlpha *= foliageOpacity;
+        c.globalAlpha *= occluderAlpha;
         c.drawImage(foliage, -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
         this.propSurfaceLight.draw(c, prop, sprite, foliage, this.cryptFloor ? undefined : this.sky);
         if (!this.cryptFloor) this.propSurfaceLight.drawOutdoor(c, prop, sprite, foliage, world, this.visualTime, settings.reducedMotion, this.sky);
@@ -904,6 +916,9 @@ export class Renderer {
       drawTownAnchor(c, anchor, sim.travel.homeTown === anchor.band);
       if (sim.travel.returnTo?.town === anchor.band) drawPortal(c, anchor.x, anchor.y, this.visualTime, 1, this.portalDestinations?.returnTo ?? undefined, settings.reducedMotion);
     } });
+    if (GAME_FEATURES.transport && !currentDungeon(sim.expeditions))
+      for (const vehicle of vehiclesNear(sim, this.view.left - 160, this.view.top - 160, this.view.width + 320, this.view.height + 320))
+        entries.push({ y: vehicle.y, draw: () => drawTransport(c, vehicle, this.visualTime) });
     if (sim.portal.origin) { const origin = sim.portal.origin;
       entries.push({ y: origin.y - 1, draw: () => drawPortal(c, origin.x, origin.y, this.visualTime, sim.portal.progress, this.portalDestinations?.home, settings.reducedMotion) });
     }

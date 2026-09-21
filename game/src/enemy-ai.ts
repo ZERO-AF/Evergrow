@@ -10,6 +10,7 @@ import { WOW_COMBAT, type CcKind } from './wow-types.ts';
 import { ENEMY_AI_RULES, ENEMY_DEFINITIONS, enemyAttackVariant, enemyAttackDefinition, type EnemyDefinition, type ProjectileDefinition } from './combat-content.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
 import type { CombatEvent, Enemy, Player, ProjectileEffects, WorldQuery } from './model.ts';
+import { enemyHostility, enemyHuntsPlayer } from './factions.ts';
 
 /** Decisions own no RNG, loot, progression, or drawing. Simulation supplies bounded world mutations. */
 export interface EnemyAIContext {
@@ -240,6 +241,17 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
     enemy.angle=away;
     context.move(enemy,Math.cos(away)*definition.speed*.6,Math.sin(away)*definition.speed*.6,dt);
     return;
+  }
+  // Faction layer (world-t05): opposing-faction actors hunt on sight; neutral
+  // actors only retaliate once alerted (damage, taunt, trial); friendly actors
+  // never fight the player — a forced combat state walks them home instead.
+  if (!enemyHuntsPlayer(enemy, context.player)) {
+    if (enemyHostility(enemy, context.player) === 'friendly'
+      && enemy.state !== 'idle' && enemy.state !== 'patrol' && enemy.state !== 'return') disengage(enemy);
+    if (enemy.state === 'return') { returnHome(enemy, dt, context); return; }
+    if (enemy.state === 'idle' && enemy.stateTime >= enemy.stateDuration) transitionEnemy(enemy, 'patrol');
+    if (enemy.state === 'patrol') patrol(enemy, dt, context);
+    if (enemy.state === 'idle' || enemy.state === 'patrol') return;
   }
   const trial = context.trial;
   const guardingTrial = trial && !p.dead && enemy.campId === trial.campId

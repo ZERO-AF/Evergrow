@@ -73,6 +73,8 @@ export interface FactionDef {
   readonly raidIds?: readonly string[];
   /** Home-settlement faction: NPCs in the starting town (place id 0) belong here. */
   readonly homeSettlement?: boolean;
+  /** Alliance/Horde axis this faction rides on (factions.ts); absent = neutral. */
+  readonly axis?: 'alliance' | 'horde';
   /** Reputation per dungeon/raid boss clear. */
   readonly clearRep: number;
   /** Reputation per quest turn-in. */
@@ -95,6 +97,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
   f({ id: 'stormwind', name: 'Stormwind', icon: 'shield', color: '#3f6fb5',
     description: 'The crown of the Alliance. Its marshals post bounties from Briarwatch to the farthest border towns.',
     homeSettlement: true,
+    axis: 'alliance',
     biomes: ['verdant', 'highlands'],
     raidIds: ['dungeon:raid:onyxias-lair'],
     questZones: ['Elwynn Forest', 'Westfall', 'Redridge Mountains', 'Duskwood'],
@@ -176,6 +179,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
       gear('rocket-helmet', 'Goblin Rocket Helmet', 'exalted', 'head', 'epic'),
     ] }),
   f({ id: 'warsong', name: 'Warsong Outriders', icon: 'sword', color: '#b5543c',
+    axis: 'horde',
     description: 'The Outriders answer only to battle. Arena and battleground victories are the coin they respect.',
     clearRep: 0, questRep: 0,
     rewards: [

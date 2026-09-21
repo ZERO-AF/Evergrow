@@ -6,13 +6,14 @@ import type { Enemy, Player, WorldQuery } from './model.ts';
 import type { CampMember, EnemyCamp } from './wilderness-sites.ts';
 import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import { transitionEnemy } from './enemy-state.ts';
+import type { FactionTag } from './factions.ts';
 import { isEnemyInactive, isSpawnHidden, type SpawnExclusion } from './spawn-visibility.ts';
 
 export const CAMP_POPULATION_RULES = Object.freeze({ actorCacheCapacity: 32, updateInterval: .4,
   activationDistance: 1000, maximumActivationDistance: 2000, sleepMargin: 260 });
 export type CampState = 'dormant' | 'active' | 'cleared';
 interface CampRecord { members: readonly Enemy[] }
-export interface CampSpawnSource { readonly campId: string; readonly memberId: string; readonly lootSeed: number; readonly level?: number }
+export interface CampSpawnSource { readonly campId: string; readonly memberId: string; readonly lootSeed: number; readonly level?: number; readonly faction?: FactionTag }
 export type SpawnCampMember = (member: CampMember, x: number, y: number, source: CampSpawnSource) => Enemy | null;
 
 /** Bounded actor cache, with exact durable deaths and wounds outside the cache. */
@@ -120,7 +121,8 @@ export class CampPopulation {
       const created: Enemy[] = [];
       for (const member of livingMembers) {
         const enemy = spawn(member, camp.x + member.dx, camp.y + member.dy,
-          { campId: camp.id, memberId: member.id, lootSeed: campMemberSeed(member.id), level: encounterMemberLevel(scale, member.rank, campMemberSeed(member.id), isBossKind(member.kind)) });
+          { campId: camp.id, memberId: member.id, lootSeed: campMemberSeed(member.id), level: encounterMemberLevel(scale, member.rank, campMemberSeed(member.id), isBossKind(member.kind)),
+            ...(member.faction ?? camp.faction ? { faction: member.faction ?? camp.faction } : {}) });
         if (enemy) {
           const wound=this.wounds.get(member.id);
           if(wound)Object.assign(enemy,scaledEnemyStats(wound.kind,wound.level,wound.rank),{hp:wound.hp,level:wound.level,biome:wound.biome,lootSeed:wound.seed});

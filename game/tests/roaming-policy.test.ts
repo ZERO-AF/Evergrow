@@ -104,13 +104,16 @@ test('extra members favor ordinary enemies without excluding veterans or elites'
 });
 
 test('runtime spawns large regional packs safely but keeps an overlevelled home small',()=>{
-  for(const x of [0,200000])for(const seed of [7319,18427,90210]){
+  // Pack size follows the region's encounter level, not the player's: a level-80
+  // player in a level-80 zone (Icecrown) meets a large pack, while the level-1
+  // home stays small. Coordinates are real atlas zone centers.
+  for(const [x,y] of [[0,0],[100000,1030000]] as const)for(const seed of [7319,18427,90210]){
     let blocked=false,checks=0;
-    const sim=new Simulation({seed,blocked:()=>{checks++;return blocked;},move:(x,y)=>({x,y})},{spawn:false,seed,startX:x,startY:0});
+    const sim=new Simulation({seed,blocked:()=>{checks++;return blocked;},move:(x,y)=>({x,y})},{spawn:false,seed,startX:x,startY:y});
     sim.player.level=80;sim['roaming'].resolved(16,()=>0);
-    const view={x:x-200,y:-200,width:400,height:400};
+    const view={x:x-200,y:y-200,width:400,height:400};
     const count=sim['spawnRoamingGroup'](view);
-    assert.ok(x?count>=14&&count<=20:count>=4&&count<=6,`${seed} at ${x}: ${count}`);
+    assert.ok(x?count>=14&&count<=20:count>=4&&count<=6,`${seed} at ${x},${y}: ${count}`);
     for(const e of sim.enemies)assert.ok(isSpawnHidden(e.x,e.y,view,e.radius));
     const saved=sim.enemies.map(e=>({level:e.level,rank:e.rank,seed:e.lootSeed}));sim.player.level++;
     assert.deepEqual(sim.enemies.map(e=>({level:e.level,rank:e.rank,seed:e.lootSeed})),saved);

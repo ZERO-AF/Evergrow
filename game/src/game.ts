@@ -61,6 +61,9 @@ import { pvpBracketLabel, type PvpSetup } from './pvp-setup.ts';
 import { enterPvpMatch, exitPvpMatch, currentPvpMatch } from './pvp-instance.ts';
 import { drainPvpAnnouncements, pvpScoreboard, updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
 import { awardMatchRewards } from './pvp-rewards.ts';
+import { FlightPanel } from './flight-panel.ts';
+import { flightMasterAt, flightDestinations, transportPrompt } from './transport.ts';
+import { flightPoint, type FlightPoint } from './transport-content.ts';
 import { pvpScoreboardSummary } from './pvp-scoreboard.ts';
 import { PvpScoreboardPanel, PVP_SCOREBOARD_SECONDS } from './pvp-scoreboard-panel.ts';
 import type { PvpAnnouncement } from './pvp-announce.ts';
@@ -87,6 +90,7 @@ import { SkillTreePanel } from './skill-tree-panel.ts';
 import { executeCharacterCommand, type CharacterCommand } from './character-commands.ts';
 import { Lifetime } from './lifetime.ts';
 import { World } from './world.ts';
+import { createWorld } from './authored-world.ts';
 import { isWorldSeed } from './world-seed.ts';
 import { Simulation } from './simulation.ts';
 import { Renderer } from './renderer.ts';
@@ -102,6 +106,7 @@ import { isGameUIPoint, isUIRectPoint, projectUIRect } from './ui-hit-test.ts';
 import type { GamePhase } from './game-phase.ts';
 import type { Input } from './model.ts';
 import { GAME_FEATURES } from './game-features.ts';
+import { startingZone } from './factions.ts';
 import { ActionBars, applyBarInput, activateBarSlot, executeBarCommand } from './action-bar.ts';
 import { ActionBarPanel } from './action-bar-panel.ts';
 import { actionBarSlotAt, drawActionBars, isActionBarPoint } from './hud-action-bars.ts';
@@ -157,7 +162,7 @@ export class Game {
   private locations!: LocationController;
 
   private lifetime = new Lifetime();
-  overworld = new World(7319);
+  overworld = createWorld(7319);
   world: World = this.overworld;
   private riftPanel: RiftPanel;
   private activeRiftPortal: string|null=null;
@@ -166,6 +171,7 @@ export class Game {
   private mapIcons = new MapIconVisibility();
   private dungeonMap: DungeonMap;
   private activeDungeonEntrance: DungeonEntrance | null = null;
+  private activeFlightMaster: FlightPoint | null = null;
   sim = new Simulation(this.world, { seed: 7319 });
   renderer: Renderer;
   audio: GameAudio;
@@ -185,6 +191,7 @@ export class Game {
   private skillPanel: SkillTreePanel;
   private servicePanel: ServicePanel;
   private eventPanel: EventPanel;
+  private flightPanel: FlightPanel;
   private activeEvent: EventSite | null = null;
   private projectedBeacons = new Set<string>();
   private activeNPC: TownNPC | null = null;
@@ -275,7 +282,7 @@ export class Game {
       this.exploration = new Exploration(this.world, { storage: null });
       this.lifetime.defer(() => this.exploration.dispose());
       this.saveClient = this.lifetime.own(new SaveHub());
-      this.session = new CharacterSession(this.saveClient, this.world.generationVersion, seed=>new World(seed));
+      this.session = new CharacterSession(this.saveClient, this.world.generationVersion, seed=>createWorld(seed));
       this.shell = this.lifetime.own(new GameShell(root, {
         shortcutMenuChanged: () => this.clearInput(),
         homePortal: () => { if (this.shouldShowHomePortal()) this.requestPortal(); },
@@ -348,7 +355,6 @@ export class Game {
       this.titleScreen = this.lifetime.own(new TitleScreen(this.shell.titleMount, {
         sound: () => this.toggleSound(), muted: () => this.muted,
         volume: channel => this.audio.getVolumes()[channel], setVolume: (channel, value) => this.setAudioVolume(channel, value), panelSound: open => this.audio.panel(open),
-        chronicle: onCached => this.saveClient.chronicle(onCached),
         create: (index, name, classId, raceId, look, seed) => { void this.createCharacter(index, name, classId, raceId, seed, look); },
         editAppearance: slot => this.editHallAppearance(slot),
         continue: index => this.continueCharacter(index), continueRecovery: (index, token) => this.continueCharacter(index, token), remove: (index, expected) => this.deleteCharacter(index, expected),
@@ -409,6 +415,15 @@ export class Game {
         enter: entrance => { this.resume(); this.switchDungeon({kind:'enter',entrance}); },
         close: () => this.resume(), choose: (site, choice) => { this.resume(); this.startEvent(site, choice); },
       }));
+      this.flightPanel = this.lifetime.own(new FlightPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        fly: (master, destination) => {
+          const near = flightMasterAt(this.sim);
+          if (!near || near.id !== master.id) return;
+          this.resume();
+          void this.durable(() => this.locations.transport({ kind: 'fly', fromId: master.id, toId: destination.id }), undefined);
+        },
+      }));
       this.questPanel = this.lifetime.own(new QuestPanel(this.shell.panelMount, this.canvas.parentElement!, {
         close: () => { if (this.phase === 'questLog') this.resume(); else this.questPanel.close(); },
         accept: id => this.questCommand('accept', id),
@@ -417,10 +432,6 @@ export class Game {
         map: id => {
           const marker = questMapMarkers(this.world, this.sim.player).find(m => m.quest.id === id);
           if (!marker) return;
-          this.mapFocus = { x: marker.x, y: marker.y };
-          this.panels.open('map');
-        },
-        service: () => {
           const anchor = this.pendingGiver?.anchor;
           if (anchor?.kind !== 'npc') return;
           this.activeNPC = anchor.npc;
@@ -488,7 +499,7 @@ export class Game {
       this.panels = new PanelCoordinator({
         chronicle:{open:()=>{void this.chronicle.open(async onCached=>{await this.saveCharacter(true);return this.saveClient.chronicle(onCached);},this.session.active?.record.id);},close:()=>this.chronicle.close(false)},
         journeys:{open:()=>this.journeys.panel.open(this.journeys.selected),close:()=>this.journeys.panel.close()},
-        event: { open: () => { if(this.activeRiftPortal)this.riftPanel.open(this.sim.expeditions,this.sim.player,this.activeRiftPortal); else if(this.activeExpeditionTable)this.expeditionPanel.open(this.sim.expeditions,this.sim.player.level,this.overworld.seed,this.activeExpeditionTable); else if(this.activeDungeonEntrance) this.eventPanel.openDungeon(this.activeDungeonEntrance); else if (this.activeEvent) this.eventPanel.open(this.activeEvent); }, close: () => { this.eventPanel.close(); this.expeditionPanel.close(); this.riftPanel.close(); this.activeRiftPortal=null; this.activeExpeditionTable=null; this.activeEvent = null; this.activeDungeonEntrance = null; } },
+        event: { open: () => { if(this.activeRiftPortal)this.riftPanel.open(this.sim.expeditions,this.sim.player,this.activeRiftPortal); else if(this.activeExpeditionTable)this.expeditionPanel.open(this.sim.expeditions,this.sim.player.level,this.overworld.seed,this.activeExpeditionTable); else if(this.activeDungeonEntrance) this.eventPanel.openDungeon(this.activeDungeonEntrance); else if (this.activeEvent) this.eventPanel.open(this.activeEvent); else if (this.activeFlightMaster) this.flightPanel.open(this.activeFlightMaster, flightDestinations(this.sim, this.activeFlightMaster.id)); }, close: () => { this.eventPanel.close(); this.flightPanel.close(); this.expeditionPanel.close(); this.riftPanel.close(); this.activeRiftPortal=null; this.activeExpeditionTable=null; this.activeEvent = null; this.activeDungeonEntrance = null; this.activeFlightMaster = null; } },
         service: { open: () => { if (this.activeNPC) this.servicePanel.open(this.sim.player, this.activeNPC, this.overworld.seed); }, close: () => { this.servicePanel.close(); this.activeNPC = null; } },
         stable: { open: () => { this.stablePanel.open(this.activeStableMaster); this.shell.setStatus('Pet stable open. Game paused.'); }, close: () => { this.stablePanel.close(); this.activeStableMaster = null; } },
         arena: { open: () => { this.pvpPanel.open(this.activeBattlemaster); this.shell.setStatus('Arena & Battlegrounds open. Game paused.'); }, close: () => { this.pvpPanel.close(); this.activeBattlemaster = null; } },
@@ -944,7 +955,7 @@ export class Game {
     if (this.phase !== 'ready' || this.hallBusy || this.disposed) return false;
     if (!isWorldSeed(seed)) { this.titleScreen.message('Enter a whole world seed from 0 to 4294967295.'); return false; }
     if (!validCharacterLook(look)) return false;
-    const world = new World(seed);
+    const world = createWorld(seed);
     const fresh = new Simulation(world, { seed, spawn: false });
     const created = createPlayerCharacter(fresh.player, name, classId, raceId, structuredClone(look));
     if (!created.ok) { this.titleScreen.message(created.message ?? 'Could not create character.'); world.dispose(); return false; }
@@ -966,8 +977,9 @@ export class Game {
     if (!record) { await this.loadRoster(index); this.titleScreen.message(this.session.error); return; }
     if (this.world !== this.overworld) this.world.dispose();
     this.overworld.dispose();
-    this.overworld = new World(record.worldSeed); this.world = this.overworld;
-    this.sim = new Simulation(this.world, { seed: record.worldSeed });
+    this.overworld = createWorld(record.worldSeed); this.world = this.overworld;
+    const start = GAME_FEATURES.factions ? startingZone(record.checkpoint.character.raceId) : null;
+    this.sim = new Simulation(this.world, { seed: record.worldSeed, ...(start ? { startX: start.spawn.x, startY: start.spawn.y } : {}) });
     this.setLocationWorld(record.checkpoint);
     this.sim.restoreCheckpoint(record.checkpoint);
     this.projectedBeacons.clear();
@@ -1023,7 +1035,6 @@ export class Game {
     this.areaNotices.reset(this.currentArea().id);
     this.zoneBanner.reset(this.world, this.sim.player.x, this.sim.player.y);
     fishingCancel(this.fishing);
-    this.renderer.fishing = this.fishing;
     this.bars.bind(this.session.active?.record.id ?? null);
     this.sim.player.name = this.session.active?.record.name;
     this.renderer.reset();
@@ -1228,6 +1239,26 @@ export class Game {
           this.activeDungeonEntrance = this.sim.expeditions.runs.find(r=>r.entrance.id===entrance.id)?.entrance ?? {...entrance,scaling,level:scaling.base};
           this.panels.open('event');
           return true;
+      }
+      if (GAME_FEATURES.transport) {
+          const tp = transportPrompt(this.sim);
+          if (tp && tp.kind !== 'wait' && (!pointer || Math.hypot(pointer.x - tp.x, pointer.y - tp.y) < 90)) {
+              if (tp.kind === 'flight') {
+                  const master = flightPoint(tp.id);
+                  if (master) {
+                      if (this.sim.travel.flightPaths?.includes(master.id)) { this.activeFlightMaster = master; this.panels.open('event'); }
+                      else void this.durable(async () => { const result = await this.locations.transport({ kind: 'unlockFlight', masterId: master.id }); if (!result) this.notify('Could not save.'); }, undefined);
+                  }
+              } else {
+                  void this.durable(async () => {
+                      const ok = await this.locations.transport(tp.kind === 'board' ? { kind: 'board', routeId: tp.id }
+                          : tp.kind === 'disembark' ? { kind: 'disembark' }
+                          : { kind: 'portal', routeId: tp.id });
+                      if (!ok) this.notify('Could not save.');
+                  }, undefined);
+              }
+              return true;
+          }
       }
       const anchor = this.nearbyAnchor(pointer);
       if (anchor) {
@@ -1803,6 +1834,12 @@ export class Game {
           const result = await executeHearthstone(this.sim,
             hearthstoneHome(this.sim, this.overworld.getPortalAnchor(this.sim.travel.homeTown)), c => this.persistTravel(c));
           if (result.ok) this.finishTravel(); else this.notify(result.message);
+        }, undefined);
+      }
+      if (GAME_FEATURES.transport && this.sim.transportArrival && !this.savingAction) {
+        void this.durable(async () => {
+          const ok = await this.locations.transport({ kind: 'disembark' });
+          if (ok) this.finishTravel(); else this.notify('Could not save.');
         }, undefined);
       }
       if (gatherChannelReady(this.sim)) {

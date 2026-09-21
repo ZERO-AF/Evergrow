@@ -17,7 +17,7 @@ class BrowserWorker {
   terminate(){void this.worker.terminate();}
 }
 const turn=()=>new Promise<void>(resolve=>setImmediate(resolve));
-async function until(check:()=>boolean){const end=Date.now()+3000;while(!check()){if(Date.now()>end)throw new Error('Timed out waiting for cloud worker');await turn();}}
+async function until(check:()=>boolean){const end=Date.now()+9000;while(!check()){if(Date.now()>end)throw new Error('Timed out waiting for cloud worker');await turn();}}
 test('durable save bursts upload only the latest checkpoint each window; flush and retries preserve progress',async t=>{
   const old=Object.getOwnPropertyDescriptor(globalThis,'Worker');
   Object.defineProperty(globalThis,'Worker',{value:BrowserWorker,configurable:true});

@@ -10,6 +10,7 @@ import type { DungeonEntrance } from './dungeon.ts';
 import type { PvpMatch } from './pvp-instance.ts';
 import { generateDungeon, DUNGEON_RULES } from './dungeon.ts';
 import { scaledEnemyStats } from './zone-progression.ts';
+import type { FactionTag } from './factions.ts';
 export interface StoredActor {
     rift?: RiftTag;
     kind: Enemy['kind'];
@@ -25,6 +26,8 @@ export interface StoredActor {
     campId?: string;
     memberId?: string;
     bossPhases?: number;
+    /** Faction tag; absent = ordinary hostile mob. */
+    faction?: FactionTag;
 }
 export interface LocationContents {
     encounterScales?: import('./encounter-scaling.ts').EncounterScales;
@@ -74,7 +77,7 @@ export function createDungeonRun(entrance: DungeonEntrance): DungeonRun { const 
     // (exit portals, wave gating, boss markers) reads hp<=0 without a mob.
     if (entrance.pvp && run.states.warden) run.states.warden.hp = 0;
     return run; }
-export function storedActor(e: Enemy): StoredActor { return { ...(e.rift?{rift:e.rift}:{}), kind: e.kind, rank: e.rank, level: e.level, biome: e.biome, seed: e.lootSeed, x: e.x, y: e.y, homeX: e.homeX, homeY: e.homeY, hp: e.hp, campId: e.campId, memberId: e.campMemberId, bossPhases: e.bossPhases }; }
+export function storedActor(e: Enemy): StoredActor { return { ...(e.rift?{rift:e.rift}:{}), ...(e.faction?{faction:e.faction}:{}), kind: e.kind, rank: e.rank, level: e.level, biome: e.biome, seed: e.lootSeed, x: e.x, y: e.y, homeX: e.homeX, homeY: e.homeY, hp: e.hp, campId: e.campId, memberId: e.campMemberId, bossPhases: e.bossPhases }; }
 export function currentDungeon(state: Expeditions): DungeonRun | undefined { return state.runs.find(r => r.entrance.id === state.location); }
 export function syncDungeon(run: DungeonRun, enemies: readonly Enemy[], x: number, y: number) { run.x = x; run.y = y; for (const e of enemies) {
     if (e.campId !== run.entrance.id || !e.campMemberId)
