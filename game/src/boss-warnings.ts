@@ -219,6 +219,15 @@ export class BossWarnings {
   /** Warnings raised since the last drain; the integrator may echo them to chat. */
   drainRaised(): BossWarning[] { return this.raised.splice(0); }
 
+  /** A one-off center-screen flash with no telegraph bar — PvP callouts
+   * ("Fight!", "First Blood") ride the same flash pass as boss warnings. */
+  announce(ability: string, advice: string, color: string, caster = ''): void {
+    this.push({
+      key: `p${this.announceSeq++}`, caster, ability, advice, color,
+      remaining: 0, duration: 0, age: 0, fade: 0, outcome: 'casting', announceOnly: true,
+    });
+  }
+
 
   private push(warning: BossWarning): void {
     this.warnings.set(warning.key, warning);

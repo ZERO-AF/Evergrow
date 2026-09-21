@@ -27,23 +27,20 @@ Maps recreate WoW arenas & battlegrounds as faithfully as the engine allows.
 
 ## Decisions so far
 
-- [T01 PvP combatant model](pvp-t01-combatant-model.md) — NPCs are Player-shaped actors driven by class AI synthesizing `Input`; port dots/cc onto the player status surface; PvP death ≠ sim halt.
-- [T02 PvP instance chassis](pvp-t02-instance-chassis.md) — reuse the dungeon chassis; `pvp:` entrance → `buildPvpFloor`; `planDungeonTravel` gives exact return-to-start; pillars as props.
-- [T03 NPC & Custom chargen](pvp-t03-chargen.md) — `createCharacterSheet`+`buildSkillRoutes` random legal builds + `generateItem` equal-ilevel gear; Custom = unsaved session sheet.
-- [T04 Entry & setup UI](pvp-t04-entry-ui.md) — one `arena` PanelPhase reached from main menu, Escape menu, and a city battlemaster; step wizard for mode/size/team/custom.
-- [T05 Rewards](pvp-t05-rewards.md) — `honor`/`arenaPoints` on CharacterSheet + PvP faction + static-stock honor vendor + durable match-end award.
-- [T06 Arena](pvp-t06-arena.md) — 2v2/3v3/4v4 on 5 WotLK arena maps; prep→fight→scoreboard→return.
-- [T07 Battlegrounds](pvp-t07-battlegrounds.md) — Warsong Gulch CTF + Arathi Basin node-control first; EotS/AV stretch.
-- [T08 Polish](pvp-t08-polish.md) — scoreboard, announcements, PvP achievements, balance.
+All eight tickets resolved. The way is clear — the PvP layer is built and verified.
 
-## Not yet specified
-
-- NPC class-AI depth per spec (kiting, healing triage, focus-fire, peel) — tuned inside T01/T06.
-- Honor/Arena-Point gain formulas + rating ladder — tuned inside T05/T08.
-- Battleground team sizes vs sim combatant-count budget — resolved inside T07.
+- [T01 PvP combatant model](pvp-t01-combatant-model.md) — NPCs are Player-shaped actors driven by class AI synthesizing `Input`; dots/cc/DR live on the player status surface; PvP death = corpse, not defeat. `sim.enterPvp/leavePvp`.
+- [T02 PvP instance chassis](pvp-t02-instance-chassis.md) — `pvp:` dungeon entrances → `buildPvpFloor`; `enterPvpMatch`/`exitPvpMatch` with exact return-to-start; hearthstone sealed; pillars as solid props.
+- [T03 NPC & Custom chargen](pvp-t03-chargen.md) — `randomNpcBuild` (legal talents + equal-ilevel gear + role preset); `buildCustomCharacter` unsaved session sheet.
+- [T04 Entry & setup UI](pvp-t04-entry-ui.md) — `arena` PanelPhase + 4-step wizard; main menu, Escape menu, city battlemaster + quartermaster NPCs.
+- [T05 Rewards](pvp-t05-rewards.md) — `honor`/`arenaPoints` currencies, Warsong Outriders faction, static-stock PvP vendor (`executePvpBuy`), atomic `awardMatchRewards`, PvP achievements.
+- [T06 Arena](pvp-t06-arena.md) — 5 WotLK maps (Nagrand, Blade's Edge, Dalaran Sewers, Ruins of Lordaeron, Ring of Trials/Valor); shared match loop (prep→live→finished); scoreboard; 2v2/3v3/4v4.
+- [T07 Battlegrounds](pvp-t07-battlegrounds.md) — Warsong Gulch CTF (first to 3) + Arathi Basin node control (first to 1600); objective-aware NPC AI (flag-runners/escorts/defenders, capture groups).
+- [T08 Polish](pvp-t08-polish.md) — scoreboard panel (Semicolon), announcements (horn/first-blood/sprees/objectives/victory), PvP achievements + arena rating ladder, balance pass.
 
 ## Out of scope
 
 - Real networked PvP / multiplayer (NPC-only per request).
 - Ranked ladder persistence across seasons, MMR decay.
 - Spectate / replay.
+- Eye of the Storm / Alterac Valley — engine-feasible via the same objective seam; not built this pass.

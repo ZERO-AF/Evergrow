@@ -58,10 +58,12 @@ import type { ServiceQuote } from './commerce.ts';
 import { StablePanel, type StableActions } from './stable-panel.ts';
 import { PvpPanel, type PvpPanelActions } from './pvp-panel.ts';
 import { pvpBracketLabel, type PvpSetup } from './pvp-setup.ts';
-import { enterPvpMatch, exitPvpMatch } from './pvp-instance.ts';
-import { updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
+import { enterPvpMatch, exitPvpMatch, currentPvpMatch } from './pvp-instance.ts';
+import { drainPvpAnnouncements, pvpScoreboard, updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
 import { awardMatchRewards } from './pvp-rewards.ts';
 import { pvpScoreboardSummary } from './pvp-scoreboard.ts';
+import { PvpScoreboardPanel, PVP_SCOREBOARD_SECONDS } from './pvp-scoreboard-panel.ts';
+import type { PvpAnnouncement } from './pvp-announce.ts';
 import { PvpVendorPanel } from './pvp-vendor-panel.ts';
 import { executePvpBuy, focusedPvpVendor, pvpVendorsNear, type PvpVendor } from './pvp-vendor.ts';
 import { activateStabledPet, stableActivePet, releasePet, freshPetStable, PET_RULES, type PetStable } from './pet-content.ts';
@@ -192,6 +194,10 @@ export class Game {
   private activeBattlemaster: Battlemaster | null = null;
   private pvpVendorPanel!: PvpVendorPanel;
   private activePvpVendor: PvpVendor | null = null;
+  private pvpScorePanel!: PvpScoreboardPanel;
+  /** Settled match awaiting the scoreboard countdown/Leave before teardown. */
+  private pendingPvpEnd: PvpMatchEnd | null = null;
+  private pvpExitAt = 0;
   readonly canvas: HTMLCanvasElement;
   private uiCanvas: HTMLCanvasElement;
   private uiContext: CanvasRenderingContext2D;
@@ -383,6 +389,7 @@ export class Game {
           return { ok: true, message };
         }, { ok: false, message: 'Saving the previous action…' }),
       }));
+      this.pvpScorePanel = this.lifetime.own(new PvpScoreboardPanel(this.shell.panelMount, { leave: () => this.leavePvpMatch() }));
       this.stablePanel = this.lifetime.own(new StablePanel(this.shell.panelMount, this.petActions));
       this.pvpPanel = this.lifetime.own(new PvpPanel(this.shell.panelMount, this.pvpActions));
       this.pvpVendorPanel = this.lifetime.own(new PvpVendorPanel(this.shell.panelMount, {
@@ -673,6 +680,7 @@ export class Game {
           if (!event.repeat) {
             if (uiEditMode()) { this.uiLayoutPanel.close(); setUiEditMode(false); return; }
             if (this.sim.portal.active) { this.sim.portal.cancel(); return; }
+            if (this.pvpScorePanel.opened) { this.pvpScorePanel.close(); return; }
             if (this.panels.activePanel) this.resume();
             else if (this.phase === 'playing') this.pause();
             else if (this.phase === 'paused' && !this.shell.backInMenu()) this.resume();
@@ -767,6 +775,13 @@ export class Game {
       if (!repeat) { if (tab) this.panels.holdMap(); else this.panels.toggleMap(); } return true;
     }
     if (action === 'questLog' && GAME_FEATURES.quests && (this.panels.canOpen('questLog') || this.phase === 'questLog')) { if (!repeat) this.panels.toggle('questLog'); return true; }
+    if (action === 'pvpScore' && this.panels.simulationActive && currentPvpMatch(this.sim)) {
+      if (!repeat) {
+        if (this.pvpScorePanel.opened) this.pvpScorePanel.close();
+        else this.pvpScorePanel.open(currentPvpMatch(this.sim)!, pvpScoreboard(this.sim));
+      }
+      return true;
+    }
     if (action === 'professions' && GAME_FEATURES.professions && (this.panels.canOpen('professions') || this.phase === 'professions')) { if (!repeat) this.panels.toggle('professions'); return true; }
     if (action === 'achievements' && GAME_FEATURES.achievements && (this.panels.canOpen('achievements') || this.phase === 'achievements')) { if (!repeat) this.panels.toggle('achievements'); return true; }
     if (action === 'spellbook' && GAME_FEATURES.spellbook && (this.panels.canOpen('spellbook') || this.phase === 'spellbook')) { if (!repeat) this.panels.toggle('spellbook'); return true; }
@@ -1201,7 +1216,7 @@ export class Game {
               return true;
           }
           if (run.entrance.pvp ? hit(f.entry) || hit(dungeonRunExit(f,run)) : hit(f.entry) || ((run.states.warden?.hp ?? 0) <= 0 && hit(dungeonRunExit(f,run)))) {
-              if (run.entrance.pvp) void this.durable(async () => { const r = await exitPvpMatch(this.sim, this.pvpHost()); this.notify(r.message); }, undefined);
+              if (run.entrance.pvp) this.leavePvpMatch();
               else this.switchDungeon({ kind: 'exit' });
               return true;
           }
@@ -1561,13 +1576,33 @@ export class Game {
     }, undefined);
   }
 
-  /** Match over: leave the arena (restores the real character + start point),
-   * then award Honor/Arena Points/rep on the restored sheet. */
+  /** Match over: freeze on the scoreboard (Victory/Defeat banner + stats); the
+   * countdown or Leave button runs the exit + award teardown. */
   private finishPvpMatch(end: PvpMatchEnd): void {
+    this.pendingPvpEnd = end;
+    this.pvpExitAt = performance.now() + PVP_SCOREBOARD_SECONDS * 1000;
+    const match = currentPvpMatch(this.sim);
+    if (match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt });
     this.notify(pvpScoreboardSummary(end.scoreboard, end.result.won));
+  }
+
+  /** One announcement: chat line, center-screen flash, audio stinger. */
+  private announcePvp(announcement: PvpAnnouncement): void {
+    if (announcement.chat) pushChatMessage(this.sim.player, announcement.chat, announcement.text, this.sim.time);
+    if (announcement.flash) this.renderer.announceFlash(announcement.flash.title, announcement.flash.subtitle ?? '', announcement.flash.color);
+    if (announcement.cue) this.audio.pvpCue(announcement.cue);
+  }
+
+  /** Exit the match: leave the arena (restores the real character + start
+   * point), then award Honor/Arena Points/rep on the restored sheet. */
+  private leavePvpMatch(): void {
+    const end = this.pendingPvpEnd;
+    this.pendingPvpEnd = null;
+    this.pvpScorePanel.close();
     void this.durable(async () => {
       const exit = await exitPvpMatch(this.sim, this.pvpHost());
       if (!exit.ok) this.notify(exit.message);
+      if (!end) return;
       const award = await awardMatchRewards(this.sim, end.result, c => this.persistTravel(c));
       if (!award.ok) this.notify(award.message ?? 'The match rewards were lost.');
       for (const achievement of award.unlocked) this.notify(`Achievement: ${achievement.name}`);
@@ -1738,12 +1773,16 @@ export class Game {
       // The simulation owns the fixed 120 Hz clock and render interpolation.
       this.sim.setSpawnExclusion(this.renderer.spawnExclusionBounds(this.sim.player));
       this.sim.setCombatViewport(this.renderer.combatViewport);
-      const simulationStart = this.performance.start();
-      const previousWeave = this.sim.player.affixBuffs?.spent;
       // PvP match lifecycle: prep countdown, win detection, scoreboard handoff.
       // Runs before sim.update so the prep hold is in place for the first step.
       const pvpEnd = updatePvpMatch(this.sim, dt);
+      for (const announcement of drainPvpAnnouncements(this.sim)) this.announcePvp(announcement);
       if (pvpEnd) this.finishPvpMatch(pvpEnd);
+      const livePvp = currentPvpMatch(this.sim);
+      if (livePvp && this.pvpScorePanel.opened) this.pvpScorePanel.update(livePvp, pvpScoreboard(this.sim), this.pendingPvpEnd ? { winner: this.pendingPvpEnd.winner, exitAt: this.pvpExitAt } : undefined);
+      if (this.pendingPvpEnd && now >= this.pvpExitAt) this.leavePvpMatch();
+      const simulationStart = this.performance.start();
+      const previousWeave = this.sim.player.affixBuffs?.spent;
       this.sim.update(dt, this.readInput());
       const spentWeave = this.sim.player.affixBuffs?.spent;
       if (spentWeave && spentWeave !== previousWeave) this.audio.spellweave(spentWeave.kind);

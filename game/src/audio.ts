@@ -224,6 +224,58 @@ export class GameAudio {
     this.tone(kind === 'spell' ? 460 : 330, kind === 'spell' ? 690 : 440, .12, .035, 1, 'sine');
   }
 
+  /** PvP match stingers (wayfinder T08): the match horn, kill sprees, objective
+   * beats and the victory/defeat banner. Synthesized like combat events. */
+  pvpCue(cue: 'horn' | 'fight' | 'firstBlood' | 'spree' | 'objective' | 'warning' | 'victory' | 'defeat') {
+    if (!this.enabled || !this.foreground || this.volumes.sfx <= 0 || !this.ctx || !this.bus || this.disposed || this.ctx.state !== 'running') return;
+    switch (cue) {
+      case 'horn': {
+        // War horn: a low brass swell with a breathy attack.
+        this.tone(98, 147, .9, .16, 3, 'sawtooth', 0, .18);
+        this.tone(196, 294, .8, .05, 3, 'triangle', .05, .16);
+        this.hiss({ duration: .5, frequency: 900, endFrequency: 300, volume: .05, attack: .1, type: 'lowpass' }, 2);
+        break;
+      }
+      case 'fight': {
+        this.tone(392, 392, .16, .12, 3, 'triangle');
+        this.tone(523, 523, .3, .1, 3, 'triangle', .12);
+        this.hiss({ duration: .12, frequency: 2400, endFrequency: 700, volume: .08 }, 2);
+        break;
+      }
+      case 'firstBlood': {
+        this.tone(220, 110, .22, .14, 3, 'triangle');
+        this.tone(440, 330, .18, .06, 3, 'sine', .06);
+        break;
+      }
+      case 'spree': {
+        this.tone(330, 495, .14, .09, 2, 'triangle');
+        this.tone(495, 660, .2, .08, 2, 'triangle', .1);
+        break;
+      }
+      case 'objective': {
+        this.tone(587, 587, .1, .07, 2, 'sine');
+        this.tone(784, 784, .18, .06, 2, 'sine', .09);
+        break;
+      }
+      case 'warning': {
+        this.tone(311, 233, .16, .1, 3, 'square');
+        this.tone(311, 233, .16, .08, 3, 'square', .18);
+        break;
+      }
+      case 'victory': {
+        for (const [i, note] of [523.25, 659.25, 783.99, 1046.5].entries())
+          this.tone(note, note, .5 - i * .05, .09, 3, 'triangle', i * .12, .012);
+        this.hiss({ duration: .6, frequency: 3000, endFrequency: 900, volume: .04, attack: .2 }, 2);
+        break;
+      }
+      case 'defeat': {
+        this.tone(196, 98, .7, .12, 3, 'sawtooth', 0, .05);
+        this.tone(147, 73, .9, .08, 3, 'triangle', .15, .08);
+        break;
+      }
+    }
+  }
+
   play(event: CombatEvent) {
     if (!this.enabled || !this.foreground || this.volumes.sfx <= 0 || !this.ctx || !this.bus || this.disposed || this.ctx.state !== 'running') return;
     if (event.type === 'spawn' || event.type === 'engagement') return;

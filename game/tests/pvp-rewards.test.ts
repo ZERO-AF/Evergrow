@@ -89,7 +89,7 @@ test('warsong faction is registered with standing-gated rewards', () => {
 
 test('awardMatchRewards stages honor, arena points and reputation in one checkpoint', async () => {
   const s = sim(), { writes, persist } = recorder();
-  const result = await awardMatchRewards(s, { mode: 'arena', bracket: '2v2', won: true, kills: 2, rating: 1700 }, persist);
+  const result = await awardMatchRewards(s, { mode: 'arena', bracket: '2v2', won: true, kills: 2 }, persist);
   assert.ok(result.ok, result.message);
   assert.equal(result.honor, PVP_REWARDS.arenaWin + 2 * PVP_REWARDS.honorPerKill);
   assert.equal(result.arenaPoints, PVP_REWARDS.arenaPointsWin);
@@ -104,9 +104,9 @@ test('awardMatchRewards stages honor, arena points and reputation in one checkpo
   assert.equal(arenaPointsBalance(s.player.character), PVP_REWARDS.arenaPointsWin);
   assert.equal(reputationPoints(s.player, 'warsong'), PVP_REWARDS.repWin);
   assert.ok(knownFactions(s.player).some(f => f.id === 'warsong'));
-  // Achievements: first win + rating threshold.
+  // Achievements: first win unlocks; the internal rating ladder starts at 1500.
   assert.ok(achievementComplete(s.player.achievements, 'first-blood-arena'));
-  assert.ok(achievementComplete(s.player.achievements, 'arena-contender'));
+  assert.equal(s.player.character.arenaRating, 1516);
   assert.ok(result.unlocked.some(a => a.id === 'first-blood-arena'));
 });
 

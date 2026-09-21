@@ -52,13 +52,23 @@ export interface PvpMatchResult {
   readonly kills?: number;
   /** Objective score: flag captures, node ticks, etc. */
   readonly objectives?: number;
-  /** Post-match arena rating; feeds the pvpRating criterion. */
-  readonly rating?: number;
-  /** Reward items (e.g. a strongbox drop); staged into the pack best-effort. */
   readonly items?: readonly Item[];
   /** True when per-kill honor already rode the live `pvpOnCombatantKill` path —
    * the match-end award then skips `kills * honorPerKill` to avoid double pay. */
   readonly honorFromKills?: boolean;
+  /** Flags the player personally captured (Warsong achievement progress). */
+  readonly flagCaptures?: number;
+  /** True when the player's team held every Arathi node at once this match. */
+  readonly heldAllNodes?: boolean;
+}
+
+/** Personal arena rating: starts at 1500, ±16 per arena result (WoW's flat
+ * early ladder). Battlegrounds never touch it. */
+export const PVP_RATING_START = 1500;
+export const PVP_RATING_STEP = 16;
+export function nextArenaRating(current: number | undefined, result: PvpMatchResult): number {
+  if (result.mode !== 'arena') return current ?? PVP_RATING_START;
+  return Math.max(0, (current ?? PVP_RATING_START) + (result.won ? PVP_RATING_STEP : -PVP_RATING_STEP));
 }
 
 export interface PvpAwardResult extends ActionResult {
@@ -108,13 +118,18 @@ export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult,
   const rep = result.won ? PVP_REWARDS.repWin : PVP_REWARDS.repLoss;
 
   // Achievements track on the live player so they are captured with the award;
-  // a failed persist restores the pre-award ledger.
+  // a failed persist restores the pre-award ledger. Arena rating is computed
+  // here (the durable award owns the ladder) and lands on the checkpoint below.
   const achievementsBefore = p.achievements ? { ...p.achievements } : undefined;
+  const rating = nextArenaRating(p.character.arenaRating, result);
   const unlocked = achievementTrack(p, {
-    type: 'pvp-match', won: result.won, kills, rating: result.rating, map: result.map ?? result.bracket,
+    type: 'pvp-match', won: result.won, kills, rating, map: result.map ?? result.bracket,
+    flagCaptures: result.flagCaptures, heldAllNodes: result.heldAllNodes,
   });
 
   const checkpoint = sim.captureCheckpoint() as PvpAwardCheckpoint;
+  checkpoint.character.arenaRating = rating;
+
   if (!creditHonor(checkpoint.character, honor) || !creditArenaPoints(checkpoint.character, arenaPoints)) {
     p.achievements = achievementsBefore;
     return { ...none, ok: false, message: 'Your PvP purse cannot hold the reward.' };

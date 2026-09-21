@@ -68,10 +68,13 @@ function scoreSkill(view: CombatantView, id: SkillId, target: Combatant | undefi
   }
   const mode = costs.targetMode ?? 'point';
   const distance = target ? Math.hypot(target.x - c.x, target.y - c.y) : Infinity;
-  const reach = (costs.range ?? deriveAttackStats(c.stats, c.equipment.mainHand).range) + (target?.radius ?? 0);
+  /** Weapon reach — melee-range checks. `costs.range` is the skill's own range
+   * (a 350-range Charge must not count as "already in melee"). */
+  const meleeReach = deriveAttackStats(c.stats, c.equipment.mainHand).range + (target?.radius ?? 0);
+  const reach = (costs.range ?? meleeReach - (target?.radius ?? 0)) + (target?.radius ?? 0);
   const targetRequired = mode === 'enemy';
   if (targetRequired && !target) return -1;
-  const inReach = !!target && distance <= reach + 4;
+  const inReach = !!target && distance <= meleeReach + 4;
   const casting = (costs.castTime ?? 0) > 0 || !!costs.channel;
   if (casting && Math.hypot(c.vx, c.vy) > CAST_MOVE_TOLERANCE) return -1;
   if (costs.executeThreshold && (!target || target.hp / target.maxHp > costs.executeThreshold)) return -1;
@@ -107,7 +110,7 @@ function scoreSkill(view: CombatantView, id: SkillId, target: Combatant | undefi
       if (recipe.radius) return distance <= (costs.range ?? recipe.radius) + 40 ? 55 : -1;
       return inReach ? 55 : -1;
     case 'pull':
-      return target && c.ai.role !== 'ranged' && distance > reach * .8 && distance <= (costs.range ?? 400) ? 60 : -1;
+      return target && c.ai.role !== 'ranged' && distance > meleeReach * .8 && distance <= (costs.range ?? 400) ? 60 : -1;
     case 'taunt':
       return c.ai.role === 'tank' && target && inReach ? 50 : -1;
     case 'buff': case 'form': {

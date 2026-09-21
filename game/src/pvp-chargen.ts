@@ -296,6 +296,26 @@ function fillSkillBar(player: Player, first: readonly WowSkillId[] = []): void {
   }
 }
 
+/** Melee gap closers per class (WoW's Charge/Shadowstep/Death Grip/Feral Charge).
+ * Without one a melee NPC is kited to death by ranged AI and never fights. */
+const MOBILITY_SKILLS: Partial<Record<WowClassId, readonly WowSkillId[]>> = {
+  warrior: ['charge', 'intercept', 'heroicLeap'],
+  rogue: ['shadowstep'],
+  deathKnight: ['deathGrip'],
+  druid: ['feralCharge'],
+};
+
+/** Reserve a mobility talent before the random walk drains the point pool —
+ * melee/tank loadouts only (caster loadouts fight at range by design). */
+function ensureMobility(sheet: CharacterSheet, classId: WowClassId, loadout: PvpLoadout): void {
+  if (loadout.attributes.intelligence) return;
+  for (const id of MOBILITY_SKILLS[classId] ?? []) {
+    const nodeId = `wow-${classId}-${id}`;
+    if (sheet.allocatedNodes.includes(nodeId)) return;
+    if (SKILL_NODES.has(nodeId) && allocateSkillRoute(sheet, nodeId).ok) return;
+  }
+}
+
 /** Resource seeding mirrors createCharacter: rage/runic start empty, mana/energy full. */
 function seedResource(player: Player): void {
   const cls = WOW_CLASSES[player.character.classId];
@@ -332,6 +352,7 @@ export function randomNpcBuild(seed: number, classId: WowClassId, level: number,
   sheet.skillPoints = targetLevel - 1;
   sheet.statPoints = (targetLevel - 1) * 5;
   spendAttributes(sheet, sheet.statPoints, loadout.attributes);
+  ensureMobility(sheet, classId, loadout);
   spendTalents(sheet, random, loadout.specs);
   sheet.equipped = rollLoadoutGear(random, classId, preset, loadout, targetLevel);
 
@@ -399,6 +420,7 @@ export function buildCustomCharacter(options: CustomCharacterOptions): PvpCharac
     if (!sheet.allocatedNodes.includes(nodeId) && !allocateSkillRoute(sheet, nodeId).ok)
       throw new RangeError(`Cannot reach ${id} at level ${level}.`);
   }
+  ensureMobility(sheet, options.classId, loadout);
   if (options.fillTalents !== false) spendTalents(sheet, random, loadout.specs);
 
   // Gear can require up to level + 2; clamp so the sheet stays equippable.

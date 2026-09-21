@@ -56,6 +56,29 @@ export interface PvpObjectives {
     update(sim: Simulation, match: PvpMatch, dt: number): void;
     score(): { A: number; B: number };
     winner(): 'A' | 'B' | null;
+    /** Transient per-tick objective events (flag pickups, node captures) the
+     * match loop drains for scoreboard credit and announcements. Lives on the
+     * controller — never on the checkpointed match record. */
+    events?: PvpObjectiveEvent[];
+    /** Peak simultaneous node count per team plus the node total (Arathi);
+     * feeds the "hold every node" achievement. */
+    peakOwned?: { A: number; B: number; total: number };
+}
+/** One objective beat, emitted by battleground controllers. `team` is the
+ * acting team; `flagTeam`/`owner` name the flag's/node's owning side. */
+export interface PvpObjectiveEvent {
+    readonly kind: 'flag-pickup' | 'flag-drop' | 'flag-return' | 'flag-capture' | 'node-assault' | 'node-capture';
+    readonly team: PvpTeam;
+    /** The acting combatant (carrier, returner); absent for node events. */
+    readonly combatant?: Combatant;
+    /** Combatants credited for a node capture (present on the node). */
+    readonly captors?: readonly Combatant[];
+    /** Flag's owning team for drops; node's previous owner for assaults. */
+    readonly owner?: PvpTeam | null;
+    readonly node?: string;
+    /** Score after a capture ("2/3"). */
+    readonly score?: { A: number; B: number };
+    readonly target?: number;
 }
 /**
  * Attaches an objective controller so it survives checkpoints: defined

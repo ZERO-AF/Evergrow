@@ -365,6 +365,11 @@ export class Renderer {
     }
   }
 
+  /** Center-screen callout (PvP announcements) riding the boss-warning flash pass. */
+  announceFlash(title: string, subtitle: string, color: string) {
+    if (GAME_FEATURES.bossWarnings) this.bossWarnings.announce(title, subtitle, color);
+  }
+
   private cryptFloor:DungeonFloor|null=null;
   render(sim: Simulation, world: World, dt: number, settings: RenderSettings) {
     this.cryptFloor=sim.dungeonFloor?.rift?null:sim.dungeonFloor;

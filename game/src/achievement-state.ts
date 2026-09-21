@@ -33,8 +33,9 @@ export type AchievementEvent = CombatEvent
   | { readonly type: 'dungeon'; readonly id: string; readonly theme?: string }
   | { readonly type: 'raid'; readonly id: string }
   /** PvP match settled (pvp-rewards.ts): win/loss, honorable kills, post-match
-   * rating and the map/bracket id for per-map victory criteria. */
-  | { readonly type: 'pvp-match'; readonly won: boolean; readonly kills?: number; readonly rating?: number; readonly map?: string }
+   * rating, the map/bracket id, the player's flag captures and whether their
+   * team ever held every node. */
+  | { readonly type: 'pvp-match'; readonly won: boolean; readonly kills?: number; readonly rating?: number; readonly map?: string; readonly flagCaptures?: number; readonly heldAllNodes?: boolean }
   | { readonly type: 'snapshot' };
 
 export function achievementComplete(record: Readonly<Record<string, number>> | undefined, id: string): boolean {
@@ -81,6 +82,8 @@ export function achievementProgress(a: AchievementDef, player: Player): { value:
     case 'fishingSkill': return { value: player.fishing?.level ?? 0, target: a.count };
     case 'mounts': return { value: markerCount(record, 'seen:mount:'), target: a.count };
     case 'distinctDungeons': return { value: markerCount(record, 'seen:dungeon:'), target: a.count };
+    case 'pvpMaps': return { value: markerCount(record, `seen:pvpmap:${c.prefix ?? ''}`), target: a.count };
+    case 'pvpStreak': return { value: Math.min(record?.['pvp:streak'] ?? 0, a.count), target: a.count };
     case 'meta': return { value: achievementEarnedCount(record), target: a.count };
     default: {
       const stored = record?.[a.id] ?? 0;
@@ -158,16 +161,22 @@ export function achievementTrack(player: Player, event: AchievementEvent, enemie
         if (c.kind === 'raid' && (!c.id || c.id === event.id)) bump(a);
       }
       break;
-    case 'pvp-match':
+    case 'pvp-match': {
+      if (event.won && event.map) mark(`seen:pvpmap:${event.map}`);
+      // The win streak is a live counter: losses reset it, wins grow it.
+      record['pvp:streak'] = event.won ? (record['pvp:streak'] ?? 0) + 1 : 0;
       for (const a of ACHIEVEMENTS) {
         const c = a.criterion;
         if (c.kind === 'pvpWins' && event.won) bump(a);
         else if (c.kind === 'pvpMap' && event.won && c.map === event.map) bump(a);
         else if (c.kind === 'pvpKills' && event.kills) bump(a, event.kills);
+        else if (c.kind === 'pvpFlags' && event.flagCaptures) bump(a, event.flagCaptures);
+        else if (c.kind === 'pvpNodes' && event.heldAllNodes) bump(a);
         else if (c.kind === 'pvpRating' && event.rating !== undefined && !achievementComplete(record, a.id))
           record[a.id] = Math.max(record[a.id] ?? 0, Math.min(a.count, event.rating));
       }
       break;
+    }
   }
 
   // Uniform completion pass: counters bumped above plus computed criteria

@@ -27,6 +27,8 @@ export interface PvpScoreRow {
   healingDone: number;
   /** Hit points removed from this combatant. */
   damageTaken: number;
+  /** Objective contributions: flag captures/returns, node captures. */
+  objectives: number;
   alive: boolean;
 }
 
@@ -66,6 +68,7 @@ export class PvpScoreTracker {
         role: entry?.role,
         isPlayer: i === 0,
         kills: 0, deaths: 0, damageDone: 0, healingDone: 0, damageTaken: 0,
+        objectives: 0,
         alive: !combatant.dead,
       };
       this.byCombatant.set(combatant, row);
@@ -90,10 +93,17 @@ export class PvpScoreTracker {
     }
   }
 
+  /** One objective contribution (flag capture/return, node capture). */
+  creditObjective(combatant: Combatant, amount = 1): void {
+    const row = this.byCombatant.get(combatant);
+    if (row) row.objectives += amount;
+  }
+
   /** Detects fresh corpses and credits the kill to the victim's last damager.
-   * Returns the newly dead so the caller can drip honor per enemy kill. */
-  scanDeaths(roster: readonly Combatant[]): Combatant[] {
-    const fallen: Combatant[] = [];
+   * Returns {victim, killer} pairs so the caller can drip honor per enemy kill
+   * and announce killing blows. */
+  scanDeaths(roster: readonly Combatant[]): { victim: Combatant; killer?: Combatant }[] {
+    const fallen: { victim: Combatant; killer?: Combatant }[] = [];
     for (const combatant of roster) {
       const row = this.byCombatant.get(combatant);
       if (!row) continue;
@@ -104,7 +114,7 @@ export class PvpScoreTracker {
       row.deaths += 1;
       const killer = this.lastDamager.get(combatant);
       if (killer) this.byCombatant.get(killer)!.kills += 1;
-      fallen.push(combatant);
+      fallen.push({ victim: combatant, killer });
     }
     return fallen;
   }

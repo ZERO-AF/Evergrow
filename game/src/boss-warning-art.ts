@@ -38,12 +38,12 @@ function drawFlash(c: CanvasRenderingContext2D, warning: BossWarning, cx: number
   c.fillStyle = halo; c.fillRect(cx - 170, y - 18, 340, 56);
   const abilitySize = 1.5, adviceSize = .95;
   const abilityWidth = textWidth(warning.ability, abilitySize);
-  const adviceWidth = textWidth(`— ${warning.advice}`, adviceSize);
-  const total = 16 + abilityWidth + 7 + adviceWidth;
+  const adviceWidth = warning.advice ? textWidth(`— ${warning.advice}`, adviceSize) : 0;
+  const total = 16 + abilityWidth + (adviceWidth ? 7 + adviceWidth : 0);
   const left = cx - total / 2;
   warningGlyph(c, left + 7, y + 9, 13, warning.color);
   text(c, warning.ability, left + 16, y, abilitySize, shade(warning.color, .3));
-  text(c, `— ${warning.advice}`, left + 16 + abilityWidth + 7, y + 4.5, adviceSize, UI.ivory);
+  if (warning.advice) text(c, `— ${warning.advice}`, left + 16 + abilityWidth + 7, y + 4.5, adviceSize, UI.ivory);
   text(c, warning.caster, cx, y + 17, .72, UI.muted, 'center');
   c.restore();
 }

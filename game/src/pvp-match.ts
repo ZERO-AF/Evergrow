@@ -20,6 +20,7 @@ import { attachPvpObjectives, currentPvpMatch, type PvpMatch, type PvpObjectives
 import { pvpOnCombatantKill, type PvpMatchResult } from './pvp-rewards.ts';
 import { PvpScoreTracker, type PvpScoreboard } from './pvp-scoreboard.ts';
 import { attachBattlegroundObjectives } from './pvp-objectives.ts';
+import { PvpAnnouncer, type PvpAnnouncement } from './pvp-announce.ts';
 import { pushChatMessage } from './chat-log.ts';
 
 /** Seconds the gates stay closed before the fight goes live. */
@@ -34,6 +35,9 @@ interface MatchRuntime {
   prepUntil: number;
   endsAt: number;
   tracker: PvpScoreTracker;
+  announcer: PvpAnnouncer;
+  /** The player's own flag captures this match (achievement progress). */
+  flagCaptures: number;
   lastCountdown: number;
 }
 const runtimes = new WeakMap<PvpMatch, MatchRuntime>();
@@ -99,13 +103,20 @@ export interface PvpMatchEnd {
  */
 export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undefined {
   const match = currentPvpMatch(sim);
-  if (!match || match.phase === 'finished') return undefined;
+  if (!match) return undefined;
   const roster = combatants(sim);
   // A reload mid-match drops the combatant actors but keeps the record:
   // abandon the match rather than leave a corpse-less run behind.
   if (!roster.length) {
+    if (match.phase === 'finished') return undefined;
     match.phase = 'finished';
     return { winner: null, result: { mode: match.mode, bracket: match.bracket, map: match.mapId, won: false, kills: 0, honorFromKills: true }, scoreboard: { rows: [], kills: { A: 0, B: 0 } } };
+  }
+  // Finished matches hold everyone in place until the integrator exits —
+  // the scoreboard stays up and no post-horn kills sneak in.
+  if (match.phase === 'finished') {
+    for (const c of roster) if (!c.dead) c.stunTime = Math.max(c.stunTime ?? 0, .5);
+    return undefined;
   }
   let rt = runtimes.get(match);
   if (!rt) {
@@ -113,6 +124,8 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
       prepUntil: sim.time + PVP_PREP_SECONDS,
       endsAt: sim.time + PVP_MATCH_SECONDS,
       tracker: new PvpScoreTracker(match, roster),
+      announcer: new PvpAnnouncer(),
+      flagCaptures: 0,
       lastCountdown: Math.ceil(PVP_PREP_SECONDS) + 1,
     };
     runtimes.set(match, rt);
@@ -120,6 +133,8 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
       rt!.tracker.recordDamage(source && isCombatant(source) ? source : undefined, target, dealt);
     // Attach the arena default (or adopt T07's controller) up front.
     objectivesOf(match);
+    rt.announcer.bind(roster, match);
+    rt.announcer.update(match, rt.tracker.snapshot(), []);
   }
 
   // ── Prep: gates closed — everyone held until the countdown ends. ──
@@ -135,12 +150,11 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
     }
     match.phase = 'live';
     for (const c of roster) c.stunTime = 0;
-    pushChatMessage(sim.player, 'system', 'Fight!', sim.time);
   }
 
   // ── Live: stats, objectives, win check. ──
   const fallen = rt.tracker.scanDeaths(roster);
-  for (const corpse of fallen) if (corpse.team === 'B') pvpOnCombatantKill(sim);
+  for (const { victim } of fallen) if (victim.team === 'B') pvpOnCombatantKill(sim);
   attachBattlegroundObjectives(sim); // T07: re-creates the BG controller after reload; no-op for arenas
   const objectives = objectivesOf(match);
   try {
@@ -149,6 +163,17 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
   } catch {
     // A broken controller must not stall the match; the wipe rule still ends it.
   }
+  // Objective beats → scoreboard credit + announcements (transient; drained here).
+  const events = objectives.events?.splice(0) ?? [];
+  for (const event of events) {
+    if (event.kind === 'flag-capture' || event.kind === 'flag-return') {
+      if (event.combatant) rt.tracker.creditObjective(event.combatant);
+      if (event.kind === 'flag-capture' && event.combatant === roster[0]) rt.flagCaptures += 1;
+    } else if (event.kind === 'node-capture') {
+      for (const captor of event.captors ?? []) rt.tracker.creditObjective(captor);
+    }
+  }
+  rt.announcer.update(match, rt.tracker.snapshot(), events);
   let winner = objectives.winner();
   const aliveA = aliveCombatants(roster.filter(c => c.team === 'A')).length;
   const aliveB = aliveCombatants(roster.filter(c => c.team === 'B')).length;
@@ -163,16 +188,43 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
   // ── Finished: freeze survivors, stamp the record, hand off the payload. ──
   match.phase = 'finished';
   for (const c of roster) if (!c.dead) c.stunTime = Math.max(c.stunTime ?? 0, 1);
+  rt.announcer.finish(match, winner);
   const playerKills = rt.tracker.snapshot().rows.find(row => row.isPlayer)?.kills ?? 0;
   const objectivesScore = match.mode === 'arena' ? undefined : Math.max(0, Math.floor(match.score.A));
+  const heldAllNodes = !!objectives.peakOwned?.total && objectives.peakOwned.A >= objectives.peakOwned.total;
   return {
     winner,
     result: {
       mode: match.mode, bracket: match.bracket, map: match.mapId,
       won: winner === 'A', kills: playerKills,
       ...(objectivesScore ? { objectives: objectivesScore } : {}),
+      ...(rt.flagCaptures ? { flagCaptures: rt.flagCaptures } : {}),
+      ...(heldAllNodes ? { heldAllNodes: true } : {}),
       honorFromKills: true,
     },
     scoreboard: rt.tracker.snapshot(),
   };
+}
+
+/** Live scoreboard for the in-match panel: the tracker's snapshot while a
+ * runtime exists, else zeroed rows from the roster record. */
+export function pvpScoreboard(sim: Simulation): PvpScoreboard | undefined {
+  const match = currentPvpMatch(sim);
+  if (!match) return undefined;
+  const rt = runtimes.get(match);
+  if (rt) return rt.tracker.snapshot();
+  return {
+    rows: match.roster.map((entry, i) => ({
+      name: entry.name, team: entry.team, classId: entry.classId, role: entry.role,
+      isPlayer: i === 0, kills: 0, deaths: 0, damageDone: 0, healingDone: 0, damageTaken: 0,
+      objectives: 0, alive: true,
+    })),
+    kills: { A: 0, B: 0 },
+  };
+}
+
+/** Queued callouts for the live match (announcer lives in the runtime). */
+export function drainPvpAnnouncements(sim: Simulation): PvpAnnouncement[] {
+  const match = currentPvpMatch(sim);
+  return match ? runtimes.get(match)?.announcer.drain() ?? [] : [];
 }

@@ -134,6 +134,8 @@ export type SkillId = import('./aura-content.ts').AuraId | WowSkillId | 'repulse
   | 'volley' | 'piercingShot' | 'ricochet' | 'rainOfArrows' | 'backstab'
   | 'cataclysm' | 'tempest' | 'absoluteZero' | 'fireball' | 'arcLightning' | 'iceNova' | 'frostLance' | 'meteor' | 'siphon';
 export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWallet {
+  /** Personal arena rating; updated by arena match results (pvp-rewards.ts). */
+  arenaRating?: number;
   /** WotLK class identity; gates class skill kits and starter gear. */
   classId: WowClassId;
   /** WotLK race identity; grants the racial active and passive modifiers. */

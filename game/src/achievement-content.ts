@@ -56,6 +56,14 @@ export type AchievementCriterion =
   | { readonly kind: 'pvpRating' }
   /** PvP match won on a specific map/bracket id (e.g. 'warsong', 'arathi', arena map ids). */
   | { readonly kind: 'pvpMap'; readonly map: string }
+  /** Distinct maps won; `prefix` narrows to a map-id family (e.g. 'arena-'). */
+  | { readonly kind: 'pvpMaps'; readonly prefix?: string }
+  /** Enemy flags personally captured in Warsong Gulch. */
+  | { readonly kind: 'pvpFlags' }
+  /** Held every Arathi Basin node at once at least once. */
+  | { readonly kind: 'pvpNodes' }
+  /** Consecutive PvP match wins (resets on a loss). */
+  | { readonly kind: 'pvpStreak' }
   /** Total achievements earned (meta). */
   | { readonly kind: 'meta' };
 
@@ -123,6 +131,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('warsong-gulch-victory', 'Warsong Gulch Victory', 'PvP', 'Win a Warsong Gulch battleground.', 'map', { kind: 'pvpMap', map: 'warsong' }, 1),
   def('arathi-basin-victory', 'Arathi Basin Victory', 'PvP', 'Win an Arathi Basin battleground.', 'map', { kind: 'pvpMap', map: 'arathi' }, 1),
   def('arena-contender', 'Arena Contender', 'PvP', 'Reach an arena rating of 1600.', 'star', { kind: 'pvpRating' }, 1600),
+  def('arena-rival', 'Arena Rival', 'PvP', 'Reach an arena rating of 2000.', 'star', { kind: 'pvpRating' }, 2000),
+  def('arena-map-veteran', 'Arena Map Veteran', 'PvP', 'Win on every arena map.', 'map', { kind: 'pvpMaps', prefix: 'arena-' }, 6),
+  def('warsong-flag-runner', 'Warsong Flag Runner', 'PvP', 'Capture the enemy flag in Warsong Gulch.', 'map', { kind: 'pvpFlags' }, 1),
+  def('warsong-expedience', 'Warsong Expedience', 'PvP', 'Capture 10 flags in Warsong Gulch.', 'map', { kind: 'pvpFlags' }, 10),
+  def('arathi-perfection', 'Arathi Perfection', 'PvP', 'Hold all five Arathi Basin nodes at once.', 'shield', { kind: 'pvpNodes' }, 1),
+  def('hot-streak', 'Hot Streak', 'PvP', 'Win 3 PvP matches in a row.', 'star', { kind: 'pvpStreak' }, 3),
   // ── Meta ──
   def('what-a-long-strange-trip', "What a Long, Strange Trip It's Been", 'Exploration', 'Earn 20 achievements. The Nether Drake answers only to proven heroes.', 'star', { kind: 'meta' }, 20),
 ]);

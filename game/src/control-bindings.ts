@@ -42,6 +42,7 @@ export const CONTROL_ACTIONS = [
  { id: 'editLayout', label: 'Edit UI layout', group: 'World & menus', defaults: ['KeyU', null], pad: '—' },
   { id: 'transmog', label: 'Transmogrify', group: 'World & menus', defaults: ['KeyG', null], pad: '—' },
   { id: 'nameplates', label: 'Enemy nameplates', group: 'World & menus', defaults: ['KeyV', null], pad: '—' },
+  { id: 'pvpScore', label: 'PvP scoreboard', group: 'World & menus', defaults: ['Semicolon', null], pad: '—' },
 ] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number]['id'];
 export function isGameplayAction(action: ControlAction | undefined): boolean {

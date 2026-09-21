@@ -18,12 +18,11 @@
  * A reloaded match record simply has no controller; `attachBattlegroundObjectives`
  * re-creates one, restoring the headline score from `match.score`. */
 import { applySlow } from './combat-status.ts';
-import { pushChatMessage } from './chat-log.ts';
 import { currentDungeon } from './dungeon-state.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import { BG_FLAG_PROP_IDS, BG_NODE_NAMES, BG_NODE_PROP_PREFIX } from './bg-maps.ts';
 import type { Combatant, PvpTeam } from './pvp-combatant.ts';
-import { attachPvpObjectives, type PvpMatch, type PvpObjectives } from './pvp-instance.ts';
+import { attachPvpObjectives, type PvpMatch, type PvpObjectiveEvent, type PvpObjectives } from './pvp-instance.ts';
 import type { Simulation } from './simulation.ts';
 
 // ── NPC objective directives ─────────────────────────────────────────────────
@@ -38,7 +37,6 @@ import { setObjectiveDirective } from './pvp-directives.ts';
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 
-const teamName = (team: PvpTeam): string => team === 'A' ? 'Your team' : 'The enemy';
 const other = (team: PvpTeam): PvpTeam => team === 'A' ? 'B' : 'A';
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -60,6 +58,8 @@ export class WarsongGulchObjectives implements PvpObjectives {
     readonly flags: Record<PvpTeam, FlagState>;
     /** Captures per team — the WSG score. */
     readonly captures = { A: 0, B: 0 };
+    /** Objective beats the match loop drains for announcements/score credit. */
+    events: PvpObjectiveEvent[] = [];
     /** First to this many captures wins. */
     target = 3;
     /** Touch distance for pickup/return; capture distance to the own stand. */
@@ -90,7 +90,7 @@ export class WarsongGulchObjectives implements PvpObjectives {
                 flag.state = 'dropped';
                 flag.x = flag.carrier.x; flag.y = flag.carrier.y;
                 flag.carrier = null;
-                pushChatMessage(sim.player, 'system', `${teamName(team)} flag was dropped.`, sim.time);
+                this.events.push({ kind: 'flag-drop', team, owner: team });
             }
         }
         for (const c of roster) {
@@ -100,19 +100,19 @@ export class WarsongGulchObjectives implements PvpObjectives {
             if (theirs.carrier === c && own.state === 'home' && dist(c, own.stand) <= this.captureRadius) {
                 theirs.state = 'home'; theirs.x = theirs.stand.x; theirs.y = theirs.stand.y; theirs.carrier = null;
                 this.captures[c.team] += 1;
-                pushChatMessage(sim.player, 'system', `${teamName(c.team)} captured the flag! (${this.captures[c.team]}/${this.target})`, sim.time);
+                this.events.push({ kind: 'flag-capture', team: c.team, combatant: c, score: { ...this.captures }, target: this.target });
                 continue;
             }
             // Return: touching your own dropped flag sends it home.
             if (own.state === 'dropped' && dist(c, own) <= this.touchRadius) {
                 own.state = 'home'; own.x = own.stand.x; own.y = own.stand.y;
-                pushChatMessage(sim.player, 'system', `${teamName(c.team)} flag was returned.`, sim.time);
+                this.events.push({ kind: 'flag-return', team: c.team, combatant: c });
                 continue;
             }
             // Pickup: touching a free enemy flag (on its stand or dropped) carries it.
             if (theirs.state !== 'carried' && dist(c, theirs) <= this.touchRadius) {
                 theirs.state = 'carried'; theirs.carrier = c;
-                pushChatMessage(sim.player, 'system', `${teamName(c.team)} picked up the enemy flag!`, sim.time);
+                this.events.push({ kind: 'flag-pickup', team: c.team, combatant: c });
             }
         }
         for (const team of ['A', 'B'] as const) {
@@ -175,6 +175,10 @@ export class ArathiBasinObjectives implements PvpObjectives {
     readonly nodes: NodeState[];
     /** Accumulated resources per team — the AB score. */
     readonly resources = { A: 0, B: 0 };
+    /** Objective beats the match loop drains for announcements/score credit. */
+    events: PvpObjectiveEvent[] = [];
+    /** Peak simultaneous nodes held per team — the "hold everything" check. */
+    readonly peakOwned = { A: 0, B: 0, total: 0 };
     /** First to this many resources wins. */
     target = 1600;
     /** Seconds of uncontested presence to capture a node. */
@@ -212,17 +216,23 @@ export class ArathiBasinObjectives implements PvpObjectives {
                 continue;
             }
             if (node.owner === side) { node.progress = 0; node.progressTeam = null; continue; }
-            if (node.progressTeam !== side) { node.progressTeam = side; node.progress = 0; }
+            if (node.progressTeam !== side) {
+                node.progressTeam = side; node.progress = 0;
+                if (node.owner) this.events.push({ kind: 'node-assault', team: side, owner: node.owner, node: node.name });
+            }
             node.progress += dt / this.captureTime;
             if (node.progress >= 1) {
                 node.owner = side; node.progress = 0; node.progressTeam = null;
-                pushChatMessage(sim.player, 'system', `${teamName(side)} captured ${node.name}.`, sim.time);
+                this.events.push({ kind: 'node-capture', team: side, captors: present, node: node.name });
             }
         }
         const owned = (team: PvpTeam) => this.nodes.filter(node => node.owner === team).length;
         this.resources.A += owned('A') * this.resourceRate * dt;
         this.resources.B += owned('B') * this.resourceRate * dt;
         match.score.A = Math.floor(this.resources.A); match.score.B = Math.floor(this.resources.B);
+        this.peakOwned.total = this.nodes.length;
+        this.peakOwned.A = Math.max(this.peakOwned.A, owned('A'));
+        this.peakOwned.B = Math.max(this.peakOwned.B, owned('B'));
         this.assign(sim, 'A');
         this.assign(sim, 'B');
     }
