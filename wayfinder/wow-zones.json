@@ -1,0 +1,6517 @@
+{
+  "meta": {
+    "title": "WoW WotLK (patch 3.3.x) zone + transport dataset",
+    "purpose": "Authoritative source for the Evergrow world atlas (ticket T01). Positions, borders, cities, dungeons, docks, flight paths and transports for every WotLK zone.",
+    "conventions": [
+      "zone id: lowercase-hyphen slug",
+      "borders: primary neighbor per cardinal direction, or null for ocean/impassable edge",
+      "bordersExtra: additional neighbors sharing that edge (adjacency is symmetric across borders+bordersExtra)",
+      "city/dungeon/dock/flightpath x,y: normalized 0..1 within the zone rect (0,0 = NW corner, y grows south)",
+      "widthKm/heightKm: approximate in-game footprint, for atlas rect sizing",
+      "faction: Alliance | Horde | Contested | Neutral | PvP (Wintergrasp)",
+      "transports: each route listed once; bidirectional unless marked false",
+      "durations: approximate real-time seconds matching WoW travel feel",
+      "dungeons: raid=true for raid instances; all are entrance placements",
+      "The Barrens is split into barrens-north / barrens-south per the atlas contract",
+      "Dalaran is a zone-level city inside crystalsong (it floats above the zone)",
+      "Isle of Quel'Danas is excluded (TBC daily isle, outside the four-continent atlas scope)"
+    ]
+  },
+  "zones": [
+    {
+      "id": "durotar",
+      "name": "Durotar",
+      "continent": "Kalimdor",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Horde",
+      "biome": "arid red canyon",
+      "widthKm": 1.4,
+      "heightKm": 1.2,
+      "borders": {
+        "north": "azshara",
+        "south": null,
+        "east": null,
+        "west": "barrens-north"
+      },
+      "cities": [
+        {
+          "name": "Orgrimmar",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.1
+        },
+        {
+          "name": "Razor Hill",
+          "faction": "Horde",
+          "x": 0.52,
+          "y": 0.55
+        },
+        {
+          "name": "Sen'jin Village",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.82
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Ragefire Chasm",
+          "x": 0.45,
+          "y": 0.12,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Orgrimmar Zeppelin Tower",
+          "kind": "zeppelin",
+          "x": 0.35,
+          "y": 0.14
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Orgrimmar",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.1
+        }
+      ]
+    },
+    {
+      "id": "mulgore",
+      "name": "Mulgore",
+      "continent": "Kalimdor",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Horde",
+      "biome": "green plains and mesas",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": null,
+        "east": "barrens-south",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Thunder Bluff",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Bloodhoof Village",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.62
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Thunder Bluff",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.35
+        }
+      ]
+    },
+    {
+      "id": "teldrassil",
+      "name": "Teldrassil",
+      "continent": "Kalimdor",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Alliance",
+      "biome": "purple world-tree forest",
+      "widthKm": 1.1,
+      "heightKm": 1.3,
+      "borders": {
+        "north": null,
+        "south": null,
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Darnassus",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.28
+        },
+        {
+          "name": "Dolanaar",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.55
+        },
+        {
+          "name": "Rut'theran Village",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.92
+        }
+      ],
+      "dungeons": [],
+      "docks": [
+        {
+          "name": "Rut'theran Village Dock",
+          "kind": "ship",
+          "x": 0.55,
+          "y": 0.96
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Darnassus",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.28
+        },
+        {
+          "name": "Rut'theran Village",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.92
+        }
+      ],
+      "portals": [
+        {
+          "name": "Darnassus Portal",
+          "to": "darnassus-city",
+          "x": 0.55,
+          "y": 0.9
+        }
+      ],
+      "notes": "Island zone; reachable only by ship or the Rut'theran->Darnassus portal."
+    },
+    {
+      "id": "darkshore",
+      "name": "Darkshore",
+      "continent": "Kalimdor",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Alliance",
+      "biome": "gloomy coastal forest",
+      "widthKm": 0.9,
+      "heightKm": 1.6,
+      "borders": {
+        "north": null,
+        "south": "ashenvale",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Auberdine",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.35
+        },
+        {
+          "name": "Grove of the Ancients",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.75
+        }
+      ],
+      "dungeons": [],
+      "docks": [
+        {
+          "name": "Auberdine Docks",
+          "kind": "ship",
+          "x": 0.34,
+          "y": 0.36
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Auberdine",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.35
+        },
+        {
+          "name": "Grove of the Ancients",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.75
+        }
+      ]
+    },
+    {
+      "id": "barrens-north",
+      "name": "The Barrens (North)",
+      "continent": "Kalimdor",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Horde",
+      "biome": "savanna",
+      "widthKm": 1.5,
+      "heightKm": 1.2,
+      "borders": {
+        "north": "ashenvale",
+        "south": "barrens-south",
+        "east": "durotar",
+        "west": "stonetalon"
+      },
+      "cities": [
+        {
+          "name": "The Crossroads",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.55
+        },
+        {
+          "name": "Ratchet",
+          "faction": "Neutral",
+          "x": 0.85,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Wailing Caverns",
+          "x": 0.35,
+          "y": 0.45,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Ratchet Dock",
+          "kind": "ship",
+          "x": 0.88,
+          "y": 0.56
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "The Crossroads",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.55
+        },
+        {
+          "name": "Ratchet",
+          "faction": "Neutral",
+          "x": 0.85,
+          "y": 0.55
+        }
+      ],
+      "notes": "Northern half of the classic Barrens, split at roughly Camp Taurajo latitude."
+    },
+    {
+      "id": "barrens-south",
+      "name": "The Barrens (South)",
+      "continent": "Kalimdor",
+      "levelMin": 20,
+      "levelMax": 35,
+      "faction": "Horde",
+      "biome": "dry savanna and razorfen brambles",
+      "widthKm": 1.5,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "barrens-north",
+        "south": "thousand-needles",
+        "east": "dustwallow",
+        "west": "mulgore"
+      },
+      "cities": [
+        {
+          "name": "Camp Taurajo",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Razorfen Kraul",
+          "x": 0.28,
+          "y": 0.85,
+          "raid": false
+        },
+        {
+          "name": "Razorfen Downs",
+          "x": 0.5,
+          "y": 0.95,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Camp Taurajo",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.6
+        }
+      ],
+      "notes": "Southern half of the classic Barrens; holds both Razorfen dungeons."
+    },
+    {
+      "id": "stonetalon",
+      "name": "Stonetalon Mountains",
+      "continent": "Kalimdor",
+      "levelMin": 15,
+      "levelMax": 27,
+      "faction": "Contested",
+      "biome": "rocky peaks and charred vale",
+      "widthKm": 1.0,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "ashenvale",
+        "south": "desolace",
+        "east": "barrens-north",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Stonetalon Peak",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.15
+        },
+        {
+          "name": "Sun Rock Retreat",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Stonetalon Peak",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.15
+        },
+        {
+          "name": "Sun Rock Retreat",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.6
+        }
+      ]
+    },
+    {
+      "id": "ashenvale",
+      "name": "Ashenvale",
+      "continent": "Kalimdor",
+      "levelMin": 18,
+      "levelMax": 30,
+      "faction": "Contested",
+      "biome": "dark ancient forest",
+      "widthKm": 1.6,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "darkshore",
+        "south": "barrens-north",
+        "east": "azshara",
+        "west": null
+      },
+      "bordersExtra": {
+        "south": [
+          "stonetalon"
+        ],
+        "north": [
+          "felwood"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Astranaar",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Splintertree Post",
+          "faction": "Horde",
+          "x": 0.72,
+          "y": 0.5
+        },
+        {
+          "name": "Zoram'gar Outpost",
+          "faction": "Horde",
+          "x": 0.08,
+          "y": 0.45
+        },
+        {
+          "name": "Forest Song",
+          "faction": "Alliance",
+          "x": 0.85,
+          "y": 0.4
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Blackfathom Deeps",
+          "x": 0.12,
+          "y": 0.2,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Astranaar",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Splintertree Post",
+          "faction": "Horde",
+          "x": 0.72,
+          "y": 0.5
+        },
+        {
+          "name": "Zoram'gar Outpost",
+          "faction": "Horde",
+          "x": 0.08,
+          "y": 0.45
+        },
+        {
+          "name": "Forest Song",
+          "faction": "Alliance",
+          "x": 0.85,
+          "y": 0.4
+        }
+      ]
+    },
+    {
+      "id": "desolace",
+      "name": "Desolace",
+      "continent": "Kalimdor",
+      "levelMin": 30,
+      "levelMax": 40,
+      "faction": "Contested",
+      "biome": "grey barren wastes",
+      "widthKm": 1.2,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "stonetalon",
+        "south": "feralas",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Nijel's Point",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.1
+        },
+        {
+          "name": "Shadowprey Village",
+          "faction": "Horde",
+          "x": 0.25,
+          "y": 0.7
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Maraudon",
+          "x": 0.35,
+          "y": 0.55,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Nijel's Point",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.1
+        },
+        {
+          "name": "Shadowprey Village",
+          "faction": "Horde",
+          "x": 0.25,
+          "y": 0.7
+        }
+      ]
+    },
+    {
+      "id": "feralas",
+      "name": "Feralas",
+      "continent": "Kalimdor",
+      "levelMin": 40,
+      "levelMax": 50,
+      "faction": "Contested",
+      "biome": "lush jungle forest",
+      "widthKm": 1.4,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "desolace",
+        "south": null,
+        "east": "thousand-needles",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Feathermoon Stronghold",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.55
+        },
+        {
+          "name": "Camp Mojache",
+          "faction": "Horde",
+          "x": 0.75,
+          "y": 0.45
+        },
+        {
+          "name": "Thalanaar",
+          "faction": "Alliance",
+          "x": 0.9,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Dire Maul",
+          "x": 0.55,
+          "y": 0.4,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Feathermoon Stronghold",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.55
+        },
+        {
+          "name": "Camp Mojache",
+          "faction": "Horde",
+          "x": 0.75,
+          "y": 0.45
+        },
+        {
+          "name": "Thalanaar",
+          "faction": "Alliance",
+          "x": 0.9,
+          "y": 0.35
+        }
+      ]
+    },
+    {
+      "id": "thousand-needles",
+      "name": "Thousand Needles",
+      "continent": "Kalimdor",
+      "levelMin": 25,
+      "levelMax": 35,
+      "faction": "Contested",
+      "biome": "canyon needles and salt flats",
+      "widthKm": 1.2,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "barrens-south",
+        "south": "tanaris",
+        "east": "dustwallow",
+        "west": "feralas"
+      },
+      "cities": [
+        {
+          "name": "Freewind Post",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.45
+        },
+        {
+          "name": "Mirage Raceway",
+          "faction": "Neutral",
+          "x": 0.75,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Freewind Post",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.45
+        }
+      ]
+    },
+    {
+      "id": "tanaris",
+      "name": "Tanaris",
+      "continent": "Kalimdor",
+      "levelMin": 40,
+      "levelMax": 50,
+      "faction": "Contested",
+      "biome": "desert",
+      "widthKm": 1.4,
+      "heightKm": 1.2,
+      "borders": {
+        "north": "thousand-needles",
+        "south": null,
+        "east": null,
+        "west": "ungoro"
+      },
+      "cities": [
+        {
+          "name": "Gadgetzan",
+          "faction": "Neutral",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Steamwheedle Port",
+          "faction": "Neutral",
+          "x": 0.7,
+          "y": 0.12
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Zul'Farrak",
+          "x": 0.2,
+          "y": 0.35,
+          "raid": false
+        },
+        {
+          "name": "Caverns of Time",
+          "x": 0.65,
+          "y": 0.75,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Gadgetzan",
+          "faction": "Neutral",
+          "x": 0.55,
+          "y": 0.3
+        }
+      ],
+      "notes": "Caverns of Time is a dungeon hub (Escape from Durnholde, Black Morass, Battle for Mount Hyjal)."
+    },
+    {
+      "id": "ungoro",
+      "name": "Un'Goro Crater",
+      "continent": "Kalimdor",
+      "levelMin": 48,
+      "levelMax": 55,
+      "faction": "Contested",
+      "biome": "prehistoric jungle crater",
+      "widthKm": 1.0,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": null,
+        "east": "tanaris",
+        "west": "silithus"
+      },
+      "cities": [
+        {
+          "name": "Marshal's Refuge",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.15
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Marshal's Refuge",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.15
+        }
+      ]
+    },
+    {
+      "id": "silithus",
+      "name": "Silithus",
+      "continent": "Kalimdor",
+      "levelMin": 55,
+      "levelMax": 60,
+      "faction": "Contested",
+      "biome": "silithid desert",
+      "widthKm": 1.3,
+      "heightKm": 1.3,
+      "borders": {
+        "north": null,
+        "south": null,
+        "east": "ungoro",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Cenarion Hold",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Ruins of Ahn'Qiraj",
+          "x": 0.55,
+          "y": 0.9,
+          "raid": true
+        },
+        {
+          "name": "Temple of Ahn'Qiraj",
+          "x": 0.6,
+          "y": 0.93,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Cenarion Hold",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.35
+        }
+      ]
+    },
+    {
+      "id": "dustwallow",
+      "name": "Dustwallow Marsh",
+      "continent": "Kalimdor",
+      "levelMin": 35,
+      "levelMax": 45,
+      "faction": "Contested",
+      "biome": "swamp",
+      "widthKm": 1.2,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "barrens-south",
+        "south": "thousand-needles",
+        "east": null,
+        "west": "barrens-south"
+      },
+      "cities": [
+        {
+          "name": "Theramore Isle",
+          "faction": "Alliance",
+          "x": 0.75,
+          "y": 0.55
+        },
+        {
+          "name": "Brackenwall Village",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.3
+        },
+        {
+          "name": "Mudsprocket",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.75
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Onyxia's Lair",
+          "x": 0.5,
+          "y": 0.7,
+          "raid": true
+        }
+      ],
+      "docks": [
+        {
+          "name": "Theramore Dock",
+          "kind": "ship",
+          "x": 0.78,
+          "y": 0.56
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Theramore Isle",
+          "faction": "Alliance",
+          "x": 0.75,
+          "y": 0.55
+        },
+        {
+          "name": "Brackenwall Village",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.3
+        },
+        {
+          "name": "Mudsprocket",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.75
+        }
+      ]
+    },
+    {
+      "id": "azshara",
+      "name": "Azshara",
+      "continent": "Kalimdor",
+      "levelMin": 45,
+      "levelMax": 55,
+      "faction": "Contested",
+      "biome": "autumnal cliffs and naga ruins",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": "durotar",
+        "east": null,
+        "west": "ashenvale"
+      },
+      "bordersExtra": {
+        "west": [
+          "felwood"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Valormok",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.5
+        },
+        {
+          "name": "Talrendis Point",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Valormok",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.5
+        },
+        {
+          "name": "Talrendis Point",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.6
+        }
+      ]
+    },
+    {
+      "id": "felwood",
+      "name": "Felwood",
+      "continent": "Kalimdor",
+      "levelMin": 48,
+      "levelMax": 55,
+      "faction": "Contested",
+      "biome": "corrupted forest",
+      "widthKm": 1.0,
+      "heightKm": 1.4,
+      "borders": {
+        "north": "moonglade",
+        "south": "ashenvale",
+        "east": "azshara",
+        "west": null
+      },
+      "bordersExtra": {
+        "north": [
+          "winterspring"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Bloodvenom Post",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Talonbranch Glade",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Emerald Sanctuary",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.75
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Bloodvenom Post",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Talonbranch Glade",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Emerald Sanctuary",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.75
+        }
+      ],
+      "notes": "Timbermaw Hold tunnels connect Felwood to both Moonglade and Winterspring."
+    },
+    {
+      "id": "winterspring",
+      "name": "Winterspring",
+      "continent": "Kalimdor",
+      "levelMin": 55,
+      "levelMax": 60,
+      "faction": "Contested",
+      "biome": "snowy mountains",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": "felwood",
+        "east": null,
+        "west": "moonglade"
+      },
+      "cities": [
+        {
+          "name": "Everlook",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.4
+        },
+        {
+          "name": "Starfall Village",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.3
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Everlook",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.4
+        }
+      ]
+    },
+    {
+      "id": "moonglade",
+      "name": "Moonglade",
+      "continent": "Kalimdor",
+      "levelMin": 50,
+      "levelMax": 60,
+      "faction": "Neutral",
+      "biome": "sacred druid forest",
+      "widthKm": 0.9,
+      "heightKm": 0.9,
+      "borders": {
+        "north": null,
+        "south": "felwood",
+        "east": "winterspring",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Nighthaven",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.4
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Nighthaven",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.4
+        }
+      ],
+      "notes": "Druid-only flight routes to Darnassus (Alliance) and Thunder Bluff (Horde)."
+    },
+    {
+      "id": "bloodmyst",
+      "name": "Bloodmyst Isle",
+      "continent": "Kalimdor",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Alliance",
+      "biome": "corrupted red-crystal isle",
+      "widthKm": 1.0,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "azuremyst",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Blood Watch",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.5
+        },
+        {
+          "name": "Vindicator's Rest",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Blood Watch",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.5
+        }
+      ]
+    },
+    {
+      "id": "azuremyst",
+      "name": "Azuremyst Isle",
+      "continent": "Kalimdor",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Alliance",
+      "biome": "crystalline pine isle",
+      "widthKm": 1.1,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "bloodmyst",
+        "south": null,
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "The Exodar",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.4
+        },
+        {
+          "name": "Azure Watch",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [
+        {
+          "name": "Valaar's Berth",
+          "kind": "ship",
+          "x": 0.22,
+          "y": 0.55
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "The Exodar",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.4
+        },
+        {
+          "name": "Azure Watch",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.55
+        }
+      ],
+      "portals": [
+        {
+          "name": "Exodar Portal to Darnassus",
+          "to": "darnassus-city",
+          "x": 0.32,
+          "y": 0.38
+        }
+      ]
+    },
+    {
+      "id": "eversong",
+      "name": "Eversong Woods",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Horde",
+      "biome": "golden autumn forest",
+      "widthKm": 1.1,
+      "heightKm": 1.2,
+      "borders": {
+        "north": null,
+        "south": "ghostlands",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Silvermoon City",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.25
+        },
+        {
+          "name": "Falconwing Square",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.55
+        },
+        {
+          "name": "Fairbreeze Village",
+          "faction": "Horde",
+          "x": 0.42,
+          "y": 0.72
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Silvermoon City",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.25
+        },
+        {
+          "name": "Fairbreeze Village",
+          "faction": "Horde",
+          "x": 0.42,
+          "y": 0.72
+        }
+      ],
+      "portals": [
+        {
+          "name": "Orb of Translocation",
+          "to": "undercity-court",
+          "x": 0.55,
+          "y": 0.22
+        }
+      ]
+    },
+    {
+      "id": "ghostlands",
+      "name": "Ghostlands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Horde",
+      "biome": "dead haunted forest",
+      "widthKm": 1.0,
+      "heightKm": 1.4,
+      "borders": {
+        "north": "eversong",
+        "south": "eastern-plaguelands",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Tranquillien",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Zul'Aman",
+          "x": 0.65,
+          "y": 0.75,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Tranquillien",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Zul'Aman",
+          "faction": "Neutral",
+          "x": 0.65,
+          "y": 0.75
+        }
+      ]
+    },
+    {
+      "id": "tirisfal",
+      "name": "Tirisfal Glades",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Horde",
+      "biome": "forsaken woodland",
+      "widthKm": 1.3,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "silverpine",
+        "east": "western-plaguelands",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Undercity",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.35
+        },
+        {
+          "name": "Brill",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.55
+        },
+        {
+          "name": "The Bulwark",
+          "faction": "Horde",
+          "x": 0.85,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Scarlet Monastery",
+          "x": 0.8,
+          "y": 0.25,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Undercity Zeppelin Tower",
+          "kind": "zeppelin",
+          "x": 0.6,
+          "y": 0.3
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Undercity",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.35
+        },
+        {
+          "name": "The Bulwark",
+          "faction": "Horde",
+          "x": 0.85,
+          "y": 0.6
+        }
+      ],
+      "portals": [
+        {
+          "name": "Orb of Translocation",
+          "to": "silvermoon-court",
+          "x": 0.58,
+          "y": 0.32
+        }
+      ]
+    },
+    {
+      "id": "western-plaguelands",
+      "name": "Western Plaguelands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 51,
+      "levelMax": 58,
+      "faction": "Contested",
+      "biome": "plagued farmland",
+      "widthKm": 1.1,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "alterac",
+        "east": "eastern-plaguelands",
+        "west": "tirisfal"
+      },
+      "bordersExtra": {
+        "south": [
+          "hinterlands"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Chillwind Camp",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.85
+        },
+        {
+          "name": "The Bulwark",
+          "faction": "Horde",
+          "x": 0.15,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Scholomance",
+          "x": 0.7,
+          "y": 0.75,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Chillwind Camp",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.85
+        },
+        {
+          "name": "The Bulwark",
+          "faction": "Horde",
+          "x": 0.15,
+          "y": 0.6
+        }
+      ]
+    },
+    {
+      "id": "eastern-plaguelands",
+      "name": "Eastern Plaguelands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 53,
+      "levelMax": 60,
+      "faction": "Contested",
+      "biome": "blighted deadlands",
+      "widthKm": 1.3,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "ghostlands",
+        "south": null,
+        "east": null,
+        "west": "western-plaguelands"
+      },
+      "cities": [
+        {
+          "name": "Light's Hope Chapel",
+          "faction": "Neutral",
+          "x": 0.75,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Stratholme",
+          "x": 0.3,
+          "y": 0.2,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Light's Hope Chapel",
+          "faction": "Neutral",
+          "x": 0.75,
+          "y": 0.55
+        }
+      ],
+      "notes": "Naxxramas moved to Dragonblight in WotLK; Plaguewood ziggurat remains."
+    },
+    {
+      "id": "alterac",
+      "name": "Alterac Mountains",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 30,
+      "levelMax": 40,
+      "faction": "Contested",
+      "biome": "snowy ogre highlands",
+      "widthKm": 1.0,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "western-plaguelands",
+        "south": "hillsbrad",
+        "east": null,
+        "west": "silverpine"
+      },
+      "cities": [
+        {
+          "name": "Alterac Ruins",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": []
+    },
+    {
+      "id": "silverpine",
+      "name": "Silverpine Forest",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Horde",
+      "biome": "dark pine forest",
+      "widthKm": 0.9,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "tirisfal",
+        "south": "hillsbrad",
+        "east": "alterac",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "The Sepulcher",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Shadowfang Keep",
+          "x": 0.35,
+          "y": 0.75,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "The Sepulcher",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.45
+        }
+      ]
+    },
+    {
+      "id": "hillsbrad",
+      "name": "Hillsbrad Foothills",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 20,
+      "levelMax": 30,
+      "faction": "Contested",
+      "biome": "green foothills",
+      "widthKm": 1.3,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "alterac",
+        "south": null,
+        "east": "arathi",
+        "west": "silverpine"
+      },
+      "cities": [
+        {
+          "name": "Southshore",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.8
+        },
+        {
+          "name": "Tarren Mill",
+          "faction": "Horde",
+          "x": 0.6,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [],
+      "docks": [
+        {
+          "name": "Southshore Dock",
+          "kind": "ship",
+          "x": 0.5,
+          "y": 0.88
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Southshore",
+          "faction": "Alliance",
+          "x": 0.5,
+          "y": 0.8
+        },
+        {
+          "name": "Tarren Mill",
+          "faction": "Horde",
+          "x": 0.6,
+          "y": 0.35
+        }
+      ],
+      "bordersExtra": {
+        "east": [
+          "hinterlands"
+        ]
+      }
+    },
+    {
+      "id": "arathi",
+      "name": "Arathi Highlands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 30,
+      "levelMax": 40,
+      "faction": "Contested",
+      "biome": "grassy highlands",
+      "widthKm": 1.3,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "wetlands",
+        "east": null,
+        "west": "hillsbrad"
+      },
+      "cities": [
+        {
+          "name": "Refuge Pointe",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.4
+        },
+        {
+          "name": "Hammerfall",
+          "faction": "Horde",
+          "x": 0.72,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Refuge Pointe",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.4
+        },
+        {
+          "name": "Hammerfall",
+          "faction": "Horde",
+          "x": 0.72,
+          "y": 0.35
+        }
+      ]
+    },
+    {
+      "id": "hinterlands",
+      "name": "The Hinterlands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 40,
+      "levelMax": 50,
+      "faction": "Contested",
+      "biome": "forested troll highlands",
+      "widthKm": 1.2,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "western-plaguelands",
+        "south": "hillsbrad",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Aerie Peak",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.5
+        },
+        {
+          "name": "Revantusk Village",
+          "faction": "Horde",
+          "x": 0.8,
+          "y": 0.8
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Aerie Peak",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.5
+        },
+        {
+          "name": "Revantusk Village",
+          "faction": "Horde",
+          "x": 0.8,
+          "y": 0.8
+        }
+      ]
+    },
+    {
+      "id": "wetlands",
+      "name": "Wetlands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 20,
+      "levelMax": 30,
+      "faction": "Alliance",
+      "biome": "marsh",
+      "widthKm": 1.2,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "arathi",
+        "south": "loch-modan",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Menethil Harbor",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [
+        {
+          "name": "Menethil Harbor",
+          "kind": "ship",
+          "x": 0.1,
+          "y": 0.55
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Menethil Harbor",
+          "faction": "Alliance",
+          "x": 0.15,
+          "y": 0.55
+        }
+      ],
+      "notes": "Thandol Span is the north border crossing into Arathi."
+    },
+    {
+      "id": "loch-modan",
+      "name": "Loch Modan",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Alliance",
+      "biome": "highland lake",
+      "widthKm": 1.0,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "wetlands",
+        "south": "badlands",
+        "east": null,
+        "west": "dun-morogh"
+      },
+      "cities": [
+        {
+          "name": "Thelsamar",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.5
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Thelsamar",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.5
+        }
+      ]
+    },
+    {
+      "id": "dun-morogh",
+      "name": "Dun Morogh",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Alliance",
+      "biome": "snowy dwarf highlands",
+      "widthKm": 1.2,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "searing-gorge",
+        "east": "loch-modan",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Ironforge",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Kharanos",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Gnomeregan",
+          "x": 0.25,
+          "y": 0.4,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Deeprun Tram (Ironforge)",
+          "kind": "tram",
+          "x": 0.6,
+          "y": 0.32
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Ironforge",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        }
+      ]
+    },
+    {
+      "id": "badlands",
+      "name": "Badlands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 35,
+      "levelMax": 45,
+      "faction": "Contested",
+      "biome": "scorched badlands",
+      "widthKm": 1.1,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "loch-modan",
+        "south": "searing-gorge",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Kargath",
+          "faction": "Horde",
+          "x": 0.1,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Uldaman",
+          "x": 0.45,
+          "y": 0.25,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Kargath",
+          "faction": "Horde",
+          "x": 0.1,
+          "y": 0.45
+        }
+      ]
+    },
+    {
+      "id": "searing-gorge",
+      "name": "Searing Gorge",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 43,
+      "levelMax": 50,
+      "faction": "Contested",
+      "biome": "volcanic gorge",
+      "widthKm": 0.9,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "dun-morogh",
+        "south": "burning-steppes",
+        "east": "badlands",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Thorium Point",
+          "faction": "Neutral",
+          "x": 0.35,
+          "y": 0.3
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Thorium Point",
+          "faction": "Neutral",
+          "x": 0.35,
+          "y": 0.3
+        }
+      ]
+    },
+    {
+      "id": "burning-steppes",
+      "name": "Burning Steppes",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 50,
+      "levelMax": 58,
+      "faction": "Contested",
+      "biome": "ashen volcanic steppes",
+      "widthKm": 1.1,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "searing-gorge",
+        "south": "redridge",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Morgan's Vigil",
+          "faction": "Alliance",
+          "x": 0.8,
+          "y": 0.7
+        },
+        {
+          "name": "Flame Crest",
+          "faction": "Horde",
+          "x": 0.6,
+          "y": 0.3
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Blackrock Depths",
+          "x": 0.3,
+          "y": 0.4,
+          "raid": false
+        },
+        {
+          "name": "Lower Blackrock Spire",
+          "x": 0.3,
+          "y": 0.42,
+          "raid": false
+        },
+        {
+          "name": "Upper Blackrock Spire",
+          "x": 0.3,
+          "y": 0.44,
+          "raid": true
+        },
+        {
+          "name": "Molten Core",
+          "x": 0.28,
+          "y": 0.4,
+          "raid": true
+        },
+        {
+          "name": "Blackwing Lair",
+          "x": 0.32,
+          "y": 0.42,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Morgan's Vigil",
+          "faction": "Alliance",
+          "x": 0.8,
+          "y": 0.7
+        },
+        {
+          "name": "Flame Crest",
+          "faction": "Horde",
+          "x": 0.6,
+          "y": 0.3
+        }
+      ],
+      "notes": "All Blackrock Mountain instances share the mountain interior at the NW corner."
+    },
+    {
+      "id": "elwynn",
+      "name": "Elwynn Forest",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 1,
+      "levelMax": 10,
+      "faction": "Alliance",
+      "biome": "green forest",
+      "widthKm": 1.3,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "duskwood",
+        "east": "redridge",
+        "west": "westfall"
+      },
+      "cities": [
+        {
+          "name": "Stormwind City",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.15
+        },
+        {
+          "name": "Goldshire",
+          "faction": "Alliance",
+          "x": 0.45,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Stockade",
+          "x": 0.38,
+          "y": 0.18,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Stormwind Harbor",
+          "kind": "ship",
+          "x": 0.28,
+          "y": 0.1
+        },
+        {
+          "name": "Deeprun Tram (Stormwind)",
+          "kind": "tram",
+          "x": 0.4,
+          "y": 0.16
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Stormwind City",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.15
+        }
+      ]
+    },
+    {
+      "id": "westfall",
+      "name": "Westfall",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 10,
+      "levelMax": 20,
+      "faction": "Alliance",
+      "biome": "dry farmland",
+      "widthKm": 1.0,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": "duskwood",
+        "east": "elwynn",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Sentinel Hill",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Deadmines",
+          "x": 0.4,
+          "y": 0.75,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Sentinel Hill",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.45
+        }
+      ]
+    },
+    {
+      "id": "redridge",
+      "name": "Redridge Mountains",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 15,
+      "levelMax": 25,
+      "faction": "Alliance",
+      "biome": "red mountain ridges",
+      "widthKm": 1.0,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "burning-steppes",
+        "south": "duskwood",
+        "east": null,
+        "west": "elwynn"
+      },
+      "cities": [
+        {
+          "name": "Lakeshire",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Lakeshire",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.55
+        }
+      ]
+    },
+    {
+      "id": "duskwood",
+      "name": "Duskwood",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 18,
+      "levelMax": 30,
+      "faction": "Alliance",
+      "biome": "haunted dark forest",
+      "widthKm": 1.2,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "elwynn",
+        "south": "stranglethorn",
+        "east": "deadwind",
+        "west": "westfall"
+      },
+      "bordersExtra": {
+        "east": [
+          "redridge"
+        ],
+        "west": [
+          "elwynn"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Darkshire",
+          "faction": "Alliance",
+          "x": 0.75,
+          "y": 0.45
+        },
+        {
+          "name": "Raven Hill",
+          "faction": "Alliance",
+          "x": 0.2,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Darkshire",
+          "faction": "Alliance",
+          "x": 0.75,
+          "y": 0.45
+        },
+        {
+          "name": "Raven Hill",
+          "faction": "Alliance",
+          "x": 0.2,
+          "y": 0.55
+        }
+      ]
+    },
+    {
+      "id": "deadwind",
+      "name": "Deadwind Pass",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 55,
+      "levelMax": 60,
+      "faction": "Contested",
+      "biome": "dead canyon pass",
+      "widthKm": 0.8,
+      "heightKm": 0.9,
+      "borders": {
+        "north": null,
+        "south": "swamp-of-sorrows",
+        "east": null,
+        "west": "duskwood"
+      },
+      "cities": [],
+      "dungeons": [
+        {
+          "name": "Karazhan",
+          "x": 0.45,
+          "y": 0.75,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [],
+      "notes": "No settlements or flight paths; Karazhan tower dominates the south."
+    },
+    {
+      "id": "swamp-of-sorrows",
+      "name": "Swamp of Sorrows",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 35,
+      "levelMax": 45,
+      "faction": "Contested",
+      "biome": "murky swamp",
+      "widthKm": 1.1,
+      "heightKm": 0.9,
+      "borders": {
+        "north": "deadwind",
+        "south": "blasted-lands",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Stonard",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Temple of Atal'Hakkar",
+          "x": 0.7,
+          "y": 0.55,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Stonard",
+          "faction": "Horde",
+          "x": 0.45,
+          "y": 0.55
+        }
+      ]
+    },
+    {
+      "id": "blasted-lands",
+      "name": "Blasted Lands",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 45,
+      "levelMax": 55,
+      "faction": "Contested",
+      "biome": "fel-scorched wastes",
+      "widthKm": 1.0,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "swamp-of-sorrows",
+        "south": null,
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Nethergarde Keep",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.2
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Nethergarde Keep",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.2
+        }
+      ],
+      "portals": [
+        {
+          "name": "The Dark Portal",
+          "to": "hellfire-dark-portal",
+          "x": 0.55,
+          "y": 0.8
+        }
+      ]
+    },
+    {
+      "id": "stranglethorn",
+      "name": "Stranglethorn Vale",
+      "continent": "Eastern Kingdoms",
+      "levelMin": 30,
+      "levelMax": 45,
+      "faction": "Contested",
+      "biome": "dense jungle",
+      "widthKm": 1.2,
+      "heightKm": 1.6,
+      "borders": {
+        "north": "duskwood",
+        "south": null,
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Booty Bay",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.85
+        },
+        {
+          "name": "Grom'gol Base Camp",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.3
+        },
+        {
+          "name": "Rebel Camp",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.1
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Zul'Gurub",
+          "x": 0.65,
+          "y": 0.35,
+          "raid": true
+        }
+      ],
+      "docks": [
+        {
+          "name": "Booty Bay Dock",
+          "kind": "ship",
+          "x": 0.28,
+          "y": 0.88
+        },
+        {
+          "name": "Grom'gol Zeppelin Tower",
+          "kind": "zeppelin",
+          "x": 0.33,
+          "y": 0.28
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Booty Bay",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.85
+        },
+        {
+          "name": "Grom'gol Base Camp",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.3
+        },
+        {
+          "name": "Rebel Camp",
+          "faction": "Alliance",
+          "x": 0.4,
+          "y": 0.1
+        }
+      ]
+    },
+    {
+      "id": "borean-tundra",
+      "name": "Borean Tundra",
+      "continent": "Northrend",
+      "levelMin": 68,
+      "levelMax": 72,
+      "faction": "Contested",
+      "biome": "frozen tundra",
+      "widthKm": 1.6,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "sholazar",
+        "south": null,
+        "east": "dragonblight",
+        "west": null
+      },
+      "bordersExtra": {
+        "east": [
+          "wintergrasp"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Valiance Keep",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.75
+        },
+        {
+          "name": "Warsong Hold",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Amber Ledge",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Transitus Shield",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.35
+        },
+        {
+          "name": "Unu'pe",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Nexus",
+          "x": 0.28,
+          "y": 0.3,
+          "raid": false
+        },
+        {
+          "name": "The Oculus",
+          "x": 0.28,
+          "y": 0.28,
+          "raid": false
+        },
+        {
+          "name": "Eye of Eternity",
+          "x": 0.28,
+          "y": 0.26,
+          "raid": true
+        }
+      ],
+      "docks": [
+        {
+          "name": "Valiance Keep Dock",
+          "kind": "ship",
+          "x": 0.58,
+          "y": 0.8
+        },
+        {
+          "name": "Warsong Hold Zeppelin Tower",
+          "kind": "zeppelin",
+          "x": 0.4,
+          "y": 0.58
+        },
+        {
+          "name": "Unu'pe Turtle Dock",
+          "kind": "turtle",
+          "x": 0.8,
+          "y": 0.57
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Valiance Keep",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.75
+        },
+        {
+          "name": "Warsong Hold",
+          "faction": "Horde",
+          "x": 0.4,
+          "y": 0.55
+        },
+        {
+          "name": "Amber Ledge",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Transitus Shield",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.35
+        },
+        {
+          "name": "Unu'pe",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.55
+        }
+      ]
+    },
+    {
+      "id": "howling-fjord",
+      "name": "Howling Fjord",
+      "continent": "Northrend",
+      "levelMin": 68,
+      "levelMax": 72,
+      "faction": "Contested",
+      "biome": "fjord cliffs and pine forest",
+      "widthKm": 1.5,
+      "heightKm": 1.4,
+      "borders": {
+        "north": "grizzly-hills",
+        "south": null,
+        "east": null,
+        "west": "dragonblight"
+      },
+      "cities": [
+        {
+          "name": "Valgarde",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Vengeance Landing",
+          "faction": "Horde",
+          "x": 0.78,
+          "y": 0.35
+        },
+        {
+          "name": "Westguard Keep",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.45
+        },
+        {
+          "name": "New Agamand",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.75
+        },
+        {
+          "name": "Kamagua",
+          "faction": "Neutral",
+          "x": 0.25,
+          "y": 0.6
+        },
+        {
+          "name": "Fort Wildervar",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.2
+        },
+        {
+          "name": "Camp Winterhoof",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.15
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Utgarde Keep",
+          "x": 0.55,
+          "y": 0.5,
+          "raid": false
+        },
+        {
+          "name": "Utgarde Pinnacle",
+          "x": 0.55,
+          "y": 0.48,
+          "raid": false
+        }
+      ],
+      "docks": [
+        {
+          "name": "Valgarde Dock",
+          "kind": "ship",
+          "x": 0.58,
+          "y": 0.65
+        },
+        {
+          "name": "Vengeance Landing Zeppelin Tower",
+          "kind": "zeppelin",
+          "x": 0.8,
+          "y": 0.33
+        },
+        {
+          "name": "Kamagua Turtle Dock",
+          "kind": "turtle",
+          "x": 0.23,
+          "y": 0.62
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Valgarde",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Vengeance Landing",
+          "faction": "Horde",
+          "x": 0.78,
+          "y": 0.35
+        },
+        {
+          "name": "Westguard Keep",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.45
+        },
+        {
+          "name": "New Agamand",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.75
+        },
+        {
+          "name": "Kamagua",
+          "faction": "Neutral",
+          "x": 0.25,
+          "y": 0.6
+        },
+        {
+          "name": "Fort Wildervar",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.2
+        },
+        {
+          "name": "Camp Winterhoof",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.15
+        }
+      ]
+    },
+    {
+      "id": "dragonblight",
+      "name": "Dragonblight",
+      "continent": "Northrend",
+      "levelMin": 71,
+      "levelMax": 74,
+      "faction": "Contested",
+      "biome": "dragon graveyard wastes",
+      "widthKm": 1.6,
+      "heightKm": 1.2,
+      "borders": {
+        "north": "crystalsong",
+        "south": null,
+        "east": "grizzly-hills",
+        "west": "wintergrasp"
+      },
+      "bordersExtra": {
+        "east": [
+          "howling-fjord"
+        ],
+        "west": [
+          "borean-tundra"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Wintergarde Keep",
+          "faction": "Alliance",
+          "x": 0.78,
+          "y": 0.35
+        },
+        {
+          "name": "Agmar's Hammer",
+          "faction": "Horde",
+          "x": 0.38,
+          "y": 0.45
+        },
+        {
+          "name": "Wyrmrest Temple",
+          "faction": "Neutral",
+          "x": 0.58,
+          "y": 0.5
+        },
+        {
+          "name": "Stars' Rest",
+          "faction": "Alliance",
+          "x": 0.28,
+          "y": 0.55
+        },
+        {
+          "name": "Venomspite",
+          "faction": "Horde",
+          "x": 0.75,
+          "y": 0.6
+        },
+        {
+          "name": "Moa'ki Harbor",
+          "faction": "Neutral",
+          "x": 0.48,
+          "y": 0.78
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Azjol-Nerub",
+          "x": 0.25,
+          "y": 0.5,
+          "raid": false
+        },
+        {
+          "name": "Ahn'kahet: The Old Kingdom",
+          "x": 0.25,
+          "y": 0.52,
+          "raid": false
+        },
+        {
+          "name": "Naxxramas",
+          "x": 0.85,
+          "y": 0.3,
+          "raid": true
+        },
+        {
+          "name": "Obsidian Sanctum",
+          "x": 0.58,
+          "y": 0.55,
+          "raid": true
+        },
+        {
+          "name": "Ruby Sanctum",
+          "x": 0.58,
+          "y": 0.57,
+          "raid": true
+        }
+      ],
+      "docks": [
+        {
+          "name": "Moa'ki Harbor Turtle Dock",
+          "kind": "turtle",
+          "x": 0.48,
+          "y": 0.82
+        }
+      ],
+      "flightpaths": [
+        {
+          "name": "Wintergarde Keep",
+          "faction": "Alliance",
+          "x": 0.78,
+          "y": 0.35
+        },
+        {
+          "name": "Agmar's Hammer",
+          "faction": "Horde",
+          "x": 0.38,
+          "y": 0.45
+        },
+        {
+          "name": "Wyrmrest Temple",
+          "faction": "Neutral",
+          "x": 0.58,
+          "y": 0.5
+        },
+        {
+          "name": "Stars' Rest",
+          "faction": "Alliance",
+          "x": 0.28,
+          "y": 0.55
+        },
+        {
+          "name": "Venomspite",
+          "faction": "Horde",
+          "x": 0.75,
+          "y": 0.6
+        },
+        {
+          "name": "Moa'ki Harbor",
+          "faction": "Neutral",
+          "x": 0.48,
+          "y": 0.78
+        }
+      ]
+    },
+    {
+      "id": "grizzly-hills",
+      "name": "Grizzly Hills",
+      "continent": "Northrend",
+      "levelMin": 73,
+      "levelMax": 75,
+      "faction": "Contested",
+      "biome": "redwood hills",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "zuldrak",
+        "south": "howling-fjord",
+        "east": null,
+        "west": "dragonblight"
+      },
+      "cities": [
+        {
+          "name": "Amberpine Lodge",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.55
+        },
+        {
+          "name": "Conquest Hold",
+          "faction": "Horde",
+          "x": 0.2,
+          "y": 0.65
+        },
+        {
+          "name": "Westfall Brigade Encampment",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Camp Oneqwah",
+          "faction": "Horde",
+          "x": 0.65,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Drak'Tharon Keep",
+          "x": 0.15,
+          "y": 0.25,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Amberpine Lodge",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.55
+        },
+        {
+          "name": "Conquest Hold",
+          "faction": "Horde",
+          "x": 0.2,
+          "y": 0.65
+        },
+        {
+          "name": "Westfall Brigade Encampment",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.3
+        },
+        {
+          "name": "Camp Oneqwah",
+          "faction": "Horde",
+          "x": 0.65,
+          "y": 0.45
+        }
+      ]
+    },
+    {
+      "id": "zuldrak",
+      "name": "Zul'Drak",
+      "continent": "Northrend",
+      "levelMin": 74,
+      "levelMax": 77,
+      "faction": "Contested",
+      "biome": "troll temple ziggurats",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": "grizzly-hills",
+        "east": null,
+        "west": "storm-peaks"
+      },
+      "bordersExtra": {
+        "west": [
+          "crystalsong"
+        ]
+      },
+      "cities": [
+        {
+          "name": "The Argent Stand",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.65
+        },
+        {
+          "name": "Zim'Torga",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.55
+        },
+        {
+          "name": "Ebon Watch",
+          "faction": "Neutral",
+          "x": 0.15,
+          "y": 0.75
+        },
+        {
+          "name": "Light's Breach",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.75
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Gundrak",
+          "x": 0.8,
+          "y": 0.25,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "The Argent Stand",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.65
+        },
+        {
+          "name": "Zim'Torga",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.55
+        },
+        {
+          "name": "Ebon Watch",
+          "faction": "Neutral",
+          "x": 0.15,
+          "y": 0.75
+        },
+        {
+          "name": "Light's Breach",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.75
+        }
+      ]
+    },
+    {
+      "id": "sholazar",
+      "name": "Sholazar Basin",
+      "continent": "Northrend",
+      "levelMin": 75,
+      "levelMax": 78,
+      "faction": "Contested",
+      "biome": "tropical jungle basin",
+      "widthKm": 1.2,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "storm-peaks",
+        "south": "borean-tundra",
+        "east": "wintergrasp",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Nesingwary Base Camp",
+          "faction": "Neutral",
+          "x": 0.25,
+          "y": 0.55
+        },
+        {
+          "name": "River's Heart",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Nesingwary Base Camp",
+          "faction": "Neutral",
+          "x": 0.25,
+          "y": 0.55
+        },
+        {
+          "name": "River's Heart",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.6
+        }
+      ],
+      "notes": "Below-sea-level basin ringed by cliffs; accessed via avalanche paths."
+    },
+    {
+      "id": "storm-peaks",
+      "name": "The Storm Peaks",
+      "continent": "Northrend",
+      "levelMin": 76,
+      "levelMax": 80,
+      "faction": "Contested",
+      "biome": "titan ice mountains",
+      "widthKm": 1.5,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "icecrown",
+        "south": "sholazar",
+        "east": "zuldrak",
+        "west": null
+      },
+      "bordersExtra": {
+        "south": [
+          "crystalsong"
+        ]
+      },
+      "cities": [
+        {
+          "name": "K3",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.85
+        },
+        {
+          "name": "Frosthold",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.7
+        },
+        {
+          "name": "Grom'arsh Crash-Site",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.5
+        },
+        {
+          "name": "Bouldercrag's Refuge",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.35
+        },
+        {
+          "name": "Ulduar",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.25
+        },
+        {
+          "name": "Dun Niffelem",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Halls of Stone",
+          "x": 0.42,
+          "y": 0.28,
+          "raid": false
+        },
+        {
+          "name": "Halls of Lightning",
+          "x": 0.45,
+          "y": 0.28,
+          "raid": false
+        },
+        {
+          "name": "Ulduar",
+          "x": 0.4,
+          "y": 0.25,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "K3",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.85
+        },
+        {
+          "name": "Frosthold",
+          "faction": "Alliance",
+          "x": 0.3,
+          "y": 0.7
+        },
+        {
+          "name": "Grom'arsh Crash-Site",
+          "faction": "Horde",
+          "x": 0.35,
+          "y": 0.5
+        },
+        {
+          "name": "Bouldercrag's Refuge",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.35
+        },
+        {
+          "name": "Ulduar",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.25
+        },
+        {
+          "name": "Dun Niffelem",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.6
+        }
+      ]
+    },
+    {
+      "id": "icecrown",
+      "name": "Icecrown",
+      "continent": "Northrend",
+      "levelMin": 77,
+      "levelMax": 80,
+      "faction": "Contested",
+      "biome": "scourge glacier and citadel",
+      "widthKm": 1.5,
+      "heightKm": 1.2,
+      "borders": {
+        "north": null,
+        "south": "crystalsong",
+        "east": null,
+        "west": null
+      },
+      "bordersExtra": {
+        "south": [
+          "wintergrasp",
+          "storm-peaks"
+        ]
+      },
+      "cities": [
+        {
+          "name": "The Argent Vanguard",
+          "faction": "Neutral",
+          "x": 0.85,
+          "y": 0.75
+        },
+        {
+          "name": "Crusaders' Pinnacle",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.65
+        },
+        {
+          "name": "The Shadow Vault",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.25
+        },
+        {
+          "name": "Death's Rise",
+          "faction": "Neutral",
+          "x": 0.2,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Trial of the Champion",
+          "x": 0.72,
+          "y": 0.2,
+          "raid": false
+        },
+        {
+          "name": "Trial of the Crusader",
+          "x": 0.72,
+          "y": 0.22,
+          "raid": true
+        },
+        {
+          "name": "Forge of Souls",
+          "x": 0.55,
+          "y": 0.8,
+          "raid": false
+        },
+        {
+          "name": "Pit of Saron",
+          "x": 0.55,
+          "y": 0.82,
+          "raid": false
+        },
+        {
+          "name": "Halls of Reflection",
+          "x": 0.55,
+          "y": 0.84,
+          "raid": false
+        },
+        {
+          "name": "Icecrown Citadel",
+          "x": 0.55,
+          "y": 0.86,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "The Argent Vanguard",
+          "faction": "Neutral",
+          "x": 0.85,
+          "y": 0.75
+        },
+        {
+          "name": "Crusaders' Pinnacle",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.65
+        },
+        {
+          "name": "The Shadow Vault",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.25
+        },
+        {
+          "name": "Death's Rise",
+          "faction": "Neutral",
+          "x": 0.2,
+          "y": 0.45
+        }
+      ],
+      "notes": "Tiered glacier terraces rising to Icecrown Citadel at the south wall."
+    },
+    {
+      "id": "crystalsong",
+      "name": "Crystalsong Forest",
+      "continent": "Northrend",
+      "levelMin": 74,
+      "levelMax": 80,
+      "faction": "Neutral",
+      "biome": "crystalline forest",
+      "widthKm": 1.2,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "icecrown",
+        "south": "dragonblight",
+        "east": "zuldrak",
+        "west": "wintergrasp"
+      },
+      "bordersExtra": {
+        "north": [
+          "storm-peaks"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Dalaran",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.45
+        },
+        {
+          "name": "Windrunner's Overlook",
+          "faction": "Alliance",
+          "x": 0.72,
+          "y": 0.55
+        },
+        {
+          "name": "Sunreaver's Command",
+          "faction": "Horde",
+          "x": 0.78,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Violet Hold",
+          "x": 0.3,
+          "y": 0.48,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Dalaran",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.45
+        },
+        {
+          "name": "Windrunner's Overlook",
+          "faction": "Alliance",
+          "x": 0.72,
+          "y": 0.55
+        },
+        {
+          "name": "Sunreaver's Command",
+          "faction": "Horde",
+          "x": 0.78,
+          "y": 0.45
+        }
+      ],
+      "portals": [
+        {
+          "name": "Dalaran Portal to Wintergrasp",
+          "to": "wintergrasp-fortress",
+          "x": 0.32,
+          "y": 0.42
+        },
+        {
+          "name": "Dalaran Portal to Caverns of Time",
+          "to": "tanaris-caverns",
+          "x": 0.28,
+          "y": 0.4
+        }
+      ],
+      "notes": "Dalaran floats above the zone; ground portal at Crystalsong links up."
+    },
+    {
+      "id": "wintergrasp",
+      "name": "Wintergrasp",
+      "continent": "Northrend",
+      "levelMin": 77,
+      "levelMax": 80,
+      "faction": "PvP",
+      "biome": "frozen battlefield lake",
+      "widthKm": 1.1,
+      "heightKm": 1.0,
+      "borders": {
+        "north": "icecrown",
+        "south": "dragonblight",
+        "east": "crystalsong",
+        "west": "sholazar"
+      },
+      "bordersExtra": {
+        "south": [
+          "borean-tundra"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Wintergrasp Fortress",
+          "faction": "Neutral",
+          "x": 0.5,
+          "y": 0.25
+        },
+        {
+          "name": "Valiance Landing Camp",
+          "faction": "Alliance",
+          "x": 0.72,
+          "y": 0.6
+        },
+        {
+          "name": "Warsong Camp",
+          "faction": "Horde",
+          "x": 0.25,
+          "y": 0.6
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Vault of Archavon",
+          "x": 0.5,
+          "y": 0.22,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [],
+      "notes": "Outdoor PvP zone; no flight masters — reached via Dalaran portal or flying."
+    },
+    {
+      "id": "hellfire",
+      "name": "Hellfire Peninsula",
+      "continent": "Outland",
+      "levelMin": 58,
+      "levelMax": 63,
+      "faction": "Contested",
+      "biome": "fel-red shattered wastes",
+      "widthKm": 1.4,
+      "heightKm": 1.1,
+      "borders": {
+        "north": null,
+        "south": "terokkar",
+        "east": null,
+        "west": "zangarmarsh"
+      },
+      "cities": [
+        {
+          "name": "Honor Hold",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Thrallmar",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.4
+        },
+        {
+          "name": "Temple of Telhamat",
+          "faction": "Alliance",
+          "x": 0.25,
+          "y": 0.5
+        },
+        {
+          "name": "Falcon Watch",
+          "faction": "Horde",
+          "x": 0.28,
+          "y": 0.6
+        },
+        {
+          "name": "Shatter Point",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.35
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Hellfire Ramparts",
+          "x": 0.48,
+          "y": 0.52,
+          "raid": false
+        },
+        {
+          "name": "Blood Furnace",
+          "x": 0.46,
+          "y": 0.52,
+          "raid": false
+        },
+        {
+          "name": "Shattered Halls",
+          "x": 0.48,
+          "y": 0.5,
+          "raid": false
+        },
+        {
+          "name": "Magtheridon's Lair",
+          "x": 0.46,
+          "y": 0.5,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Honor Hold",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Thrallmar",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.4
+        },
+        {
+          "name": "Temple of Telhamat",
+          "faction": "Alliance",
+          "x": 0.25,
+          "y": 0.5
+        },
+        {
+          "name": "Falcon Watch",
+          "faction": "Horde",
+          "x": 0.28,
+          "y": 0.6
+        },
+        {
+          "name": "Shatter Point",
+          "faction": "Neutral",
+          "x": 0.78,
+          "y": 0.35
+        }
+      ],
+      "portals": [
+        {
+          "name": "The Dark Portal",
+          "to": "blasted-dark-portal",
+          "x": 0.88,
+          "y": 0.5
+        }
+      ]
+    },
+    {
+      "id": "zangarmarsh",
+      "name": "Zangarmarsh",
+      "continent": "Outland",
+      "levelMin": 60,
+      "levelMax": 64,
+      "faction": "Contested",
+      "biome": "giant mushroom swamp",
+      "widthKm": 1.4,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "blades-edge",
+        "south": "terokkar",
+        "east": "hellfire",
+        "west": "nagrand"
+      },
+      "cities": [
+        {
+          "name": "Telredor",
+          "faction": "Alliance",
+          "x": 0.68,
+          "y": 0.5
+        },
+        {
+          "name": "Zabra'jin",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.5
+        },
+        {
+          "name": "Cenarion Refuge",
+          "faction": "Neutral",
+          "x": 0.8,
+          "y": 0.65
+        },
+        {
+          "name": "Orebor Harborage",
+          "faction": "Alliance",
+          "x": 0.42,
+          "y": 0.3
+        },
+        {
+          "name": "Swamprat Post",
+          "faction": "Horde",
+          "x": 0.85,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Slave Pens",
+          "x": 0.5,
+          "y": 0.4,
+          "raid": false
+        },
+        {
+          "name": "The Underbog",
+          "x": 0.5,
+          "y": 0.38,
+          "raid": false
+        },
+        {
+          "name": "The Steamvault",
+          "x": 0.5,
+          "y": 0.36,
+          "raid": false
+        },
+        {
+          "name": "Serpentshrine Cavern",
+          "x": 0.5,
+          "y": 0.34,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Telredor",
+          "faction": "Alliance",
+          "x": 0.68,
+          "y": 0.5
+        },
+        {
+          "name": "Zabra'jin",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.5
+        },
+        {
+          "name": "Cenarion Refuge",
+          "faction": "Neutral",
+          "x": 0.8,
+          "y": 0.65
+        },
+        {
+          "name": "Orebor Harborage",
+          "faction": "Alliance",
+          "x": 0.42,
+          "y": 0.3
+        },
+        {
+          "name": "Swamprat Post",
+          "faction": "Horde",
+          "x": 0.85,
+          "y": 0.55
+        }
+      ]
+    },
+    {
+      "id": "terokkar",
+      "name": "Terokkar Forest",
+      "continent": "Outland",
+      "levelMin": 62,
+      "levelMax": 65,
+      "faction": "Contested",
+      "biome": "misty forest and bone wastes",
+      "widthKm": 1.3,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "hellfire",
+        "south": "shadowmoon",
+        "east": null,
+        "west": "nagrand"
+      },
+      "bordersExtra": {
+        "north": [
+          "zangarmarsh"
+        ]
+      },
+      "cities": [
+        {
+          "name": "Shattrath City",
+          "faction": "Neutral",
+          "x": 0.35,
+          "y": 0.25
+        },
+        {
+          "name": "Allerian Stronghold",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.55
+        },
+        {
+          "name": "Stonebreaker Hold",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.45
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Mana-Tombs",
+          "x": 0.4,
+          "y": 0.6,
+          "raid": false
+        },
+        {
+          "name": "Auchenai Crypts",
+          "x": 0.38,
+          "y": 0.62,
+          "raid": false
+        },
+        {
+          "name": "Sethekk Halls",
+          "x": 0.36,
+          "y": 0.62,
+          "raid": false
+        },
+        {
+          "name": "Shadow Labyrinth",
+          "x": 0.38,
+          "y": 0.65,
+          "raid": false
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Shattrath City",
+          "faction": "Neutral",
+          "x": 0.35,
+          "y": 0.25
+        },
+        {
+          "name": "Allerian Stronghold",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.55
+        },
+        {
+          "name": "Stonebreaker Hold",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.45
+        }
+      ],
+      "portals": [
+        {
+          "name": "Shattrath Portal to Orgrimmar",
+          "to": "orgrimmar",
+          "x": 0.3,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Stormwind",
+          "to": "stormwind",
+          "x": 0.32,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Ironforge",
+          "to": "ironforge",
+          "x": 0.34,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Darnassus",
+          "to": "darnassus-city",
+          "x": 0.36,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Exodar",
+          "to": "exodar",
+          "x": 0.38,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Undercity",
+          "to": "undercity-court",
+          "x": 0.4,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Thunder Bluff",
+          "to": "thunder-bluff",
+          "x": 0.42,
+          "y": 0.2
+        },
+        {
+          "name": "Shattrath Portal to Silvermoon",
+          "to": "silvermoon-court",
+          "x": 0.44,
+          "y": 0.2
+        }
+      ]
+    },
+    {
+      "id": "nagrand",
+      "name": "Nagrand",
+      "continent": "Outland",
+      "levelMin": 64,
+      "levelMax": 67,
+      "faction": "Contested",
+      "biome": "green floating-island plains",
+      "widthKm": 1.4,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "zangarmarsh",
+        "south": null,
+        "east": "terokkar",
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Telaar",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.7
+        },
+        {
+          "name": "Garadar",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.35
+        },
+        {
+          "name": "Halaa",
+          "faction": "Neutral",
+          "x": 0.4,
+          "y": 0.45
+        },
+        {
+          "name": "Aeris Landing",
+          "faction": "Neutral",
+          "x": 0.3,
+          "y": 0.55
+        }
+      ],
+      "dungeons": [],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Telaar",
+          "faction": "Alliance",
+          "x": 0.55,
+          "y": 0.7
+        },
+        {
+          "name": "Garadar",
+          "faction": "Horde",
+          "x": 0.55,
+          "y": 0.35
+        }
+      ],
+      "notes": "Halaa is a capturable PvP town, no flight master."
+    },
+    {
+      "id": "blades-edge",
+      "name": "Blade's Edge Mountains",
+      "continent": "Outland",
+      "levelMin": 65,
+      "levelMax": 68,
+      "faction": "Contested",
+      "biome": "spiky ogre mountains",
+      "widthKm": 1.2,
+      "heightKm": 1.3,
+      "borders": {
+        "north": "netherstorm",
+        "south": "zangarmarsh",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Sylvanaar",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.65
+        },
+        {
+          "name": "Thunderlord Stronghold",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.55
+        },
+        {
+          "name": "Evergrove",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.4
+        },
+        {
+          "name": "Toshley's Station",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.7
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Gruul's Lair",
+          "x": 0.68,
+          "y": 0.25,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Sylvanaar",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.65
+        },
+        {
+          "name": "Thunderlord Stronghold",
+          "faction": "Horde",
+          "x": 0.5,
+          "y": 0.55
+        },
+        {
+          "name": "Evergrove",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.4
+        },
+        {
+          "name": "Toshley's Station",
+          "faction": "Alliance",
+          "x": 0.6,
+          "y": 0.7
+        }
+      ]
+    },
+    {
+      "id": "netherstorm",
+      "name": "Netherstorm",
+      "continent": "Outland",
+      "levelMin": 67,
+      "levelMax": 70,
+      "faction": "Contested",
+      "biome": "arcane shattered islands",
+      "widthKm": 1.4,
+      "heightKm": 1.0,
+      "borders": {
+        "north": null,
+        "south": "blades-edge",
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Area 52",
+          "faction": "Neutral",
+          "x": 0.33,
+          "y": 0.65
+        },
+        {
+          "name": "The Stormspire",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Cosmowrench",
+          "faction": "Neutral",
+          "x": 0.65,
+          "y": 0.65
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "The Mechanar",
+          "x": 0.72,
+          "y": 0.55,
+          "raid": false
+        },
+        {
+          "name": "The Botanica",
+          "x": 0.74,
+          "y": 0.55,
+          "raid": false
+        },
+        {
+          "name": "The Arcatraz",
+          "x": 0.76,
+          "y": 0.55,
+          "raid": false
+        },
+        {
+          "name": "The Eye",
+          "x": 0.74,
+          "y": 0.52,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Area 52",
+          "faction": "Neutral",
+          "x": 0.33,
+          "y": 0.65
+        },
+        {
+          "name": "The Stormspire",
+          "faction": "Neutral",
+          "x": 0.45,
+          "y": 0.35
+        },
+        {
+          "name": "Cosmowrench",
+          "faction": "Neutral",
+          "x": 0.65,
+          "y": 0.65
+        }
+      ]
+    },
+    {
+      "id": "shadowmoon",
+      "name": "Shadowmoon Valley",
+      "continent": "Outland",
+      "levelMin": 67,
+      "levelMax": 70,
+      "faction": "Contested",
+      "biome": "fel-green volcanic valley",
+      "widthKm": 1.4,
+      "heightKm": 1.1,
+      "borders": {
+        "north": "terokkar",
+        "south": null,
+        "east": null,
+        "west": null
+      },
+      "cities": [
+        {
+          "name": "Wildhammer Stronghold",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.55
+        },
+        {
+          "name": "Shadowmoon Village",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.3
+        },
+        {
+          "name": "Sanctum of the Stars",
+          "faction": "Neutral",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Altar of Sha'tar",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.3
+        }
+      ],
+      "dungeons": [
+        {
+          "name": "Black Temple",
+          "x": 0.7,
+          "y": 0.45,
+          "raid": true
+        }
+      ],
+      "docks": [],
+      "flightpaths": [
+        {
+          "name": "Wildhammer Stronghold",
+          "faction": "Alliance",
+          "x": 0.35,
+          "y": 0.55
+        },
+        {
+          "name": "Shadowmoon Village",
+          "faction": "Horde",
+          "x": 0.3,
+          "y": 0.3
+        },
+        {
+          "name": "Sanctum of the Stars",
+          "faction": "Neutral",
+          "x": 0.55,
+          "y": 0.6
+        },
+        {
+          "name": "Altar of Sha'tar",
+          "faction": "Neutral",
+          "x": 0.6,
+          "y": 0.3
+        }
+      ]
+    }
+  ],
+  "transports": [
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "teldrassil",
+        "name": "Rut'theran Village"
+      },
+      "to": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "to": {
+        "zone": "azuremyst",
+        "name": "Valaar's Berth"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "to": {
+        "zone": "elwynn",
+        "name": "Stormwind Harbor"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "to": {
+        "zone": "dustwallow",
+        "name": "Theramore Isle"
+      },
+      "durationSec": 180,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Valiance Keep"
+      },
+      "durationSec": 300,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind Harbor"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Valiance Keep"
+      },
+      "durationSec": 300,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "stranglethorn",
+        "name": "Booty Bay"
+      },
+      "to": {
+        "zone": "barrens-north",
+        "name": "Ratchet"
+      },
+      "durationSec": 240,
+      "bidirectional": true
+    },
+    {
+      "kind": "ship",
+      "from": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Valgarde"
+      },
+      "durationSec": 300,
+      "bidirectional": true
+    },
+    {
+      "kind": "turtle",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Unu'pe"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Moa'ki Harbor"
+      },
+      "durationSec": 180,
+      "bidirectional": true
+    },
+    {
+      "kind": "turtle",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Moa'ki Harbor"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Kamagua"
+      },
+      "durationSec": 180,
+      "bidirectional": true
+    },
+    {
+      "kind": "zeppelin",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar Zeppelin Tower"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "Undercity Zeppelin Tower"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "zeppelin",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar Zeppelin Tower"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Warsong Hold Zeppelin Tower"
+      },
+      "durationSec": 300,
+      "bidirectional": true
+    },
+    {
+      "kind": "zeppelin",
+      "from": {
+        "zone": "tirisfal",
+        "name": "Undercity Zeppelin Tower"
+      },
+      "to": {
+        "zone": "stranglethorn",
+        "name": "Grom'gol Zeppelin Tower"
+      },
+      "durationSec": 180,
+      "bidirectional": true
+    },
+    {
+      "kind": "zeppelin",
+      "from": {
+        "zone": "tirisfal",
+        "name": "Undercity Zeppelin Tower"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Vengeance Landing Zeppelin Tower"
+      },
+      "durationSec": 300,
+      "bidirectional": true
+    },
+    {
+      "kind": "tram",
+      "from": {
+        "zone": "dun-morogh",
+        "name": "Deeprun Tram (Ironforge)"
+      },
+      "to": {
+        "zone": "elwynn",
+        "name": "Deeprun Tram (Stormwind)"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "teldrassil",
+        "name": "Rut'theran Village"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 5,
+      "bidirectional": true
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "azuremyst",
+        "name": "The Exodar"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 5,
+      "bidirectional": true
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "durationSec": 5,
+      "bidirectional": true,
+      "note": "Orb of Translocation"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "to": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "durationSec": 5,
+      "bidirectional": true,
+      "note": "Orb of Translocation"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "blasted-lands",
+        "name": "The Dark Portal"
+      },
+      "to": {
+        "zone": "hellfire",
+        "name": "The Dark Portal"
+      },
+      "durationSec": 10,
+      "bidirectional": false,
+      "note": "One-way into Outland in WotLK"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "azuremyst",
+        "name": "The Exodar"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "wintergrasp",
+        "name": "Wintergrasp Fortress"
+      },
+      "durationSec": 5,
+      "bidirectional": true
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "tanaris",
+        "name": "Caverns of Time"
+      },
+      "durationSec": 5,
+      "bidirectional": false
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Horde quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Horde quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Horde quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Horde quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Alliance quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Alliance quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Alliance quarter portal"
+    },
+    {
+      "kind": "portal",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "azuremyst",
+        "name": "The Exodar"
+      },
+      "durationSec": 5,
+      "bidirectional": false,
+      "note": "Alliance quarter portal"
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "to": {
+        "zone": "barrens-north",
+        "name": "The Crossroads"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "to": {
+        "zone": "azshara",
+        "name": "Valormok"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 150,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "durotar",
+        "name": "Orgrimmar"
+      },
+      "to": {
+        "zone": "barrens-north",
+        "name": "Ratchet"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-north",
+        "name": "The Crossroads"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-north",
+        "name": "The Crossroads"
+      },
+      "to": {
+        "zone": "stonetalon",
+        "name": "Sun Rock Retreat"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-north",
+        "name": "The Crossroads"
+      },
+      "to": {
+        "zone": "ashenvale",
+        "name": "Splintertree Post"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-north",
+        "name": "The Crossroads"
+      },
+      "to": {
+        "zone": "barrens-south",
+        "name": "Camp Taurajo"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-north",
+        "name": "Ratchet"
+      },
+      "to": {
+        "zone": "dustwallow",
+        "name": "Theramore Isle"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-south",
+        "name": "Camp Taurajo"
+      },
+      "to": {
+        "zone": "dustwallow",
+        "name": "Brackenwall Village"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-south",
+        "name": "Camp Taurajo"
+      },
+      "to": {
+        "zone": "thousand-needles",
+        "name": "Freewind Post"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "barrens-south",
+        "name": "Camp Taurajo"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "stonetalon",
+        "name": "Sun Rock Retreat"
+      },
+      "to": {
+        "zone": "ashenvale",
+        "name": "Splintertree Post"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "stonetalon",
+        "name": "Sun Rock Retreat"
+      },
+      "to": {
+        "zone": "desolace",
+        "name": "Shadowprey Village"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "stonetalon",
+        "name": "Stonetalon Peak"
+      },
+      "to": {
+        "zone": "desolace",
+        "name": "Nijel's Point"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Astranaar"
+      },
+      "to": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Astranaar"
+      },
+      "to": {
+        "zone": "darkshore",
+        "name": "Grove of the Ancients"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Splintertree Post"
+      },
+      "to": {
+        "zone": "azshara",
+        "name": "Valormok"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Forest Song"
+      },
+      "to": {
+        "zone": "azshara",
+        "name": "Valormok"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Zoram'gar Outpost"
+      },
+      "to": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "durationSec": 110,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ashenvale",
+        "name": "Astranaar"
+      },
+      "to": {
+        "zone": "felwood",
+        "name": "Emerald Sanctuary"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "desolace",
+        "name": "Nijel's Point"
+      },
+      "to": {
+        "zone": "feralas",
+        "name": "Feathermoon Stronghold"
+      },
+      "durationSec": 150,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "desolace",
+        "name": "Shadowprey Village"
+      },
+      "to": {
+        "zone": "feralas",
+        "name": "Camp Mojache"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "feralas",
+        "name": "Camp Mojache"
+      },
+      "to": {
+        "zone": "thousand-needles",
+        "name": "Freewind Post"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "feralas",
+        "name": "Thalanaar"
+      },
+      "to": {
+        "zone": "thousand-needles",
+        "name": "Freewind Post"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "feralas",
+        "name": "Feathermoon Stronghold"
+      },
+      "to": {
+        "zone": "thousand-needles",
+        "name": "Freewind Post"
+      },
+      "durationSec": 140,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "thousand-needles",
+        "name": "Freewind Post"
+      },
+      "to": {
+        "zone": "tanaris",
+        "name": "Gadgetzan"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "tanaris",
+        "name": "Gadgetzan"
+      },
+      "to": {
+        "zone": "ungoro",
+        "name": "Marshal's Refuge"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ungoro",
+        "name": "Marshal's Refuge"
+      },
+      "to": {
+        "zone": "silithus",
+        "name": "Cenarion Hold"
+      },
+      "durationSec": 110,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dustwallow",
+        "name": "Theramore Isle"
+      },
+      "to": {
+        "zone": "dustwallow",
+        "name": "Mudsprocket"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dustwallow",
+        "name": "Brackenwall Village"
+      },
+      "to": {
+        "zone": "dustwallow",
+        "name": "Mudsprocket"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dustwallow",
+        "name": "Mudsprocket"
+      },
+      "to": {
+        "zone": "tanaris",
+        "name": "Gadgetzan"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "felwood",
+        "name": "Emerald Sanctuary"
+      },
+      "to": {
+        "zone": "felwood",
+        "name": "Bloodvenom Post"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "felwood",
+        "name": "Bloodvenom Post"
+      },
+      "to": {
+        "zone": "felwood",
+        "name": "Talonbranch Glade"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "felwood",
+        "name": "Talonbranch Glade"
+      },
+      "to": {
+        "zone": "winterspring",
+        "name": "Everlook"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "felwood",
+        "name": "Emerald Sanctuary"
+      },
+      "to": {
+        "zone": "moonglade",
+        "name": "Nighthaven"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "moonglade",
+        "name": "Nighthaven"
+      },
+      "to": {
+        "zone": "winterspring",
+        "name": "Everlook"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "moonglade",
+        "name": "Nighthaven"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 150,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "moonglade",
+        "name": "Nighthaven"
+      },
+      "to": {
+        "zone": "mulgore",
+        "name": "Thunder Bluff"
+      },
+      "durationSec": 160,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Rut'theran Village"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "darkshore",
+        "name": "Auberdine"
+      },
+      "to": {
+        "zone": "teldrassil",
+        "name": "Darnassus"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "azuremyst",
+        "name": "The Exodar"
+      },
+      "to": {
+        "zone": "azuremyst",
+        "name": "Azure Watch"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "azuremyst",
+        "name": "The Exodar"
+      },
+      "to": {
+        "zone": "bloodmyst",
+        "name": "Blood Watch"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "azshara",
+        "name": "Talrendis Point"
+      },
+      "to": {
+        "zone": "ashenvale",
+        "name": "Forest Song"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "to": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "durationSec": 150,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "to": {
+        "zone": "elwynn",
+        "name": "Goldshire"
+      },
+      "durationSec": 30,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "to": {
+        "zone": "westfall",
+        "name": "Sentinel Hill"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "to": {
+        "zone": "redridge",
+        "name": "Lakeshire"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "elwynn",
+        "name": "Stormwind City"
+      },
+      "to": {
+        "zone": "duskwood",
+        "name": "Darkshire"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "westfall",
+        "name": "Sentinel Hill"
+      },
+      "to": {
+        "zone": "duskwood",
+        "name": "Raven Hill"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "duskwood",
+        "name": "Raven Hill"
+      },
+      "to": {
+        "zone": "duskwood",
+        "name": "Darkshire"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "duskwood",
+        "name": "Darkshire"
+      },
+      "to": {
+        "zone": "stranglethorn",
+        "name": "Rebel Camp"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "stranglethorn",
+        "name": "Rebel Camp"
+      },
+      "to": {
+        "zone": "stranglethorn",
+        "name": "Booty Bay"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "stranglethorn",
+        "name": "Grom'gol Base Camp"
+      },
+      "to": {
+        "zone": "stranglethorn",
+        "name": "Booty Bay"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "duskwood",
+        "name": "Darkshire"
+      },
+      "to": {
+        "zone": "deadwind",
+        "name": "Karazhan"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "redridge",
+        "name": "Lakeshire"
+      },
+      "to": {
+        "zone": "burning-steppes",
+        "name": "Morgan's Vigil"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "burning-steppes",
+        "name": "Morgan's Vigil"
+      },
+      "to": {
+        "zone": "burning-steppes",
+        "name": "Flame Crest"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "burning-steppes",
+        "name": "Flame Crest"
+      },
+      "to": {
+        "zone": "searing-gorge",
+        "name": "Thorium Point"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "searing-gorge",
+        "name": "Thorium Point"
+      },
+      "to": {
+        "zone": "badlands",
+        "name": "Kargath"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "badlands",
+        "name": "Kargath"
+      },
+      "to": {
+        "zone": "loch-modan",
+        "name": "Thelsamar"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "loch-modan",
+        "name": "Thelsamar"
+      },
+      "to": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "loch-modan",
+        "name": "Thelsamar"
+      },
+      "to": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "to": {
+        "zone": "arathi",
+        "name": "Refuge Pointe"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "arathi",
+        "name": "Refuge Pointe"
+      },
+      "to": {
+        "zone": "hillsbrad",
+        "name": "Southshore"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "arathi",
+        "name": "Hammerfall"
+      },
+      "to": {
+        "zone": "hillsbrad",
+        "name": "Tarren Mill"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hillsbrad",
+        "name": "Southshore"
+      },
+      "to": {
+        "zone": "hinterlands",
+        "name": "Aerie Peak"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hillsbrad",
+        "name": "Tarren Mill"
+      },
+      "to": {
+        "zone": "hinterlands",
+        "name": "Revantusk Village"
+      },
+      "durationSec": 110,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hillsbrad",
+        "name": "Tarren Mill"
+      },
+      "to": {
+        "zone": "silverpine",
+        "name": "The Sepulcher"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "silverpine",
+        "name": "The Sepulcher"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "tirisfal",
+        "name": "Undercity"
+      },
+      "to": {
+        "zone": "tirisfal",
+        "name": "The Bulwark"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "tirisfal",
+        "name": "The Bulwark"
+      },
+      "to": {
+        "zone": "western-plaguelands",
+        "name": "Chillwind Camp"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "western-plaguelands",
+        "name": "Chillwind Camp"
+      },
+      "to": {
+        "zone": "eastern-plaguelands",
+        "name": "Light's Hope Chapel"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hinterlands",
+        "name": "Aerie Peak"
+      },
+      "to": {
+        "zone": "eastern-plaguelands",
+        "name": "Light's Hope Chapel"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "eastern-plaguelands",
+        "name": "Light's Hope Chapel"
+      },
+      "to": {
+        "zone": "ghostlands",
+        "name": "Zul'Aman"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ghostlands",
+        "name": "Zul'Aman"
+      },
+      "to": {
+        "zone": "ghostlands",
+        "name": "Tranquillien"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "ghostlands",
+        "name": "Tranquillien"
+      },
+      "to": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "eversong",
+        "name": "Silvermoon City"
+      },
+      "to": {
+        "zone": "eversong",
+        "name": "Fairbreeze Village"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "swamp-of-sorrows",
+        "name": "Stonard"
+      },
+      "to": {
+        "zone": "blasted-lands",
+        "name": "Nethergarde Keep"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "swamp-of-sorrows",
+        "name": "Stonard"
+      },
+      "to": {
+        "zone": "stranglethorn",
+        "name": "Grom'gol Base Camp"
+      },
+      "durationSec": 120,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "to": {
+        "zone": "searing-gorge",
+        "name": "Thorium Point"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dun-morogh",
+        "name": "Ironforge"
+      },
+      "to": {
+        "zone": "wetlands",
+        "name": "Menethil Harbor"
+      },
+      "durationSec": 100,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Valiance Keep"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Amber Ledge"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Warsong Hold"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Amber Ledge"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Amber Ledge"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Transitus Shield"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Valiance Keep"
+      },
+      "to": {
+        "zone": "borean-tundra",
+        "name": "Unu'pe"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Unu'pe"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Moa'ki Harbor"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "borean-tundra",
+        "name": "Amber Ledge"
+      },
+      "to": {
+        "zone": "sholazar",
+        "name": "Nesingwary Base Camp"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "sholazar",
+        "name": "Nesingwary Base Camp"
+      },
+      "to": {
+        "zone": "sholazar",
+        "name": "River's Heart"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "sholazar",
+        "name": "River's Heart"
+      },
+      "to": {
+        "zone": "wintergrasp",
+        "name": "Valiance Landing Camp"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Moa'ki Harbor"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Agmar's Hammer"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Wintergarde Keep"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Stars' Rest"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "to": {
+        "zone": "dragonblight",
+        "name": "Venomspite"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wintergarde Keep"
+      },
+      "to": {
+        "zone": "grizzly-hills",
+        "name": "Amberpine Lodge"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Venomspite"
+      },
+      "to": {
+        "zone": "grizzly-hills",
+        "name": "Conquest Hold"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "dragonblight",
+        "name": "Wyrmrest Temple"
+      },
+      "to": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Amberpine Lodge"
+      },
+      "to": {
+        "zone": "grizzly-hills",
+        "name": "Westfall Brigade Encampment"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Conquest Hold"
+      },
+      "to": {
+        "zone": "grizzly-hills",
+        "name": "Camp Oneqwah"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Westfall Brigade Encampment"
+      },
+      "to": {
+        "zone": "zuldrak",
+        "name": "The Argent Stand"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Camp Oneqwah"
+      },
+      "to": {
+        "zone": "zuldrak",
+        "name": "The Argent Stand"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Amberpine Lodge"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Fort Wildervar"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "grizzly-hills",
+        "name": "Conquest Hold"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Camp Winterhoof"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "howling-fjord",
+        "name": "Valgarde"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Westguard Keep"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "howling-fjord",
+        "name": "Valgarde"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Fort Wildervar"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "howling-fjord",
+        "name": "Vengeance Landing"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "New Agamand"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "howling-fjord",
+        "name": "Vengeance Landing"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Camp Winterhoof"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "howling-fjord",
+        "name": "Kamagua"
+      },
+      "to": {
+        "zone": "howling-fjord",
+        "name": "Westguard Keep"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zuldrak",
+        "name": "The Argent Stand"
+      },
+      "to": {
+        "zone": "zuldrak",
+        "name": "Zim'Torga"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zuldrak",
+        "name": "The Argent Stand"
+      },
+      "to": {
+        "zone": "zuldrak",
+        "name": "Light's Breach"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zuldrak",
+        "name": "Light's Breach"
+      },
+      "to": {
+        "zone": "zuldrak",
+        "name": "Ebon Watch"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zuldrak",
+        "name": "Zim'Torga"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "K3"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zuldrak",
+        "name": "The Argent Stand"
+      },
+      "to": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "K3"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "Frosthold"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "K3"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "Grom'arsh Crash-Site"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "Frosthold"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "Bouldercrag's Refuge"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "Grom'arsh Crash-Site"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "Dun Niffelem"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "Bouldercrag's Refuge"
+      },
+      "to": {
+        "zone": "storm-peaks",
+        "name": "Ulduar"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "storm-peaks",
+        "name": "Ulduar"
+      },
+      "to": {
+        "zone": "icecrown",
+        "name": "The Argent Vanguard"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "icecrown",
+        "name": "The Argent Vanguard"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "crystalsong",
+        "name": "Windrunner's Overlook"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "crystalsong",
+        "name": "Dalaran"
+      },
+      "to": {
+        "zone": "crystalsong",
+        "name": "Sunreaver's Command"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "icecrown",
+        "name": "The Argent Vanguard"
+      },
+      "to": {
+        "zone": "icecrown",
+        "name": "Crusaders' Pinnacle"
+      },
+      "durationSec": 40,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "icecrown",
+        "name": "Crusaders' Pinnacle"
+      },
+      "to": {
+        "zone": "icecrown",
+        "name": "The Shadow Vault"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "icecrown",
+        "name": "The Shadow Vault"
+      },
+      "to": {
+        "zone": "icecrown",
+        "name": "Death's Rise"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Honor Hold"
+      },
+      "to": {
+        "zone": "hellfire",
+        "name": "Temple of Telhamat"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Thrallmar"
+      },
+      "to": {
+        "zone": "hellfire",
+        "name": "Falcon Watch"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Honor Hold"
+      },
+      "to": {
+        "zone": "hellfire",
+        "name": "Shatter Point"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Thrallmar"
+      },
+      "to": {
+        "zone": "hellfire",
+        "name": "Shatter Point"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Temple of Telhamat"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Telredor"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Falcon Watch"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Zabra'jin"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "hellfire",
+        "name": "Falcon Watch"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Swamprat Post"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Telredor"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Orebor Harborage"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Telredor"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Cenarion Refuge"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Zabra'jin"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Cenarion Refuge"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Orebor Harborage"
+      },
+      "to": {
+        "zone": "blades-edge",
+        "name": "Sylvanaar"
+      },
+      "durationSec": 70,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Zabra'jin"
+      },
+      "to": {
+        "zone": "blades-edge",
+        "name": "Thunderlord Stronghold"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "zangarmarsh",
+        "name": "Cenarion Refuge"
+      },
+      "to": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "terokkar",
+        "name": "Allerian Stronghold"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "terokkar",
+        "name": "Stonebreaker Hold"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "nagrand",
+        "name": "Telaar"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Shattrath City"
+      },
+      "to": {
+        "zone": "nagrand",
+        "name": "Garadar"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Allerian Stronghold"
+      },
+      "to": {
+        "zone": "shadowmoon",
+        "name": "Wildhammer Stronghold"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "terokkar",
+        "name": "Stonebreaker Hold"
+      },
+      "to": {
+        "zone": "shadowmoon",
+        "name": "Shadowmoon Village"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "nagrand",
+        "name": "Telaar"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Telredor"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "nagrand",
+        "name": "Garadar"
+      },
+      "to": {
+        "zone": "zangarmarsh",
+        "name": "Zabra'jin"
+      },
+      "durationSec": 90,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "blades-edge",
+        "name": "Sylvanaar"
+      },
+      "to": {
+        "zone": "blades-edge",
+        "name": "Toshley's Station"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "blades-edge",
+        "name": "Sylvanaar"
+      },
+      "to": {
+        "zone": "blades-edge",
+        "name": "Evergrove"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "blades-edge",
+        "name": "Thunderlord Stronghold"
+      },
+      "to": {
+        "zone": "blades-edge",
+        "name": "Evergrove"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "blades-edge",
+        "name": "Evergrove"
+      },
+      "to": {
+        "zone": "netherstorm",
+        "name": "Area 52"
+      },
+      "durationSec": 80,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "netherstorm",
+        "name": "Area 52"
+      },
+      "to": {
+        "zone": "netherstorm",
+        "name": "The Stormspire"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "netherstorm",
+        "name": "Area 52"
+      },
+      "to": {
+        "zone": "netherstorm",
+        "name": "Cosmowrench"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "shadowmoon",
+        "name": "Wildhammer Stronghold"
+      },
+      "to": {
+        "zone": "shadowmoon",
+        "name": "Sanctum of the Stars"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "shadowmoon",
+        "name": "Shadowmoon Village"
+      },
+      "to": {
+        "zone": "shadowmoon",
+        "name": "Altar of Sha'tar"
+      },
+      "durationSec": 60,
+      "bidirectional": true
+    },
+    {
+      "kind": "flightpath",
+      "from": {
+        "zone": "shadowmoon",
+        "name": "Sanctum of the Stars"
+      },
+      "to": {
+        "zone": "shadowmoon",
+        "name": "Altar of Sha'tar"
+      },
+      "durationSec": 50,
+      "bidirectional": true
+    }
+  ]
+}
