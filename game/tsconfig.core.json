@@ -44,6 +44,10 @@
     "src/transmog-state.ts", "src/dual-spec-state.ts", "src/dual-spec-command.ts", "src/world-event-state.ts", "src/world-event-content.ts", "src/world-event-command.ts", "src/item-validation.ts",
     "src/reputation-content.ts", "src/reputation-state.ts", "src/reputation-command.ts",
     "src/pack-grid.ts", "src/random-source.ts", "src/bag-content.ts", "src/bag-state.ts",
-    "src/quest-state.ts", "src/quest-command.ts"
+    "src/quest-state.ts", "src/quest-command.ts",
+    "src/pvp-combatant.ts", "src/pvp-status.ts", "src/pvp-ai.ts", "src/pvp-chargen.ts", "src/pvp-setup.ts", "src/pvp-floor.ts", "src/pvp-instance.ts",
+    "src/pvp-currency.ts", "src/pvp-vendor.ts", "src/pvp-rewards.ts",
+    "src/arena-maps.ts", "src/pvp-match.ts", "src/pvp-scoreboard.ts",
+    "src/bg-maps.ts", "src/pvp-objectives.ts", "src/pvp-bg.ts", "src/pvp-directives.ts"
   ]
 }

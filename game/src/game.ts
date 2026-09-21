@@ -53,9 +53,17 @@ import { townPortalAnchor, withinPortalReach, portalMapMarkers, type PortalAncho
 import { portalActionMode, portalDestinations } from './portal-destination.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import { ServicePanel } from './service-panel.ts';
-import { buildingNPC, focusNPC, canInteractNPC, focusedStableMaster, stableMastersNear, type TownNPC, type StableMaster } from './npcs.ts';
+import { buildingNPC, focusNPC, canInteractNPC, focusedStableMaster, stableMastersNear, battlemastersNear, focusedBattlemaster, type TownNPC, type StableMaster, type Battlemaster } from './npcs.ts';
 import type { ServiceQuote } from './commerce.ts';
 import { StablePanel, type StableActions } from './stable-panel.ts';
+import { PvpPanel, type PvpPanelActions } from './pvp-panel.ts';
+import { pvpBracketLabel, type PvpSetup } from './pvp-setup.ts';
+import { enterPvpMatch, exitPvpMatch } from './pvp-instance.ts';
+import { updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
+import { awardMatchRewards } from './pvp-rewards.ts';
+import { pvpScoreboardSummary } from './pvp-scoreboard.ts';
+import { PvpVendorPanel } from './pvp-vendor-panel.ts';
+import { executePvpBuy, focusedPvpVendor, pvpVendorsNear, type PvpVendor } from './pvp-vendor.ts';
 import { activateStabledPet, stableActivePet, releasePet, freshPetStable, PET_RULES, type PetStable } from './pet-content.ts';
 import { ChroniclePanel } from './chronicle-panel.ts';
 import { metric } from './chronicle.ts';
@@ -180,6 +188,10 @@ export class Game {
   private activeNPC: TownNPC | null = null;
   private stablePanel!: StablePanel;
   private activeStableMaster: StableMaster | null = null;
+  private pvpPanel!: PvpPanel;
+  private activeBattlemaster: Battlemaster | null = null;
+  private pvpVendorPanel!: PvpVendorPanel;
+  private activePvpVendor: PvpVendor | null = null;
   readonly canvas: HTMLCanvasElement;
   private uiCanvas: HTMLCanvasElement;
   private uiContext: CanvasRenderingContext2D;
@@ -275,6 +287,7 @@ export class Game {
         returnToTitle: () => this.returnToTitle(), openMap: () => this.openMap(),
         openCharacter: () => this.openCharacterPanel('character'), openSkills: () => this.openCharacterPanel('skills'), openJourneys: () => this.journeys.open(),
         openTransmog: () => { if (!this.sim.ghost) this.panels.open('transmog'); },
+        openArena: () => { if (!this.sim.ghost) this.panels.open('arena'); },
         editLayout: () => this.uiLayoutPanel.toggle(),
         canReleaseSpirit: () => this.sim.player.dead && !this.sim.ghost && !this.sim.dungeonFloor && !this.sim.expeditions.location,
         releaseSpirit: () => this.releaseSpirit(),
@@ -338,6 +351,7 @@ export class Game {
         leaderboard: order => this.saveClient.leaderboard(order),
         ...(!window.EvergrowAndroid ? { download: (index: number) => this.downloadSave(index), import: (index: number, file: File) => this.importSave(index, file) } : {}),
         useCloud: (index, expected) => this.resolveCloudSave(index, expected),
+        arena: (mount, close) => new PvpPanel(mount, { ...this.pvpActions, close }, true),
       }));
       this.servicePanel = this.lifetime.own(new ServicePanel(this.shell.panelMount, {
         close: () => this.resume(), trade: quote => this.trade(quote),
@@ -370,6 +384,17 @@ export class Game {
         }, { ok: false, message: 'Saving the previous action…' }),
       }));
       this.stablePanel = this.lifetime.own(new StablePanel(this.shell.panelMount, this.petActions));
+      this.pvpPanel = this.lifetime.own(new PvpPanel(this.shell.panelMount, this.pvpActions));
+      this.pvpVendorPanel = this.lifetime.own(new PvpVendorPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        buy: stockId => this.durable(async () => {
+          const vendor = this.activePvpVendor;
+          if (!vendor) return { ok: false, message: 'The quartermaster is no longer here.' };
+          const result = await executePvpBuy(this.sim, vendor, stockId, c => this.persistTravel(c));
+          if (result.message) this.notify(result.message);
+          return result;
+        }, { ok: false, message: 'Saving the previous action…' }),
+      }));
       this.riftPanel=this.lifetime.own(new RiftPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
       this.expeditionPanel=this.lifetime.own(new ExpeditionPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
       this.dungeonMap = this.lifetime.own(new DungeonMap(this.shell.mapMount,()=>this.closeMap(),()=>this.worldMap.open({x:this.sim.expeditions.surfaceX,y:this.sim.expeditions.surfaceY,angle:0}), this.mapIcons));
@@ -459,6 +484,8 @@ export class Game {
         event: { open: () => { if(this.activeRiftPortal)this.riftPanel.open(this.sim.expeditions,this.sim.player,this.activeRiftPortal); else if(this.activeExpeditionTable)this.expeditionPanel.open(this.sim.expeditions,this.sim.player.level,this.overworld.seed,this.activeExpeditionTable); else if(this.activeDungeonEntrance) this.eventPanel.openDungeon(this.activeDungeonEntrance); else if (this.activeEvent) this.eventPanel.open(this.activeEvent); }, close: () => { this.eventPanel.close(); this.expeditionPanel.close(); this.riftPanel.close(); this.activeRiftPortal=null; this.activeExpeditionTable=null; this.activeEvent = null; this.activeDungeonEntrance = null; } },
         service: { open: () => { if (this.activeNPC) this.servicePanel.open(this.sim.player, this.activeNPC, this.overworld.seed); }, close: () => { this.servicePanel.close(); this.activeNPC = null; } },
         stable: { open: () => { this.stablePanel.open(this.activeStableMaster); this.shell.setStatus('Pet stable open. Game paused.'); }, close: () => { this.stablePanel.close(); this.activeStableMaster = null; } },
+        arena: { open: () => { this.pvpPanel.open(this.activeBattlemaster); this.shell.setStatus('Arena & Battlegrounds open. Game paused.'); }, close: () => { this.pvpPanel.close(); this.activeBattlemaster = null; } },
+        pvpVendor: { open: () => { if (this.activePvpVendor) this.pvpVendorPanel.open(this.sim.player, this.activePvpVendor); this.shell.setStatus('PvP quartermaster open. Game paused.'); }, close: () => { this.pvpVendorPanel.close(); this.activePvpVendor = null; } },
         map: { open: () => { const run=currentDungeon(this.sim.expeditions), glance=this.panels.mapHeld, focus=this.mapFocus; this.mapFocus=null; if(run) this.dungeonMap.open(this.sim.dungeonFloor!,run,this.sim.player,glance,this.sim.enemies); else this.worldMap.open(focus?{...focus,angle:0}:this.sim.player,glance); this.shell.setStatus(glance?'Exploration map open. Movement continues.':'World map open. Game paused.'); }, close: () => { this.worldMap.close(); this.dungeonMap.close(); this.mapFocus = null; } },
         character: { open: () => { this.inventoryPanel.open(this.sim.player); this.shell.setStatus('Character and inventory open. Game paused.'); }, close: () => this.inventoryPanel.close() },
         skills: { open: () => { this.skillPanel.open(this.sim.player); this.shell.setStatus('Skill tree open. Game paused.'); }, close: () => this.skillPanel.close() },
@@ -1173,8 +1200,9 @@ export class Game {
               }
               return true;
           }
-          if (hit(f.entry) || (run.states.warden.hp <= 0 && hit(dungeonRunExit(f,run)))) {
-              this.switchDungeon({ kind: 'exit' });
+          if (run.entrance.pvp ? hit(f.entry) || hit(dungeonRunExit(f,run)) : hit(f.entry) || ((run.states.warden?.hp ?? 0) <= 0 && hit(dungeonRunExit(f,run)))) {
+              if (run.entrance.pvp) void this.durable(async () => { const r = await exitPvpMatch(this.sim, this.pvpHost()); this.notify(r.message); }, undefined);
+              else this.switchDungeon({ kind: 'exit' });
               return true;
           }
           return false;
@@ -1219,6 +1247,18 @@ export class Game {
           if (stableMaster) {
               this.activeStableMaster = stableMaster;
               this.panels.open('stable');
+              return true;
+          }
+          const battlemaster = focusedBattlemaster(battlemastersNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer);
+          if (battlemaster) {
+              this.activeBattlemaster = battlemaster;
+              this.panels.open('arena');
+              return true;
+          }
+          const pvpVendor = focusedPvpVendor(pvpVendorsNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer);
+          if (pvpVendor) {
+              this.activePvpVendor = pvpVendor;
+              this.panels.open('pvpVendor');
               return true;
           }
       }
@@ -1494,6 +1534,46 @@ export class Game {
     }, { ok: false, message: 'A save is already in progress.' });
   }
 
+  /** PvP setup window actions. `character()` is null on the title screen — Custom mode
+   * is the only way to queue without a loaded save. `enter` is the match-controller
+   * seam: T06/T07 replace the notice with the real queue/match start. */
+  private get pvpActions(): PvpPanelActions {
+    return {
+      close: () => this.resume(),
+      character: () => {
+        const record = this.session.active?.record;
+        return record ? { name: record.name, level: record.checkpoint.level, classId: record.checkpoint.character.classId, raceId: record.checkpoint.character.raceId } : null;
+      },
+      enter: setup => this.enterPvp(setup),
+    };
+  }
+
+  private pvpHost() {
+    return { surface: () => this.overworld, persist: (c: Parameters<typeof this.persistTravel>[0]) => this.persistTravel(c), restoreWorld: (c: Parameters<typeof this.setLocationWorld>[0]) => this.setLocationWorld(c), arrived: () => this.finishTravel() };
+  }
+
+  private enterPvp(setup: PvpSetup): void {
+    if (this.phase === 'arena') this.resume();
+    else if (this.phase === 'ready') this.titleScreen.selectPage('characters');
+    void this.durable(async () => {
+      const result = await enterPvpMatch(this.sim, setup, this.pvpHost());
+      this.notify(result.ok ? `${pvpBracketLabel(setup.bracket)} — ${result.message}` : result.message);
+    }, undefined);
+  }
+
+  /** Match over: leave the arena (restores the real character + start point),
+   * then award Honor/Arena Points/rep on the restored sheet. */
+  private finishPvpMatch(end: PvpMatchEnd): void {
+    this.notify(pvpScoreboardSummary(end.scoreboard, end.result.won));
+    void this.durable(async () => {
+      const exit = await exitPvpMatch(this.sim, this.pvpHost());
+      if (!exit.ok) this.notify(exit.message);
+      const award = await awardMatchRewards(this.sim, end.result, c => this.persistTravel(c));
+      if (!award.ok) this.notify(award.message ?? 'The match rewards were lost.');
+      for (const achievement of award.unlocked) this.notify(`Achievement: ${achievement.name}`);
+    }, undefined);
+  }
+
   private toggleMount(id?: MountId) {
     if (this.sim.ghost) return;
     const result = mountToggle(this.sim, id);
@@ -1520,6 +1600,7 @@ export class Game {
 
   private castHearthstone() {
     if (!GAME_FEATURES.hearthstone || this.sim.ghost) return;
+    if (this.sim.dungeonFloor?.pvp) { this.notify('Hearthstones are sealed during a match.'); return; }
     const problem = hearthstoneCast(this.sim);
     if (problem) this.notify(problem);
   }
@@ -1659,6 +1740,10 @@ export class Game {
       this.sim.setCombatViewport(this.renderer.combatViewport);
       const simulationStart = this.performance.start();
       const previousWeave = this.sim.player.affixBuffs?.spent;
+      // PvP match lifecycle: prep countdown, win detection, scoreboard handoff.
+      // Runs before sim.update so the prep hold is in place for the first step.
+      const pvpEnd = updatePvpMatch(this.sim, dt);
+      if (pvpEnd) this.finishPvpMatch(pvpEnd);
       this.sim.update(dt, this.readInput());
       const spentWeave = this.sim.player.affixBuffs?.spent;
       if (spentWeave && spentWeave !== previousWeave) this.audio.spellweave(spentWeave.kind);
@@ -1725,7 +1810,7 @@ export class Game {
       }
       if(run?.rift&&(this.sim.player.dead||run.rift.phase==='failed')){
         if(!this.savingAction)void this.switchDungeon({kind:'death'});
-      } else if (this.sim.player.dead && !this.sim.ghost) {
+      } else if (this.sim.player.dead && !this.sim.ghost && !this.sim.pvpCombatants) {
         this.panels.transition('dead', true);
       }
       if (now >= this.nextAutosave) { this.saveCharacter(); this.nextAutosave = now + 20_000; }

@@ -5,9 +5,9 @@ import { getZoneAt } from './zone-progression.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import type { WorldQuery } from './model.ts';
 
-export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable';
+export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable' | 'battlemaster' | 'pvpVendor';
 export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string; }
-export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master' };
+export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master', battlemaster: 'Battlemaster', pvpVendor: 'PvP Quartermaster' };
 export const NPC_COLORS=Object.fromEntries(Object.keys(NPC_NAMES).map(role=>[role,vendorIdentity(role)!.color])) as Record<NPCRole,string>;
 export function hashService(value: string): number {
   let n = 2166136261;
@@ -56,5 +56,28 @@ export function canStableAt(master: StableMaster, player: { x: number; y: number
 export function focusedStableMaster(masters: readonly StableMaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
   pointer?: { x: number; y: number }): StableMaster | null {
   return masters.filter(master => canStableAt(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
+    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+}
+
+/** Battlemasters (WotLK arena/battleground queue NPCs) stand beside the Count's Hall in
+ * cities — a standalone service NPC like the stable master, not a building kind. Only
+ * city settlements raise a noble hall, so battlemasters are a city fixture. */
+export type Battlemaster = TownNPC & { role: 'battlemaster' };
+const BATTLEMASTER_NAMES = ['Korrak', 'Beka', 'Deze', 'Grikka', 'Andrissa', 'Fizim', 'Rex', 'Mosha'] as const;
+export function battlemasterFor(building: Building): Battlemaster | null {
+  if (building.kind !== 'noble') return null;
+  const x = building.door.x + 70, y = building.door.y + 24, id = `${building.id}:battlemaster`;
+  const seed = hashService(id);
+  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'battlemaster', x, y, seed,
+    name: BATTLEMASTER_NAMES[seed % BATTLEMASTER_NAMES.length],
+    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel };
+}
+export function battlemastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Battlemaster[] {
+  return (world.getBuildings?.(x, y, width, height) ?? [])
+    .map(battlemasterFor).filter((master): master is Battlemaster => master !== null);
+}
+export function focusedBattlemaster(masters: readonly Battlemaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
+  pointer?: { x: number; y: number }): Battlemaster | null {
+  return masters.filter(master => canInteractNPC(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
     .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
 }

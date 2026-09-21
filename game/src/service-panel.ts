@@ -17,10 +17,11 @@ import { updateItemSlot } from './item-ui.ts';
 import { ItemTooltip } from './item-tooltip.ts';
 import { itemIconSVG, itemPackIconSVG } from './item-art.ts';
 import { generateItem, EQUIPMENT_SLOTS, TIER_COLORS, TIER_NAMES, STAT_LABELS, itemAffixPool, itemDisplayName, formatStatValue } from './items.ts';
-import { goldBalance } from './wallet.ts';
+import { arenaPointsBalance, goldBalance, honorBalance } from './wallet.ts';
 import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import { ServiceGoldFeedback } from './service-gold-feedback.ts';
 import { formatWallet, formatWalletCompact } from './currency.ts';
+import { formatPvpPoints } from './pvp-currency.ts';
 import { glyphVendorStock, glyphPrice } from './glyph-command.ts';
 import { bagVendorStock, bagPrice } from './bag-state.ts';
 import { repairQuote } from './durability.ts';
@@ -201,7 +202,14 @@ export class ServicePanel {
     ${gains.length?`<div class="enhance-gains"><div class="enhance-gains-heading"><span>Item improvement</span><span>Current</span><span>After</span><span>Gain</span></div>${gains.map(row=>`<div><span>${escapeUI(row.label)}</span><span>${row.before}</span><strong>${row.after}</strong><em>${row.gain}</em></div>`).join('')}</div><p class="enhance-footnote">Only changed item stats shown. Character caps still apply.${next!.recipe.enhancement>item!.recipe.enhancement+1?' Empty steps skipped at no extra cost.':''}</p>`:item?'<p class="enhance-footnote">No further enhancement available.</p>':''}`;
   }
   private headerMarkup(): string {
-    return `<header class="ui-window-header"><span class="ui-header-emblem">${npcEmblem(this.npc.role)}</span><h2 class="ui-title" id="service-title">${NPC_NAMES[this.npc.role]}</h2><span class="service-wallet"><b data-wallet-total>${formatWallet(goldBalance(this.player.character))}</b></span><button class="ui-button ui-button--icon" data-close aria-label="Close service">×</button></header>`;
+    return `<header class="ui-window-header"><span class="ui-header-emblem">${npcEmblem(this.npc.role)}</span><h2 class="ui-title" id="service-title">${NPC_NAMES[this.npc.role]}</h2><span class="service-wallet"><b data-wallet-total>${formatWallet(goldBalance(this.player.character))}</b><small data-wallet-honor title="Honor — earned in PvP matches">${formatPvpPoints(honorBalance(this.player.character))} Honor</small><small data-wallet-arena title="Arena Points — earned in arena matches">${formatPvpPoints(arenaPointsBalance(this.player.character))} AP</small></span><button class="ui-button ui-button--icon" data-close aria-label="Close service">×</button></header>`;
+  }
+  /** Refresh the header wallet row (gold + PvP currencies) after a transaction. */
+  private syncWallet(): void {
+    const sheet = this.player.character;
+    this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(sheet));
+    this.element.querySelector('[data-wallet-honor]')!.textContent = `${formatPvpPoints(honorBalance(sheet))} Honor`;
+    this.element.querySelector('[data-wallet-arena]')!.textContent = `${formatPvpPoints(arenaPointsBalance(sheet))} AP`;
   }
   private tabsMarkup(): string {
     if (this.npc.role === 'stash') return '';
@@ -675,7 +683,7 @@ export class ServicePanel {
     if (this.element.hidden) return;
     if (result.ok) {
       this.renderGlyphs();
-      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.syncWallet();
       this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
     }
     const message = this.element.querySelector('.service-message');
@@ -694,7 +702,7 @@ export class ServicePanel {
     if (this.element.hidden) return;
     if (result.ok) {
       this.renderBags();
-      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.syncWallet();
       this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
     }
     const message = this.element.querySelector('.service-message');
@@ -712,7 +720,7 @@ export class ServicePanel {
     if (this.element.hidden) return;
     if (result.ok) {
       this.render();
-      this.element.querySelector('[data-wallet-total]')!.textContent = formatWallet(goldBalance(this.player.character));
+      this.syncWallet();
       this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');
     }
     const message = this.element.querySelector('.service-message');
@@ -762,7 +770,7 @@ export class ServicePanel {
       if (gamble) {
         // Keep the choices and action button mounted for rapid repeat purchases.
         this.renderInventoryPack();
-        this.element.querySelector('[data-wallet-total]')!.textContent=formatWallet(goldBalance(this.player.character));
+        this.syncWallet();
         this.renderDetail();
       } else this.render();
       this.element.classList.remove('service-success'); void this.element.offsetWidth; this.element.classList.add('service-success');

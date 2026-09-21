@@ -32,4 +32,6 @@ export const GAME_FEATURES = {
   worldEvents: true,
   nameplates: true,
   dualSpec: true,
+  // PvP (wayfinder/pvp-map.md): arena & battlegrounds, honor/arena points, vendor
+  pvp: true,
 };

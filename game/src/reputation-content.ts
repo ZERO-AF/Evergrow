@@ -13,7 +13,8 @@ import { toCopper } from './currency.ts';
 
 export type FactionId =
   | 'stormwind' | 'argentCrusade' | 'kirinTor' | 'timbermawHold'
-  | 'cenarionCircle' | 'thoriumBrotherhood' | 'sonsOfHodir' | 'steamwheedleCartel';
+  | 'cenarionCircle' | 'thoriumBrotherhood' | 'sonsOfHodir' | 'steamwheedleCartel'
+  | 'warsong';
 
 export type StandingTier =
   | 'hated' | 'hostile' | 'unfriendly' | 'neutral'
@@ -173,6 +174,14 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
       gear('rocket-boots', 'Goblin Rocket Boots', 'honored', 'boots', 'rare'),
       bounty('cartel-voucher', 'Cartel Trade Voucher', 'revered', 250),
       gear('rocket-helmet', 'Goblin Rocket Helmet', 'exalted', 'head', 'epic'),
+    ] }),
+  f({ id: 'warsong', name: 'Warsong Outriders', icon: 'sword', color: '#b5543c',
+    description: 'The Outriders answer only to battle. Arena and battleground victories are the coin they respect.',
+    clearRep: 0, questRep: 0,
+    rewards: [
+      gear('outrider-tabard', 'Outrider’s Tabard', 'honored', 'cloak', 'rare'),
+      gear('warsong-blade', 'Warsong Blade', 'revered', 'weapon', 'epic'),
+      gear('outrider-medallion', 'Medallion of the Outriders', 'exalted', 'amulet', 'epic'),
     ] }),
 ]);
 

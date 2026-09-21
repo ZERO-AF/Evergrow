@@ -7,7 +7,7 @@ export interface PanelHooks {
 const OPEN_FROM: Record<PanelPhase, readonly GamePhase[]> = {
   chronicle: ['playing','paused','character'], journeys: ['playing','paused'], event: ['playing'], service: ['playing'], stable: ['playing'], map: ['playing','paused'], character: ['playing','paused', 'character', 'skills'], skills: ['playing','paused', 'character', 'skills'],
  achievements: ['playing','paused'], questLog: ['playing','paused'], professions: ['playing','paused'], glyphs: ['playing','paused','character'],
- spellbook: ['playing','paused','character','skills'], stats: ['playing','paused','character'], reputation: ['playing','paused','character'], transmog: ['playing','paused','character'],
+ spellbook: ['playing','paused','character','skills'], stats: ['playing','paused','character'], reputation: ['playing','paused','character'], transmog: ['playing','paused','character'], arena: ['playing','paused'], pvpVendor: ['playing'],
 };
 /** One control-context owner. Panel views own their focus traps; this owner closes
  * the old trap before opening a new view and returns focus only when play resumes. */

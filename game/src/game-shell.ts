@@ -78,6 +78,7 @@ export class GameShell {
       <div id="overlay" class="overlay ui-scroll-area" role="dialog" aria-modal="true" aria-labelledby="menu-title"></div>
       <div id="save-warning" class="save-warning" role="status" hidden></div>
       <div id="ghost-prompt" role="status" style="display:none;position:fixed;left:50%;bottom:18%;transform:translateX(-50%);align-items:center;gap:12px;padding:10px 16px;background:rgba(8,14,22,.82);border:1px solid rgba(160,190,230,.35);border-radius:8px;pointer-events:none;z-index:30"></div>
+      <p id="state-description" class="sr-only" aria-live="polite"></p>
     </div>`;
     this.element = root.querySelector<HTMLElement>('.game-shell')!;
     this.canvas = root.querySelector<HTMLCanvasElement>('#game')!;
@@ -201,7 +202,7 @@ export class GameShell {
     const playing = phase === 'playing';
     if (playing || phase === 'ready' || phase === 'dead') this.pauseNavigation.focus = null;
     if (phase === 'ready') this.pauseNavigation.category = 'character';
-    const panel = phase === 'map' || phase === 'character' || phase === 'skills' || phase === 'service' || phase === 'stable' || phase === 'event' || phase === 'journeys' || phase === 'chronicle';
+    const panel = phase === 'map' || phase === 'character' || phase === 'skills' || phase === 'service' || phase === 'stable' || phase === 'event' || phase === 'journeys' || phase === 'chronicle' || phase === 'arena' || phase === 'pvpVendor';
     this.overlay.hidden = playing || panel || phase === 'ready';
     this.controls.hidden = !playing;
     if (!playing) { this.buffs.hide(); this.targetBuffs.hide(); }

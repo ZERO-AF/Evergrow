@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
 import { decodeCharacterSave, CHARACTER_SAVE_VERSION, type CharacterCheckpoint } from '../src/character-save.ts';
-import { damagePlayer } from '../src/combat-damage.ts';
+import { damageCombatant } from '../src/combat-damage.ts';
 import { WOW_COMBAT } from '../src/wow-types.ts';
 import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { createPetRecord } from '../src/pet-content.ts';
@@ -120,7 +120,7 @@ test('petShare redirects into the pet or demon before totems', () => {
   const totem = ally('searingTotem', { stationary: true });
   const pet = ally('wolf', { petId: 1 });
   p.allies = [totem, pet];
-  damagePlayer(40, 0, 1, 'physical', { player: p, world, random: () => 1, emit: () => {} });
+  damageCombatant(40, 0, 1, 'physical', { player: p, world, random: () => 1, emit: () => {} });
   assert.ok(pet.hp < 100, 'pet absorbs the shared hit');
   assert.equal(totem.hp, 100, 'totem is not the redirect target while a pet lives');
 });

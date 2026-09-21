@@ -7,6 +7,7 @@ import type { GroundItem } from './character-types.ts';
 import type { GroundGold } from './gold.ts';
 import type { Pickup } from './model.ts';
 import type { DungeonEntrance } from './dungeon.ts';
+import type { PvpMatch } from './pvp-instance.ts';
 import { generateDungeon, DUNGEON_RULES } from './dungeon.ts';
 import { scaledEnemyStats } from './zone-progression.ts';
 export interface StoredActor {
@@ -37,6 +38,8 @@ export interface LocationContents {
 }
 export interface DungeonRun {
     rift?: RiftProgress;
+    /** Live PvP match record (wayfinder T02); present only on pvp runs. */
+    pvp?: PvpMatch;
     layoutVersion: number;
     events?: Record<number, WaveProgress>;
     entrance: DungeonEntrance;
@@ -66,7 +69,11 @@ export interface Expeditions {
 }
 export const emptyContents = (): LocationContents => ({ actors: [], groundItems: [], groundGold: [], pickups: [], clearedCamps: [], defeatedCampMembers: {} });
 export const freshExpeditions = (): Expeditions => ({ cleared: [], location: null, runs: [], surface: null, surfaceX: 0, surfaceY: 0 });
-export function createDungeonRun(entrance: DungeonEntrance): DungeonRun { const f = generateDungeon(entrance.seed, entrance.level, entrance); return { ...(entrance.rift?{rift:{elapsed:0,points:0,phase:'hunt' as const,claimed:false}}:{}), entrance, layoutVersion:DUNGEON_RULES.version, events:Object.fromEntries((f.events??[]).map(e=>[e.id,freshWaves()])), states: Object.fromEntries(f.members.map(m => [m.id, { hp: riftEnemyStats(scaledEnemyStats(m.kind, dungeonMemberLevel(entrance, m), m.rank),entrance.rift).maxHp, x: m.x, y: m.y, admitted: false }])), explored: [f.rooms.find(r=>r.kind==='entry')?.id??0], chestMasks: [0, 0, 0], contents: emptyContents(), x: f.entry.x, y: f.entry.y }; }
+export function createDungeonRun(entrance: DungeonEntrance): DungeonRun { const f = generateDungeon(entrance.seed, entrance.level, entrance); const run: DungeonRun = { ...(entrance.rift?{rift:{elapsed:0,points:0,phase:'hunt' as const,claimed:false}}:{}), entrance, layoutVersion:DUNGEON_RULES.version, events:Object.fromEntries((f.events??[]).map(e=>[e.id,freshWaves()])), states: Object.fromEntries(f.members.map(m => [m.id, { hp: riftEnemyStats(scaledEnemyStats(m.kind, dungeonMemberLevel(entrance, m), m.rank),entrance.rift).maxHp, x: m.x, y: m.y, admitted: false }])), explored: [f.rooms.find(r=>r.kind==='entry')?.id??0], chestMasks: [0, 0, 0], contents: emptyContents(), x: f.entry.x, y: f.entry.y };
+    // PvP floors carry a dormant 'warden' placeholder so warden-keyed plumbing
+    // (exit portals, wave gating, boss markers) reads hp<=0 without a mob.
+    if (entrance.pvp && run.states.warden) run.states.warden.hp = 0;
+    return run; }
 export function storedActor(e: Enemy): StoredActor { return { ...(e.rift?{rift:e.rift}:{}), kind: e.kind, rank: e.rank, level: e.level, biome: e.biome, seed: e.lootSeed, x: e.x, y: e.y, homeX: e.homeX, homeY: e.homeY, hp: e.hp, campId: e.campId, memberId: e.campMemberId, bossPhases: e.bossPhases }; }
 export function currentDungeon(state: Expeditions): DungeonRun | undefined { return state.runs.find(r => r.entrance.id === state.location); }
 export function syncDungeon(run: DungeonRun, enemies: readonly Enemy[], x: number, y: number) { run.x = x; run.y = y; for (const e of enemies) {
@@ -86,7 +93,7 @@ export function syncDungeon(run: DungeonRun, enemies: readonly Enemy[], x: numbe
 export function compactExpeditions(state: Expeditions, returnDungeon?: string): void {
     const cleared = new Set(state.cleared ?? []);
     state.runs = state.runs.filter(run => {
-        if(run.entrance.rift && state.location!==run.entrance.id)return false;
+        if((run.entrance.rift||run.entrance.pvp) && state.location!==run.entrance.id)return false;
         const contents = run.contents;
         const exhausted = state.location !== run.entrance.id && returnDungeon !== run.entrance.id
             && Object.values(run.states).every(s => s.hp <= 0)

@@ -46,6 +46,8 @@ const PANEL_FRAMES: readonly UiFrameSpec[] = [
   { id: 'rift', label: 'Crimson Rift' },
   { id: 'poi', label: 'POI detail' },
   { id: 'transmog', label: 'Transmogrify' },
+  { id: 'arena', label: 'Arena & Battlegrounds' },
+  { id: 'pvpVendor', label: 'PvP Quartermaster' },
 ].map(spec => ({ group: 'Panels' as const, ...spec }));
 
 /** Register all DOM panel frames. Idempotent — safe to call more than once. */

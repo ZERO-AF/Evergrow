@@ -1,7 +1,7 @@
 import type { Element, ResistanceStat } from './resistance-content.ts';
 import type { ItemMaterialId } from './item-materials.ts';
 import type { GearMaterial } from './gear-material-content.ts';
-import type { GoldWallet } from './wallet.ts';
+import type { ArenaPointsWallet, GoldWallet, HonorWallet } from './wallet.ts';
 import type { WeaponDefinition, FocusDefinition, ShieldDefinition } from './model.ts';
 import type { WowClassId, WowRaceId } from './wow-types.ts';
 import type { PetStable } from './pet-content.ts';
@@ -133,7 +133,7 @@ export type WowSkillId =
 export type SkillId = import('./aura-content.ts').AuraId | WowSkillId | 'repulse' | 'ironCitadel' | 'smokeVeil' | 'nightReaping' | 'sidestep' | 'brace' | 'runicWard' | 'vaultingShot' | 'rallyOfIron' | 'ghostHunt' | 'cleave' | 'lunge' | 'whirlwind' | 'earthshatter' | 'shieldBash' | 'bulwark'
   | 'volley' | 'piercingShot' | 'ricochet' | 'rainOfArrows' | 'backstab'
   | 'cataclysm' | 'tempest' | 'absoluteZero' | 'fireball' | 'arcLightning' | 'iceNova' | 'frostLance' | 'meteor' | 'siphon';
-export interface CharacterSheet extends GoldWallet {
+export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWallet {
   /** WotLK class identity; gates class skill kits and starter gear. */
   classId: WowClassId;
   /** WotLK race identity; grants the racial active and passive modifiers. */

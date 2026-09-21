@@ -159,15 +159,17 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   }
 }
 
-/** Returns whether damage landed; the clock owner handles input/fixed-step cancellation. */
-export function damagePlayer(amount: number, angle: number, sourceLevel: number, damageType: DamageType, context: PlayerDamageContext, kind?: EnemyKind): boolean {
+/** Returns whether damage landed; the clock owner handles input/fixed-step cancellation.
+ * `context.player` is the TARGET — any Player-shaped actor, including PvP combatants.
+ * Periodic ticks (dots/burns) bypass the hurt guard and never grant protection. */
+export function damageCombatant(amount: number, angle: number, sourceLevel: number, damageType: DamageType, context: PlayerDamageContext, kind?: EnemyKind, periodic = false, style?: ProjectileStyle): boolean {
   const p = context.player;
-  if (p.dead || p.invulnerable > 0 || context.world.isSanctuary?.(p.x, p.y)) return false;
+  if (p.dead || (!periodic && p.invulnerable > 0) || context.world.isSanctuary?.(p.x, p.y)) return false;
   if (p.buffs?.some(buff => buff.immunity && buff.remaining > 0)) return false;
   const reduction = damageType === 'physical' ? armorReduction(effectiveArmor(p), sourceLevel) : p.derived.resistances[damageType];
   amount = Math.max(1, Math.round(amount * (1 - reduction) * (damageType==='physical'?1-auraPower(p,'ironroot')/800:1)));
   for (const buff of p.buffs ?? []) if (buff.reduction && buff.remaining > 0) amount = Math.max(1, Math.round(amount * (1 - buff.reduction)));
-  if (p.equipment.offHand?.kind === 'shield' && (p.guardTime > 0 || context.random() < p.derived.blockChance)) {
+  if (!periodic && p.equipment.offHand?.kind === 'shield' && (p.guardTime > 0 || context.random() < p.derived.blockChance)) {
     const reduction = p.guardTime > 0 ? Math.max(p.guardReduction, p.derived.blockReduction) : p.derived.blockReduction;
     const blocked = Math.floor(amount * reduction);
     storeBastion(p,blocked);
@@ -188,11 +190,19 @@ export function damagePlayer(amount: number, angle: number, sourceLevel: number,
     pet.hp -= redirected; amount = Math.max(0, amount - redirected);
   }
   if(mitigated.absorbed+buffAbsorbed)context.emit({type:'block',x:p.x,y:p.y,angle,value:mitigated.absorbed+buffAbsorbed,color:'#9ed6d5'});
+  // PvP combatants carry the enemy status surface: sunder amplifies, elemental
+  // contacts apply burn/chill/interrupt, and damage strips break-on-damage CC.
+  const combatant = p.team !== undefined ? p as unknown as Enemy : undefined;
+  if (combatant) {
+    if (combatant.sundered && combatant.sundered.remaining > 0) amount = Math.max(1, Math.round(amount * (1 + combatant.sundered.fraction)));
+    if (!periodic) { applyElementalContact(combatant, style, amount); breakCcOnDamage(combatant); }
+  }
   const actualValue = Math.min(p.hp, amount);
   p.hp = Math.max(0, p.hp - amount);
   p.hitFlash = COMBAT_TIMING.hitFlashDuration;
   p.hitAngle = angle;
-  p.invulnerable = COMBAT_TIMING.hurtGuard;
+  // PvP combatants never gain the PvE hurt guard: focus fire and dot ticks must land.
+  if (!periodic && p.team === undefined) p.invulnerable = COMBAT_TIMING.hurtGuard;
   context.emit({ type: 'hurt', ...(damageType === 'physical' ? {} : { style: damageType }), actualValue, x: p.x, y: p.y, angle, value: amount,
     remainingHp: p.hp, enemyKind: kind, heavy: amount >= 20 });
   const resource = resourceModelOf(p);
@@ -202,8 +212,16 @@ export function damagePlayer(amount: number, angle: number, sourceLevel: number,
     p.dead = true; p.auras=undefined; p.affixBuffs = undefined; p.skillEffects = undefined;
     p.attack = null;
     p.dash = null; p.guardTime = 0;
-    p.castTime = p.dodgeTime = 0;
+    p.castTime = p.dodgeTime = 0; p.cast = null;
     p.vx = p.vy = 0;
+    if (combatant) {
+      // A combatant at 0 hp becomes a corpse: statuses clear, the AI stops driving it.
+      combatant.state = 'dead'; combatant.stateTime = 0;
+      combatant.dots = undefined; combatant.cc = undefined;
+      combatant.slowTime = 0; combatant.slowFactor = 1;
+      combatant.burnTime = 0; combatant.burnDps = 0; combatant.burnTick = 0;
+      combatant.stagger = 0; combatant.stunTime = 0; combatant.freezeTime = 0;
+    }
   }
   if(mitigated.burst&&!p.dead)context.wardBurst?.(mitigated.burst);
   // Armor/accessory procs roll on landed hits — after mitigation so a killing

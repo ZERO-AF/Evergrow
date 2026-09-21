@@ -51,7 +51,8 @@ import { EventProgressPresentation } from './event-progress-presentation.ts';
 import { drawPortal, drawTownAnchor } from './travel-art.ts';
 import { fitPortalWorldLabel, type PortalDestination } from './portal-destination.ts';
 import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } from './travel.ts';
-import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
+import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
+import { pvpVendorFor, pvpVendorsNear, focusedPvpVendor } from './pvp-vendor.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
 import { drawGroundGold, drawRewardFlights, drawGoldBalance, drawLevelCelebration, drawLevelAnnouncement, drawJourneyAnnouncement } from './reward-art.ts';
@@ -563,6 +564,10 @@ export class Renderer {
       if (npc && npc.role !== 'stash') this.drawNPCShadow(npc.x, npc.y, npcArtScale(npc));
       const master = stableMasterFor(building);
       if (master) this.drawNPCShadow(master.x, master.y, npcArtScale(master));
+      const battlemaster = battlemasterFor(building);
+      if (battlemaster) this.drawNPCShadow(battlemaster.x, battlemaster.y, npcArtScale(battlemaster));
+      const pvpVendor = pvpVendorFor(building);
+      if (pvpVendor) this.drawNPCShadow(pvpVendor.x, pvpVendor.y, npcArtScale(pvpVendor));
     }
     this.enemyFocusMark(alpha);
     drawResourcePickups(c, sim.pickups, this.visualTime, settings.reducedMotion);
@@ -737,6 +742,16 @@ export class Renderer {
         const point = worldToScreen(view, stableMaster.x, stableMaster.y - 78);
         text(c, `${stableMaster.name} - Stable Master  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
+      const battlemaster = focusedBattlemaster(battlemastersNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      if (battlemaster) {
+        const point = worldToScreen(view, battlemaster.x, battlemaster.y - 78);
+        text(c, `${battlemaster.name} - Battlemaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      const pvpVendor = focusedPvpVendor(pvpVendorsNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      if (pvpVendor) {
+        const point = worldToScreen(view, pvpVendor.x, pvpVendor.y - 78);
+        text(c, `${pvpVendor.name} - PvP Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
       if (this.focusedGatherNode) {
         const point = worldToScreen(view, this.focusedGatherNode.x, this.focusedGatherNode.y - 46);
         text(c, gatherNodeLabel(p, this.focusedGatherNode, gatherChannelOf(sim) !== null), point.x, point.y, 1, '#d6d7b3', 'center');
@@ -899,6 +914,10 @@ export class Renderer {
       if (npc) entries.push({ y: npc.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(npc.x,npc.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, npc, this.visualTime, settings.reducedMotion)) });
       const master = stableMasterFor(building);
       if (master) entries.push({ y: master.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(master.x,master.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, master, this.visualTime, settings.reducedMotion)) });
+      const battlemaster = battlemasterFor(building);
+      if (battlemaster) entries.push({ y: battlemaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(battlemaster.x,battlemaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, battlemaster, this.visualTime, settings.reducedMotion)) });
+      const pvpVendor = pvpVendorFor(building);
+      if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
         entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
       }
@@ -1030,6 +1049,10 @@ export class Renderer {
       if (npc) environmentLights.push({ x: npc.x, y: npc.y - 20, radius: 60, color: NPC_COLORS[npc.role], power: .3 });
       const master = stableMasterFor(building);
       if (master) environmentLights.push({ x: master.x, y: master.y - 20, radius: 60, color: NPC_COLORS.stable, power: .3 });
+      const battlemaster = battlemasterFor(building);
+      if (battlemaster) environmentLights.push({ x: battlemaster.x, y: battlemaster.y - 20, radius: 60, color: NPC_COLORS.battlemaster, power: .3 });
+      const pvpVendor = pvpVendorFor(building);
+      if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
     }
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));

@@ -8,7 +8,7 @@ import type { ProfessionId } from './profession-content.ts';
 import type { MountId } from './mount-content.ts';
 import type { UIIconName } from './ui-icons.ts';
 
-export type AchievementCategory = 'Combat' | 'Exploration' | 'Quests' | 'Professions' | 'Mounts' | 'Dungeons';
+export type AchievementCategory = 'Combat' | 'Exploration' | 'Quests' | 'Professions' | 'Mounts' | 'Dungeons' | 'PvP';
 
 /** How a definition measures progress. `count` is always the threshold to earn. */
 export type AchievementCriterion =
@@ -48,6 +48,14 @@ export type AchievementCriterion =
   | { readonly kind: 'raid'; readonly id?: string }
   /** Gold balance reached (computed from event balance). */
   | { readonly kind: 'gold' }
+  /** PvP matches won (arena + battleground). */
+  | { readonly kind: 'pvpWins' }
+  /** Honorable kills on enemy PvP combatants. */
+  | { readonly kind: 'pvpKills' }
+  /** Arena rating reached (computed from the match's post-match rating). */
+  | { readonly kind: 'pvpRating' }
+  /** PvP match won on a specific map/bracket id (e.g. 'warsong', 'arathi', arena map ids). */
+  | { readonly kind: 'pvpMap'; readonly map: string }
   /** Total achievements earned (meta). */
   | { readonly kind: 'meta' };
 
@@ -108,6 +116,13 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('blackrock-depths', 'Blackrock Depths', 'Dungeons', 'Clear Blackrock Depths.', 'lantern', { kind: 'dungeonId', id: 'blackrock' }, 1),
   def('tripping-the-rifts', 'Tripping the Rifts', 'Dungeons', 'Defeat a rift guardian before the timer expires.', 'portal', { kind: 'rifts' }, 1),
   def('molten-core', 'Molten Core', 'Dungeons', 'Defeat the raid boss.', 'skull', { kind: 'raid' }, 1),
+  // ── PvP ──
+  def('first-blood-arena', 'First Blood', 'PvP', 'Win your first arena or battleground match.', 'sword', { kind: 'pvpWins' }, 1),
+  def('arena-veteran', 'Arena Veteran', 'PvP', 'Win 10 PvP matches.', 'shield', { kind: 'pvpWins' }, 10),
+  def('honorable-kills', 'Honorable Kills', 'PvP', 'Defeat 100 enemy combatants in PvP.', 'skull', { kind: 'pvpKills' }, 100),
+  def('warsong-gulch-victory', 'Warsong Gulch Victory', 'PvP', 'Win a Warsong Gulch battleground.', 'map', { kind: 'pvpMap', map: 'warsong' }, 1),
+  def('arathi-basin-victory', 'Arathi Basin Victory', 'PvP', 'Win an Arathi Basin battleground.', 'map', { kind: 'pvpMap', map: 'arathi' }, 1),
+  def('arena-contender', 'Arena Contender', 'PvP', 'Reach an arena rating of 1600.', 'star', { kind: 'pvpRating' }, 1600),
   // ── Meta ──
   def('what-a-long-strange-trip', "What a Long, Strange Trip It's Been", 'Exploration', 'Earn 20 achievements. The Nether Drake answers only to proven heroes.', 'star', { kind: 'meta' }, 20),
 ]);

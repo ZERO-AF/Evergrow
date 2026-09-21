@@ -3,7 +3,7 @@ import type { UIIconName } from './ui-icons.ts';
 
 export type PauseCategory = 'character' | 'adventure' | 'system';
 export type PauseDestination = 'character' | 'skills' | 'appearance' | 'map' | 'journeys'
-  | 'chronicle' | 'options' | 'controls' | 'leaderboard' | 'changelog' | 'editLayout';
+  | 'chronicle' | 'arena' | 'options' | 'controls' | 'leaderboard' | 'changelog' | 'editLayout';
 export interface PauseEntry { id: PauseDestination; label: string; description: string; icon: UIIconName; binding?: ControlAction; }
 export const PAUSE_CATEGORIES: readonly { id: PauseCategory; label: string; icon: UIIconName; entries: readonly PauseEntry[] }[] = [
   { id: 'character', label: 'Character', icon: 'sword', entries: [
@@ -15,6 +15,7 @@ export const PAUSE_CATEGORIES: readonly { id: PauseCategory; label: string; icon
   { id: 'adventure', label: 'Adventure', icon: 'map', entries: [
     { id: 'map', label: 'World map', description: 'Your explored world and discovered places', icon: 'map', binding: 'map' },
     { id: 'journeys', label: 'Journeys', description: 'Goals and discoveries along your path', icon: 'journal', binding: 'journeys' },
+    { id: 'arena', label: 'Arena & Battlegrounds', description: 'Queue a PvP match against NPC teams', icon: 'sword' },
   ] },
   { id: 'system', label: 'System', icon: 'options', entries: [
     { id: 'options', label: 'Options', description: 'Sound, loot labels, camera zoom and fullscreen', icon: 'options' },

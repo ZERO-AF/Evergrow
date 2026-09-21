@@ -32,6 +32,9 @@ export type AchievementEvent = CombatEvent
   | { readonly type: 'mount'; readonly mount: MountId }
   | { readonly type: 'dungeon'; readonly id: string; readonly theme?: string }
   | { readonly type: 'raid'; readonly id: string }
+  /** PvP match settled (pvp-rewards.ts): win/loss, honorable kills, post-match
+   * rating and the map/bracket id for per-map victory criteria. */
+  | { readonly type: 'pvp-match'; readonly won: boolean; readonly kills?: number; readonly rating?: number; readonly map?: string }
   | { readonly type: 'snapshot' };
 
 export function achievementComplete(record: Readonly<Record<string, number>> | undefined, id: string): boolean {
@@ -153,6 +156,16 @@ export function achievementTrack(player: Player, event: AchievementEvent, enemie
       for (const a of ACHIEVEMENTS) {
         const c = a.criterion;
         if (c.kind === 'raid' && (!c.id || c.id === event.id)) bump(a);
+      }
+      break;
+    case 'pvp-match':
+      for (const a of ACHIEVEMENTS) {
+        const c = a.criterion;
+        if (c.kind === 'pvpWins' && event.won) bump(a);
+        else if (c.kind === 'pvpMap' && event.won && c.map === event.map) bump(a);
+        else if (c.kind === 'pvpKills' && event.kills) bump(a, event.kills);
+        else if (c.kind === 'pvpRating' && event.rating !== undefined && !achievementComplete(record, a.id))
+          record[a.id] = Math.max(record[a.id] ?? 0, Math.min(a.count, event.rating));
       }
       break;
   }

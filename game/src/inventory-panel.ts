@@ -11,9 +11,10 @@ import { itemPackIconSVG, itemIconSVG } from './item-art.ts';
 import { itemDisplayName } from './items.ts';
 import { itemTooltipMarkup, updateItemSlot, CHANGE_LABELS, PREVIEW_PERCENT } from './item-ui.ts';
 import { ItemTooltip } from './item-tooltip.ts';
-import { goldBalance } from './wallet.ts';
+import { arenaPointsBalance, goldBalance, honorBalance } from './wallet.ts';
 import { equippedGearPower } from './leaderboard.ts';
 import { formatWallet } from './currency.ts';
+import { formatPvpPoints } from './pvp-currency.ts';
 import type { Player } from './model.ts';
 import type { Attribute, EquipmentSlot, Item, ItemTier, SkillId } from './character-types.ts';
 import { durabilityBadgeMarkup, durabilityOf } from './durability.ts';
@@ -141,7 +142,7 @@ export class InventoryPanel {
             <button type="button" class="ui-button ui-button--quiet ui-button--icon character-tool-icon" data-equip-best aria-label="Equip best items" data-tooltip="Equip best items" data-tooltip-placement="below">${uiIcon('equipBest')}</button>
             ${actions.lock ? `<button type="button" class="ui-button ui-button--quiet ui-button--icon character-tool-icon" data-lock-mode aria-pressed="false" aria-label="Lock items" data-tooltip="Lock items: click a piece to protect it from selling or dropping. L on a focused item also toggles its lock." data-tooltip-placement="below">${ITEM_LOCK_ICON}</button>` : ''}
             ${actions.drop ? `<span class="character-ground-drop" data-ground-drop role="img" tabindex="0" aria-label="Drag an item here to drop it on the ground" data-tooltip="Drag an item here to drop it on the ground." data-tooltip-placement="below">${uiIcon('dropItem')}</span>` : ''}
-          </div><div class="character-inventory-counts"><span class="character-gold" data-gold></span></div></div>
+          </div><div class="character-inventory-counts"><span class="character-gold" data-gold></span><span class="character-honor" data-honor data-tooltip="Honor — earned in arena and battleground matches" data-tooltip-placement="below"></span><span class="character-arena-points" data-arena-points data-tooltip="Arena Points — earned in arena matches" data-tooltip-placement="below"></span></div></div>
           <div class="character-pack-toolbar"><button type="button" class="ui-button character-auto-sort" data-sort="compact">${uiIcon('sortFilter')} Auto-sort</button><div class="character-sort-options" role="group" aria-label="Sort inventory">${(['type', 'rarity', 'recent'] as const).map(mode => `<button type="button" class="ui-button ui-button--quiet" data-sort="${mode}">${mode === 'type' ? 'Type' : mode === 'rarity' ? 'Rarity' : 'Recent'}</button>`).join('')}</div></div>
           <div class="character-grid-scroll ui-item-grid-scroll">
             <div class="character-bag character-tetris" role="group" aria-label="Inventory, ${PACK_COLUMNS} columns by ${PACK_ROWS} rows">
@@ -319,6 +320,8 @@ export class InventoryPanel {
     this.text('[data-level]', number(player.level));
     this.text('[data-gear-power]', number(equippedGearPower(sheet)));
     this.text('[data-gold]', formatWallet(goldBalance(sheet)));
+    this.text('[data-honor]', `${formatPvpPoints(honorBalance(sheet))} Honor`);
+    this.text('[data-arena-points]', `${formatPvpPoints(arenaPointsBalance(sheet))} AP`);
     this.text('[data-weapon-name]', sheet.equipped.weapon?.name ?? 'Unarmed');
     this.text('[data-skill-points]', number(sheet.skillPoints));
     this.text('[data-stat-points]', number(sheet.statPoints));

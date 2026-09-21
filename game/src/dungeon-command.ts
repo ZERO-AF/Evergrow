@@ -13,6 +13,7 @@ import type { Simulation } from './simulation.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { DungeonEntrance } from './dungeon.ts';
 import { currentDungeon, createDungeonRun, compactExpeditions, type LocationContents } from './dungeon-state.ts';
+import type { PvpMatch } from './pvp-instance.ts';
 import { portalLanding, portalDepartureProblem, type PortalAnchor } from './travel.ts';
 import type { CombatEvent, WorldQuery } from './model.ts';
 import type { Building } from './settlements.ts';
@@ -24,6 +25,12 @@ import { addGroundItem } from './ground-loot.ts';
 export type DungeonAction = {kind:'rift';portalId:string;offset:number;keyId?:string;attempt:number} | {kind:'expedition';tableId:string;choice:number;attempt:number;restart?:boolean;resume?:string} | {
     kind: 'enter';
     entrance: DungeonEntrance;
+} | {
+    /** PvP match entry (wayfinder T02): no proximity gate; the entrance carries
+     * the exact return point and `match` is attached to the new run. */
+    kind: 'pvp';
+    entrance: DungeonEntrance;
+    match: PvpMatch;
 } | {
     kind: 'exit';
 } | {
@@ -64,7 +71,7 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
         x: number;
         y: number;
     };
-    if (action.kind === 'enter' || action.kind === 'return' || action.kind === 'expedition' || action.kind==='rift') {
+    if (action.kind === 'enter' || action.kind === 'pvp' || action.kind === 'return' || action.kind === 'expedition' || action.kind==='rift') {
         if (run)
             return { ok: false, message: 'Already in a dungeon.' };
         let expeditionEntrance: DungeonEntrance | undefined;
@@ -111,24 +118,27 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
             route.choice=action.choice;
             }
         }
-        const entrance = action.kind==='expedition'||action.kind==='rift' ? expeditionEntrance : action.kind === 'enter' ? action.entrance : state.runs.find(r => r.entrance.id === sim.travel.returnTo?.dungeon)?.entrance;
+        const entrance = action.kind==='expedition'||action.kind==='rift' ? expeditionEntrance : action.kind === 'enter' || action.kind === 'pvp' ? action.entrance : state.runs.find(r => r.entrance.id === sim.travel.returnTo?.dungeon)?.entrance;
         if(action.kind==='enter' && (entrance?.expedition||entrance?.rift))return {ok:false,message:'Use the expedition table.'};
+        if(action.kind==='enter' && entrance?.pvp)return {ok:false,message:'Enter through the battlemaster.'};
+        if(action.kind==='pvp' && !entrance?.pvp)return {ok:false,message:'Not a PvP entrance.'};
         if (action.kind === 'return' && sim.travel.returnTo?.town !== action.anchor.band)
             return { ok: false, message: 'Return portal unavailable.' };
         if (!entrance)
             return { ok: false, message: 'Expedition unavailable.' };
         const target = action.kind === 'return' ? action.anchor : expeditionPoint??entrance;
-        if (action.kind !== 'expedition' && action.kind!=='rift' && (Math.hypot(p.x - target.x, p.y - target.y) > 75 || !hasLineOfSight(surface, p.x, p.y, target.x, target.y)))
+        if (action.kind !== 'expedition' && action.kind!=='rift' && action.kind!=='pvp' && (Math.hypot(p.x - target.x, p.y - target.y) > 75 || !hasLineOfSight(surface, p.x, p.y, target.x, target.y)))
             return { ok: false, message: 'Move closer to the entrance.' };
         if (state.cleared?.includes(entrance.id)) return { ok: false, message: 'This dungeon has been cleared.' };
         let next = state.runs.find(r => r.entrance.id === entrance.id);
         if (!next) {
-            if (state.runs.some(r => r.states.warden.hp > 0 && !r.entrance.expedition) && action.kind!=='expedition' && action.kind!=='rift')
+            if (state.runs.some(r => (r.states.warden?.hp ?? 0) > 0 && !r.entrance.expedition) && action.kind!=='expedition' && action.kind!=='rift' && action.kind!=='pvp')
                 return { ok: false, message: 'Finish your active expedition first.' };
-            const scaling = entrance.rift ? undefined : entrance.expedition ? entrance.scaling! : encounterScaleAt(entrance.x, entrance.y, surface.seed, p.level);
+            const scaling = entrance.rift || entrance.pvp ? undefined : entrance.expedition ? entrance.scaling! : encounterScaleAt(entrance.x, entrance.y, surface.seed, p.level);
             next = createDungeonRun({ ...entrance, scaling, level: scaling?.base??entrance.level });
             state.runs.push(next);
         }
+        if(action.kind==='pvp')next.pvp=action.match;
         interruptTrial(checkpoint.events!,contents.actors);
         state.surface = contents;
         state.surfaceX = p.x;
@@ -143,14 +153,16 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
         if (!run || !state.surface)
             return { ok: false, message: 'No active dungeon.' };
         const floor = sim.dungeonFloor!;
-        if (action.kind === 'exit' && !([floor.entry, ...(run.states.warden.hp <= 0 ? [dungeonRunExit(floor,run)] : [])].some(q => Math.hypot(p.x - q.x, p.y - q.y) <= 75)))
+        if (run.entrance.pvp && action.kind !== 'exit' && action.kind !== 'death')
+            return { ok: false, message: 'There is no portaling out of a match.' };
+        if (action.kind === 'exit' && !run.entrance.pvp && !([floor.entry, ...((run.states.warden?.hp ?? 0) <= 0 ? [dungeonRunExit(floor,run)] : [])].some(q => Math.hypot(p.x - q.x, p.y - q.y) <= 75)))
             return { ok: false, message: 'Move closer to the exit.' };
         if (action.kind === 'town' && (!sim.portal.ready || action.anchor.band !== sim.travel.homeTown || portalDepartureProblem(p, sim.world)))
             return { ok: false, message: 'The portal is not ready.' };
         run.contents = contents;
         run.x = p.x;
         run.y = p.y;
-        const desired = action.kind === 'town' ? { x: action.anchor.x, y: action.anchor.y + 35 } : action.kind === 'death' && !run.rift ? { x: 0, y: 0 } : { x: run.entrance.x, y: run.entrance.y + 42 };
+        const desired = action.kind === 'town' ? { x: action.anchor.x, y: action.anchor.y + 35 } : action.kind === 'death' && !run.rift && !run.entrance.pvp ? { x: 0, y: 0 } : run.entrance.pvp ? { x: run.entrance.x, y: run.entrance.y } : { x: run.entrance.x, y: run.entrance.y + 42 };
         const landing = portalLanding(surface, desired, p.radius);
         if (!landing)
             return { ok: false, message: 'Exit is blocked.' };

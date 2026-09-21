@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
 import { activateSkill, type SkillContext } from '../src/skill-combat.ts';
-import { damageEnemy, damagePlayer } from '../src/combat-damage.ts';
+import { damageEnemy, damageCombatant } from '../src/combat-damage.ts';
 import { skillEffects, consumeRally, advanceSkillEffects, queueSkillEcho, snapshotSkillOffense, type SkillEcho } from '../src/player-skill-effects.ts';
 import { refreshCharacter } from '../src/character.ts';
 import { generateItem } from '../src/items.ts';
@@ -22,7 +22,7 @@ test('Sidestep respects movement collision without damage, invulnerability or do
 });
 test('Brace and Rally use the strongest stance while wards absorb a finite post-mitigation budget',()=>{
  const{p,context}=setup('brace');assert.ok(activateSkill(context,0));p.hp=p.maxHp=1000;
- const hurt=(amount:number)=>{p.invulnerable=0;damagePlayer(amount,0,1,'physical',{player:p,world:{},random:()=>1,emit:()=>{}});};p.derived.armor=0;hurt(100);assert.equal(p.hp,920);
+ const hurt=(amount:number)=>{p.invulnerable=0;damageCombatant(amount,0,1,'physical',{player:p,world:{},random:()=>1,emit:()=>{}});};p.derived.armor=0;hurt(100);assert.equal(p.hp,920);
  skillEffects(p).rallyOfIron={remaining:6,reduction:.25,charges:3,bonus:.35};hurt(100);assert.equal(p.hp,845,'stance reductions do not multiply');
  p.equipment.mainHand={...p.equipment.mainHand,family:'wand',attackKind:'bolt'};skillEffects(p).ward={remaining:4,capacity:50};hurt(100);assert.equal(p.hp,815);assert.equal(p.skillEffects?.ward,undefined);
  skillEffects(p).ward={remaining:4,capacity:200};const hp=p.hp;hurt(100);assert.equal(p.hp,hp);assert.equal(p.skillEffects!.ward!.capacity,120);

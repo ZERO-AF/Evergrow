@@ -238,6 +238,10 @@ export interface Player {
   cc?: EnemyCc[];
   /** Seconds of remaining immunity to incoming crowd control (cleanse/breakControl). */
   ccImmunity?: number;
+  /** WoW damage-over-time effects; live on PvP combatants (pvp-status.ts ticks them). */
+  dots?: EnemyDot[];
+  /** PvP team assignment; set only while the player fights as a match combatant. */
+  team?: 'A' | 'B';
   /** Real-time timestamp (performance.now()/1000) when the shared consumable cooldown ends. */
   consumableCooldownUntil?: number;
   // ── WoW deepening (docs/wow-deepening.md) ──
@@ -485,6 +489,8 @@ export interface Projectile {
   life: number;
   maxLife: number;
   owner: 'player' | 'enemy';
+  /** PvP: the combatant that fired this shot; its team picks the hostile set it can hit. */
+  source?: Player;
   skill?: SkillId;
   launch?: WeaponLaunch;
   effects?: ProjectileEffects;
@@ -498,6 +504,8 @@ export interface GroundEffect {
   id: number; kind: 'meteor' | 'arrowRain' | 'storm' | 'frost' | 'embers'; x: number; y: number; radius: number;
   delay: number; duration: number; interval: number; tick: number;
   damage: number; skill: SkillId; style: ProjectileStyle; offense?: HitSnapshot;
+  /** PvP: the combatant that placed this effect; its team picks the hostile set it can hit. */
+  source?: Player;
   crystal?: boolean;
   slow?: { duration: number; factor: number }; stun?: number; follow?: boolean; upkeep?: number;
   burn?: { readonly duration: number; readonly dps: number };

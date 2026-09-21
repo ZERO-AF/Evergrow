@@ -30,6 +30,8 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
         return;
     for(const boss of sim.enemies)if(boss.campMemberId==='warden'&&isWildernessBoss(boss.kind)&&boss.hp>0){if(boss.hp/boss.maxHp<.65)boss.bossPhases=(boss.bossPhases??0)|1;if(boss.hp/boss.maxHp<.3)boss.bossPhases=(boss.bossPhases??0)|2;}
     syncDungeon(run, sim.enemies, sim.player.x, sim.player.y);
+    // A match seals travel: hearthstone and town-portal channels can never complete.
+    if (run.entrance.pvp) { sim.hearthstone.cancel(); sim.portal.cancel(); }
     const floor = sim.dungeonFloor!;
     if(run.rift?.phase==='failed'||run.rift?.phase==='complete')return;
     if(run.rift?.phase==='boss')updateRiftGuardian(sim,emit);
@@ -49,7 +51,7 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
     for (const room of [...floor.rooms].sort((a, b) => Math.hypot(a.x + a.width / 2 - sim.player.x, a.y + a.height / 2 - sim.player.y) - Math.hypot(b.x + b.width / 2 - sim.player.x, b.y + b.height / 2 - sim.player.y))) {
         if (Math.hypot(room.x + room.width / 2 - sim.player.x, room.y + room.height / 2 - sim.player.y) > 2100)
             continue;
-        const members = (roster.get(room.id)??[]).filter(m => run.states[m.id].hp > 0 && (!run.rift || m.id!=='warden' || run.rift.phase==='boss') && !present.has(m.id) && (m.event===undefined || !!run.events?.[m.event]?.started && !run.events[m.event].finished && run.events[m.event].rest<=0 && run.events[m.event].wave===m.eventWave) && (!m.wave || run.states.warden.hp > 0 && ((run.states.warden.bossPhases ?? 0) & m.wave)));
+        const members = (roster.get(room.id)??[]).filter(m => run.states[m.id].hp > 0 && (!run.rift || m.id!=='warden' || run.rift.phase==='boss') && !present.has(m.id) && (m.event===undefined || !!run.events?.[m.event]?.started && !run.events[m.event].finished && run.events[m.event].rest<=0 && run.events[m.event].wave===m.eventWave) && (!m.wave || (run.states.warden?.hp ?? 0) > 0 && ((run.states.warden?.bossPhases ?? 0) & m.wave)));
         if (!members.length)
             continue;
         const event=floor.events?.find(e=>e.room===room.id);
@@ -65,7 +67,8 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
                 const point=approaches.find(p=>sim.enemies.every(e=>e.hp<=0||Math.hypot(e.x-p.x,e.y-p.y)>e.radius+radius+10));
                 if(!point)continue;s.x=point.x;s.y=point.y;
             }
-            if(!isSpawnHidden(s.x,s.y,view,radius)||sim.world.blocked(s.x,s.y,radius))continue;
+            // PvP combatants are placed at fixed spawn pads, not streamed in off-screen.
+            if ((!run.entrance.pvp && !isSpawnHidden(s.x, s.y, view, radius)) || sim.world.blocked(s.x, s.y, radius)) continue;
             const e = sim.spawnEnemy(m.kind, s.x, s.y, m.rank, { campId: run.entrance.id, memberId: m.id, lootSeed: m.seed, level: dungeonMemberLevel(run.entrance, m) });
             if (!e)
                 throw new Error('Validated dungeon spawn failed');

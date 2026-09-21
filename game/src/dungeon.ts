@@ -9,6 +9,7 @@ import { cryptContains, cryptFloorContains } from './dungeon-contours.ts';
 import type { EnemyKind, WorldQuery } from './model.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { isRaidEntranceId, raidArenaFloor } from './raid-boss-content.ts';
+import { buildPvpFloor, pvpMapIdFromEntranceId } from './pvp-floor.ts';
 import { isRaid2EntranceId, raid2ArenaFloor } from './raid2-boss-content.ts';
 import { isRaid3EntranceId, raid3ArenaFloor } from './raid3-boss-content.ts';
 import { isRaid4EntranceId, raid4ArenaFloor } from './raid4-boss-content.ts';
@@ -22,8 +23,17 @@ export interface DungeonChestTarget {
     y: number;
     index: number;
 }
+export interface PvpFloorTag {
+    mapId: string;
+    /** Team spawn pads; slot i hosts combatant i of that team. */
+    spawns: Record<'A' | 'B', readonly { x: number; y: number }[]>;
+    /** Facing/aim anchor for combatants at match start. */
+    center: { x: number; y: number };
+}
 export interface DungeonEntrance {
     rift?: RiftTag;
+    /** PvP instance tag (wayfinder T02): the registered pvp-floor map id. */
+    pvp?: { mapId: string };
     theme?: DungeonThemeId;
     expedition?: { attempt: number; stage: number; choice: number; modifier: ExpeditionModifier };
     scaling?: import('./encounter-scaling.ts').EncounterScale;
@@ -59,10 +69,14 @@ export interface DungeonMember {
     event?: number;
     eventWave?: number;
 }
-export interface DungeonProp { id: string; x: number; y: number; kind: 'sarcophagus' | 'icePillar' | 'orrery' | 'bookshelf' | 'tomb' | 'roots' | 'anvil' | 'furnace' | 'crystal' | 'pool' | 'barrel' | 'crate'; seed: number }
+export interface DungeonProp { id: string; x: number; y: number; kind: 'sarcophagus' | 'icePillar' | 'orrery' | 'bookshelf' | 'tomb' | 'roots' | 'anvil' | 'furnace' | 'crystal' | 'pool' | 'barrel' | 'crate'; seed: number;
+    /** Solid radius in px (arena pillars): blocks movement and line of sight. */
+    solid?: number }
 export interface DungeonEvent { id: number; room: number; kind: DungeonEventKind; x: number; y: number; chest: number }
 export interface DungeonFloor {
     rift?: RiftTag;
+    /** PvP map tag: spawn pads and center, set by buildPvpFloor. */
+    pvp?: PvpFloorTag;
     theme?: DungeonThemeId;
     events?: readonly DungeonEvent[];
     props?: readonly DungeonProp[];
@@ -91,7 +105,9 @@ export interface DungeonFloor {
 
 export function dungeonRandom(seed: number) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
 /** Grow a branching core, add two optional treasure leaves, then an exterior boss chamber. */
-export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<DungeonEntrance,'theme'|'expedition'|'rift'|'biome'|'id'>> = {}): DungeonFloor {
+export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<DungeonEntrance,'theme'|'expedition'|'rift'|'biome'|'id'|'pvp'>> = {}): DungeonFloor {
+    const pvpMapId=options.pvp?.mapId??pvpMapIdFromEntranceId(options.id);
+    if(pvpMapId)return buildPvpFloor(pvpMapId,seed,_level);
     if(options.rift)return buildRiftFloor(seed, options.biome??'verdant', options.rift);
     if(isRaid2EntranceId(options.id))return raid2ArenaFloor(seed,_level);
     if(isRaid3EntranceId(options.id))return raid3ArenaFloor(seed,_level);
@@ -177,9 +193,17 @@ export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<
     return Object.freeze(floor);
 }
 export function dungeonRoomAt(f: DungeonFloor, x: number, y: number): Room | undefined { return f.rooms.find(r => cryptContains(r, x, y)); }
+/** Solid props (arena pillars) block movement and line of sight on top of the room union. */
+const solidProps = new WeakMap<DungeonFloor, readonly DungeonProp[]>();
+function propBlocked(f: DungeonFloor, x: number, y: number, radius: number): boolean {
+    let props = Object.isFrozen(f) ? solidProps.get(f) : undefined;
+    if (!props) { props = (f.props ?? []).filter(p => p.solid !== undefined); if (Object.isFrozen(f)) solidProps.set(f, props); }
+    const reach = Math.max(radius, 1);
+    return props.some(p => Math.hypot(x - p.x, y - p.y) < p.solid! + reach);
+}
 export function dungeonBlocked(f: DungeonFloor, x: number, y: number, radius: number): boolean {
     if (f.rift) return riftLandscape(f).blocked(x,y,radius);
-    if (Object.isFrozen(f)) return dungeonCollision(f).blocked(x,y,radius);
+    if (Object.isFrozen(f)) return dungeonCollision(f).blocked(x,y,radius) || propBlocked(f,x,y,radius);
     if (![x, y, radius].every(Number.isFinite) || radius < 0 || radius > 1000)
         return true;
     const open = (px: number, py: number) => cryptFloorContains(f, px, py);
@@ -190,7 +214,7 @@ export function dungeonBlocked(f: DungeonFloor, x: number, y: number, radius: nu
         if (!open(x + Math.cos(a) * radius, y + Math.sin(a) * radius))
             return true;
     }
-    return false;
+    return propBlocked(f, x, y, radius);
 }
 /** Collision and navigation share the same room/corridor union. */
 export class DungeonGeometry implements WorldQuery {

@@ -6,7 +6,7 @@ import { deriveCharacterStats } from '../src/character-stats.ts';
 import { createCharacterSheet, generateItem, deriveItem, itemAffixPool, affixConflicts, ITEM_KINDS } from '../src/items.ts';
 import { WOW_CLASSES } from '../src/wow-classes.ts';
 import { ELEMENTS, RESISTANCE_STATS, RESISTANCE_AFFIXES, RESISTANCE_RULES, isResistanceStat, projectileDamageType } from '../src/resistance-content.ts';
-import { damagePlayer } from '../src/combat-damage.ts';
+import { damageCombatant } from '../src/combat-damage.ts';
 import { advanceProjectiles } from '../src/projectile-combat.ts';
 import { updateEnemyAI, type EnemyAIContext } from '../src/enemy-ai.ts';
 import { updateWildernessBoss } from '../src/wilderness-boss.ts';
@@ -31,10 +31,10 @@ test('physical damage uses source-level armor; each element ignores armor and us
   const p = setup().player; p.character.equipped.chest!.implicit = {armor:120, fireResistance:30,frostResistance:20,lightningResistance:10,arcaneResistance:40}; refreshCharacter(p);
   const context = {player:p,world,random:()=>1,emit:()=>{}};
   for (const [kind,loss] of [['physical',50],['fire',70],['frost',80],['lightning',90],['arcane',60]] as const) {
-    p.hp=100;p.invulnerable=0;p.dead=false; damagePlayer(100,0,1,kind,context); assert.equal(100-p.hp,loss,kind);
+    p.hp=100;p.invulnerable=0;p.dead=false; damageCombatant(100,0,1,kind,context); assert.equal(100-p.hp,loss,kind);
   }
-  p.hp=100;p.invulnerable=0;damagePlayer(100,0,20,'fire',context);assert.equal(p.hp,30,'resistance has no hidden zone/level penalty');
-  p.hp=100;p.invulnerable=0;damagePlayer(100,0,20,'physical',context);assert.ok(p.hp<50,'stronger physical attackers still test more armor');
+  p.hp=100;p.invulnerable=0;damageCombatant(100,0,20,'fire',context);assert.equal(p.hp,30,'resistance has no hidden zone/level penalty');
+  p.hp=100;p.invulnerable=0;damageCombatant(100,0,20,'physical',context);assert.ok(p.hp<50,'stronger physical attackers still test more armor');
 });
 
 test('resistance applies before block; caps and exactly-once immunity preserve damage and death behavior', () => {
@@ -42,9 +42,9 @@ test('resistance applies before block; caps and exactly-once immunity preserve d
   p.character.equipped.ring1.implicit={allResistance:999};p.character.equipped.ring1.affixes=[];refreshCharacter(p);
   p.guardTime=1;p.guardReduction=.8;const events:CombatEvent[]=[];
   const context={player:p,world,random:()=>1,emit:(e:CombatEvent)=>events.push(e)};
-  damagePlayer(100,0,1,'fire',context);assert.equal(p.hp,95);assert.equal(events.find(e=>e.type==='block')?.value,20);
-  damagePlayer(100,0,1,'fire',context);assert.equal(p.hp,95,'hurt immunity does not award a second hit');
-  p.invulnerable=0;p.hp=1;damagePlayer(1,0,1,'fire',context);assert.equal(p.hp,0);assert.equal(p.dead,true);
+  damageCombatant(100,0,1,'fire',context);assert.equal(p.hp,95);assert.equal(events.find(e=>e.type==='block')?.value,20);
+  damageCombatant(100,0,1,'fire',context);assert.equal(p.hp,95,'hurt immunity does not award a second hit');
+  p.invulnerable=0;p.hp=1;damageCombatant(1,0,1,'fire',context);assert.equal(p.hp,0);assert.equal(p.dead,true);
 });
 
 test('every missile style retains the correct damage channel without a live caster', () => {

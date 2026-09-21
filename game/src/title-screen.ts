@@ -19,6 +19,7 @@ import type { UIIconName } from './ui-icons.ts';
 import { previewCharacter } from './character-summary.ts';
 import { drawCharacterPortrait } from './character-portrait.ts';
 import { createAppearanceEditor, type AppearanceEditor } from './character-editor.ts';
+import type { PvpPanelHandle } from './pvp-panel.ts';
 import type { CharacterSave } from './character-save.ts';
 import type { SaveSlot } from './character-storage.ts';
 import type { SaveMode, SaveSourceUI } from './save-hub.ts';
@@ -44,10 +45,12 @@ export interface TitleActions extends AudioControlActions {
   read?(index: number): Promise<SaveSlot>; source?(mode: SaveMode): void;
   retry?(): void;
   download?(index: number): void; import?(index: number, file: File): void; useCloud?(index: number, expected: string | null): void;
+  /** Mounts the PvP setup wizard in the home library; absent = no Arena nav entry. */
+  arena?(mount: HTMLElement, close: () => void): PvpPanelHandle;
 }
-export type HomePage = 'characters' | 'chronicle' | 'leaderboard' | 'changelog';
-const homePages: readonly HomePage[] = ['characters','chronicle','leaderboard','changelog'];
-const homeLabels = { characters: 'Characters', chronicle: 'Chronicle', leaderboard: 'Leaderboard', changelog: 'What’s new' };
+export type HomePage = 'characters' | 'chronicle' | 'leaderboard' | 'changelog' | 'arena';
+const homePages: readonly HomePage[] = ['characters','chronicle','leaderboard','changelog','arena'];
+const homeLabels = { characters: 'Characters', chronicle: 'Chronicle', leaderboard: 'Leaderboard', changelog: 'What’s new', arena: 'Arena' };
 const format = (n: number) => Math.round(n).toLocaleString('en-US');
 interface CreationDraft { classId?: WowClassId; raceId?: WowRaceId; look: CharacterLook; }
 const roleIcons: Record<string, UIIconName> = {
@@ -62,6 +65,7 @@ export class TitleScreen {
   readonly element: HTMLDivElement;
   private readonly changelog: ChangelogPanel;
   private readonly leaderboard: LeaderboardPanel;
+  private readonly arena?: PvpPanelHandle;
   private page: HomePage = 'characters';
   private audioPad = new GamepadMenu();
   private readonly itemTooltip: ItemTooltip;
@@ -120,6 +124,8 @@ export class TitleScreen {
     this.changelog = new ChangelogPanel(library, () => this.selectPage('characters'), true);
     this.chronicle = new ChroniclePanel(library, () => this.selectPage('characters'), true);
     this.leaderboard = new LeaderboardPanel(library, order => actions.leaderboard?.(order) ?? Promise.reject(new Error('The leaderboard is available in the online game.')), () => this.selectPage('characters'));
+    this.arena = actions.arena?.(library, () => this.selectPage('characters'));
+    this.element.querySelector<HTMLElement>('[data-home-page=arena]')!.hidden = !this.arena;
     try { this.element.querySelector<HTMLElement>('.home-unread')!.hidden = localStorage.getItem('evergrow:last-update-seen') === latestChangelogVersion; } catch { /* Optional read marker. */ }
     this.element.querySelector<HTMLElement>('.title-transfer')!.hidden = !actions.download && !actions.import;
     this.element.addEventListener('pointerdown', () => this.element.classList.remove('is-controller'), { signal: this.abort.signal });
@@ -260,7 +266,7 @@ export class TitleScreen {
     this.element.inert=open;this.element.style.visibility=open?'hidden':'';
     if(!open&&!this.element.hidden)this.focus=trapDialogFocus(this.element,{signal:this.abort.signal,restoreFocus:false,initialFocus:()=>this.element.querySelector(restoreAppearance ? '[data-action="appearance"]' : `[data-slot="${this.selected}"]`)});
   }
-  private availablePages() { return homePages.filter(page=>page!=='leaderboard'||this.source.supported); }
+  private availablePages() { return homePages.filter(page=>(page!=='leaderboard'||this.source.supported)&&(page!=='arena'||!!this.arena)); }
   private initialSelectionFocus(): HTMLElement | null {
     return this.element.querySelector(`[data-slot="${this.selected}"]`) ?? this.element.querySelector(`[data-source="${this.source.mode}"]`);
   }
@@ -272,7 +278,7 @@ export class TitleScreen {
     if (page === this.page && this.element.dataset.homePage === page) return;
     this.itemTooltip.hide();
     if(page==='leaderboard'&&!this.source.supported)return;
-    this.changelog.close(false);this.chronicle.close(false);this.leaderboard.close();
+    this.changelog.close(false);this.chronicle.close(false);this.leaderboard.close();this.arena?.close();
     if (this.page !== page) this.actions.panelSound?.(page !== 'characters');
     this.page=page;this.element.dataset.homePage=page;
     this.element.querySelector<HTMLElement>('.title-roster')!.inert=page!=='characters';
@@ -285,6 +291,7 @@ export class TitleScreen {
       this.changelog.open();this.element.querySelector<HTMLElement>('.home-unread')!.hidden=true;
       try{localStorage.setItem('evergrow:last-update-seen',latestChangelogVersion);}catch{/* Optional read marker. */}
     }
+    if(page==='arena')this.arena?.open();
     if(focus)this.element.querySelector<HTMLElement>(`[data-home-page="${page}"]`)?.focus({preventScroll:true});
   }
   dismissOverlay(): boolean {
@@ -323,7 +330,8 @@ export class TitleScreen {
       const pages=this.availablePages(),delta=pad.pressed.has(PAD.potion)?-1:1;
       this.selectPage(pages[(pages.indexOf(this.page)+delta+pages.length)%pages.length]);return true;
     }
-    return this.chronicle.updateGamepad(pad,now)||this.changelog.updateGamepad(pad,now)||this.leaderboard.updateGamepad(pad,now);
+    return this.chronicle.updateGamepad(pad,now)||this.changelog.updateGamepad(pad,now)||this.leaderboard.updateGamepad(pad,now)
+      ||(this.page==='arena'&&this.arena?.updateGamepad?.(pad,now)===true);
   }
   refreshSelected() { this.message(''); this.choose(this.selected, false, true); }
   private choose(index: number, focus = true, refresh = false) {
@@ -350,8 +358,8 @@ export class TitleScreen {
     target.textContent = text; target.hidden = !text;
     if (retry) target.insertAdjacentHTML('beforeend', ' <button class="ui-button" data-action="refresh-selection">Retry</button>');
   }
-  close() { this.closeAppearanceEditor(); this.itemTooltip.hide(); this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; cancelAnimationFrame(this.frame); this.frame = 0; }
-  dispose() { this.close(); this.portraitObserver.disconnect(); this.itemTooltip.dispose(); this.changelog.dispose(); this.chronicle.dispose(); this.leaderboard.dispose(); this.abort.abort(); this.element.remove(); }
+  close() { this.closeAppearanceEditor(); this.itemTooltip.hide(); this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.arena?.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; cancelAnimationFrame(this.frame); this.frame = 0; }
+  dispose() { this.close(); this.portraitObserver.disconnect(); this.itemTooltip.dispose(); this.changelog.dispose(); this.chronicle.dispose(); this.leaderboard.dispose(); this.arena?.dispose(); this.abort.abort(); this.element.remove(); }
   private rollSeed() { const value = String(crypto.getRandomValues(new Uint32Array(1))[0]); this.seedDrafts.set(this.selected, value); return value; }
   private validateSeed(input: HTMLInputElement) { const seed = parseWorldSeed(input.value); input.setCustomValidity(seed === null ? 'Use a whole number from 0 to 4294967295.' : ''); return seed; }
   private render() {

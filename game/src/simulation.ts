@@ -51,9 +51,9 @@ import { chooseEncounterEnemy, ENCOUNTER_RULES } from './encounter-director.ts';
 import { circleIntersectsSector, segmentDistanceSquared, hasLineOfSight } from './combat-geometry.ts';
 import { refreshCharacter } from './character.ts';
 import { createCharacterSheet, TIER_COLORS } from './items.ts';
-import { deriveCharacterStats } from './character-stats.ts';
+import { damageEnemy, damageCombatant } from './combat-damage.ts';
 import { addInventoryItem } from './inventory.ts';
-import { damageEnemy, damagePlayer } from './combat-damage.ts';
+import { deriveCharacterStats } from './character-stats.ts';
 import { tryProc, tryTriggerProc, tryDefensiveProc, type ProcContext } from './legendary-combat.ts';
 import { awardKillRewards } from './combat-rewards.ts';
 import { advanceEnemyStatuses, applyDot as applyDotStatus, applyCc as applyCcStatus, applySunder as applySunderStatus, applyStun, applySlow } from './combat-status.ts';
@@ -98,6 +98,10 @@ import { DEMON_FAMILIES, PET_SKILLS, PET_RULES, adoptPet, adjustPetLoyalty, crea
   petFamilyForAlly, petStatsFor, stableActivePet, tameableFamily, type PetRecord, type PetSkill } from './pet-content.ts';
 import { worldEventOnKill } from './world-event-command.ts';
 import { GHOST_RULES, RESURRECTION_SICKNESS, type GhostState } from './death-content.ts';
+import { asCombatant, releaseCombatant, isCombatant, type Combatant, type PvpTeam, type ActorControl } from './pvp-combatant.ts';
+import { decideCombatantInput } from './pvp-ai.ts';
+import { advanceCombatantStatuses, combatantControl, sanitizeCombatantInput } from './pvp-status.ts';
+import { projectileDamageType } from './resistance-content.ts';
 import { PlayerMovement } from './player-movement.ts';
 
 export const FIXED_STEP = COMBAT_TIMING.fixedStep;
@@ -215,6 +219,20 @@ export class Simulation {
   private combatViewport: CombatViewport | null = null;
   private spawnExclusion: SpawnExclusion | null = null;
   private killRecharge = 0;
+  /** PvP match roster (arena/battleground); combatant[0] is the real player on team 'A'.
+   * While set, the sim drives every combatant through the player pipeline and a
+   * combatant death becomes a corpse instead of the defeat flow. */
+  pvpCombatants: Combatant[] | null = null;
+  /** The real player object while a PvP match runs (=== pvpCombatants[0]). */
+  private pvpPlayer: Combatant | null = null;
+  /** Hostile list for the combatant whose turn is currently running. */
+  private turnHostiles: Enemy[] | null = null;
+  /** Owning combatant per chain flight (ChainFlight has no source field). */
+  private chainSources = new Map<ChainFlight, Player>();
+  /** PvP match bookkeeping (T06): fired once per landed combatant hit with the
+   * attacker, victim and hp actually removed. The match loop (pvp-match.ts) sets
+   * it while a match is live; leavePvp clears it. Null outside matches. */
+  pvpDamageSink: ((source: Player | undefined, target: Combatant, dealt: number) => void) | null = null;
   private combatUntil = 0;
   private resourceInitialized = false;
   private allySkillCooldowns = new Map<number, Map<string, number>>();
@@ -255,6 +273,8 @@ export class Simulation {
     this.attackBuffer = this.dodgeBuffer = this.healBuffer = -1;
     this.hurtGuard = this.killRecharge = 0;
     this.allySkillCooldowns.clear();
+    this.pvpCombatants = null; this.pvpPlayer = null; this.turnHostiles = null;
+    this.chainSources.clear();
     this.ghost = null;
     this.spawnExclusion = null; this.combatViewport = null;
     this.roaming.reset(this.player.x, this.player.y);
@@ -435,6 +455,117 @@ export class Simulation {
     this.spawnExclusion = null; this.combatViewport = null; this.roaming.relocate(x, y);
   }
 
+  // ── PvP combatants (wayfinder/pvp-t01) ────────────────────────────────────
+
+  /** Enter a PvP match: the real player becomes combatant[0] on team 'A' and the
+   * given NPC players join as AI-driven combatants. While active, update() keeps
+   * stepping after the player's death (corpse/spectator) and every combatant runs
+   * the same input→fixed-step pipeline. */
+  enterPvp(npcs: Player[], teams: PvpTeam[] = []): Combatant[] {
+    const roster: Combatant[] = [asCombatant(this.player, this.nextId++, 'A')];
+    npcs.forEach((npc, index) => roster.push(asCombatant(npc, this.nextId++, teams[index] ?? 'B')));
+    this.pvpCombatants = roster;
+    this.pvpPlayer = roster[0]!;
+    return roster;
+  }
+
+  /** Leave the match: strips the combatant surface off the player and clears
+   * in-flight sources so lingering projectiles/ground effects harm no one. */
+  leavePvp(): void {
+    if (!this.pvpCombatants) return;
+    releaseCombatant(this.player);
+    this.pvpCombatants = null; this.pvpPlayer = null; this.turnHostiles = null; this.pvpDamageSink = null;
+    for (const shot of this.projectiles) delete shot.source;
+    for (const effect of this.groundEffects) delete effect.source;
+    this.chainSources.clear();
+  }
+
+  /** The combatant's own control bag; the real player's lives on the sim fields
+   * outside a match, so its bag is only canonical while pvpCombatants is set. */
+  private controlFor(actor: Player): ActorControl | null {
+    return isCombatant(actor) ? actor.ai.control : null;
+  }
+
+  /** Hostile targets for one actor: opposing combatants plus world mobs. */
+  private hostileTargets(actor: Player): Enemy[] {
+    if (!this.pvpCombatants || !isCombatant(actor)) return this.enemies;
+    const foes = this.pvpCombatants.filter(other => other.team !== actor.team);
+    return this.enemies.length ? [...foes, ...this.enemies] : foes;
+  }
+
+  /** The target list the current actor's combat code reads. */
+  private activeTargets(): Enemy[] {
+    return this.turnHostiles ?? (this.pvpPlayer ? this.hostileTargets(this.pvpPlayer) : this.enemies);
+  }
+
+  /** Runs fn with the sim's per-actor state swapped to `actor`: player, hostile
+   * list, input buffers, movement steering and ally cooldowns. */
+  private withActor<T>(actor: Combatant, fn: () => T): T {
+    const savedPlayer = this.player, savedEnemies = this.enemies;
+    const savedSkillBuffer = this.skillBuffer, savedBlockedDraw = this.blockedDrawSlot;
+    const savedAttack = this.attackBuffer, savedDodge = this.dodgeBuffer, savedHeal = this.healBuffer;
+    const savedHurtGuard = this.hurtGuard, savedCombatUntil = this.combatUntil;
+    const savedResourceInit = this.resourceInitialized;
+    const savedMovement = this.playerMovement, savedAllyCooldowns = this.allySkillCooldowns;
+    const savedTurnHostiles = this.turnHostiles;
+    const control = actor.ai.control;
+    this.player = actor;
+    this.enemies = this.turnHostiles = this.hostileTargets(actor);
+    this.skillBuffer = control.skillBuffer; this.blockedDrawSlot = control.blockedDrawSlot;
+    this.attackBuffer = control.attackBuffer; this.dodgeBuffer = control.dodgeBuffer; this.healBuffer = control.healBuffer;
+    this.hurtGuard = control.hurtGuard; this.combatUntil = control.combatUntil;
+    this.resourceInitialized = control.resourceInitialized;
+    this.playerMovement = control.movement; this.allySkillCooldowns = control.allySkillCooldowns;
+    try {
+      return fn();
+    } finally {
+      control.skillBuffer = this.skillBuffer; control.blockedDrawSlot = this.blockedDrawSlot;
+      control.attackBuffer = this.attackBuffer; control.dodgeBuffer = this.dodgeBuffer; control.healBuffer = this.healBuffer;
+      control.hurtGuard = this.hurtGuard; control.combatUntil = this.combatUntil;
+      control.resourceInitialized = this.resourceInitialized;
+      this.player = savedPlayer; this.enemies = savedEnemies;
+      this.skillBuffer = savedSkillBuffer; this.blockedDrawSlot = savedBlockedDraw;
+      this.attackBuffer = savedAttack; this.dodgeBuffer = savedDodge; this.healBuffer = savedHeal;
+      this.hurtGuard = savedHurtGuard; this.combatUntil = savedCombatUntil;
+      this.resourceInitialized = savedResourceInit;
+      this.playerMovement = savedMovement; this.allySkillCooldowns = savedAllyCooldowns;
+      this.turnHostiles = savedTurnHostiles;
+    }
+  }
+
+  /** Combat-clock bump for rage/runic decay, written to the actor's own bag. */
+  private bumpCombat(actor: Player): void {
+    const until = this.time + WOW_COMBAT.rageDecayDelay;
+    const control = this.controlFor(actor);
+    if (actor === this.player || !control) this.combatUntil = until;
+    else control.combatUntil = until;
+  }
+
+  /** Player-shaped damage entry: armor/resist/absorb/block mitigation, then the
+   * PvP corpse rule. `source` owns combat-clock credit and leech-style procs. */
+  private damageCombatant(target: Player, amount: number, angle: number, sourceLevel: number, damageType: DamageType,
+    periodic = false, style?: ProjectileStyle, source?: Player, kind?: EnemyKind): boolean {
+    const hpBefore = target.hp;
+    const landed = damageCombatant(amount, angle, sourceLevel, damageType, {
+      player: target, world: this.world, random: () => this.random(), emit: event => this.emit(event),
+      addBuff: (name, color, spec, id) => this.addBuffTo(target, name, color, spec, id),
+      defensiveProc: (player, context) => tryDefensiveProc(player, context),
+      wardBurst: burst => {
+        this.emit({ type: 'blast', x: target.x, y: target.y, radius: burst.radius, style: 'arcane', skill: 'runicWard', color: '#d98eda' });
+        strikeContainers(this.containerContext(), target.x, target.y, burst.radius);
+        for (const enemy of this.hostileTargets(target)) if (enemy.state !== 'dead'
+          && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= burst.radius + enemy.radius
+          && this.lineOfSight(target.x, target.y, enemy.x, enemy.y))
+          this.damageEnemy(enemy, burst.damage, Math.atan2(enemy.y - target.y, enemy.x - target.x), false, false, 'arcane', undefined, burst.offense, false, target);
+      },
+    }, kind, periodic, style);
+    if (!landed) return false;
+    if (this.pvpDamageSink && isCombatant(target)) this.pvpDamageSink(source, target, hpBefore - target.hp);
+    this.bumpCombat(source ?? this.player);
+    this.bumpCombat(target);
+    return true;
+  }
+
   /** Automatic population waits for the camera's current/pending visible envelope. */
   setSpawnExclusion(bounds: { x: number; y: number; width: number; height: number } | null): void {
     this.spawnExclusion = bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
@@ -486,9 +617,10 @@ export class Simulation {
 
   // ── WoW combat model (docs/wow-transformation.md) ──────────────────────
 
-  /** Live enemy for an id, or undefined when dead/absent. */
+  /** Live hostile for an id, or undefined when dead/absent. In a PvP turn the
+   * swapped-in list already holds the acting combatant's foes. */
   private targetEnemy(id: number | null | undefined): Enemy | undefined {
-    return id == null ? undefined : this.enemies.find(enemy => enemy.id === id && enemy.state !== 'dead');
+    return id == null ? undefined : this.activeTargets().find(enemy => enemy.id === id && enemy.state !== 'dead');
   }
 
   /** Select or clear the current target; switching drops combo points, clearing drops auto-attack. */
@@ -503,7 +635,7 @@ export class Simulation {
   /** Tab cycle: the near fight cluster wraps; the distant fallback is reached only when it is empty. */
   tabTarget(step: 1 | -1 = 1): number | null {
     const p = this.player;
-    const ranked = this.enemies.filter(enemy => enemy.state !== 'dead'
+    const ranked = this.activeTargets().filter(enemy => enemy.state !== 'dead'
       && Math.hypot(enemy.x - p.x, enemy.y - p.y) <= TAB_TARGETING.queryRadius)
       .map(enemy => {
         const d = Math.hypot(enemy.x - p.x, enemy.y - p.y);
@@ -566,9 +698,11 @@ export class Simulation {
     applyDotStatus(enemy, id, spec, baseDamage, 'player');
   }
 
-  /** WoW crowd control; breakOnDamage defaults per kind inside combat-status. */
+  /** WoW crowd control; breakOnDamage defaults per kind inside combat-status.
+   * Combatant targets additionally lose any cast in progress (WoW interrupt rule). */
   applyCc(enemy: Enemy, kind: CcKind, duration: number, breakOnDamage?: boolean, factor?: number): void {
     applyCcStatus(enemy, kind, duration, breakOnDamage, factor);
+    if (isCombatant(enemy) && kind !== 'root' && kind !== 'slow') enemy.cast = null;
   }
 
   /** Sunder/expose: the enemy takes bonus damage while it lasts. */
@@ -578,7 +712,12 @@ export class Simulation {
 
   /** Player buff entry; an exclusiveGroup replaces any buff in the same group. */
   addBuff(name: string, color: string, spec: BuffSpec, id = name): void {
-    const p = this.player, buffs = p.buffs ??= [];
+    this.addBuffTo(this.player, name, color, spec, id);
+  }
+
+  /** Buff entry on an explicit actor — defensive procs and PvP combatants need it. */
+  addBuffTo(p: Player, name: string, color: string, spec: BuffSpec, id = name): void {
+    const buffs = p.buffs ??= [];
     if (spec.exclusiveGroup) for (let i = buffs.length - 1; i >= 0; i--) if (buffs[i]!.exclusiveGroup === spec.exclusiveGroup) {
       restoreFormResource(p, buffs[i]!);
       buffs.splice(i, 1);
@@ -684,7 +823,7 @@ export class Simulation {
    * event guardians are marked dead — without kill rewards. */
   tameBeast(enemy: Enemy): 'tamed' | 'untameable' | 'full' {
     const p = this.player;
-    if (enemy.state === 'dead' || !tameableFamily(enemy.kind) || enemy.rank === 'elite'
+    if (enemy.state === 'dead' || isCombatant(enemy) || !tameableFamily(enemy.kind) || enemy.rank === 'elite'
       || enemy.bossPhases !== undefined || isBossKind(enemy.kind)) return 'untameable';
     let stable = p.character.pets ?? freshPetStable();
     if (stable.active) {
@@ -752,7 +891,7 @@ export class Simulation {
       availableGroundEffects: GROUND_EFFECT_RULES.maximum - this.groundEffects.length
         - this.projectiles.filter(shot => shot.life > 0 && (shot.effects?.groundDuration || shot.effects?.shatter)).length,
       availableProjectiles: MAX_PROJECTILES - this.projectiles.length,
-      player: p, world: this.world, enemies: this.enemies,
+      player: p, world: this.world, enemies: this.activeTargets(),
       aimX: input.aimX, aimY: input.aimY,
       onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
       damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense),
@@ -768,6 +907,7 @@ export class Simulation {
     const p = this.player, id = this.skillIdForSlot(slot);
     if (!id) return false;
     if (!activateSkill(this.skillContext(input), slot)) return false;
+    if (this.pvpCombatants) for (const flight of this.chains) if (!this.chainSources.has(flight)) this.chainSources.set(flight, p);
     tryTriggerProc(p, 'onCast', this.procContext());
     const kind = SKILL_EXECUTION[id]?.kind;
     // Non-damaging control that requires stealth (Sap) is not offensive and keeps stealth.
@@ -793,6 +933,7 @@ export class Simulation {
     context.prepaid = true;
     if (cast && cast.x !== undefined) { context.aimX = cast.x; context.aimY = cast.y!; }
     const ok = activateSkill(context, slot);
+    if (ok && this.pvpCombatants) for (const flight of this.chains) if (!this.chainSources.has(flight)) this.chainSources.set(flight, p);
     p.targetId = prevTarget;
     if (!ok) return false;
     const kind = SKILL_EXECUTION[id]?.kind;
@@ -805,17 +946,33 @@ export class Simulation {
   }
 
   update(dt: number, input: Input): void {
-    if (!Number.isFinite(dt) || dt <= 0 || this.player.dead) return;
+    if (!Number.isFinite(dt) || dt <= 0 || (this.player.dead && !this.pvpCombatants)) return;
     // A released spirit moves only: no combat, targeting, potions or channels.
     if (this.ghost) input = { moveX: input.moveX, moveY: input.moveY, aimX: input.aimX, aimY: input.aimY,
       attack: false, dodge: false, heal: false, skillSlot: null, targetId: null };
+    // In a PvP match the player's edges resolve against hostile combatants; its
+    // control state lives in the combatant bag, so the swap is required here too.
+    if (this.pvpCombatants && this.pvpPlayer && !this.pvpPlayer.dead)
+      this.withActor(this.pvpPlayer, () => this.applyInputEdges(input));
+    else if (!this.pvpCombatants) this.applyInputEdges(input);
+    // Bound catch-up after a suspended tab; normal frames always run at 120 Hz.
+    this.accumulator += Math.min(dt, 0.25);
+    while (this.accumulator + 1e-10 >= FIXED_STEP && (!this.player.dead || !!this.pvpCombatants)) {
+      this.accumulator -= FIXED_STEP;
+      this.step(FIXED_STEP, input);
+      if (this.portal.ready || this.eventChannel.ready || this.hearthstone.ready) { this.accumulator = 0; break; }
+    }
+  }
+
+  /** Per-frame input edges: targeting, attack/dodge/heal buffers and the skill
+   * press buffer. Runs against whichever actor's control state is swapped in. */
+  private applyInputEdges(input: Input): void {
     if (input.targetId !== undefined) this.setTarget(input.targetId);
     if (input.cycleTarget) this.tabTarget(input.cycleTarget);
     if (input.attack) {
       this.attackBuffer = this.time + COMBAT_TIMING.attackBuffer;
       // LMB with a live target toggles auto-attack on; a free-aim press turns it off.
-      const target = this.player.targetId != null ? this.enemies.find(enemy => enemy.id === this.player.targetId) : undefined;
-      this.player.autoAttack = !!target && target.state !== 'dead';
+      this.player.autoAttack = !!this.targetEnemy(this.player.targetId);
     }
     if (input.dodge) this.dodgeBuffer = this.time + COMBAT_TIMING.inputBuffer;
     if (this.skillBuffer && this.skillBuffer.until < this.time) this.skillBuffer = null;
@@ -828,13 +985,6 @@ export class Simulation {
       this.skillBuffer = { slot: input.skillSlot, until: this.time + recovery + COMBAT_TIMING.inputBuffer, pressed };
     }
     if (input.heal) this.healBuffer = this.time + COMBAT_TIMING.inputBuffer;
-    // Bound catch-up after a suspended tab; normal frames always run at 120 Hz.
-    this.accumulator += Math.min(dt, 0.25);
-    while (this.accumulator + 1e-10 >= FIXED_STEP && !this.player.dead) {
-      this.accumulator -= FIXED_STEP;
-      this.step(FIXED_STEP, input);
-      if (this.portal.ready || this.eventChannel.ready || this.hearthstone.ready) { this.accumulator = 0; break; }
-    }
   }
 
   /** Useful for authored encounters and deterministic headless tests. */
@@ -879,23 +1029,18 @@ export class Simulation {
     // Decrement before damage resolves so every new impact gets a full flash.
     this.player.hitFlash = Math.max(0, this.player.hitFlash - dt);
     for (const enemy of this.enemies) enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+    if (this.pvpCombatants) for (const combatant of this.pvpCombatants) combatant.hitFlash = Math.max(0, combatant.hitFlash - dt);
     this.time += dt; metric(this.player.chronicle,'time',dt);
     const history=this.player.chronicle?.sources.find(s=>s.id===this.player.chronicle?.active);
     if(history)metric(this.player.chronicle,'longestLife',(history.values.time??0)-(history.values.highestDeathTime??0));
     if (input.attack) this.attackBuffer = this.time + COMBAT_TIMING.attackBuffer;
     const beforeX=this.player.x,beforeY=this.player.y;
-    this.updatePlayer(dt, input);
+    if (this.pvpCombatants) this.updateCombatants(dt, input); else this.updatePlayer(dt, input);
     metric(this.player.chronicle,'distance',Math.hypot(this.player.x-beforeX,this.player.y-beforeY));
     if(!this.dungeonFloor&&Math.floor(this.time)!==Math.floor(this.time-dt)) metric(this.player.chronicle,'seen:biome:'+sampleBiome(this.player.x,this.player.y,this.options.seed!).id,1);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
-    advanceChains(this.chains, dt, {
-      player: this.player, enemies: this.enemies,
-      onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-      visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-      damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense),
-      emit: event => this.emit(event),
-    });
+    this.advanceChains(dt);
     this.updateGroundEffects(dt);
     this.engagements.update(this.enemies, this.time, event => this.emit(event));
     this.updatePickups(dt);
@@ -904,7 +1049,7 @@ export class Simulation {
       this.collectSelectedGroundItem();
     }
     syncTrial(this.eventState, this.enemies);
-    if (this.player.dead) {
+    if (this.player.dead && !this.pvpCombatants) {
       interruptTrial(this.eventState,this.enemies);
       // A death may clear input midway through this tick; freeze its final poses.
       this.travel.returnTo = null; this.portal.cancel(); this.eventChannel.cancel(); this.hearthstone.cancel();
@@ -952,6 +1097,10 @@ export class Simulation {
       enemy.prevX = enemy.x;
       enemy.prevY = enemy.y;
     }
+    if (this.pvpCombatants) for (const combatant of this.pvpCombatants) {
+      combatant.prevX = combatant.x;
+      combatant.prevY = combatant.y;
+    }
     for (const projectile of this.projectiles) {
       projectile.prevX = projectile.x;
       projectile.prevY = projectile.y;
@@ -966,8 +1115,12 @@ export class Simulation {
       this.resourceInitialized = true;
       if (wowClass && wowClass.resource !== 'mana') p.mana = wowClass.resource === 'energy' ? resourceCap : 0;
     }
-    if (wowClass && wowClass.resource !== 'mana') p.maxMana = wowClass.resourceCap;
     if (this.ghost) { p.autoAttack = false; p.targetId = null; p.cast = null; }
+    // PvP combatant control state: stun/freeze/polymorph suppress every action and
+    // break casts/swings; silence blocks skills; root blocks movement input.
+    const control = isCombatant(p) ? combatantControl(p) : null;
+    const cantAct = !!control?.cantAct, rooted = !!control?.rooted, silenced = !!control?.silenced;
+    if (cantAct) { p.attack = null; p.cast = null; }
     if (p.targetId != null && !this.targetEnemy(p.targetId)) { p.targetId = null; p.autoAttack = false; p.comboPoints = 0; }
     advanceWowBuffs(p, dt, resourceCap);
     p.locomotionVX = p.locomotionVY = 0;
@@ -984,11 +1137,11 @@ export class Simulation {
     advanceAffixBuffs(p, dt);
     advanceSkillEffects(p,dt,echo=>{if(this.world.blocked(echo.x,echo.y,echo.definition.radius))return true;const shot=this.projectile(echo.x,echo.y,echo.angle,echo.definition,'ghostHunt',echo.effects);if(shot)delete shot.launch;return !!shot;});
     for (const id of Object.keys(p.skillCooldowns) as SkillId[]) p.skillCooldowns[id] = Math.max(0, p.skillCooldowns[id]! - dt);
-    advanceAuras(p,this.enemies,dt,Math.hypot(input.moveX,input.moveY)>.01||!!p.dash||p.dodgeTime>0,
+    advanceAuras(p,this.activeTargets(),dt,Math.hypot(input.moveX,input.moveY)>.01||!!p.dash||p.dodgeTime>0,
       (ax,ay,bx,by)=>this.lineOfSight(ax,ay,bx,by),
-      (e,damage,style)=>this.damageEnemy(e,damage,Math.atan2(e.y-p.y,e.x-p.x),false,true,style),
+      (e,damage,style)=>this.damageEnemy(e,damage,Math.atan2(e.y-p.y,e.x-p.x),false,true,style,undefined,undefined,false,p),
       (style,radius)=>this.emit({type:'blast',x:p.x,y:p.y,radius,style,skill:'elementalSpikes'}));
-    for(const e of this.enemies)if(e.auraExposure)for(const [key,exposure] of Object.entries(e.auraExposure))if((exposure.remaining-=dt)<=0)delete e.auraExposure[key as keyof typeof e.auraExposure];
+    for(const e of this.activeTargets())if(e.auraExposure)for(const [key,exposure] of Object.entries(e.auraExposure))if((exposure.remaining-=dt)<=0)delete e.auraExposure[key as keyof typeof e.auraExposure];
     p.healFlash = Math.max(0, p.healFlash - dt);
     if (!wowClass || wowClass.resource === 'mana') {
       metric(p.chronicle,'manaRestored',Math.min(resourceCap-p.mana,p.derived.manaRegeneration*dt));
@@ -1017,7 +1170,7 @@ export class Simulation {
     // Targeted casts and auto-attack keep the player squared on the target.
     const faceTarget = this.targetEnemy(p.cast?.targetId ?? (p.autoAttack ? p.targetId : null));
     if (faceTarget) p.angle = Math.atan2(faceTarget.y - p.y, faceTarget.x - p.x);
-    if (this.healBuffer >= this.time && p.flasks > 0 && (p.hp < p.maxHp || p.mana < manaCapacity(p)) && p.healCooldown <= 0) {
+    if (!cantAct && this.healBuffer >= this.time && p.flasks > 0 && (p.hp < p.maxHp || p.mana < manaCapacity(p)) && p.healCooldown <= 0) {
       const healed = Math.min(p.maxHp * PLAYER_ABILITIES.potion.lifeFraction * p.derived.potionMultiplier, p.maxHp - p.hp);
       const mana = Math.min(p.maxMana * PLAYER_ABILITIES.potion.manaFraction * p.derived.potionMultiplier, manaCapacity(p) - p.mana);
       p.hp += healed; p.mana += mana;
@@ -1066,7 +1219,7 @@ export class Simulation {
 
     const canCancel = (!p.attack || p.attack.elapsed >= p.attack.activeEnd) && p.castTime <= (p.castDuration * SKILL_CAST_MOTION.releaseRemainingFraction);
       mountOnOffense(this);
-    if (this.dodgeBuffer >= this.time && p.dodgeTime <= 0 && p.dodgeCharges > 0 && canCancel) {
+    if (!cantAct && this.dodgeBuffer >= this.time && p.dodgeTime <= 0 && p.dodgeCharges > 0 && canCancel) {
       const moving = Math.hypot(input.moveX, input.moveY) > 0.01;
       p.dodgeAngle = moving ? Math.atan2(input.moveY, input.moveX) : p.angle;
       p.dodgeTime = PLAYER_ABILITIES.dodge.duration;
@@ -1128,17 +1281,17 @@ export class Simulation {
     }
 
 
-    if (this.skillBuffer && this.skillBuffer.until >= this.time && this.invokeSkillSlot(this.skillBuffer.slot, input)) {
+    if (!cantAct && !silenced && this.skillBuffer && this.skillBuffer.until >= this.time && this.invokeSkillSlot(this.skillBuffer.slot, input)) {
       this.skillBuffer = null; if(p.skillEffects)delete p.skillEffects.draw;
     }
 
-    if (p.dodgeTime <= 0 && p.castTime <= 0 && !p.cast && !p.dash && !p.skillEffects?.draw && this.attackBuffer >= this.time && !p.attack) {
+    if (!cantAct && p.dodgeTime <= 0 && p.castTime <= 0 && !p.cast && !p.dash && !p.skillEffects?.draw && this.attackBuffer >= this.time && !p.attack) {
       this.startAttack(completedAttackTime);
       this.attackBuffer = -1;
     }
 
     // Auto-attack repeats the basic swing on the current target inside weapon reach.
-    if (p.autoAttack && p.targetId != null && !p.attack && !p.dash && !p.cast && p.dodgeTime <= 0 && p.castTime <= 0) {
+    if (!cantAct && p.autoAttack && p.targetId != null && !p.attack && !p.dash && !p.cast && p.dodgeTime <= 0 && p.castTime <= 0) {
       const target = this.targetEnemy(p.targetId);
       if (target) {
         p.angle = Math.atan2(target.y - p.y, target.x - p.x);
@@ -1150,7 +1303,7 @@ export class Simulation {
     let targetVX = 0;
     let targetVY = 0;
     const movementX = p.x, movementY = p.y;
-    const walking = !p.dash && p.dodgeTime <= 0 && Math.hypot(input.moveX, input.moveY) > .01;
+    const walking = !rooted && !p.dash && p.dodgeTime <= 0 && Math.hypot(input.moveX, input.moveY) > .01;
     if (p.dash) {
       const dash = p.dash, startX = p.x, startY = p.y, delta = Math.min(dt, dash.remaining);
       const steps = Math.max(1, Math.ceil(dash.speed * delta / 4));
@@ -1159,7 +1312,7 @@ export class Simulation {
           Math.sin(dash.angle) * dash.speed * delta / steps, p.radius);
         p.x = to.x; p.y = to.y;
       }
-      for (const enemy of this.enemies) if (dash.damage > 0 && enemy.state !== 'dead' && !dash.hitIds.has(enemy.id)
+      for (const enemy of this.activeTargets()) if (dash.damage > 0 && enemy.state !== 'dead' && !dash.hitIds.has(enemy.id)
         && segmentDistanceSquared(enemy.x, enemy.y, startX, startY, p.x, p.y) <= (enemy.radius + dash.radius) ** 2
         && this.lineOfSight(p.x, p.y, enemy.x, enemy.y)) {
         dash.hitIds.add(enemy.id); this.damageEnemy(enemy, dash.damage, dash.angle, true, false, dash.style, dash.elementalDamage, dash.offense);
@@ -1180,7 +1333,7 @@ export class Simulation {
         ? p.attack.elapsed < p.attack.activeStart ? PLAYER_MOVEMENT.attackMultiplier.windup
           : p.attack.elapsed < p.attack.activeEnd ? PLAYER_MOVEMENT.attackMultiplier.active : PLAYER_MOVEMENT.attackMultiplier.recovery
         : p.cast ? WOW_COMBAT.castMoveFactor : p.castTime > 0 ? PLAYER_MOVEMENT.castMultiplier : 1)
-        * (this.ghost ? GHOST_RULES.moveSpeed : 1);
+        * (this.ghost ? GHOST_RULES.moveSpeed : 1) * (control?.moveFactor ?? 1);
       if (length > 0) {
         targetVX = input.moveX / Math.max(1, length) * PLAYER_MOVEMENT.speed * p.derived.moveSpeedMultiplier * factor * mountSpeedFactor(p);
         targetVY = input.moveY / Math.max(1, length) * PLAYER_MOVEMENT.speed * p.derived.moveSpeedMultiplier * factor * mountSpeedFactor(p);
@@ -1244,12 +1397,11 @@ export class Simulation {
     const activeDuration = attack.activeEnd - attack.activeStart;
     const before = getActiveSwingOffset((previousElapsed - attack.activeStart) / activeDuration, attack.arc, attack.hand);
     const after = getActiveSwingOffset((attack.elapsed - attack.activeStart) / activeDuration, attack.arc, attack.hand);
-    // A small blade width is included, while keeping the advertised arc bounds.
     const from = Math.max(-attack.arc / 2, Math.min(before, after) - PLAYER_ABILITIES.basicAttack.bladeHalfAngle);
     const to = Math.min(attack.arc / 2, Math.max(before, after) + PLAYER_ABILITIES.basicAttack.bladeHalfAngle);
     const angle = attack.angle + (from + to) / 2;
     strikeContainers(this.containerContext(), p.x, p.y, attack.range, angle, to - from);
-    for (const enemy of this.enemies) {
+    for (const enemy of this.activeTargets()) {
       if (enemy.state === 'dead' || attack.hitIds.has(enemy.id)) continue;
       if (!circleIntersectsSector(enemy.x, enemy.y, enemy.radius, p.x, p.y, angle, attack.range, to - from)) continue;
       if (!this.lineOfSight(p.x, p.y, enemy.x, enemy.y)) continue;
@@ -1270,14 +1422,21 @@ export class Simulation {
     return hasLineOfSight(this.world, ax, ay, bx, by);
   }
 
-  private damageEnemy(enemy: Enemy, damage: number, angle: number, melee: boolean, periodic = false, style?: ProjectileStyle, elementalDamage?: number, offense?: HitSnapshot, authoredBurn = false): void {
-    this.combatUntil = this.time + WOW_COMBAT.rageDecayDelay;
-    if (!periodic && offense !== ALLY_OFFENSE) durabilityLoss(this.player, 'strike', this.time);
+  private damageEnemy(enemy: Enemy, damage: number, angle: number, melee: boolean, periodic = false, style?: ProjectileStyle, elementalDamage?: number, offense?: HitSnapshot, authoredBurn = false, source?: Player): void {
+    const attacker = source ?? this.player;
+    // PvP combatants take the player-shaped damage path: armor/resist/absorb/block.
+    if (isCombatant(enemy)) {
+      const damageType = elementalDamage !== undefined && elementalDamage > 0 ? projectileDamageType(style ?? 'arcane') : style ? projectileDamageType(style) : 'physical';
+      this.damageCombatant(enemy, damage + (elementalDamage ?? 0), angle, attacker.level, damageType, periodic, style, attacker);
+      return;
+    }
+    this.bumpCombat(attacker);
+    if (!periodic && offense !== ALLY_OFFENSE) durabilityLoss(attacker, 'strike', this.time);
     damageEnemy(enemy, damage, angle, melee, {
-      player: this.player, enemies: this.enemies, random: () => this.random(),
+      player: attacker, enemies: this.hostileTargets(attacker), random: () => this.random(),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by), emit: event => this.emit(event),
       projectile: (x, y, shotAngle, definition, effects) => this.projectile(x, y, shotAngle, definition, undefined, effects),
-      addBuff: (name, color, spec, id) => this.addBuff(name, color, spec, id),
+      addBuff: (name, color, spec, id) => this.addBuffTo(attacker, name, color, spec, id),
       proc: (player, enemy, context) => tryProc(player, enemy, context),
       killed: actor => {
         riftKill(this,actor);
@@ -1293,10 +1452,68 @@ export class Simulation {
         worldEventOnKill(this, actor);
         if (actor.campMemberId === 'warden' && this.expeditions.location)
           repOnDungeonClear(this, { id: this.expeditions.location, theme: this.dungeonFloor?.theme });
-        if (wowClassOf(this.player.character)?.id === 'warlock')
-          this.player.soulShards = Math.min(WOW_COMBAT.maxSoulShards, (this.player.soulShards ?? 0) + 1);
+        if (wowClassOf(attacker.character)?.id === 'warlock')
+          attacker.soulShards = Math.min(WOW_COMBAT.maxSoulShards, (attacker.soulShards ?? 0) + 1);
       },
     }, periodic, style, elementalDamage, offense, authoredBurn);
+  }
+
+  /** One fixed step for every living combatant: the real player consumes the
+   * frame input, NPCs get a synthesized Input from their class AI. Each turn runs
+   * the shared player pipeline with that combatant's control state swapped in. */
+  private updateCombatants(dt: number, input: Input): void {
+    const roster = this.pvpCombatants!;
+    for (const combatant of roster) {
+      if (combatant.dead) { combatant.stateTime += dt; continue; }
+      combatant.stateTime += dt;
+      this.withActor(combatant, () => {
+        const control = advanceCombatantStatuses(combatant, dt,
+          (target, amount, damageType) => void this.damageCombatant(target, amount, 0, target.level, damageType, true, undefined, combatant));
+        if (combatant.dead) return;
+        const raw = combatant === this.pvpPlayer ? { ...input }
+          : decideCombatantInput({ self: combatant, allies: roster.filter(o => o.team === combatant.team && !o.dead),
+              hostiles: roster.filter(o => o.team !== combatant.team && !o.dead), time: this.time });
+        const sanitized = sanitizeCombatantInput(combatant, raw, control);
+        if (combatant !== this.pvpPlayer) this.applyInputEdges(sanitized);
+        this.updatePlayer(dt, sanitized);
+        this.updateAllies(dt);
+      });
+    }
+  }
+
+  /** Chain lightning partitioned per owning combatant so jumps only pick
+   * hostiles of the caster's team. Outside PvP it is a single pass. */
+  private advanceChains(dt: number): void {
+    if (!this.pvpCombatants) {
+      advanceChains(this.chains, dt, {
+        player: this.player, enemies: this.enemies,
+        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
+        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense),
+        emit: event => this.emit(event),
+      });
+      return;
+    }
+    const bySource = new Map<Player, ChainFlight[]>();
+    for (const flight of this.chains) {
+      const source = this.chainSources.get(flight) ?? this.player;
+      const list = bySource.get(source) ?? [];
+      if (!list.length) bySource.set(source, list);
+      list.push(flight);
+    }
+    const kept: ChainFlight[] = [];
+    for (const [source, flights] of bySource) {
+      advanceChains(flights, dt, {
+        player: source, enemies: this.hostileTargets(source),
+        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
+        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, false, source),
+        emit: event => this.emit(event),
+      });
+      kept.push(...flights);
+    }
+    this.chains = kept;
+    for (const flight of this.chainSources.keys()) if (!kept.includes(flight)) this.chainSources.delete(flight);
   }
 
   private enemyNeighbors=new EnemyNeighbors();
@@ -1322,6 +1539,7 @@ export class Simulation {
     } as EnemyAIContext;
     this.riftTactics.tick(context,dt,currentDungeon(this.expeditions)?.rift?.phase==='hunt');
     for (const enemy of this.enemies) {
+      if (isCombatant(enemy)) continue;
       this.updateKnockback(enemy, dt);
       this.enemyNeighbors.update(enemy);
       enemy.stateTime += dt;
@@ -1337,7 +1555,7 @@ export class Simulation {
       enemy.vx = (enemy.x - enemy.prevX) / dt;
       enemy.vy = (enemy.y - enemy.prevY) / dt;
     }
-    this.updateAllies(dt);
+    if (!this.pvpCombatants) this.updateAllies(dt);
   }
 
   private updateKnockback(enemy: Enemy, dt: number): void {
@@ -1378,7 +1596,7 @@ export class Simulation {
           ally.aura.tickAcc = 0;
           const aura = ally.aura, inRadius = Math.hypot(p.x - ally.x, p.y - ally.y) <= aura.radius;
           if (aura.kind === 'slow') {
-            for (const enemy of this.enemies) if (enemy.state !== 'dead' && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= aura.radius)
+            for (const enemy of this.activeTargets()) if (enemy.state !== 'dead' && Math.hypot(enemy.x - ally.x, enemy.y - ally.y) <= aura.radius)
               applySlow(enemy, { duration: 1.2, factor: aura.amount });
           }
           else if (inRadius) {
@@ -1404,7 +1622,7 @@ export class Simulation {
         : this.targetEnemy(ally.targetId) ?? this.targetEnemy(p.targetId);
       if (!target && command === 'attack') {
         let best = Infinity;
-        for (const enemy of this.enemies) {
+        for (const enemy of this.activeTargets()) {
           if (enemy.state === 'dead' || enemy.awareness <= 0) continue;
           const d = Math.hypot(enemy.x - ally.x, enemy.y - ally.y);
           if (d < best) { best = d; target = enemy; }
@@ -1526,17 +1744,17 @@ export class Simulation {
   }
 
   takeDamage(amount: number, angle: number, sourceLevel: number, damageType: DamageType, kind?: EnemyKind): void {
-    this.combatUntil = this.time + WOW_COMBAT.rageDecayDelay;
+    this.bumpCombat(this.player);
     if(currentDungeon(this.expeditions)?.rift?.phase==='complete')return;
-    if (!damagePlayer(amount, angle, sourceLevel, damageType, {
+    if (!damageCombatant(amount, angle, sourceLevel, damageType, {
       player: this.player, world: this.world, random: () => this.random(), emit: event => this.emit(event),
-      addBuff: (name, color, spec, id) => this.addBuff(name, color, spec, id),
+      addBuff: (name, color, spec, id) => this.addBuffTo(this.player, name, color, spec, id),
       defensiveProc: (player, context) => tryDefensiveProc(player, context),
       wardBurst: burst=>{
         const p=this.player;
         this.emit({type:'blast',x:p.x,y:p.y,radius:burst.radius,style:'arcane',skill:'runicWard',color:'#d98eda'});
         strikeContainers(this.containerContext(),p.x,p.y,burst.radius);
-        for(const enemy of this.enemies)if(enemy.state!=='dead'&&Math.hypot(enemy.x-p.x,enemy.y-p.y)<=burst.radius+enemy.radius&&this.lineOfSight(p.x,p.y,enemy.x,enemy.y))
+        for(const enemy of this.activeTargets())if(enemy.state!=='dead'&&Math.hypot(enemy.x-p.x,enemy.y-p.y)<=burst.radius+enemy.radius&&this.lineOfSight(p.x,p.y,enemy.x,enemy.y))
           this.damageEnemy(enemy,burst.damage,Math.atan2(enemy.y-p.y,enemy.x-p.x),false,false,'arcane',undefined,burst.offense);
       },
     }, kind)) return;
@@ -1544,7 +1762,9 @@ export class Simulation {
     mountOnDamage(this);
     durabilityLoss(this.player, this.player.dead ? 'death' : 'hit-taken', this.time);
     this.hurtGuard = COMBAT_TIMING.hurtGuard;
-    if (this.player.dead) { this.chains.length = 0; this.clearInput(); }
+    // Inside a PvP match a dead combatant is a corpse: no defeat flow, no input
+    // clear — the match controller (T06) decides when the fight is over.
+    if (this.player.dead && !this.pvpCombatants) { this.chains.length = 0; this.clearInput(); }
   }
 
   private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind): Projectile | undefined {
@@ -1555,6 +1775,7 @@ export class Simulation {
     if(hawkeye)effects={...effects!,hawkeye:{x,y,crit:this.player.character.allocatedNodes.includes('keystone:measured-force')?0:hawkeye/200}};
     const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, x, y, prevX: x, prevY: y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, angle, radius, damage, life, maxLife: life, owner, skill,
+      ...(this.pvpCombatants && owner === 'player' ? { source: this.player } : {}),
       effects: effects ? { ...effects, ...(effects.offense ? { offense: { ...effects.offense } } : {}) } : undefined, hitIds: new Set() };
     if (skill) {
       const p = this.player, weapon = skillWeapon(skill, p.equipment);
@@ -1581,34 +1802,84 @@ export class Simulation {
   }
 
   private updateProjectiles(dt: number): void {
-    advanceProjectiles(this.projectiles, dt, {
-      containers: this.containerContext(),
-      player: this.player, enemies: this.enemies, world: this.world,
-      onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-      damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn),
-      hurt: (amount, angle, sourceLevel, damageType, sourceKind) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind),
-      hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
-      visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-      emit: event => this.emit(event),
-      schedule: effect => this.scheduleGroundEffect(effect),
-    });
+    if (!this.pvpCombatants) {
+      advanceProjectiles(this.projectiles, dt, {
+        containers: this.containerContext(),
+        player: this.player, enemies: this.enemies, world: this.world,
+        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
+        damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn),
+        hurt: (amount, angle, sourceLevel, damageType, sourceKind) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind),
+        hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
+        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+        emit: event => this.emit(event),
+        schedule: effect => this.scheduleGroundEffect(effect),
+      });
+    } else {
+      // Each combatant's shots only collide with that team's hostiles; a shot
+      // without a source (world mobs) keeps the legacy player-only path.
+      const bySource = new Map<Player | undefined, Projectile[]>();
+      for (const shot of this.projectiles) {
+        const source = shot.owner === 'player' ? shot.source : undefined;
+        const list = bySource.get(source) ?? [];
+        if (!list.length) bySource.set(source, list);
+        list.push(shot);
+      }
+      for (const [source, shots] of bySource) {
+        advanceProjectiles(shots, dt, {
+          containers: this.containerContext(),
+          player: source ?? this.player, enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
+          onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
+          damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source),
+          hurt: (amount, angle, sourceLevel, damageType, sourceKind) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind),
+          hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
+          visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+          emit: event => this.emit(event),
+          schedule: effect => this.scheduleGroundEffect(effect),
+        });
+      }
+    }
     this.projectiles = this.projectiles.filter(projectile => projectile.life > 0);
   }
 
   private scheduleGroundEffect(effect: Omit<GroundEffect, 'id' | 'tick'>): void {
+    const before = this.groundEffects.length;
     scheduleGroundEffect(this.groundEffects, effect, {
       nextId: () => this.nextId++, emit: event => this.emit(event),
     });
+    if (this.pvpCombatants && this.groundEffects.length > before)
+      this.groundEffects[this.groundEffects.length - 1]!.source = this.player;
   }
 
   private updateGroundEffects(dt: number): void {
-    this.groundEffects = advanceGroundEffects(this.groundEffects, dt, {
-      containers: this.containerContext(),
-      player: this.player,
-      enemies: this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-      damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn),
-      emit: event => this.emit(event),
-    });
+    if (!this.pvpCombatants) {
+      this.groundEffects = advanceGroundEffects(this.groundEffects, dt, {
+        containers: this.containerContext(),
+        player: this.player,
+        enemies: this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn),
+        emit: event => this.emit(event),
+      });
+      return;
+    }
+    // Per-source partition: a ground effect only damages its team's hostiles and
+    // follows/drains the combatant that placed it.
+    const bySource = new Map<Player | undefined, ActiveGroundEffect[]>();
+    for (const effect of this.groundEffects) {
+      const list = bySource.get(effect.source) ?? [];
+      if (!list.length) bySource.set(effect.source, list);
+      list.push(effect);
+    }
+    const kept: ActiveGroundEffect[] = [];
+    for (const [source, effects] of bySource) {
+      kept.push(...advanceGroundEffects(effects, dt, {
+        containers: this.containerContext(),
+        player: source ?? this.player,
+        enemies: source ? this.hostileTargets(source) : this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn, source),
+        emit: event => this.emit(event),
+      }));
+    }
+    this.groundEffects = kept;
   }
 
   private updatePickups(dt: number): void {
