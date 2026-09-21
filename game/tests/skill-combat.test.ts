@@ -18,8 +18,9 @@ import { skillSimStub } from './fixtures/skill-sim.ts';
 const emptyWorld: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const profile = (family: Exclude<WeaponFamily, 'unarmed'>) => WEAPON_PROFILES.find(weapon => weapon.family === family)!;
 const families: Readonly<Record<SkillRequirement, readonly WeaponFamily[]>> = {
-  any: ['sword','axe','mace','dagger','bow','staff','wand','unarmed'], melee: ['sword', 'axe', 'mace', 'dagger'], blade: ['sword', 'axe', 'dagger'], heavy: ['axe', 'mace'],
-  dagger: ['dagger'], bow: ['bow'], magic: ['staff', 'wand'], shield: [],
+  any: ['sword','axe','mace','dagger','fist','polearm','bow','gun','staff','wand','unarmed'],
+  melee: ['sword', 'axe', 'mace', 'dagger', 'fist', 'polearm'], blade: ['sword', 'axe', 'dagger', 'fist'],
+  heavy: ['axe', 'mace', 'polearm'], dagger: ['dagger'], bow: ['bow', 'gun'], magic: ['staff', 'wand'], shield: [],
 };
 function harness(id: SkillId) {
   const sim = new Simulation(emptyWorld, { spawn: false }), player = sim.player;

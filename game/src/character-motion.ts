@@ -21,7 +21,7 @@ export const PLAYER_ATTACHMENTS = {
 
 export const WEAPON_REST_ANGLE = 0.46;
 
-const meleeGuard = (kind: WeaponVisual['kind']) => kind === 'sword' || kind === 'dagger' || kind === 'axe' || kind === 'mace';
+const meleeGuard = (kind: WeaponVisual['kind']) => kind === 'sword' || kind === 'dagger' || kind === 'axe' || kind === 'mace' || kind === 'fist' || kind === 'polearm';
 /** Outward-leaning armed guards; both hands use the same family-specific stance. */
 function meleeGuardAngle(kind: WeaponVisual['kind'], facing: number, twoHanded: boolean, side = 1): number {
   const lean = kind === 'dagger' ? .2 : kind === 'mace' ? (twoHanded ? .42 : .22)

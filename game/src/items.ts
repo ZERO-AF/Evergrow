@@ -129,7 +129,7 @@ export function itemAffixPool(item: { kind: ItemKind; weapon?: { family: string;
       'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'manaRegen', 'lifeRegen', 'cooldownPercent', 'manaCostPercent'];
     return [...AFFIXES.filter(a => stats.includes(a.stat)).map(a => ({ ...a, weight: a.weight ?? 1 })), ...skills];
   }
-  const melee = item.kind === 'weapon' && ['sword', 'axe', 'mace', 'dagger'].includes(item.weapon?.family ?? '');
+  const melee = item.kind === 'weapon' && ['sword', 'axe', 'mace', 'dagger', 'fist', 'polearm'].includes(item.weapon?.family ?? '');
   const armor=['head','chest','gloves','legs','boots'].includes(item.kind), construction=item.recipe?.materialId;
   const leather=armor&&construction==='leather', cloth=armor&&isClothMaterial(construction);
   const specialty:StatKey[]=leather?['dexterity','damagePercent','critChance','critDamage','lifeOnHit']:cloth?['intelligence','maxMana','manaRegen','spellDamagePercent','manaCostPercent']:[];
@@ -138,7 +138,7 @@ export function itemAffixPool(item: { kind: ItemKind; weapon?: { family: string;
   const stats = leather||cloth ? [...specialty,'maxHp','armor',...(item.kind==='gloves'?[cloth?'castSpeedPercent':'attackSpeedPercent']:item.kind==='boots'?['moveSpeedPercent']:item.kind==='head'&&cloth?['cooldownPercent']:[])] : item.kind === 'amulet' ? [...AFFIXES, ...SHIELD_AFFIXES].map(a => a.stat)
     : item.kind === 'weapon' ? melee
       ? ['areaPercent', 'damagePercent', 'critChance', 'critDamage', 'lifeOnHit', 'strength', 'dexterity']
-      : item.weapon?.family === 'bow' ? ['projectilePierce', 'damagePercent', 'critChance', 'critDamage', 'dexterity', 'lifeOnHit', 'strength']
+      : ['bow', 'gun'].includes(item.weapon?.family ?? '') ? ['projectilePierce', 'damagePercent', 'critChance', 'critDamage', 'dexterity', 'lifeOnHit', 'strength']
       : [item.weapon?.family === 'staff' ? 'areaPercent' : 'projectilePierce', 'spellDamagePercent', 'intelligence', 'maxMana', 'critChance', 'critDamage', 'manaCostPercent', 'manaRegen']
     : SLOT_AFFIXES[item.kind] ?? [];
   return [...AFFIXES, ...SHIELD_AFFIXES].filter(a => stats.includes(a.stat)).map(a => ({ ...a,

@@ -11,12 +11,11 @@ import type { WowClassId } from './wow-types.ts';
  * `generateWowName` draws deterministically from a caller-supplied rng.
  * `legendaryFor` is the rare fixed-name roll over `WOW_LEGENDARIES`.
  *
- * Weapon families include 'fist' | 'polearm' | 'gun' ahead of the model union
- * (design contract §7); the union collapses cleanly once model.ts adopts them.
+ * Weapon families match the model `WeaponFamily` union (design contract §7).
  */
 
-/** Weapon families name pools exist for — superset of model WeaponFamily. */
-export type WowWeaponFamily = WeaponFamily | 'fist' | 'polearm' | 'gun';
+/** Weapon families name pools exist for — the model `WeaponFamily` union. */
+export type WowWeaponFamily = WeaponFamily;
 
 /** Every gear bucket key: weapon families plus non-weapon item kinds. */
 export type WowGearKey = WowWeaponFamily
@@ -139,6 +138,8 @@ export const WOW_LEGENDARIES: readonly WowLegendary[] = Object.freeze([
     flavor: 'The blade of Sylvanas Windrunner, broken and reforged.' },
   { id: 'titanstrike', name: 'Titanstrike', slot: 'weapon', family: 'gun', hands: 2, classId: 'hunter',
     flavor: 'A titan-forged rifle that channels the storm itself.' },
+  { id: 'fangs-of-ashamane', name: 'Fangs of Ashamane', slot: 'weapon', family: 'fist', hands: 1, classId: 'druid',
+    flavor: 'The great cat\'s claws still tear at anything that threatens the wilds.' },
   // Relic artifacts: one per relic class (totem/libram/idol/sigil).
   { id: 'libram-of-radiance', name: 'Libram of Radiance', slot: 'relic', classId: 'paladin',
     flavor: 'Its pages turn themselves toward the Light.' },

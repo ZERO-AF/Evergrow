@@ -42,9 +42,9 @@ export function skillAffixPool(item: { kind: ItemKind; weapon?: { family: string
   const candidates = SKILL_AFFIXES.flatMap(a => {
     const id = a.stat.slice(6) as SkillId, s = SKILL_DEFINITIONS[id];
     const eligible = magic ? s.requirement === 'magic' : leather ? s.requirement==='bow'||s.requirement==='dagger'||s.requirement==='blade' : item.kind === 'shield' ? s.requirement === 'shield'
-      : item.kind !== 'weapon' ? true : family === 'bow' ? s.requirement === 'bow'
-      : s.requirement === 'melee' || s.requirement === 'blade' && ['sword', 'axe', 'dagger'].includes(family ?? '')
-        || s.requirement === 'heavy' && ['axe', 'mace'].includes(family ?? '') || s.requirement === 'dagger' && family === 'dagger';
+      : item.kind !== 'weapon' ? true : ['bow', 'gun'].includes(family ?? '') ? s.requirement === 'bow'
+      : s.requirement === 'melee' || s.requirement === 'blade' && ['sword', 'axe', 'dagger', 'fist'].includes(family ?? '')
+        || s.requirement === 'heavy' && ['axe', 'mace', 'polearm'].includes(family ?? '') || s.requirement === 'dagger' && family === 'dagger';
     if (!eligible) return [];
     const aligned = element === 'fire' ? fire.includes(id) : element === 'frost' ? frost.includes(id) : element === 'lightning' ? lightning.includes(id) : false;
     return [{ ...a, weight: (aligned ? 3 : 1) * (s.tier === 'ultimate' ? .25 : 1) }];

@@ -61,7 +61,7 @@ test('every gallery piece has bounded shared geometry and assigned surface mater
   const {equipmentExhibits}=await import('../src/equipment-review-fixtures.ts');
   const {itemDropShapes}=await import('../src/item-art.ts');
   const exhibits=equipmentExhibits();
-  assert.equal(exhibits.length,196);
+  assert.equal(exhibits.length,236);
   assert.equal(new Set(exhibits.map(e=>e.item.id)).size,exhibits.length);
   for(const {item} of exhibits) for(const shape of itemDropShapes(item)) {
     assert.ok(shape.surface,`${item.baseName} missing a material`);

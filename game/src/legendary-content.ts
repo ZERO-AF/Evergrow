@@ -141,6 +141,10 @@ export const LEGENDARY_PROCS: Readonly<Record<string, LegendaryProc>> = Object.f
     families: ['gun', 'bow'], hands: 2, chance: .2, internalCooldown: 3,
     text: 'Discharges a titan spark that deals lightning damage to the target and up to 2 nearby enemies.',
     effect: { kind: 'aoe', school: 'lightning', damage: .8, radius: 140, chain: 2 } },
+  'fangs-of-ashamane': { id: 'fangs-of-ashamane', name: 'Fangs of Ashamane',
+    families: ['fist'], hands: 1, chance: .2, internalCooldown: 3,
+    text: 'The claws rake deep, causing the target to bleed for damage over 5 seconds.',
+    effect: { kind: 'dot', school: 'bleed', dps: .25, duration: 5 } },
   // Trinket/accessory procs — WotLK icons carried on amulets and rings.
   'deaths-verdict': { id: 'deaths-verdict', name: 'Death\'s Verdict',
     kinds: ['amulet', 'ring'], chance: .15, internalCooldown: 45,

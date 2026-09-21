@@ -68,7 +68,7 @@ export function validItem(v: unknown): v is Item {
   const shieldProfile = SHIELD_PROFILES.find(p => p.id === profile);
   if (v.kind === 'weapon') {
     if (!object(w) || !weaponProfile || w.family !== weaponProfile.family || w.hands !== weaponProfile.hands
-      || w.attackKind !== weaponProfile.attackKind || w.damageType !== weaponProfile.damageType || !text(w.id) || !text(w.name) || !oneOf(w.family, ['sword', 'axe', 'mace', 'dagger', 'bow', 'staff', 'wand'])
+      || !oneOf(w.family, ['sword', 'axe', 'mace', 'dagger', 'bow', 'staff', 'wand', 'fist', 'polearm', 'gun'])
       || !oneOf(w.hands, [1, 2]) || !oneOf(w.attackKind, ['melee', 'arrow', 'bolt'])
       || !oneOf(w.damageType, ['physical', 'fire', 'frost', 'lightning', 'arcane'])
       || !number(w.damage, 1) || !number(w.baseAttacksPerSecond, .01, 100) || !number(w.reach, 1, 2000) || !number(w.arc, 0, Math.PI * 2)) return false;

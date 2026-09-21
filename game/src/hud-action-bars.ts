@@ -15,6 +15,7 @@ import { WOW_CLASSES, RESOURCE_COLORS } from './wow-classes.ts';
 import type { Player } from './model.ts';
 import type { SkillId } from './character-types.ts';
 import { BAR_KEY_LABELS, BAR_SLOTS, barIndex, type ActionBars, type BarStrip } from './action-bar.ts';
+import { drawActionBarCaps } from './action-bar-caps.ts';
 import { CONSUMABLES, consumableCount, } from './consumable-content.ts';
 import { consumableCooldown } from './consumable-command.ts';
 import { consumableShapes } from './consumable-art.ts';
@@ -195,8 +196,9 @@ export function drawActionBars(c: CanvasRenderingContext2D, p: Player, bars: Act
   const gcdDuration = cls?.gcd ?? WOW_COMBAT.gcdDefault;
   c.save();
   if (layout.main.visible) {
+    drawActionBarCaps(c, layout.main);
     strip(c, p, bars, layout.main, layout.main.vertical, gcd, gcdDuration, true, options.simTime ?? 0);
-    // WoW's page number rides the main bar's left end.
+    // WoW's page number rides the main bar's left end, riveted to the cap's lug.
     pageTag(c, layout.main.x - 18, layout.main.y + layout.main.slot - 14, layout.main.page);
   }
   for (const side of layout.sides) {

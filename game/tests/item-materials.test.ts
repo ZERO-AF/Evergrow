@@ -23,7 +23,7 @@ test('material tables remain immutable with rare precious bases and complete rol
 });
 
 test('every gallery material is a valid durable item with real base stats, not a painted mock',()=>{
-  const exhibits=equipmentExhibits();assert.equal(exhibits.length,196);
+  const exhibits=equipmentExhibits();assert.equal(exhibits.length,236);
   for(const {item} of exhibits){
     assert.ok(validItem(item),item.baseName);
     const loaded=JSON.parse(JSON.stringify(item));assert.ok(validItem(loaded));assert.deepEqual(deriveItem(loaded),item,item.baseName);

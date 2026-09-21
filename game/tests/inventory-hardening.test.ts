@@ -81,7 +81,7 @@ test('item locks and explicit active-charm consent are enforced by transaction o
 });
 
 test('bounded packing recovers a fragmented layout without losing items or changing acquisition order',()=>{
-  const inventory=Array.from({length:14},(_,i)=>generateItem(801+i,1,(['ring','chest','head','weapon'] as const)[(9*(i+3)+i*i)%4],undefined,'common'));
+  const inventory=Array.from({length:14},(_,i)=>generateItem(804+i,1,(['ring','chest','head','weapon'] as const)[(9*(i+3)+i*i)%4],undefined,'common'));
   assert.equal(Object.keys(resolvePackLayout({inventory})).length,13);
   const layout=repackLayout(inventory,{},true);assert.equal(Object.keys(layout).length,14);assert.ok(validPackLayout(inventory,layout));
   const s=createCharacterSheet();s.inventory=inventory;s.inventoryLayout=layout;s.recentItems=inventory.map(i=>i.id);

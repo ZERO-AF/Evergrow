@@ -117,7 +117,7 @@ export interface WeaponDefinition {
   visual: WeaponVisual;
 }
 
-export type WeaponFamily = 'sword' | 'axe' | 'mace' | 'dagger' | 'bow' | 'staff' | 'wand' | 'unarmed';
+export type WeaponFamily = 'sword' | 'axe' | 'mace' | 'dagger' | 'fist' | 'polearm' | 'bow' | 'gun' | 'staff' | 'wand' | 'unarmed';
 export type DamageType = 'physical' | 'fire' | 'frost' | 'lightning' | 'arcane' | 'holy' | 'shadow' | 'nature';
 export type ProjectileStyle = 'arrow' | 'fire' | 'frost' | 'lightning' | 'arcane' | 'spirit' | 'radiant' | 'holy' | 'shadow' | 'nature';
 export interface ShieldDefinition {

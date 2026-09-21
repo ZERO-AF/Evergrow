@@ -20,7 +20,7 @@ const weaponCache = new WeakMap<WeaponVisual, GearShape[]>();
 export function weaponShapes(visual: WeaponVisual, draw = 0): GearShape[] {
   if (draw === 0) { const cached = weaponCache.get(visual); if (cached) return cached; }
   const shapes = buildWeaponShapes(visual, draw);
-  const accents = new Map<string, GearMaterial>([[visual.guard, 'brass'], [visual.grip, ['bow','staff','wand','axe','mace'].includes(visual.kind) ? 'wood' : 'leather']]);
+  const accents = new Map<string, GearMaterial>([[visual.guard, 'brass'], [visual.grip, ['bow','staff','wand','axe','mace','polearm','gun'].includes(visual.kind) ? 'wood' : 'leather']]);
   if (visual.glow) accents.set(visual.glow, 'gem');
   accents.set(visual.metal, 'steel');
   accents.set(mixColor(visual.metal, '#121c28', .72), 'steel');
@@ -57,7 +57,29 @@ function buildWeaponShapes(visual: WeaponVisual, draw: number): GearShape[] {
     }
     return shapes;
   }
-  if (visual.kind !== 'wand') {
+  if (visual.kind === 'gun') {
+    const iron = mixColor(visual.metal, '#121c28', .72), lit = mixColor(visual.metal, '#bdc7cc', .25);
+    const butt = -grip - 5, muzzle = length - 2, bore = Math.max(1.1, half * .32), bell = half >= 3.5 ? 1.4 : 0;
+    // Wooden stock with a dropped butt; the steel barrel rides the top edge.
+    shapes.push(poly([[butt, .4], [-grip + 2, -.4], [length * .42, -.5], [length * .46, .4], [length * .3, 1.6], [-2, 2.4], [-4, 4.4], [butt + 1, 4.8]], visual.grip));
+    shapes.push(stroke([[butt + .6, 1], [-3.4, 2.2], [-2.2, 4.2]], mixColor(visual.grip, '#0a1217', .5), .5));
+    shapes.push(stroke([[-grip + 2, -.2], [length * .4, -.3]], mixColor(visual.grip, '#e2d2af', .3), .4));
+    shapes.push(poly([[-3, -bore - .4], [muzzle, -bore - .4], [muzzle, bore - .6], [-3, bore - .6]], iron));
+    shapes.push(poly([[-3, -bore - .4], [muzzle, -bore - .4], [muzzle, -bore + .3], [-3, -bore + .3]], lit));
+    shapes.push(poly([[muzzle - .2, -bore - .8], [muzzle + 1.6, -bore - .8 - bell], [muzzle + 1.6, bore - .2 + bell], [muzzle - .2, bore - .2]], visual.metal));
+    shapes.push(poly(gem(muzzle + .9, -bore - 1.6, .5, .7), visual.guard));
+    // Lock plate, hammer and trigger sit under the grip hand.
+    shapes.push(poly([[-grip + 1, -.6], [-grip + 4.5, -.6], [-grip + 4.5, 1.4], [-grip + 1, 1.4]], visual.guard));
+    shapes.push(stroke([[-grip + 3.4, -.6], [-grip + 4.6, -1.8], [-grip + 5.8, -1.4]], iron, .8));
+    shapes.push(stroke([[-1.5, 2.2], [-.4, 3.4], [.8, 2.4]], visual.guard, .7));
+    if (draw > .05) {
+      const flash = muzzle + 1.6;
+      shapes.push(poly([[flash, -bore - 1.4], [flash + 5, -bore * .5], [flash + 8, 0], [flash + 5, bore * .5], [flash, bore + .6], [flash + 2.4, 0]], '#ffd98a'));
+      shapes.push(poly([[flash, -bore * .6], [flash + 3.4, 0], [flash, bore * .8]], '#fff3c4'));
+    }
+    return shapes;
+  }
+  if (visual.kind !== 'wand' && visual.kind !== 'fist' && visual.kind !== 'polearm') {
   shapes.push(poly([[-grip, -1.35], [length * .8, -1.35], [length * .8, 1.35], [-grip, 1.35]], visual.grip));
   const wrappedEnd = visual.kind === 'sword' || visual.kind === 'dagger' ? 1 : 0;
   for (let wrap = -grip + 1; wrap < wrappedEnd; wrap += 2) shapes.push(stroke([[wrap, -1.2], [wrap + .8, 1.2]], visual.guard, .45));
@@ -154,6 +176,37 @@ function buildWeaponShapes(visual: WeaponVisual, draw: number): GearShape[] {
     shapes.push(poly(gem(head - 6, 0, 1.3, 1.7), visual.guard));
     for (let mark = 6; mark < head - 10; mark += 8) shapes.push({ ...stroke([[mark, -.6], [mark + 1.1, 0], [mark, .6]], lit, .28), fine: true });
   }
+  else if (visual.kind === 'fist') {
+    const claw = Math.max(2.6, half), blade = Math.max(6, length - 5);
+    // Grip strap, knuckle bar and three forward claws; the hand closes on the bar.
+    shapes.push(poly([[-grip, -2.6], [-grip + 2.4, -2.6], [-grip + 2.4, 2.6], [-grip, 2.6]], visual.grip));
+    shapes.push(poly([[0, -3.4], [3.4, -3.4], [3.4, 3.4], [0, 3.4]], visual.guard));
+    shapes.push(stroke([[.4, -3.2], [3.2, -3.2]], visual.edge, .5));
+    for (const side of [-1, 0, 1]) {
+      const y = side * claw;
+      shapes.push({ ...poly([[3.4, y - 1.15], [3.4 + blade * .55, y - .8], [3.4 + blade, y], [3.4 + blade * .55, y + .8], [3.4, y + 1.15]], visual.metal),
+        surface: gearSurface('steel', 13 + side, [0, side * .5, .84]) });
+      shapes.push(stroke([[3.8, y - .9], [3.4 + blade * .55, y - .6], [3.4 + blade, y]], visual.edge, .45));
+    }
+    shapes.push(poly([[2.6, -claw - .8], [4.4, -claw - 1.2], [4.4, claw + 1.2], [2.6, claw + .8]], visual.guard));
+  } else if (visual.kind === 'polearm') {
+    const haft = length * .76, blade = 4.2 + half * .9;
+    const iron = mixColor(visual.metal, '#121c28', .72), lit = mixColor(visual.metal, '#bdc7cc', .25);
+    // Tapered haft, bound socket and a forged head with a thrusting spike.
+    shapes.push(poly([[-grip, -1.1], [haft, -1.5], [haft, 1.5], [-grip, 1.1]], visual.grip));
+    shapes.push(stroke([[-grip + 1, -.9], [haft - 1, -1.2]], mixColor(visual.grip, '#e2d2af', .3), .4));
+    shapes.push(stroke([[-grip + 2, .7], [haft - 1, 1]], mixColor(visual.grip, '#0a1217', .5), .45));
+    for (const x of [haft - 1.5, haft + 2.5, haft + 6.5]) {
+      shapes.push(poly([[x, -1.9], [x + 1.4, -1.9], [x + 1.4, 1.9], [x, 1.9]], iron),
+        stroke([[x, -1.9], [x + 1.4, -1.9]], lit, .4));
+    }
+    shapes.push({ ...poly([[haft + 1, -1.6], [length - 2, -blade * .5], [length + 2, -blade * .15], [length - 1, 0], [length + 2, blade * .15], [length - 2, blade * .5], [haft + 1, 1.6]], visual.metal),
+      surface: gearSurface('steel', 14, [.3, -.4, .8]) });
+    shapes.push(poly([[haft + 2, -1.2], [length - 2, -blade * .5], [length + 2, -blade * .15], [length - 1, 0], [length - 2, -blade * .2]], visual.edge));
+    shapes.push(poly([[haft + 1, 1.4], [haft + 4, blade * .62], [haft + 7.5, blade * .5], [haft + 5, 1.8]], iron));
+    shapes.push(stroke([[haft + 4, blade * .62], [haft + 7.5, blade * .5]], lit, .5));
+    shapes.push(poly(gem(haft + 4, 0, 1.5, 1.9), visual.guard));
+  }
   const pommel: Point[] = [[-2, -.7], [-1.1, -1.7], [.2, -1.4], [.8, -.6], [.8, .6], [.2, 1.4], [-1.1, 1.7], [-2, .7]];
   shapes.push(poly(pommel.map(([x, y]) => [x - grip, y]), mixColor(visual.guard, '#23313a', .25)));
   shapes.push(stroke([[-grip - 1.6, -.5], [-grip - 1, -1.2], [-grip + .1, -.9]], visual.edge, .35));
@@ -172,8 +225,8 @@ function buildWeaponShapes(visual: WeaponVisual, draw: number): GearShape[] {
     points: shape.points.map(([x, y]): Point => [x, y * .62]),
     ...(shape.width !== undefined ? { width: shape.width * .8 } : {}),
   }));
-  if (['sword', 'axe', 'mace', 'dagger'].includes(visual.kind) && visual.element && visual.element !== 'physical' && visual.glow) {
-    const start = length * (visual.kind === 'axe' || visual.kind === 'mace' ? .65 : .25);
+  if (['sword', 'axe', 'mace', 'dagger', 'fist', 'polearm'].includes(visual.kind) && visual.element && visual.element !== 'physical' && visual.glow) {
+    const start = length * (visual.kind === 'axe' || visual.kind === 'mace' || visual.kind === 'polearm' ? .65 : .25);
     shapes.push(stroke([[start, 0], [length * .9, 0]], visual.glow, .65));
     for (let i = 0; i < 3; i++) {
       const x = start + (length * .87 - start) * i / 2;

@@ -89,7 +89,7 @@ export const SKILL_DEFINITIONS: Readonly<Record<SkillId, Readonly<SkillDefinitio
 });
 
 const REQUIREMENT_LABELS: Readonly<Record<SkillRequirement, string>> = Object.freeze({
-  any: 'Any weapon', melee: 'Melee weapon', blade: 'Sword, axe or dagger', heavy: 'Axe or mace', dagger: 'Dagger', bow: 'Bow', magic: 'Staff or wand', shield: 'Equipped shield',
+  any: 'Any weapon', melee: 'Melee weapon', blade: 'Sword, axe, dagger or fist weapon', heavy: 'Axe, mace or polearm', dagger: 'Dagger', bow: 'Bow or gun', magic: 'Staff or wand', shield: 'Equipped shield',
 });
 export function skillRequirementLabel(requirement: SkillRequirement): string { return REQUIREMENT_LABELS[requirement]; }
 
@@ -101,11 +101,11 @@ export function skillWeapon(id: SkillId, equipment: Equipment): WeaponDefinition
     const family = weapon.family;
     switch (requirement) {
       case 'any': return true;
-      case 'melee': return family === 'sword' || family === 'axe' || family === 'mace' || family === 'dagger';
-      case 'blade': return family === 'sword' || family === 'axe' || family === 'dagger';
-      case 'heavy': return family === 'axe' || family === 'mace';
+      case 'melee': return family === 'sword' || family === 'axe' || family === 'mace' || family === 'dagger' || family === 'fist' || family === 'polearm';
+      case 'blade': return family === 'sword' || family === 'axe' || family === 'dagger' || family === 'fist';
+      case 'heavy': return family === 'axe' || family === 'mace' || family === 'polearm';
       case 'dagger': return family === 'dagger';
-      case 'bow': return family === 'bow';
+      case 'bow': return family === 'bow' || family === 'gun';
       case 'magic': return weapon.attackKind === 'bolt';
     }
   };
