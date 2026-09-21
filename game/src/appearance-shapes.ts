@@ -14,7 +14,7 @@ const line = (points: readonly Point[], color: string, width = .6): GearShape =>
 
 /** All shapes are local to the existing head mount. Body proportions never change. */
 export function appearanceHeadShapes(appearance: Readonly<CharacterAppearance>, facing: number, covered: boolean, raceId?: WowRaceId): GearShape[] {
-  if (isHeadProfile(facing)) return appearanceProfileShapes(appearance, facing, covered);
+  if (isHeadProfile(facing)) return appearanceProfileShapes(appearance, facing, covered, raceId);
   const skin = appearancePalette(SKIN_PALETTES, appearance.skin);
   const hair = appearancePalette(HAIR_PALETTES, appearance.hairColor);
   const v = raceId ? WOW_RACES[raceId]?.visual : undefined;

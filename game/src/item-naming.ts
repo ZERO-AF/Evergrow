@@ -60,7 +60,7 @@ const NAME_BASES: Readonly<Record<WowGearKey, readonly string[]>> = Object.freez
   shield: Object.freeze(['Shield', 'Bulwark', 'Aegis', 'Kite Shield', 'Tower Shield', 'Buckler', 'Targe', 'Ward']),
   grimoire: Object.freeze(['Grimoire', 'Tome', 'Codex', 'Lexicon', 'Spellbook', 'Folio', 'Manual', 'Compendium']),
   orb: Object.freeze(['Orb', 'Sphere', 'Globe', 'Focus', 'Crystal', 'Eye', 'Shard', 'Beacon']),
-  relic: Object.freeze(['Totem', 'Libram', 'Idol', 'Sigil', 'Relic', 'Fetish', 'Emblem', 'Icon']),
+  relic: Object.freeze(['Totem', 'Libram', 'Idol', 'Sigil', 'Relic', 'Fetish', 'Emblem', 'Icon', 'Runestone', 'Effigy', 'Talisman', 'Wardstone']),
   head: Object.freeze(['Helm', 'Greathelm', 'Circlet', 'Hood', 'Cowl', 'Crown', 'Visage', 'Coif']),
   chest: Object.freeze(['Breastplate', 'Chestguard', 'Hauberk', 'Robe', 'Vestments', 'Tunic', 'Cuirass', 'Harness']),
   gloves: Object.freeze(['Gauntlets', 'Gloves', 'Grips', 'Handguards', 'Mitts', 'Crushers', 'Grasps', 'Wraps']),
@@ -97,7 +97,7 @@ function buildPool(bases: readonly string[], modifiers: readonly string[], prefi
 /**
  * Per-slot per-rarity name pools. Weapons are keyed by family
  * (`WOW_ITEM_NAMES.sword.rare`), armor and jewelry by item kind
- * (`WOW_ITEM_NAMES.head.epic`). Every bucket holds 64 names.
+ * (`WOW_ITEM_NAMES.head.epic`). Buckets hold bases × rarity-modifier names.
  */
 export const WOW_ITEM_NAMES: Readonly<Record<WowGearKey, Readonly<Record<ItemTier, readonly string[]>>>> = Object.freeze(
   Object.fromEntries((Object.keys(NAME_BASES) as WowGearKey[]).map(key => [key, Object.freeze(
@@ -139,6 +139,15 @@ export const WOW_LEGENDARIES: readonly WowLegendary[] = Object.freeze([
     flavor: 'The blade of Sylvanas Windrunner, broken and reforged.' },
   { id: 'titanstrike', name: 'Titanstrike', slot: 'weapon', family: 'gun', hands: 2, classId: 'hunter',
     flavor: 'A titan-forged rifle that channels the storm itself.' },
+  // Relic artifacts: one per relic class (totem/libram/idol/sigil).
+  { id: 'libram-of-radiance', name: 'Libram of Radiance', slot: 'relic', classId: 'paladin',
+    flavor: 'Its pages turn themselves toward the Light.' },
+  { id: 'totem-of-the-earthen-ring', name: 'Totem of the Earthen Ring', slot: 'relic', classId: 'shaman',
+    flavor: 'The elements answer before it is even planted.' },
+  { id: 'idol-of-the-emerald-dream', name: 'Idol of the Emerald Dream', slot: 'relic', classId: 'druid',
+    flavor: 'It dreams of a forest that never ends.' },
+  { id: 'sigil-of-the-ebon-blade', name: 'Sigil of the Ebon Blade', slot: 'relic', classId: 'deathKnight',
+    flavor: 'A knight\'s oath, etched in runes that never warm.' },
   // Trinkets ride the jewelry slots; armor legendaries carry defensive procs.
   { id: 'deaths-verdict', name: 'Death\'s Verdict', slot: 'amulet',
     flavor: 'The verdict is rendered. The sentence is death.' },

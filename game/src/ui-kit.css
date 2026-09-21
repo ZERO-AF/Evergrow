@@ -2,6 +2,19 @@
 @import './ui-glass.css';
 /* Our controls draw pressed/focused states; never tint the whole game on tap. */
 :root { -webkit-tap-highlight-color: transparent; }
+/* WoW class colors; installUITheme() overwrites these fallbacks with WOW_CLASSES values. */
+:root {
+  --ui-class-warrior: #C79C6E;
+  --ui-class-paladin: #F58CBA;
+  --ui-class-hunter: #ABD473;
+  --ui-class-rogue: #FFF569;
+  --ui-class-priest: #FFFFFF;
+  --ui-class-death-knight: #C41F3B;
+  --ui-class-shaman: #0070DE;
+  --ui-class-mage: #69CCF0;
+  --ui-class-warlock: #9482C9;
+  --ui-class-druid: #FF7D0A;
+}
 /* Token values come from installUITheme(); both DOM chrome and Canvas use them. */
 .ui-window, .ui-button, .ui-tooltip, .ui-status, .ui-key, .ui-slot, .ui-badge {
   font-family: var(--ui-font, var(--font-game));

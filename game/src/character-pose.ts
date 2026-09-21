@@ -42,5 +42,6 @@ export function playerPose(player: Player, time: number,
     cast: player.castTime > 0 ? 1 - smooth(castProgress) : 0,
     hitFlash: player.hitFlash, impact: Math.min(1, player.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: player.hitAngle,
     dodging: player.dodgeTime > 0, dodgeProgress: 1 - player.dodgeTime / PLAYER_ABILITIES.dodge.duration, dead: player.dead,
+    cc: player.cc, stealthed: player.stealthed,
   };
 }

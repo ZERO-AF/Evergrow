@@ -607,7 +607,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     case 'stealth': {
       p.stealthed = true;
       context.sim.addBuff(definition.name, color, { duration: recipe.duration, stealth: true }, id);
-      if (recipe.dropAggro) for (const e of enemies) { e.awareness = 0; e.seesPlayer = false; }
+      if (recipe.dropAggro) for (const e of enemies) { e.awareness = 0; e.seesPlayer = false; if (e.taunted?.allyId === undefined) delete e.taunted; }
       p.castTime = .18;
       break;
     }

@@ -115,8 +115,9 @@ function sense(enemy: Enemy, dt: number, context: EnemyAIContext): void {
     if (p === context.player && context.player.stealthed) range = Math.min(range, WOW_COMBAT.stealthSenseRadius);
     enemy.seesPlayer = distance < range && context.visible(enemy.x, enemy.y, p.x, p.y);
   }
-  // A taunt compels attention regardless of sight or stealth.
-  if (p === context.player && (enemy.taunted?.remaining ?? 0) > 0) enemy.seesPlayer = true;
+  // A player-directed taunt compels attention regardless of sight or stealth;
+  // a pet growl pins the ally instead and must not reveal a vanished player.
+  if (p === context.player && (enemy.taunted?.remaining ?? 0) > 0 && enemy.taunted!.allyId === undefined) enemy.seesPlayer = true;
   if (enemy.seesPlayer) {
     enemy.lastSeenX = p.x; enemy.lastSeenY = p.y; enemy.lostSightTime = 0;
     enemy.awareness = Math.min(1, enemy.awareness + dt / ENEMY_AI_RULES.awarenessSeconds

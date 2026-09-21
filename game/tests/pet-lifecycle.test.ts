@@ -126,16 +126,16 @@ test('petShare redirects into the pet or demon before totems', () => {
 });
 
 test('allyLeash covers ranged standoff: a staying pet inside the leash is not recalled', () => {
-  assert.ok(WOW_COMBAT.allyLeash >= 140);
+  assert.equal(WOW_COMBAT.allyLeash, 70, 'spec leash is 70u (wow-transformation §5)');
   const sim = new Simulation(world, { spawn: false });
   const p = sim.player;
   p.character.pets = { active: createPetRecord(3, 'stalker', 5), stabled: [] };
   p.petCommand = 'stay';
 
-  p.allies = [ally('wolf', { petId: 3, x: 120, y: 0 })];
+  p.allies = [ally('wolf', { petId: 3, x: 50, y: 0 })];
   sim.update(0.05, input);
   const pet = p.allies[0]!;
-  assert.equal(Math.hypot(pet.x - 120, pet.y), 0, 'pet inside the leash holds its stay position');
+  assert.equal(Math.hypot(pet.x - 50, pet.y), 0, 'pet inside the leash holds its stay position');
   p.allies = [ally('wolf', { petId: 3, x: 200, y: 0 })];
   sim.update(0.05, input);
   assert.ok(p.allies[0]!.x < 200, 'pet beyond the leash is recalled');

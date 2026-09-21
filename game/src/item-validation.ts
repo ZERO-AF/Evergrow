@@ -9,6 +9,7 @@ import { isSkillStat, skillAffixRank } from './equipment-affix-content.ts';
 import { isElementalAffix, meleeEnchantment } from './elemental-weapon.ts';
 import { FOCUS_PROFILES } from './focus-content.ts';
 import type { Item } from './character-types.ts';
+import { isWowClassId } from './wow-types.ts';
 import { ITEM_KINDS, TIER_NAMES, STAT_LABELS, itemAffixCount, itemAffixPool, deriveItem } from './items.ts';
 import { WEAPON_PROFILES, SHIELD_PROFILES } from './weapon-content.ts';
 import { STARTING_SWORD } from './equipment.ts';
@@ -29,6 +30,7 @@ export function validItem(v: unknown): v is Item {
     || !integer(v.itemLevel, 1, MAX_CONTENT_LEVEL) || !integer(v.requiredLevel, 1, MAX_CONTENT_LEVEL)
     || !number(v.power) || !modifiers(v.implicit) || !Array.isArray(v.affixes) || v.affixes.length > 12
     || (v.stack !== undefined && !integer(v.stack, 1, 20))
+    || (v.classId !== undefined && !isWowClassId(v.classId))
     || !v.affixes.every(a => object(a) && text(a.name) && Object.hasOwn(STAT_LABELS, String(a.stat)) && number(a.value, -1e9, 1e9))) return false;
   const r = v.recipe;
   if (!object(r) || typeof r.starter !== 'boolean' || !integer(r.enhancement, 0, 10) || !integer(r.revision)

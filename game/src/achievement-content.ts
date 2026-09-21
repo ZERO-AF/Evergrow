@@ -105,7 +105,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('deadmines', 'Deadmines', 'Dungeons', 'Defeat a dungeon boss.', 'skull', { kind: 'dungeons' }, 1),
   def('classic-dungeonmaster', 'Classic Dungeonmaster', 'Dungeons', 'Clear 3 different dungeons.', 'map', { kind: 'distinctDungeons' }, 3),
   def('northrend-dungeonmaster', 'Northrend Dungeonmaster', 'Dungeons', 'Defeat 10 dungeon bosses.', 'skull', { kind: 'dungeons' }, 10),
-  def('blackrock-depths', 'Blackrock Depths', 'Dungeons', 'Clear Emberfall Depths.', 'lantern', { kind: 'dungeonId', id: 'emberfall' }, 1),
+  def('blackrock-depths', 'Blackrock Depths', 'Dungeons', 'Clear Blackrock Depths.', 'lantern', { kind: 'dungeonId', id: 'blackrock' }, 1),
   def('tripping-the-rifts', 'Tripping the Rifts', 'Dungeons', 'Defeat a rift guardian before the timer expires.', 'portal', { kind: 'rifts' }, 1),
   def('molten-core', 'Molten Core', 'Dungeons', 'Defeat the raid boss.', 'skull', { kind: 'raid' }, 1),
   // ── Meta ──

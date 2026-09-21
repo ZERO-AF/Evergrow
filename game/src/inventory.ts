@@ -2,7 +2,9 @@ import { resolvePackLayout, normalizePackLayout, packOccupancy, findPackSpace, f
 export { addInventoryItem } from './inventory-grid.ts';
 import type { ActionResult, Attribute, CharacterSheet, EquipmentSlot, Item } from './character-types.ts';
 import type { Player } from './model.ts';
-import { EQUIPMENT_SLOTS } from './items.ts';
+import { EQUIPMENT_SLOTS, RELIC_CLASSES } from './items.ts';
+import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
+import type { WowClassId } from './wow-types.ts';
 import { isGlyphItem } from './glyph-content.ts';
 import { isBagItem } from './bag-content.ts';
 import { equipBag } from './bag-state.ts';
@@ -12,10 +14,11 @@ import { isConsumableItem } from './consumable-content.ts';
 const success = (): ActionResult => ({ ok: true });
 const fail = (message: string): ActionResult => ({ ok: false, message });
 const validIndex = (sheet: CharacterSheet, index: number) => Number.isInteger(index) && index >= 0 && index < sheet.inventory.length;
-export function itemFitsSlot(item: Item, slot: EquipmentSlot): boolean {
+export function itemFitsSlot(item: Item, slot: EquipmentSlot, classId?: WowClassId): boolean {
   if (isGlyphItem(item) || isBagItem(item)) return false;
   if (isConsumableItem(item)) return false;
   if (item.kind === 'ring') return slot === 'ring1' || slot === 'ring2';
+  if (item.kind === 'relic') return slot === 'offhand' && (classId === undefined || RELIC_CLASSES.includes(classId));
   if (item.kind === 'shield' || item.kind === 'grimoire' || item.kind === 'orb') return slot === 'offhand';
   if (item.kind === 'weapon') return slot === 'weapon' || slot === 'offhand' && item.weapon?.hands === 1 && (item.weapon.attackKind === 'melee' || item.weapon.family === 'wand');
   return item.kind === slot;
@@ -32,7 +35,7 @@ export function defaultEquipmentSlot(sheet: CharacterSheet, item: Item): Equipme
   if (item.kind === 'charm' || item.kind === 'riftKey' || item.kind === 'consumable' || isBagItem(item)) return undefined;
   return (item.kind === 'ring'
     ? !sheet.equipped.ring1 ? 'ring1' : !sheet.equipped.ring2 ? 'ring2' : 'ring1'
-    : (item.kind === 'shield' || item.kind === 'grimoire' || item.kind === 'orb') ? 'offhand' : item.kind);
+    : (item.kind === 'shield' || item.kind === 'grimoire' || item.kind === 'orb' || item.kind === 'relic') ? 'offhand' : item.kind);
 }
 
 export function planEquipmentChange(sheet: CharacterSheet, item: Item, level: number, target: EquipmentTarget = {}): EquipmentPlan {
@@ -53,13 +56,22 @@ function resolveEquipmentChange(sheet: CharacterSheet, item: Item, level: number
   if (source === undefined && [...sheet.inventory, ...Object.values(sheet.equipped)].some(owned => owned?.id === item.id))
     return reject('This item is already owned.');
   if (item.kind === 'charm') return reject('Place charms in the charm grid.');
+  const cls = wowClassOf(sheet);
+  if (item.classId && item.classId !== sheet.classId)
+    return reject(`Only a ${WOW_CLASSES[item.classId].name} can equip this.`);
+  if (item.kind === 'relic' && (!cls || !RELIC_CLASSES.includes(cls.id)))
+    return reject(`Only a ${RELIC_CLASSES.map(id => WOW_CLASSES[id].name).join(', ')} can equip this.`);
   const slot = target.slot ?? defaultEquipmentSlot(sheet, item);
-  if (!slot || !EQUIPMENT_SLOTS.includes(slot) || !itemFitsSlot(item, slot)) return reject('This item does not fit that equipment slot.');
+  if (!slot || !EQUIPMENT_SLOTS.includes(slot) || !itemFitsSlot(item, slot, sheet.classId)) return reject('This item does not fit that equipment slot.');
   if (!Number.isSafeInteger(level) || !Number.isSafeInteger(item.requiredLevel) || item.requiredLevel < 1 || level < item.requiredLevel)
     return reject(`Requires level ${item.requiredLevel}.`);
   if (item.kind === 'weapon' && !item.weapon) return reject('This weapon has no attack profile.');
   if ((item.kind === 'grimoire' || item.kind === 'orb') && !item.focus) return reject('This focus has no equipment profile.');
   if (item.kind === 'shield' && !item.shield) return reject('This shield has no defense profile.');
+  if (cls && item.weapon && !cls.weapons.includes(item.weapon.family))
+    return reject(`${cls.name}s cannot use ${item.weapon.family} weapons.`);
+  if (cls && item.weapon?.hands === 2 && item.weapon.attackKind === 'melee' && !cls.twoHandedMelee)
+    return reject(`${cls.name}s cannot use two-handed melee weapons.`);
   const grid = packGrid(sheet);
   const inventory = [...sheet.inventory, ...Array(Math.max(0, grid.totalCells - sheet.inventory.length)).fill(null)], equipped = { ...sheet.equipped };
   const inventoryLayout = resolvePackLayout(sheet), preferredCell = inventoryLayout[item.id];

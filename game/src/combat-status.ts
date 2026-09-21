@@ -6,7 +6,7 @@ import type { CcKind, DotSchool, DotSpec } from './wow-types.ts';
 
 export interface SlowEffect { readonly duration: number; readonly factor: number }
 export interface BurnEffect { readonly duration: number; readonly dps: number }
-export const STATUS_RULES = Object.freeze({ burnInterval: .5, detonateRadius: 120 });
+export const STATUS_RULES = Object.freeze({ burnInterval: .5, detonateRadius: 120, polymorphRegenPerSecond: .02 });
 
 /** WoW diminishing returns: repeated control within a 15s window halves duration
  * (100% → 50% → 25% → immune). Normal/veteran ranks only; elite/boss keep their
@@ -137,6 +137,11 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
   if (enemy.chillTime && enemy.chillTime > 0) enemy.chillTime = Math.max(0, enemy.chillTime - dt);
   if (enemy.slowTime > 0) enemy.slowTime = Math.max(0, enemy.slowTime - dt);
   if (enemy.slowTime <= 0) enemy.slowFactor = 1;
+  // Burn intentionally stays on its own fields in parallel with enemy.dots:
+  // elemental-reaction.ts consumes/clears burnTime for Overload & Combustion,
+  // renderer.ts reads it for the burning visual, and enemy-debuffs.ts renders the
+  // authored Burn row — none of those read dots. Migrating burn into dots
+  // (wow-transformation §3) is a cross-module cutover, not a local change.
   if (enemy.burnTime > 0) {
     enemy.burnTick += Math.min(dt, enemy.burnTime);
     const remainingBurn = enemy.burnTime - dt;
@@ -165,6 +170,9 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
   if (enemy.cc) {
     for (const effect of enemy.cc) effect.remaining = Math.max(0, effect.remaining - dt);
     enemy.cc = enemy.cc.filter(effect => effect.remaining > 0);
+    // Polymorph incapacitates AND regenerates the victim (wow-transformation §3).
+    if (enemy.cc.some(effect => effect.kind === 'polymorph'))
+      enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * STATUS_RULES.polymorphRegenPerSecond * dt);
   }
   if (enemy.sundered) {
     enemy.sundered.remaining = Math.max(0, enemy.sundered.remaining - dt);

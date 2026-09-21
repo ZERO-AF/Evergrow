@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateItem, deriveItem, itemAffixPool, TIER_AFFIXES } from '../src/items.ts';
+import { generateItem, deriveItem, itemAffixPool, TIER_AFFIXES, createCharacterSheet } from '../src/items.ts';
 import { FOCUS_PROFILES } from '../src/focus-content.ts';
 import { WEAPON_PROFILES } from '../src/weapon-content.ts';
 import { improveItem, improvementProblem } from '../src/item-improvement.ts';
@@ -28,6 +28,8 @@ const put = (p: ReturnType<typeof initialPlayer>, id: string, seed: number) => {
   assert.ok(executeCharacterCommand(p, { type: 'equip', index: 63 }).ok);
   return item;
 };
+/** Caster weapons (wand/staff) require a caster class; the default sheet is a warrior. */
+const casterPlayer = () => { const p = initialPlayer(0, 0); p.character = createCharacterSheet('mage'); refreshCharacter(p); return p; };
 test('wands use cast speed, spell power and cheaper bolts while supporting every magic skill and shield skills', () => {
   const stats = { castSpeedMultiplier: 1.5, attackSpeedMultiplier: 4, attackDamageMultiplier: 9, spellDamageMultiplier: 2 };
   for (const wand of WEAPON_PROFILES.filter(w => w.family === 'wand')) {
@@ -37,7 +39,7 @@ test('wands use cast speed, spell power and cheaper bolts while supporting every
     assert.equal(a.damage, wand.damage * 2);
     assert.equal(a.attacksPerSecond, wand.baseAttacksPerSecond * .8 * 1.5);
     assert.equal(basicAttackManaCost(wand, { manaCostMultiplier: 1 }), 2);
-    const p = initialPlayer(0, 0); put(p, wand.id, 21); put(p, 'vigil-kite', 22);
+    const p = casterPlayer(); put(p, wand.id, 21); put(p, 'vigil-kite', 22);
     for (const [id, definition] of Object.entries(SKILL_DEFINITIONS)) if (definition.requirement === 'magic') assert.equal(skillWeapon(id as SkillId, p.equipment), p.equipment.mainHand);
     assert.ok(skillWeapon('shieldBash', p.equipment));
     assert.equal(itemFitsSlot(p.character.equipped.weapon!, 'offhand'), true, 'one-handed wands also fit the off hand');
@@ -66,6 +68,7 @@ test('caster recipes survive every tier, level, upgrade, relevel and reroll with
 });
 test('wand + focus round-trips through save validation and projection, while forged hand/profile combinations fail', () => {
   const sim = new Simulation({ blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) }, { spawn: false });
+  sim.player.character = createCharacterSheet('mage'); refreshCharacter(sim.player);
   for (const [index, profile] of FOCUS_PROFILES.entries()) {
     sim.player.character.inventory.fill(null);
     put(sim.player, 'star-wand', 280 + index); const focus = put(sim.player, profile.id, 400 + index);
@@ -83,7 +86,7 @@ test('wand + focus round-trips through save validation and projection, while for
 });
 test('focus stats preview exactly, staff swaps stow both pieces and full packs fail without losing items', () => {
   for (const profile of FOCUS_PROFILES) {
-    const p = initialPlayer(0, 0); put(p, 'cinder-wand', 20);
+    const p = casterPlayer(); put(p, 'cinder-wand', 20);
     const before = { ...p.derived }; put(p, profile.id, 31);
     assert.ok(profile.visual.kind === 'grimoire' ? p.maxMana > before.maxMana : p.derived.spellDamageMultiplier > before.spellDamageMultiplier);
     const staff = generateItem(61, 1, 'weapon', 'ember-staff', 'common'); p.character.inventory[50] = staff;
@@ -101,7 +104,7 @@ test('focus stats preview exactly, staff swaps stow both pieces and full packs f
   }
 });
 test('new foci appear in real loot and vendor stock, with shared finite inventory/drop/portrait geometry', () => {
-  const p = initialPlayer(0, 0);
+  const p = casterPlayer();
   const npc = { id: 'town:7319:0:building:2:jeweler', role: 'jeweler', level: 1 } as TownNPC;
   const stock = vendorStock(p.character, npc, 1);
   assert.equal(stock[6]?.kind, 'grimoire'); assert.equal(stock[7]?.kind, 'orb'); assert.ok(stock.every(validItem));
@@ -121,7 +124,7 @@ test('new foci appear in real loot and vendor stock, with shared finite inventor
 
 
 test('a wand stays in its guard while an equipped melee off-hand performs its own swing', () => {
-  const p = initialPlayer(0, 0); put(p, 'cinder-wand', 12);
+  const p = casterPlayer(); put(p, 'cinder-wand', 12);
   p.character.inventory[63] = generateItem(13, 1, 'weapon', 'rondel-dagger', 'common');
   assert.ok(executeCharacterCommand(p, { type: 'equip', index: 63, slot: 'offhand' }).ok);
   const base = playerPose(p, 1);

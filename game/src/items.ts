@@ -8,6 +8,7 @@ import { RESISTANCE_AFFIXES, RESISTANCE_LABELS, RESISTANCE_STATS, isResistanceSt
 import { JEWELRY_PROFILES, jewelryProfiles } from './jewelry-content.ts';
 import { ITEM_MATERIALS, isClothMaterial, sourceMaterialPool, type MaterialSource, itemMaterialPool, rollItemMaterial, itemMaterialScale, materialBaseName, type ItemMaterialId } from './item-materials.ts';
 import { SPECIAL_AFFIXES, SPECIAL_AFFIX_LABELS, SKILL_AFFIXES, SKILL_STATS, isSkillStat, skillAffixPool, discreteAffixValue, type AffixDefinition } from './equipment-affix-content.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
 import { ELEMENTAL_AFFIXES, ELEMENT_COLORS, isElementalAffix, meleeEnchantment } from './elemental-weapon.ts';
 import { createRaceLook, type CharacterLook } from './character-look.ts';
 import { cloneData } from './data-clone.ts';
@@ -21,7 +22,7 @@ import { generateWowName, legendaryFor, WOW_LEGENDARIES } from './item-naming.ts
 import { LEGENDARY_PROCS, legendaryProcsFor } from './legendary-content.ts';
 import { createConsumableItem, isConsumableId } from './consumable-content.ts';
 import { BAR_TOTAL } from './action-bar.ts';
-import type { CharacterSheet, EquipmentSlot, Item, ItemAffix, ItemKind, ItemTier, StatKey, StatModifiers } from './character-types.ts';
+import type { CharacterSheet, EquipmentSlot, Item, ItemAffix, ItemKind, ItemTier, SkillId, StatKey, StatModifiers } from './character-types.ts';
 import { setPiecesFor, setPiece, setPieceSet, SET_PIECE_PREFIX, SET_PIECE_ROLL, type SetPieceDef, type SetPieceId } from './item-set-content.ts';
 
 export const INVENTORY_CAPACITY = 120;
@@ -29,7 +30,9 @@ export const INVENTORY_CAPACITY = 120;
 export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = Object.freeze([
   'weapon', 'offhand', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring1', 'ring2',
 ]);
-export const ITEM_KINDS: readonly ItemKind[] = Object.freeze(['weapon', 'shield', 'grimoire', 'orb', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring', 'charm', 'consumable']);
+export const ITEM_KINDS: readonly ItemKind[] = Object.freeze(['weapon', 'shield', 'grimoire', 'orb', 'relic', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring', 'charm', 'consumable']);
+/** Classes that may equip a relic (totem/libram/idol/sigil) in the offhand slot. */
+export const RELIC_CLASSES: readonly WowClassId[] = Object.freeze(['shaman', 'paladin', 'druid', 'deathKnight']);
 export const TIER_COLORS: Readonly<Record<ItemTier, string>> = Object.freeze({
   common: '#c5ccc8', magic: '#76b9ee', rare: '#e0c17a', epic: '#b895ef', legendary: '#f0a16b', unique: UNIQUE_COLOR,
 });
@@ -67,6 +70,7 @@ const BASE_NAMES: Readonly<Record<Exclude<ItemKind, 'weapon' | 'shield' | 'grimo
   legs: ['Greaves', 'Cuisses', 'Chausses'], boots: ['Sabatons', 'Treads', 'Longboots'],
   cloak: ['Mantle', 'Shroud', 'Halfcape'], amulet: ['Reliquary', 'Talisman', 'Moon Pendant'],
   ring: ['Signet', 'Band', 'Loop'], charm: ['Stone', 'Stone', 'Stone'],
+  relic: ['Totem', 'Libram', 'Idol'],
 };
 export const AFFIXES: readonly AffixDefinition[] = [
   ...SPECIAL_AFFIXES, ...RESISTANCE_AFFIXES,
@@ -112,6 +116,18 @@ export function itemAffixPool(item: { kind: ItemKind; weapon?: { family: string;
     const flavor = CHARM_PROFILES.find(p=>p.id===item.recipe?.profileId)?.flavor;
     return [...AFFIXES, ...CHARM_UTILITY_AFFIXES].filter(a=>CHARM_WEIGHTS[a.stat]).map(a=>({...a,
       weight: CHARM_WEIGHTS[a.stat]! * (flavor?.stats.includes(a.stat) ? 2 : 1) }));
+  }
+  if (item.kind === 'relic') {
+    // Relics are class trinkets: a skill-rank affix drawn from the relic classes'
+    // kits plus a modest generic support pool (skill affixes conflict, so higher
+    // tiers still need ordinary stats to fill their rolls).
+    const skills = SKILL_AFFIXES.filter(a => {
+      const def = SKILL_DEFINITIONS[a.stat.slice(6) as SkillId];
+      return def?.classId !== undefined && RELIC_CLASSES.includes(def.classId);
+    }).map(a => ({ ...a, weight: 6 }));
+    const stats: StatKey[] = ['strength', 'dexterity', 'intelligence', 'vitality', 'maxHp', 'maxMana', 'armor',
+      'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'manaRegen', 'lifeRegen', 'cooldownPercent', 'manaCostPercent'];
+    return [...AFFIXES.filter(a => stats.includes(a.stat)).map(a => ({ ...a, weight: a.weight ?? 1 })), ...skills];
   }
   const melee = item.kind === 'weapon' && ['sword', 'axe', 'mace', 'dagger'].includes(item.weapon?.family ?? '');
   const armor=['head','chest','gloves','legs','boots'].includes(item.kind), construction=item.recipe?.materialId;

@@ -22,7 +22,8 @@ export const GAME_FEATURES = {
  // Wave C (docs/wow-deepening.md, second pass)
  spellbook: true,
  itemSets: true,
- reputation: true,
+  reputation: true,
+  stats: true,
  castBars: true,
  bags: true,
  spellVfx: true,

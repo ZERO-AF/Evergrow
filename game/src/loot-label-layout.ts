@@ -12,7 +12,7 @@ export function groundLootName(item: Item): string {
   const cloth = item.appearance.style === 'cloth', leather = item.appearance.style === 'leather';
   const kinds: Record<ItemKind, string> = { riftKey: 'Rift Key', charm: 'Charm', consumable: 'Consumable', weapon: 'Weapon', shield: 'Shield', grimoire: 'Grimoire', orb: 'Orb',
     head: cloth || leather ? 'Hood' : 'Helm', chest: cloth ? 'Robe' : leather ? 'Jerkin' : 'Armor',
-    boots: 'Boots', gloves: 'Gloves', legs: cloth || leather ? 'Trousers' : 'Greaves', cloak: 'Cloak', ring: 'Ring', amulet: 'Amulet' };
+    boots: 'Boots', gloves: 'Gloves', legs: cloth || leather ? 'Trousers' : 'Greaves', cloak: 'Cloak', ring: 'Ring', amulet: 'Amulet', relic: 'Relic' };
   const family = item.weapon?.family;
   const noun = family ? family === 'sword' && item.weapon!.hands === 2 ? 'Greatsword'
     : family.charAt(0).toUpperCase() + family.slice(1) : kinds[item.kind];

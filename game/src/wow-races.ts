@@ -1,9 +1,5 @@
 import type { WowClassId, WowRaceDef, WowRaceId } from './wow-types.ts';
 
-const ALL_DK: readonly WowClassId[] = Object.freeze([
-  'warrior', 'paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'shaman', 'mage', 'warlock', 'druid',
-]);
-
 /** WotLK races: class availability, racial active, passive modifiers. */
 export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze({
   human: Object.freeze({
@@ -88,7 +84,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
   }),
   troll: Object.freeze({
     id: 'troll', name: 'Troll',
-    classes: ALL_DK,
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'druid', 'deathKnight']),
     racial: 'berserking', racialName: 'Berserking',
     racialDescription: 'Enter a frenzy: +20% attack and cast speed for 10 sec. 3 min cooldown.',
     passives: Object.freeze({ lifeRegen: 0.5 }),

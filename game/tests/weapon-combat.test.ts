@@ -14,13 +14,14 @@ import { WEAPON_PROFILES, SHIELD_PROFILES } from '../src/weapon-content.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
 import type { Attack, CombatEvent, Enemy, Input, WorldQuery } from '../src/model.ts';
 import type { SkillId } from '../src/character-types.ts';
+import type { WowClassId } from '../src/wow-types.ts';
 import { createWowSim } from './fixtures/wow-sim.ts';
 
 const openWorld: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 400, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
-const make = (world = openWorld) => {
+const make = (world = openWorld, cls: WowClassId = 'mage') => {
   // Mage/undead: mana pool seeded full, neutral caster for the universal skills here.
-  const sim = createWowSim('mage', 'undead', world);
+  const sim = createWowSim(cls, 'undead', world);
   sim.setCombatViewport({ x: -600, y: -400, width: 1200, height: 800 });
   return sim;
 };
@@ -54,7 +55,8 @@ function unlock(sim: Simulation, id: SkillId): void {
   sim.player.derived.critChance = 0;
 }
 function skillSim(id: SkillId, world = openWorld): Simulation {
-  const sim = make(world), requirement = SKILL_DEFINITIONS[id].requirement;
+  const requirement = SKILL_DEFINITIONS[id].requirement;
+  const sim = make(world, requirement === 'bow' ? 'hunter' : requirement === 'magic' ? 'mage' : 'warrior');
   equip(sim, requirement === 'bow' ? 'thorn-shortbow' : requirement === 'magic' ? 'ember-staff'
     : requirement === 'dagger' ? 'rondel-dagger' : requirement === 'heavy' ? 'hand-axe' : 'longsword');
   if (requirement === 'shield') equip(sim, 'iron-buckler');
@@ -127,7 +129,7 @@ function incoming(sim: Simulation, damage = 40): void {
 
 for (const profile of ['thorn-shortbow', 'ember-staff', 'cinder-wand', 'hoarfrost-wand', 'spark-wand', 'star-wand']) {
   test(`${profile} basic attack releases once per cycle at weapon cadence and never deals a melee arc`, () => {
-    const sim = make(); equip(sim, profile);
+    const sim = make(openWorld, profile === 'thorn-shortbow' ? 'hunter' : 'mage'); equip(sim, profile);
     const straight = target(sim, 160), beside = target(sim, 35, 35);
     sim.update(FIXED_STEP, { ...idle, attack: true });
     const attack = sim.player.attack!; assert.equal(attack.kind, 'ranged');
@@ -143,7 +145,7 @@ for (const profile of ['thorn-shortbow', 'ember-staff', 'cinder-wand', 'hoarfros
 }
 
 test('a ranged windup retains its original damage and projectile style after an equipment swap', () => {
-  const sim = make(); equip(sim, 'thorn-shortbow');
+  const sim = make(openWorld, 'warrior'); equip(sim, 'thorn-shortbow');
   sim.update(FIXED_STEP, { ...idle, attack: true });
   const original = sim.player.attack!, damage = original.damage;
   equip(sim, 'ember-staff'); advance(sim, original.activeStart + FIXED_STEP);
@@ -153,7 +155,7 @@ test('a ranged windup retains its original damage and projectile style after an 
 });
 
 test('dual wield alternates actual main/off-hand damage and duration snapshots', () => {
-  const sim = make(); equip(sim, 'longsword'); equip(sim, 'hand-axe', true);
+  const sim = make(openWorld, 'warrior'); equip(sim, 'longsword'); equip(sim, 'hand-axe', true);
   const main = deriveAttackStats(sim.player.stats, sim.player.equipment.mainHand);
   const off = sim.player.equipment.offHand!; assert.equal(off.kind, 'weapon');
   const other = deriveAttackStats(sim.player.stats, off.kind === 'weapon' ? off.weapon : sim.player.equipment.mainHand);
@@ -362,7 +364,7 @@ test('mana efficiency from gear reduces staff basic costs and a paid windup reta
 
 test('sword and bow basics remain usable with an empty mana pool', () => {
   for (const profile of ['longsword', 'thorn-shortbow']) {
-    const sim = make(); equip(sim, profile);
+    const sim = make(openWorld, 'warrior'); equip(sim, profile);
     sim.player.mana = 0; sim.player.derived.manaRegeneration = 0;
     sim.update(FIXED_STEP, { ...idle, attack: true });
     assert.ok(sim.player.attack); assert.equal(sim.player.mana, 0);

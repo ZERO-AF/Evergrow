@@ -102,4 +102,10 @@ export interface CharacterPose {
   /** Normalized dodge progress, from launch through recovery. */
   dodgeProgress?: number;
   dead?: boolean;
+  /** Active crowd-control effects for status art (WoW CC indicators). */
+  cc?: readonly { readonly kind: import('./wow-types.ts').CcKind; remaining: number }[];
+  /** Active damage-over-time effects for status art. */
+  dots?: readonly { readonly school: import('./wow-types.ts').DotSchool; remaining: number }[];
+  /** Player stealth — renders the rig translucent. */
+  stealthed?: boolean;
 }

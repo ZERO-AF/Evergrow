@@ -1,4 +1,4 @@
-import type { DamageType } from './model.ts';
+import type { DamageType, WeaponFamily } from './model.ts';
 import type { StatModifiers, WowSkillId } from './character-types.ts';
 
 /** WotLK class identity. Persisted on CharacterSheet.classId. */
@@ -45,6 +45,10 @@ export interface WowClassDef {
   /** Global cooldown seconds (rogue/cat 1.0, others 1.5). */
   readonly gcd: number;
   readonly armorStyle: 'plate' | 'leather' | 'cloth';
+  /** Equipable weapon families (spec §1 Weapons column; 'unarmed' is the fallback, never listed). */
+  readonly weapons: readonly WeaponFamily[];
+  /** True when the class may equip two-handed melee weapons (sword/axe/mace). */
+  readonly twoHandedMelee: boolean;
   /** Starter loadout: weapon profile id + optional offhand profile id. */
   readonly starter: { weapon: string; offhand?: string };
   /** The class's level-1 skill; its sanctum node is free and pre-allocated at creation. */
@@ -204,6 +208,6 @@ export const WOW_COMBAT = Object.freeze({
   maxComboPoints: 5,
   maxSoulShards: 4,
   maxAllies: 6,
-  allyLeash: 140,
+  allyLeash: 70,
   stealthSenseRadius: 25,
 });

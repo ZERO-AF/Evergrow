@@ -8,6 +8,7 @@ import { equipItem, unequipItem } from '../src/inventory.ts';
 import { generateItem } from '../src/items.ts';
 import { allocateNode, SKILL_NODES, SKILL_TREE } from '../src/skill-tree.ts';
 import { SKILL_DEFINITIONS } from '../src/skill-content.ts';
+import { WEAPON_PROFILES } from '../src/weapon-content.ts';
 import { SKILL_EXECUTION } from '../src/skill-execution-content.ts';
 import { deriveAttackStats } from '../src/equipment.ts';
 import { WOW_CLASSES } from '../src/wow-classes.ts';
@@ -31,9 +32,14 @@ function target(sim: Simulation, x = 45, y = 0, hp = 10000): Enemy {
 }
 function equipForSkill(sim: Simulation, id: SkillId): void {
   const required = SKILL_DEFINITIONS[id].requirement;
-  const profile = required === 'magic' ? 'ember-staff' : required === 'bow' ? 'thorn-shortbow'
-    : required === 'dagger' ? 'rondel-dagger' : required === 'heavy' ? 'hand-axe' : 'longsword';
-  const item = generateItem(723, 1, 'weapon', profile); item.implicit = {}; item.affixes = [];
+  const usable = WOW_CLASSES[sim.player.character.classId].weapons;
+  const families = required === 'magic' ? ['staff', 'wand'] : required === 'bow' ? ['bow']
+    : required === 'dagger' ? ['dagger'] : required === 'heavy' ? ['axe', 'mace']
+    : required === 'blade' ? ['sword', 'axe', 'dagger'] : ['sword', 'axe', 'mace', 'dagger', 'staff', 'wand', 'bow'];
+  const profile = WEAPON_PROFILES.find(w => w.hands === 1 && families.includes(w.family) && usable.includes(w.family))
+    ?? WEAPON_PROFILES.find(w => families.includes(w.family) && usable.includes(w.family));
+  assert.ok(profile, `no legal ${required} weapon for ${sim.player.character.classId}`);
+  const item = generateItem(723, 1, 'weapon', profile.id); item.implicit = {}; item.affixes = [];
   sim.player.character.inventory[47] = item;
   assert.ok(equipItem(sim.player.character, 47, sim.player.level).ok);
   if (required === 'shield') {
@@ -131,7 +137,7 @@ for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_
     // so the resource assertion stays exact — racials cost no class resource).
     const sim = definition.classId ? createWowSim(definition.classId)
       : definition.raceId ? createWowSim(manaClassForRace(definition.raceId), definition.raceId)
-      : createSim();
+      : createWowSim(definition.requirement === 'bow' || definition.requirement === 'heavy' ? 'hunter' : 'mage', 'undead');
     const player = sim.player, wowClass = WOW_CLASSES[player.character.classId!];
     const slot = definition.raceId ? RACIAL_SLOT : 0;
     unlock(sim, id, definition.raceId ? 0 : 0);

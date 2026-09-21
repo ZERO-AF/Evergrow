@@ -13,7 +13,7 @@ export type StatKey = Attribute | ResistanceStat | 'goldFindPercent' | 'xpGainPe
   | 'lifeRegen' | 'manaCostPercent' | 'cooldownPercent' | 'lifeOnHit' | 'blockChance' | 'blockReduction' | 'fireDamage' | 'frostDamage' | 'lightningDamage';
 export type StatModifiers = Partial<Record<StatKey, number>>;
 export type EquipmentSlot = 'weapon' | 'offhand' | 'head' | 'chest' | 'gloves' | 'legs' | 'boots' | 'cloak' | 'amulet' | 'ring1' | 'ring2';
-export type ItemKind = Exclude<EquipmentSlot, 'offhand' | 'ring1' | 'ring2'> | 'ring' | 'shield' | 'grimoire' | 'orb' | 'charm' | 'riftKey' | 'consumable';
+export type ItemKind = Exclude<EquipmentSlot, 'offhand' | 'ring1' | 'ring2'> | 'ring' | 'shield' | 'grimoire' | 'orb' | 'relic' | 'charm' | 'riftKey' | 'consumable';
 export type ItemTier = 'common' | 'magic' | 'rare' | 'epic' | 'legendary' | 'unique';
 export interface ItemAffix { name: string; stat: StatKey; value: number; }
 export interface ItemRecipe {
@@ -80,7 +80,7 @@ export type WowSkillId =
   | 'adrenalineRush' | 'cheapShot' | 'hemorrhage' | 'cloakOfShadows'
   | 'mutilate' | 'envenom' | 'deadlyThrow' | 'shiv' | 'feint' | 'distract' | 'dismantle'
   | 'tricksOfTheTrade' | 'preparation' | 'shadowstep' | 'shadowDance' | 'killingSpree' | 'hungerForBlood'
-  | 'exposeArmor' | 'cripplingPoison' | 'deadlyPoison' | 'woundPoison' | 'instantPoison' | 'mindNumbingPoison' | 'detectTraps'
+  | 'exposeArmor' | 'cripplingPoison' | 'deadlyPoison' | 'woundPoison' | 'instantPoison' | 'mindNumbingPoison' | 'detectTraps' | 'rogueBackstab'
   // Priest
   | 'smite' | 'shadowWordPain' | 'mindBlast' | 'mindFlay' | 'powerWordShield' | 'renew' | 'flashHeal'
   | 'greaterHeal' | 'psychicScream' | 'dispelMagic' | 'shadowform' | 'holyNova' | 'prayerOfHealing'
@@ -103,14 +103,14 @@ export type WowSkillId =
   | 'windfuryWeapon' | 'flametongueWeapon' | 'frostbrandWeapon' | 'rockbiterWeapon' | 'earthlivingWeapon'
   | 'fireNova' | 'magmaTotem' | 'manaSpringTotem' | 'totemOfWrath' | 'wrathOfAirTotem' | 'windfuryTotem'
   | 'strengthOfEarthTotem' | 'stoneskinTotem' | 'flametongueTotem' | 'tremorTotem' | 'cleansingTotem' | 'groundingTotem'
-  | 'earthElementalTotem' | 'fireElementalTotem' | 'purge' | 'hex' | 'riptide' | 'earthShield' | 'waterShield' | 'ancestralSpirit' | 'reincarnation' | 'astralRecall'
+  | 'earthElementalTotem' | 'fireElementalTotem' | 'purge' | 'hex' | 'riptide' | 'earthShield' | 'waterShield' | 'ancestralSpirit' | 'reincarnation' | 'astralRecall' | 'shamanisticRage'
   // Mage
   | 'frostbolt' | 'pyroblast' | 'fireBlast' | 'scorch' | 'arcaneMissiles' | 'arcaneExplosion' | 'frostNova'
   | 'iceLance' | 'coneOfCold' | 'blizzard' | 'blink' | 'polymorph' | 'counterspell' | 'iceBlock'
   | 'iceBarrier' | 'evocation' | 'mirrorImage' | 'combustion' | 'dragonsBreath' | 'deepFreeze'
   | 'flamestrike' | 'blastWave' | 'livingBomb' | 'arcaneBlast' | 'arcaneBarrage' | 'frostfireBolt'
   | 'coldSnap' | 'icyVeins' | 'summonWaterElemental' | 'manaShield' | 'mageArmor' | 'moltenArmor'
-  | 'removeCurse' | 'spellSteal' | 'slowFall' | 'conjureRefreshment' | 'focusMagic' | 'presenceOfMind'
+  | 'removeCurse' | 'spellSteal' | 'slowFall' | 'conjureRefreshment' | 'focusMagic' | 'presenceOfMind' | 'arcanePower'
   // Warlock
   | 'shadowBolt' | 'immolate' | 'corruption' | 'curseOfAgony' | 'unstableAffliction' | 'drainLife'
   | 'drainSoul' | 'searingPain' | 'shadowburn' | 'chaosBolt' | 'conflagrate' | 'fear' | 'howlOfTerror'

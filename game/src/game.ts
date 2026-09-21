@@ -739,13 +739,13 @@ export class Game {
     if (action === 'map' && (this.panels.canOpen('map') || this.phase === 'map')) {
       if (!repeat) { if (tab) this.panels.holdMap(); else this.panels.toggleMap(); } return true;
     }
-    if (action === 'questLog' && (this.panels.canOpen('questLog') || this.phase === 'questLog')) { if (!repeat) this.panels.toggle('questLog'); return true; }
-    if (action === 'professions' && (this.panels.canOpen('professions') || this.phase === 'professions')) { if (!repeat) this.panels.toggle('professions'); return true; }
-    if (action === 'achievements' && (this.panels.canOpen('achievements') || this.phase === 'achievements')) { if (!repeat) this.panels.toggle('achievements'); return true; }
-    if (action === 'spellbook' && (this.panels.canOpen('spellbook') || this.phase === 'spellbook')) { if (!repeat) this.panels.toggle('spellbook'); return true; }
-    if (action === 'stats' && (this.panels.canOpen('stats') || this.phase === 'stats')) { if (!repeat) this.panels.toggle('stats'); return true; }
-    if (action === 'reputation' && (this.panels.canOpen('reputation') || this.phase === 'reputation')) { if (!repeat) this.panels.toggle('reputation'); return true; }
-    if (action === 'transmog' && (this.panels.canOpen('transmog') || this.phase === 'transmog')) { if (!repeat) this.panels.toggle('transmog'); return true; }
+    if (action === 'questLog' && GAME_FEATURES.quests && (this.panels.canOpen('questLog') || this.phase === 'questLog')) { if (!repeat) this.panels.toggle('questLog'); return true; }
+    if (action === 'professions' && GAME_FEATURES.professions && (this.panels.canOpen('professions') || this.phase === 'professions')) { if (!repeat) this.panels.toggle('professions'); return true; }
+    if (action === 'achievements' && GAME_FEATURES.achievements && (this.panels.canOpen('achievements') || this.phase === 'achievements')) { if (!repeat) this.panels.toggle('achievements'); return true; }
+    if (action === 'spellbook' && GAME_FEATURES.spellbook && (this.panels.canOpen('spellbook') || this.phase === 'spellbook')) { if (!repeat) this.panels.toggle('spellbook'); return true; }
+    if (action === 'stats' && GAME_FEATURES.stats && (this.panels.canOpen('stats') || this.phase === 'stats')) { if (!repeat) this.panels.toggle('stats'); return true; }
+    if (action === 'reputation' && GAME_FEATURES.reputation && (this.panels.canOpen('reputation') || this.phase === 'reputation')) { if (!repeat) this.panels.toggle('reputation'); return true; }
+    if (action === 'transmog' && GAME_FEATURES.transmog && (this.panels.canOpen('transmog') || this.phase === 'transmog')) { if (!repeat) this.panels.toggle('transmog'); return true; }
     if (action === 'nameplates') { if (!repeat) this.notify(`Enemy nameplates: ${cycleNameplateMode()}`); return true; }
     if (action === 'editLayout') { if (!repeat) this.uiLayoutPanel.toggle(); return true; }
 

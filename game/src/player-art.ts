@@ -1,7 +1,8 @@
 import { torsoFacing } from './character-facing.ts';
 import { gearSurface } from './gear-material.ts';
 import { projectArmPoint } from './player-arm-rig.ts';
-import type { CharacterPose, CharacterOutfit } from './art-types.ts';
+import type { CharacterOutfit } from './art-types.ts';
+import type { StatusPose } from './status-art.ts';
 import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
 import { playerLegRig, projectLegPoint } from './player-leg-rig.ts';
 import { STARTER_OUTFIT, heldWeapon, heldShield, heldFocus, upperArm, forearm, gauntlet, armorBoot, armorSegment, kneeArmor, drawGearShapes, chestArmor, shoulderArmor, headArmor } from './equipment-art.ts';
@@ -9,7 +10,9 @@ import { hash, polygon, line, taper, type Color, type Point } from './art-primit
 import { WOW_RACES } from './wow-races.ts';
 import { appearancePalette, HAIR_PALETTES, SKIN_PALETTES } from './appearance-content.ts';
 
-export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: Color): void {
+  // Stealth renders the whole rig translucent; the save/restore keeps the alpha scoped.
+  if (pose.stealthed) { ctx.save(); ctx.globalAlpha *= .55; }
   const outfit: CharacterOutfit = { ...STARTER_OUTFIT, ...pose.outfit };
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
     weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
@@ -187,4 +190,5 @@ export function player(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
     ctx.restore();
   }
   ctx.restore();
+  if (pose.stealthed) ctx.restore();
 }

@@ -50,7 +50,7 @@ export function itemDropShapes(item: Item): readonly GearShape[] {
     ]); break;
     case 'boots': shapes = [-1, 1].flatMap(side => bootShapes(piece, Math.PI / 2 - side * .3).map(shape => ({ ...shape,
       points: shape.points.map(([x,y]):Point => [x * 1.5 + side * 3.6, y * 1.5 + 3.5]) }))); break;
-    case 'ring': case 'amulet': shapes = jewelryShapes(item); break;
+    case 'ring': case 'amulet': case 'relic': shapes = jewelryShapes(item); break;
     case 'consumable': { const def = consumableFor(item); shapes = def ? consumableShapes(def) : []; break; }
   }
   if (shapes.length === 0) return [];
@@ -124,7 +124,7 @@ export function itemIconSVG(item: Item, size = 48): string {
     case 'boots':
       shape = [-1, 1].map(side => `<g transform="translate(${24 + side * 10} 36) scale(4)">${detailed(bootShapes(armorPiece, Math.PI / 2 - side * .3))}</g>`).join('');
       break;
-    case 'amulet': case 'ring':
+    case 'amulet': case 'ring': case 'relic':
       shape = `<g transform="translate(24 24) scale(2.05)">${detailed(jewelryShapes(item))}</g>`;
       break;
     case 'consumable':

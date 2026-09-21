@@ -13,7 +13,8 @@ import { AFFIX_COMBAT_RULES, SPECIAL_AFFIX_LABELS, SKILL_STATS, isSkillStat, typ
 import { ELEMENTAL_AFFIXES, ELEMENT_COLORS } from './elemental-weapon.ts';
 import { weaponActionRate, basicAttackManaCost } from './equipment.ts';
 import type { CharacterSheet, EquipmentSlot, Item, ItemTier, StatKey } from './character-types.ts';
-import { TIER_COLORS, TIER_NAMES, STAT_LABELS, itemModifiers, formatStatValue, itemDisplayName } from './items.ts';
+import { TIER_COLORS, TIER_NAMES, STAT_LABELS, RELIC_CLASSES, itemModifiers, formatStatValue, itemDisplayName } from './items.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
 import { itemIconSVG } from './item-art.ts';
 import { previewEquipmentChange, type EquipmentStatChange, type PreviewStat } from './equipment-preview.ts';
 import { escapeUI } from './ui-components.ts';
@@ -178,8 +179,10 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   if (view.altToggle) {
     comparison += `<div class="ui-item-comparison"><button type="button" class="ui-item-alt-toggle" title="Press Alt or click to cycle comparison"><kbd>Alt</kbd> <span>${escapeUI(view.altToggle.label)}</span></button></div>`;
   }
+  const classGate = item.classId ? [item.classId] : item.kind === 'relic' ? [...RELIC_CLASSES] : null;
+  const classMeta = classGate ? `<span${classGate.includes(view.sheet.classId) ? '' : ' class="is-loss"'}>Classes: ${classGate.map(id => WOW_CLASSES[id].name).join(', ')}</span>` : '';
   return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span><span>${escapeUI(item.baseName)}</span>${view.equipped && view.compactComparison ? `<span class="ui-item-equipped-inline" title="${escapeUI(view.equippedLabel ?? '')}">Equipped</span>` : ''}</span><h4>${hasGreaterAffix(item) ? escapeUI(itemDisplayName(item).slice(0, -(GREATER_AFFIX_SYMBOL.length + 1))) + ' ' + greaterMark : escapeUI(itemDisplayName(item))}</h4></div></div>
-    <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}${view.durability !== undefined ? durabilityMetaMarkup(view.durability) : ''}</div>
+    <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${classMeta}${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}${view.durability !== undefined ? durabilityMetaMarkup(view.durability) : ''}</div>
     ${item.recipe.enhancement && !view.hideEnhancementDetails ? `<div class="ui-item-upgrade">Enhancement +${item.recipe.enhancement} / 10 · +${item.recipe.enhancement * 5}% scalable item stats</div>` : ''}
     ${weapon}${properties}
     ${uniqueDefinition(item)?uniquePowerMarkup(uniqueDefinition(item)!):''}${legendaryProcMarkup(item)}

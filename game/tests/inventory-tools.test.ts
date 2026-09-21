@@ -34,7 +34,7 @@ test('Equip Best upgrades rings and armor, respects level and stow capacity, and
 
 test('a different best weapon type requires a choice before any equipment changes', () => {
   const sheet = createCharacterSheet('paladin');
-  const staff = generateItem(181, 1, 'weapon', 'ember-staff', 'legendary');
+  const staff = generateItem(181, 1, 'weapon', 'greatblade', 'legendary');
   const ring = generateItem(182, 1, 'ring', undefined, 'rare');
   addInventoryItem(sheet, staff); addInventoryItem(sheet, ring);
   const before = structuredClone(sheet), plan = planBestEquipment(sheet, 1);
@@ -47,7 +47,7 @@ test('a different best weapon type requires a choice before any equipment change
 
 test('Keep current weapon only preserves that exact weapon while upgrading other gear', () => {
   const sheet = createCharacterSheet('paladin'), weapon = sheet.equipped.weapon;
-  addInventoryItem(sheet, generateItem(191, 1, 'weapon', 'ember-staff', 'legendary'));
+  addInventoryItem(sheet, generateItem(191, 1, 'weapon', 'greatblade', 'legendary'));
   addInventoryItem(sheet, generateItem(192, 1, 'weapon', 'longsword', 'epic'));
   const ring = generateItem(193, 1, 'ring', undefined, 'rare'); addInventoryItem(sheet, ring);
   const before = ids(sheet);
@@ -60,7 +60,7 @@ test('Equip anyway replaces weapon type and safely stows the shield without heal
   const player = new Simulation({ blocked: () => false, move: (x, y) => ({ x, y }) }, { spawn: false }).player;
   player.character = createCharacterSheet('paladin');
   const sheet = player.character, shield = sheet.equipped.offhand;
-  const staff = generateItem(201, 1, 'weapon', 'ember-staff', 'legendary'); addInventoryItem(sheet, staff);
+  const staff = generateItem(201, 1, 'weapon', 'greatblade', 'legendary'); addInventoryItem(sheet, staff);
   const before = ids(sheet), assignments = [...sheet.skillSlots]; player.hp = 29; player.mana = 11;
   assert.ok(executeCharacterCommand(player, { type: 'equipBest', choice: 'replace' }).ok);
   assert.equal(sheet.equipped.weapon, staff); assert.equal(sheet.equipped.offhand, null);

@@ -1,5 +1,6 @@
 import { GAME_FONT_STACK } from './font.ts';
 import { TOOLTIP_MOTION } from './ui-tooltip-motion.ts';
+import { WOW_CLASSES } from './wow-classes.ts';
 
 /** Shared DOM/Canvas materials. Keep world lighting and post-processing separate. */
 export const UI_THEME = Object.freeze({
@@ -46,6 +47,8 @@ export function installUITheme(root: HTMLElement = document.documentElement): vo
   }
   for (const [name, value] of Object.entries(UI_THEME.geometry)) root.style.setProperty(`--ui-${name}`, value);
   for (const [name, value] of Object.entries(UI_THEME.motion)) root.style.setProperty(`--ui-motion-${name}`, value);
+  // WoW class colors ride the same token channel: --ui-class-warrior, --ui-class-death-knight…
+  for (const cls of Object.values(WOW_CLASSES)) root.style.setProperty(`--ui-class-${kebab(cls.id)}`, cls.color);
   root.style.setProperty('--ui-tooltip-enter', `${TOOLTIP_MOTION.enter}ms`);
   root.style.setProperty('--ui-tooltip-exit', `${TOOLTIP_MOTION.exit}ms`);
   root.style.setProperty('--ui-tooltip-lift', `${TOOLTIP_MOTION.lift}px`);

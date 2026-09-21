@@ -33,7 +33,7 @@ export function awardKillRewards(enemy: Enemy, kills: number, recharge: number, 
   if (!player.dead) player.mana = Math.min(manaCapacity(player), player.mana + player.derived.manaOnKill);
   const goldMultiplier = player.derived.goldFindMultiplier;
   const reward = Math.max(1, Math.round(enemy.xpReward * xpLevelFactor(player.level, enemy.level) * player.derived.xpGainMultiplier));
-  const levels = awardCharacterExperience(player, reward + restedBonus(player, reward));
+  const levels = awardCharacterExperience(player, reward + (GAME_FEATURES.hearthstone ? restedBonus(player, reward) : 0));
   context.emit({ type: 'experience', x: enemy.x, y: enemy.y, amount: reward });
   // The active pet earns a share of kill XP while its ally is live; level-ups rescale it.
   const pet = player.character.pets?.active;

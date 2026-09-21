@@ -32,7 +32,7 @@ const kinds = Object.keys(ENEMY_DEFINITIONS) as EnemyKind[];
 const ranks = Object.keys(ENEMY_RANKS) as EnemyRank[];
 const biomes = Object.keys(BIOMES) as BiomeId[];
 const KIND_NAMES: Record<ItemKind, string> = { riftKey: 'Rift Key', charm: 'Charm', consumable: 'Consumable', weapon: 'Weapon', grimoire: 'Grimoire', orb: 'Orb', shield: 'Shield', head: 'Head', chest: 'Chest',
-  gloves: 'Gloves', legs: 'Legs', boots: 'Boots', cloak: 'Cloak', amulet: 'Amulet', ring: 'Ring' };
+  gloves: 'Gloves', legs: 'Legs', boots: 'Boots', cloak: 'Cloak', amulet: 'Amulet', ring: 'Ring', relic: 'Relic' };
 const params = new URLSearchParams(location.search);
 const valid = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
   const value = params.get(key); return options.find(option => option === value) ?? fallback;
