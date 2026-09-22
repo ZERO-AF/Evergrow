@@ -41,9 +41,12 @@ test('every race maps to its faction and its WoW starting zone', () => {
   for (const race of HORDE) assert.equal(raceFaction(race), 'horde', race);
 });
 
-test('starting areas are distinct named places', () => {
+test('starting areas are named places; gnome/troll share their faction valley', () => {
+  // WotLK: gnomes share Coldridge Valley with dwarves, trolls share the Valley
+  // of Trials with orcs — 8 distinct areas across 10 races.
   const areas = new Set(WOW_RACE_IDS.map(r => RACE_STARTS[r].area));
-  assert.equal(areas.size, WOW_RACE_IDS.length, 'each race has its own starting area');
+  assert.equal(areas.size, WOW_RACE_IDS.length - 2, 'gnome/troll share dwarf/orc start');
+  for (const r of WOW_RACE_IDS) assert.ok(RACE_STARTS[r].area.length > 0, `${r} has a named start`);
 });
 
 test('factionHostility resolves the full matrix', () => {

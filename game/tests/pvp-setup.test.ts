@@ -66,10 +66,12 @@ test('custom builds keep race/class legal and validate level bounds', () => {
   draft.custom = createCustomBuild('warrior', 'human');
   setCustomRace(draft.custom, 'nightElf');
   assert.equal(draft.custom.raceId, 'nightElf');
+  // Night elf cannot be a mage in WotLK, so picking mage auto-corrects the race.
   setCustomClass(draft.custom, 'mage');
   assert.ok(raceAllowsClass(draft.custom.raceId, 'mage'));
+  assert.equal(draft.custom.classId, 'mage');
   setCustomRace(draft.custom, 'tauren');
-  assert.equal(draft.custom.raceId, 'nightElf', 'tauren cannot be a mage');
+  assert.notEqual(draft.custom.raceId, 'tauren', 'tauren cannot be a mage');
   draft.custom.level = PVP_LEVEL_MIN - 1;
   assert.equal(validPvpSetup(draft, false), null);
   draft.custom.level = PVP_LEVEL_MAX;

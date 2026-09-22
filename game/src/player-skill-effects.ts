@@ -114,7 +114,14 @@ export function refreshBuffStats(p: Player): void {
 export function restoreFormResource(p: Player, buff: WowBuff): void {
   if (buff.form !== 'bear' && buff.form !== 'cat') return;
   const cls = wowClassOf(p.character);
-  p.maxMana = cls && cls.resource !== 'mana' ? cls.resourceCap : manaCapacity(p);
+  if (cls && cls.resource !== 'mana') {
+    p.maxMana = cls.resourceCap;
+  } else {
+    // p.maxMana still holds the 100-point form pool here, so derive the real
+    // mana cap without the outgoing form buff rather than reading the stale cap.
+    const rest = (p.buffs ?? []).filter(b => b !== buff);
+    p.maxMana = deriveCharacterStats(p.character, getTreeBonuses(p.character.allocatedNodes), p.level, rest, p).maxMana;
+  }
   p.mana = Math.min(p.maxMana, buff.storedResource ?? 0);
 }
 

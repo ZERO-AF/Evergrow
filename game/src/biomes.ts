@@ -133,7 +133,7 @@ export const TERRAIN_BIOME: Readonly<Record<string, BiomeId>> = Object.freeze({
   'dry savanna and razorfen brambles': 'steppe', 'murky swamp': 'swamp',
   'grey barren wastes': 'sunscar', 'green plains and mesas': 'steppe',
   'canyon needles and salt flats': 'sunscar', 'lush jungle forest': 'verdant',
-  'desert': 'sunscar', 'prehistoric jungle crater': 'verdant',
+  'desert': 'sunscar', 'prehistoric jungle crater': 'verdant', 'silithid desert': 'sunscar',
   // Eastern Kingdoms
   'golden autumn forest': 'autumn', 'sunlit elven isle': 'autumn', 'dead haunted forest': 'deadwood',
   'forsaken woodland': 'deadwood', 'plagued farmland': 'deadwood',
