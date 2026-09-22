@@ -1,6 +1,6 @@
 import { canLoadWorld } from '../src/world-save-upgrade.ts';
 import { leaderboardAPI } from './leaderboard.ts';
-import { equippedGearPower } from '../src/leaderboard.ts';
+import { bestRiftClear, equippedGearPower } from '../src/leaderboard.ts';
 import { parseChronicleLedger, mergeChronicles, recordChronicle } from '../src/chronicle.ts';
 import { decodeSaveBundle, SAVE_BUNDLE_LIMIT } from '../src/save-bundle.ts';
 import { characterPower, previewCharacter } from '../src/character-summary.ts';
@@ -84,7 +84,8 @@ export async function cloudAPI(request: Request, env: CloudEnv): Promise<Respons
   const bundle = input.bundle === null ? null : decodeSaveBundle(raw);
   if (input.bundle !== null && (!bundle || !canLoadWorld(bundle.character.worldVersion, WORLD_GENERATION_VERSION))) return json({ code: 'save_incompatible', error: 'This character save is incompatible with the current game. Its recovery copy is preserved.' }, 422);
   const r = bundle?.character;
-  const summary = r ? JSON.stringify({ name: r.name, level: r.checkpoint.level, power: characterPower(previewCharacter(r)).power, gearPower: equippedGearPower(r.checkpoint.character), updatedAt: r.updatedAt }) : null;
+  const rift = r ? bestRiftClear(r.checkpoint.expeditions?.rifts) : null;
+  const summary = r ? JSON.stringify({ name: r.name, level: r.checkpoint.level, power: characterPower(previewCharacter(r)).power, gearPower: equippedGearPower(r.checkpoint.character), riftTier: rift?.tier ?? null, riftSeconds: rift?.seconds ?? null, updatedAt: r.updatedAt }) : null;
   let history=parseChronicleLedger(row?.chronicle);
   // Every modern publication already stores its full validated Chronicle in D1.
   // A changed gameplay validator must not block replacing/deleting that checkpoint.
@@ -107,12 +108,12 @@ export async function cloudAPI(request: Request, env: CloudEnv): Promise<Respons
   if (key) await backend('checkpoint-write', () => env.SAVES.put(key, raw));
   let committed = false, safeToDelete = false;
   try {
-    const result = await env.DB.prepare(`INSERT INTO characters (owner, slot, revision, object, previous, summary, operation, digest, updated_at, chronicle, rank_name, rank_level, rank_gear )
-      VALUES (?, ?, 1, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
+    const result = await env.DB.prepare(`INSERT INTO characters (owner, slot, revision, object, previous, summary, operation, digest, updated_at, chronicle, rank_name, rank_level, rank_gear, rank_rift, rank_rift_seconds )
+      VALUES (?, ?, 1, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(owner, slot) DO UPDATE SET revision = characters.revision + 1, previous = characters.object,
       object = excluded.object, summary = excluded.summary, chronicle = excluded.chronicle, operation = excluded.operation, digest = excluded.digest, updated_at = excluded.updated_at,
-      rank_name = excluded.rank_name, rank_level = excluded.rank_level, rank_gear = excluded.rank_gear
-      WHERE characters.revision = ?`).bind(owner, slot, key, summary, input.operation, digest, Date.now(), historyRaw, r?.name??null, r?.checkpoint.level??null, r?equippedGearPower(r.checkpoint.character):null, input.expected).run();
+      rank_name = excluded.rank_name, rank_level = excluded.rank_level, rank_gear = excluded.rank_gear, rank_rift = excluded.rank_rift, rank_rift_seconds = excluded.rank_rift_seconds
+      WHERE characters.revision = ?`).bind(owner, slot, key, summary, input.operation, digest, Date.now(), historyRaw, r?.name??null, r?.checkpoint.level??null, r?equippedGearPower(r.checkpoint.character):null, r?(rift?.tier??-1):null, r?(rift?.seconds??-1):null, input.expected).run();
     committed = result.meta.changes === 1; safeToDelete = !committed;
     if (!committed) {
       const winner = await current();

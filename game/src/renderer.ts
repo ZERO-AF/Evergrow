@@ -1,6 +1,7 @@
 import { RiftAtmosphereArt } from './rift-atmosphere-art.ts';
 import { AreaBanner } from './area-banner.ts';
 import { drawAreaBanner } from './area-banner-art.ts';
+import { StreakBanner } from './streak-banner.ts';
 import { riftMechanic } from './rift-encounters.ts';
 import { riftWardActive } from './rift-tactics.ts';
 import { dungeonInteractionChests, dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
@@ -102,6 +103,7 @@ import { resolveRangedAim, resolveDirectionalAim, PROJECTILE_HEIGHT, type Ranged
 import { deriveAttackStats } from './equipment.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { drawEnemyPlate, getEnemyPlateLayout } from './enemy-plate.ts';
+import { enemyRosterSkin } from './zone-roster.ts';
 import { bossFrameEligible, bossFrameTargets, drawBossFrame, getBossFrameLayout, BOSS_FRAME } from './boss-frame.ts';
 import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-art.ts';
 import { VfxPack, drawCastTargetDecal } from './vfx-pack.ts';
@@ -201,6 +203,7 @@ export class Renderer {
   private playerHealthHold = 0;
   private rewards = new RewardFeedback();
   readonly areaBanner = new AreaBanner();
+  readonly streakBanner = new StreakBanner();
   private experienceFeedback = new ExperienceFeedback();
   private experienceDisplay: ExperienceDisplay | undefined;
   private effects = new CombatEffects();
@@ -335,6 +338,7 @@ export class Renderer {
 
   reset() {
     this.areaBanner.clear();
+    this.streakBanner.clear();
     this.eventProgressPresentation.reset();
     this.worldEventCard.reset();
     this.outdoorLightEffects.reset();
@@ -396,6 +400,12 @@ export class Renderer {
     if (GAME_FEATURES.bossWarnings) this.bossWarnings.announce(title, subtitle, color);
   }
 
+  /** Fresh epic+ drops since the last call (legendary-moment wiring in game.ts). */
+  drainLootMoments() { return this.effects.drainLootMoments(); }
+  /** 1→0 screen-edge glow strength after a legendary/unique drop lands. */
+  get lootPulse() { return this.effects.lootPulse; }
+  get lootPulseColor() { return this.effects.lootPulseColor; }
+
   private cryptFloor:DungeonFloor|null=null;
   render(sim: Simulation, world: World, dt: number, settings: RenderSettings) {
     this.cryptFloor=sim.dungeonFloor?.rift?null:sim.dungeonFloor;
@@ -413,6 +423,7 @@ export class Renderer {
     this.rewards.update(goldBalance(p.character), feedbackStep, settings.reducedMotion);
     if(p.dead)this.areaBanner.clear();
     else this.areaBanner.update(settings.phase === 'playing' ? dt : 0, !!(this.rewards.level || this.rewards.journey));
+    if (p.dead) this.streakBanner.clear(); else this.streakBanner.update(settings.phase === 'playing' ? dt : 0);
     this.experienceDisplay = this.experienceFeedback.update(p, feedbackStep, settings.reducedMotion);
     this.experienceDisplay.pulse = Math.max(this.experienceDisplay.pulse, this.rewards.xpPulse);
     const px = lerp(p.prevX, p.x, alpha), py = lerp(p.prevY, p.y, alpha);
@@ -689,6 +700,7 @@ export class Renderer {
     vignette.addColorStop(0, '#04101900'); vignette.addColorStop(1, '#02081260');
     c.fillStyle = vignette; c.fillRect(0, 0, this.width, this.height);
     this.damageVignette(settings.reducedMotion);
+    this.lootVignette(settings.reducedMotion);
   }
 
   /** Draw after world post-processing into the native-resolution transparent UI surface. */
@@ -759,6 +771,12 @@ export class Renderer {
       const scale=this.cursorPixelScale;
       c.save();c.scale(scale.x,scale.y);
       drawAreaBanner(c,this.areaBanner.notice,this.areaBanner.age,p.level,this.width/scale.x,this.height/scale.y,settings.reducedMotion);
+      c.restore();
+    }
+    if (settings.phase === 'playing' && !p.dead) {
+      const scale = this.cursorPixelScale;
+      c.save(); c.scale(scale.x, scale.y);
+      this.streakBanner.draw(c, this.width / scale.x, this.height / scale.y, settings.reducedMotion);
       c.restore();
     }
     c.save();
@@ -1030,6 +1048,7 @@ export class Renderer {
       if (x < this.view.left - 256 || x > this.view.left + this.view.width + 256
         || y < this.view.top - 256 || y > this.view.top + this.view.height + 256) continue;
       if(p.skillEffects?.harvest?.length)entries.push({y:y+1,draw:()=>drawHarvestMark(c,p,enemy.id,x,y)});
+      const skin=enemyRosterSkin(enemy);
       entries.push({ y, draw: () => {const scale=enemyVisualScale(enemy);this.actor(x, y, { kind: enemy.kind, dungeonTheme:enemy.dungeonTheme, angle: enemy.angle,
         command: enemy.warband?.order, commandWarning: enemy.warband?.warning,
         time: sim.time + enemy.id, effectTime: settings.reducedMotion ? 0 : sim.time + enemy.id, moveAngle: Math.atan2(enemy.vy, enemy.vx),
@@ -1037,7 +1056,7 @@ export class Renderer {
         attack: enemy.state === 'windup' ? -Math.max(.001, enemy.stateTime / enemy.stateDuration)
           : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
         attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
-        cc: enemy.cc, dots: enemy.dots,
+        cc: enemy.cc, dots: enemy.dots, tint: skin?.tint, tintAmount: skin?.tintAmount,
         impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },scale,riftMechanic(enemy)==='ritual'?'#9ae0c7':riftWardActive(enemy)?'#80c9b8':scale>1?(enemy.rank==='elite'?'#e9bb70':'#85c9ee'):undefined); } });
     }
     for(const [kind,spirit] of [['decoy',p.skillEffects?.decoy],['archer',p.skillEffects?.archer]] as const){
@@ -1273,6 +1292,20 @@ export class Renderer {
       this.width / 2, this.height / 2, radius);
     gradient.addColorStop(0, '#ac1f2700'); gradient.addColorStop(.6, '#ac1f2700'); gradient.addColorStop(1, '#df3437');
     c.save(); c.globalAlpha = this.hurt * (reducedMotion ? .13 : .25);
+    c.fillStyle = gradient; c.fillRect(0, 0, this.width, this.height); c.restore();
+  }
+
+  /** Brief screen-edge glow when a legendary/unique drop lands; reduced motion dims it. */
+  private lootVignette(reducedMotion: boolean) {
+    const pulse = this.effects.lootPulse;
+    if (pulse < .02) return;
+    const c = this.ctx;
+    const radius = Math.hypot(this.width, this.height) * .55;
+    const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .3,
+      this.width / 2, this.height / 2, radius);
+    const color = this.effects.lootPulseColor;
+    gradient.addColorStop(0, `${color}00`); gradient.addColorStop(.62, `${color}00`); gradient.addColorStop(1, color);
+    c.save(); c.globalAlpha = pulse * (reducedMotion ? .1 : .22);
     c.fillStyle = gradient; c.fillRect(0, 0, this.width, this.height); c.restore();
   }
 

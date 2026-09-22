@@ -39,7 +39,7 @@ export const ACHIEVEMENTS:readonly Achievement[]=[
  family('rare','Golden promise','Loot','items:rare',[1,25,100],'Collect Rare equipment.','gem'),
  family('legendary','Legend found','Loot','items:legendary',[1,5,25],'Collect Legendary equipment.','crown'),
  family('masterwork','Masterwork','Loot','highestEnhancement',[10],'Enhance an item to +10.','hammer'),
- family('level','Ever growing','Progression','highestLevel',[10,25,50,100],'Reach a character level.','star'),
+ family('level','Ever growing','Progression','highestLevel',[10,25,50,80],'Reach a character level.','star'),
  family('caster','Practiced hand','Progression','casts',[100,1000,10000],'Use assigned skills.','spark'),
  family('mana','Deep reserves','Progression','manaSpent',[1000,10000,100000],'Spend mana on attacks and skills.','flask'),
 ];

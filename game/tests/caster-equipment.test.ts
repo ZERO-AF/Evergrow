@@ -39,10 +39,13 @@ test('wands use cast speed, spell power and cheaper bolts while supporting every
     assert.equal(a.damage, wand.damage * 2);
     assert.equal(a.attacksPerSecond, wand.baseAttacksPerSecond * .8 * 1.5);
     assert.equal(basicAttackManaCost(wand, { manaCostMultiplier: 1 }), 2);
-    const p = casterPlayer(); put(p, wand.id, 21); put(p, 'vigil-kite', 22);
+    const p = casterPlayer(); put(p, wand.id, 21);
     for (const [id, definition] of Object.entries(SKILL_DEFINITIONS)) if (definition.requirement === 'magic') assert.equal(skillWeapon(id as SkillId, p.equipment), p.equipment.mainHand);
-    assert.ok(skillWeapon('shieldBash', p.equipment));
     assert.equal(itemFitsSlot(p.character.equipped.weapon!, 'offhand'), true, 'one-handed wands also fit the off hand');
+    // Shield skills need a shield-capable class; casters can no longer equip shields.
+    const tank = (() => { const q = initialPlayer(0, 0); q.character = createCharacterSheet('paladin'); refreshCharacter(q); return q; })();
+    put(tank, 'vigil-kite', 22);
+    assert.ok(skillWeapon('shieldBash', tank.equipment));
   }
 });
 test('caster recipes survive every tier, level, upgrade, relevel and reroll with appropriate affixes', () => {

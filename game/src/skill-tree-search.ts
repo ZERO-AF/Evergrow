@@ -29,6 +29,7 @@ const ALIASES: Partial<Record<StatKey, string>> = {
   goldFindPercent: 'gold find', xpGainPercent: 'xp|exp|experience gain',
   fireDamage: 'flat fire damage', frostDamage: 'flat frost damage|added cold damage|added ice damage',
   lightningDamage: 'flat lightning damage',
+  hitRating: 'hit chance|accuracy|miss chance', expertise: 'dodge reduction|parry reduction',
 };
 const WORDS: Readonly<Record<string, string>> = {
   crit: 'critical', crits: 'critical', dmg: 'damage', regen: 'regeneration', regenerating: 'regeneration',

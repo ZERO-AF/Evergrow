@@ -24,6 +24,8 @@ export interface CampMember {
 export interface EnemyCamp {
   readonly id: string; readonly x: number; readonly y: number; readonly radius: number;
   readonly members: readonly CampMember[];
+  /** Optional display name (guard posts, named faction camps). */
+  readonly name?: string;
   /** Camp-wide faction default; a member's own tag wins. */
   readonly faction?: FactionTag;
 }

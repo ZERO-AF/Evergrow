@@ -14,6 +14,7 @@ import { armorReduction, itemPowerScale } from './progression-content.ts';
 import { PLAYER_ABILITIES, PLAYER_DEFAULTS, PLAYER_MOVEMENT } from './combat-content.ts';
 import { AFFIX_COMBAT_RULES } from './equipment-affix-content.ts';
 import { SKILL_DEFINITIONS } from './skill-content.ts';
+import { ATTACK_TABLE } from './combat-damage.ts';
 
 export interface StatDetail {
   id: string; label: string; amount: number; value: string;
@@ -27,6 +28,7 @@ export const DERIVED_STAT_DETAILS = {
   maxHp: 'maxHp', maxMana: 'maxMana', armor: 'armor', damageReduction: 'armorReduction',
   moveSpeedMultiplier: 'movement', manaRegeneration: 'manaRegen', lifeRegeneration: 'lifeRegen',
   manaCostMultiplier: 'manaCost', cooldownMultiplier: 'cooldown', lifeOnHit: 'lifeOnHit', blockChance: 'blockChance', blockReduction: 'blockReduction',
+  hitRating: 'hitRating', expertise: 'expertise',
   manaOnKill: 'manaOnKill', areaMultiplier: 'area', potionMultiplier: 'potion', projectilePierce: 'pierce',
   spellweavePercent: 'spellweave', afterguardPercent: 'afterguard', skillBonuses: 'skills',
 } as const satisfies Record<keyof DerivedCharacterStats, string>;
@@ -78,6 +80,12 @@ export function characterStatDetails(p: Player): StatDetailGroup[] {
     row('castSpeed', 'Cast speed bonus', s.castSpeedMultiplier - 1, pct(s.castSpeedMultiplier - 1), 'Shortens magic casting actions. Does not reduce cooldowns.', `Sum of cast speed bonuses\nTotal speed: 25–600%`, ['castSpeedPercent']),
     addAttribute(row('critChance', 'Critical chance', s.critChance, pct(s.critChance), 'Chance to critically strike. Burn damage cannot crit.', `+${attributeBonus('dexterity', DEXTERITY_BONUSES.critChance)}% Dexterity + critical bonuses\nCap: 75%`, ['dexterity', 'critChance']), 'dexterity'),
     row('critDamage', 'Critical damage', s.critMultiplier, pct(s.critMultiplier), 'Damage on a critical hit. 150% = 1.5× damage.', `150% + critical damage bonuses\nLimit: 100–500%`, ['critDamage']),
+    row('hitRating', 'Hit rating', s.hitRating, `${n(s.hitRating / ATTACK_TABLE.ratingPerPercent, 1)}%`,
+      'Melee attacks against higher-level enemies can miss. Hit rating removes that chance.',
+      `${n(s.hitRating)} rating ÷ ${ATTACK_TABLE.ratingPerPercent} = ${n(s.hitRating / ATTACK_TABLE.ratingPerPercent, 1)}% less miss chance\nMiss chance: ${pct(ATTACK_TABLE.missPerLevel)} per enemy level above you`, ['hitRating']),
+    row('expertise', 'Expertise', s.expertise, `${n(s.expertise / ATTACK_TABLE.ratingPerPercent, 1)}%`,
+      'Enemies facing your melee attacks can dodge or parry them. Expertise removes that chance.',
+      `${n(s.expertise)} rating ÷ ${ATTACK_TABLE.ratingPerPercent} = ${n(s.expertise / ATTACK_TABLE.ratingPerPercent, 1)}% less dodge and parry\nDodge and parry: ${pct(ATTACK_TABLE.dodgePerLevel)} each per enemy level above you`, ['expertise']),
   ];
   const armor = effectiveArmor(p), armorSources = sources(['armor', 'armorPercent']);
   if(auraPower(p,'ironroot'))armorSources.push({label:'Ironroot · active',value:`+${n(auraPower(p,'ironroot'))}% armor · ${n(auraPower(p,'ironroot')/8)}% less physical hit damage`});

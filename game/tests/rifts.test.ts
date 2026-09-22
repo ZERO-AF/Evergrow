@@ -17,7 +17,7 @@ import { planDungeonTravel, claimDungeonChest, dungeonChestProblem } from '../sr
 import { updateWildernessBoss } from '../src/wilderness-boss.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
 import { riftRewardItems } from '../src/rift-rewards.ts';
-import { riftRewardItemCount, riftRewardMask } from '../src/rift-content.ts';
+import { riftRewardItemCount, riftRewardMask, riftEnemyStats } from '../src/rift-content.ts';
 import { LOOT_RULES } from '../src/combat-content.ts';
 import { Simulation } from '../src/simulation.ts';
 import { RiftWorld } from '../src/rift-world.ts';
@@ -42,12 +42,24 @@ async function setup(key=true,keySeed=7319){
  return {sim,run:currentDungeon(sim.expeditions)!,floor};
 }
 test('rift keys are deterministic normal-pack items with canonical validation and distinct modifiers',()=>{
- for(let tier=1;tier<=5;tier++)for(let seed=0;seed<40;seed++){
-  const key=createRiftKey(seed,25,tier);assert.equal(key.tier,['common','magic','rare','epic','legendary'][tier-1]);assert.equal(key.name,'Crimson Rift Key');assert.ok(validItem(key));assert.ok(validRiftKey(structuredClone(key)));
+ for(let tier=1;tier<=8;tier++)for(let seed=0;seed<40;seed++){
+  const key=createRiftKey(seed,25,tier);assert.equal(key.tier,['common','magic','rare','epic','legendary'][Math.min(tier,5)-1]);assert.equal(key.name,'Crimson Rift Key');assert.ok(validItem(key));assert.ok(validRiftKey(structuredClone(key)));
   assert.deepEqual(itemFootprint(key),{width:1,height:2});assert.equal(defaultEquipmentSlot({} as never,key),undefined);assert.ok(improvementProblem(key,'enhance',25));
   const mods=riftModifiers({attempt:1,keySeed:seed,keyTier:tier});assert.ok(mods.some(m=>m.beneficial));assert.ok(mods.some(m=>!m.beneficial));assert.equal(new Set(mods.map(m=>m.id)).size,mods.length);
-  const broken=structuredClone(key);broken.recipe.riftKeyTier=9;assert.equal(validItem(broken),false);
+  const broken=structuredClone(key);broken.recipe.riftKeyTier=1e9;assert.equal(validItem(broken),false);
  }
+});
+test('key tiers scale monster life and damage multiplicatively beyond the old cap',()=>{
+ const base={maxHp:1000,damage:100};
+ for(const tier of [1,2,5,6,10,25]){
+  const tag={attempt:1,keySeed:7319,keyTier:tier},scaled=riftEnemyStats(base,tag);
+  const growth=Math.pow(RIFT_RULES.keyTierGrowth,tier);
+  assert.ok(scaled.maxHp>=Math.round(base.maxHp*growth)-1&&scaled.maxHp<=Math.round(base.maxHp*growth*2),'tier '+tier+' life');
+  assert.ok(scaled.damage>=Math.round(base.damage*growth)-1,'tier '+tier+' damage');
+ }
+ const five=riftEnemyStats(base,{attempt:1,keySeed:7319,keyTier:5}),six=riftEnemyStats(base,{attempt:1,keySeed:7319,keyTier:6});
+ assert.ok(six.maxHp>five.maxHp&&six.damage>five.damage,'tier 6 exceeds tier 5');
+ assert.deepEqual(riftEnemyStats(base,{attempt:1}),base,'unkeyed rifts keep authored stats');
 });
 test('rifts use actual open-world terrain and huge irregular packs in every starting biome',()=>{
  for(const biome of BIOME_IDS){
@@ -165,12 +177,14 @@ test('a crowded reward floor preserves dropped items and retries only outstandin
  assert.equal((await claimDungeonChest(sim,2,ok)).ok,false);
 });
 test('key progression and reward masks remain deterministic for every grade and modifier count',()=>{
- for(let tier=1;tier<=5;tier++)for(let seed=0;seed<80;seed++){
+ for(let tier=1;tier<=8;tier++)for(let seed=0;seed<80;seed++){
   const entrance={id:'dungeon:rift:1',name:'Rift',x:0,y:0,seed,level:25,biome:'verdant' as const,rift:{attempt:1,keyTier:tier,keySeed:seed}};
   const items=riftRewardItems(entrance,25),key=items.at(-1)!;
   assert.equal(items.length,riftRewardItemCount(entrance.rift));assert.equal(riftRewardMask(entrance.rift),(1<<(items.length+1))-1);
   assert.equal(items.filter(i=>i.kind==='riftKey').length,1);assert.ok(validRiftKey(key));
-  assert.ok(key.recipe.riftKeyTier===tier||key.recipe.riftKeyTier===Math.min(5,tier+1));
+  assert.equal(key.recipe.riftKeyTier,tier+1,'a clear always empowers the replacement key');
+  assert.equal(riftRewardItems(entrance,25,RIFT_RULES.fastClear).at(-1)!.recipe.riftKeyTier,tier+2,'a fast clear empowers twice');
+  assert.equal(riftRewardItems(entrance,25,RIFT_RULES.fastClear+.1).at(-1)!.recipe.riftKeyTier,tier+1,'just past the cutoff empowers once');
   const changed=riftRewardItems({...entrance,rift:{...entrance.rift,keySeed:seed+431}},25);
   assert.deepEqual(changed.at(-1),key,'changing key modifiers cannot change the replacement key');
  }

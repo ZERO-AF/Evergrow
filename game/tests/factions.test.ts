@@ -5,7 +5,9 @@ import {
   enemyHostility, enemyHuntsPlayer, playerCanAttack, reputationAxis, isFactionTag,
   CITY_FACTION_RADIUS, type FactionTag,
 } from '../src/factions.ts';
-import { zoneAt, zonePoint, zoneRect } from '../src/world-atlas.ts';
+import { zoneAt, zonePoint, zoneRect, ZONES } from '../src/world-atlas.ts';
+import { ZONE_CONTENT } from '../src/zone-content.ts';
+import { AuthoredWorld } from '../src/authored-world.ts';
 import { WOW_RACES } from '../src/wow-races.ts';
 import { WOW_RACE_IDS, type WowRaceId } from '../src/wow-types.ts';
 import { FACTIONS } from '../src/reputation-content.ts';
@@ -203,4 +205,40 @@ test('playerFaction reads the sheet race', () => {
   assert.equal(enemyHostility({ faction: 'alliance' }, player), 'hostile');
   assert.ok(enemyHuntsPlayer({ faction: 'alliance' }, player));
   assert.ok(!playerCanAttack({ faction: 'horde' }, player));
+});
+
+test('every faction town fields a guard post and contested zones field faction camps', () => {
+  for (const [id, zone] of Object.entries(ZONES)) {
+    const content = ZONE_CONTENT[id];
+    if (!content) continue;
+    const factionTowns = content.towns.filter(t => t.faction === 'alliance' || t.faction === 'horde');
+    for (const town of factionTowns) {
+      const post = content.camps.find(c => c.faction === town.faction && c.name === `${town.name} Guard Post`);
+      assert.ok(post, `${id}: ${town.name} has a ${town.faction} guard post`);
+      assert.ok(post.members?.length, `${id}: ${town.name} guard post has a garrison`);
+    }
+    const factions = new Set(factionTowns.map(t => t.faction));
+    if (zone.faction === 'contested' && factions.size === 2)
+      for (const faction of factions)
+        assert.ok(content.camps.some(c => c.faction === faction), `${id}: contested zone fields a ${faction} camp`);
+  }
+});
+
+test('authored guard posts spawn faction-tagged garrisons outside the sanctuary', () => {
+  const world = new AuthoredWorld(1);
+  const rect = zoneRect('durotar')!;
+  const camps = world.getEnemyCamps(rect.x, rect.y, rect.w, rect.h);
+  const post = camps.find(c => c.name === 'Razor Hill Guard Post');
+  assert.ok(post, 'Razor Hill guard post exists');
+  assert.equal(post.faction, 'horde');
+  assert.ok(post.members.length > 0 && post.members.every(m => m.faction === 'horde'), 'garrison inherits the tag');
+  assert.ok(!world.isSanctuary(post.x, post.y), 'guards spawn outside the town sanctuary');
+  const alliance = { character: { raceId: 'human' as const } }, horde = { character: { raceId: 'orc' as const } };
+  assert.ok(enemyHuntsPlayer(post, alliance), 'horde guards hunt the alliance player');
+  assert.ok(!enemyHuntsPlayer(post, horde), 'horde guards ignore the horde player');
+  assert.ok(!playerCanAttack(post, horde), 'same-faction guards are unattackable');
+  const goldshire = world.getEnemyCamps(...(() => { const r = zoneRect('elwynn')!; return [r.x, r.y, r.w, r.h] as const; })())
+    .find(c => c.name === 'Goldshire Guard Post');
+  assert.ok(goldshire?.faction === 'alliance', 'Goldshire guard post is alliance');
+  assert.ok(enemyHuntsPlayer(goldshire!, horde), 'alliance guards hunt the horde player');
 });

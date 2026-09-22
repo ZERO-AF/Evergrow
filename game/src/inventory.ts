@@ -2,7 +2,7 @@ import { resolvePackLayout, normalizePackLayout, packOccupancy, findPackSpace, f
 export { addInventoryItem } from './inventory-grid.ts';
 import type { ActionResult, Attribute, CharacterSheet, EquipmentSlot, Item } from './character-types.ts';
 import type { Player } from './model.ts';
-import { EQUIPMENT_SLOTS, RELIC_CLASSES } from './items.ts';
+import { EQUIPMENT_SLOTS, RELIC_CLASSES, SHIELD_CLASSES } from './items.ts';
 import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
 import type { WowClassId } from './wow-types.ts';
 import { isGlyphItem } from './glyph-content.ts';
@@ -15,14 +15,24 @@ import { isConsumableItem } from './consumable-content.ts';
 const success = (): ActionResult => ({ ok: true });
 const fail = (message: string): ActionResult => ({ ok: false, message });
 const validIndex = (sheet: CharacterSheet, index: number) => Number.isInteger(index) && index >= 0 && index < sheet.inventory.length;
+/** WoW armor proficiency: cloth < leather < plate; a class wears its own style or lighter. */
+const ARMOR_RANK: Readonly<Record<'cloth' | 'leather' | 'plate', number>> = Object.freeze({ cloth: 0, leather: 1, plate: 2 });
+const ARMOR_SLOTS: readonly EquipmentSlot[] = ['head', 'chest', 'gloves', 'legs', 'boots'];
 export function itemFitsSlot(item: Item, slot: EquipmentSlot, classId?: WowClassId): boolean {
   if (isGlyphItem(item) || isBagItem(item) || isGemItem(item)) return false;
   if (isConsumableItem(item)) return false;
   if (item.kind === 'ring') return slot === 'ring1' || slot === 'ring2';
   if (item.kind === 'relic') return slot === 'offhand' && (classId === undefined || RELIC_CLASSES.includes(classId));
-  if (item.kind === 'shield' || item.kind === 'grimoire' || item.kind === 'orb') return slot === 'offhand';
+  if (item.kind === 'shield') return slot === 'offhand' && (classId === undefined || SHIELD_CLASSES.includes(classId));
+  if (item.kind === 'grimoire' || item.kind === 'orb') return slot === 'offhand';
   if (item.kind === 'weapon') return slot === 'weapon' || slot === 'offhand' && item.weapon?.hands === 1 && (item.weapon.attackKind === 'melee' || item.weapon.family === 'wand');
-  return item.kind === slot;
+  if (item.kind !== slot) return false;
+  // Armor proficiency: a mage cannot wear plate, a plate class can still wear lighter pieces.
+  if (classId !== undefined && ARMOR_SLOTS.includes(slot)) {
+    const style = item.appearance?.style;
+    if (style && ARMOR_RANK[style] > ARMOR_RANK[WOW_CLASSES[classId].armorStyle]) return false;
+  }
+  return true;
 }
 
 export type EquipmentPlan = { ok: false; message: string } | {

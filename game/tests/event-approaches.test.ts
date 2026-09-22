@@ -38,8 +38,10 @@ test('all wave recipes find nearby body-clear approaches around trees and an obs
             sim.update(FIXED_STEP, { moveX: 0, moveY: 0, aimX: 100, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null });
             for (const e of wave) if (e.state === 'attack') attacked.add(e.id);
         }
-        assert.ok(wave.every(e => Math.hypot(e.x - sim.player.x, e.y - sim.player.y) < 320), `${kind}: no stranded guardians`);
-        assert.ok(wave.every(e => attacked.has(e.id)), `${kind}: every guardian enters an attack`);
+        // Treasure goblins flee the player by design — they never close to attack.
+        const guardians = wave.filter(e => !e.treasure);
+        assert.ok(guardians.every(e => Math.hypot(e.x - sim.player.x, e.y - sim.player.y) < 320), `${kind}: no stranded guardians`);
+        assert.ok(guardians.every(e => attacked.has(e.id)), `${kind}: every guardian enters an attack`);
     }
 });
 

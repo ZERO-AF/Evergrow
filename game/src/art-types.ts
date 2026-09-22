@@ -108,4 +108,7 @@ export interface CharacterPose {
   dots?: readonly { readonly school: import('./wow-types.ts').DotSchool; remaining: number }[];
   /** Player stealth — renders the rig translucent. */
   stealthed?: boolean;
+  /** Zone-roster skin: whole-rig color wash mixed under the hit-flash. */
+  tint?: string;
+  tintAmount?: number;
 }

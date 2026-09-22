@@ -47,6 +47,10 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Springpaw Den', nx: .6, ny: .6, members: ['stalker', 'hound'] },
     { kind: 'corruptedGrove', name: 'The Scorched Grove', nx: .35, ny: .3, members: ['emberAcolyte', 'wisp'] },
     { kind: 'camp', name: 'Tor\'Watha', nx: .75, ny: .55, members: ['archer', 'brute', 'caster'] },
+    { kind: 'watchtower', name: 'Silvermoon City Guard Post', nx: .548, ny: .27, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Falconwing Square Guard Post', nx: .456, ny: .538, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Fairbreeze Village Guard Post', nx: .423, ny: .704, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Sunsail Anchorage Guard Post', nx: .206, ny: .596, faction: 'horde', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 30 }, { kind: 'wisp', weight: 22 }, { kind: 'hound', weight: 18 },
@@ -135,6 +139,7 @@ defineZoneContent({
     { kind: 'camp', name: 'Zeb\'Tela', nx: .4, ny: .55, members: ['archer', 'brute'] },
     { kind: 'graveyard', name: 'Deatholme Approach', nx: .35, ny: .8, members: ['graveMarshal', 'caster', 'wisp'] },
     { kind: 'beastDen', name: 'Ghostclaw Den', nx: .2, ny: .45, members: ['stalker', 'hound'] },
+    { kind: 'watchtower', name: 'Tranquillien Guard Post', nx: .453, ny: .366, faction: 'horde', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'graveMarshal', weight: 28 }, { kind: 'stalker', weight: 22 }, { kind: 'caster', weight: 18 },
@@ -187,6 +192,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Agamand Mills', nx: .45, ny: .3, members: ['graveMarshal', 'caster'] },
     { kind: 'beastDen', name: 'Night Web Hollow', nx: .28, ny: .55, members: ['stalker'] },
     { kind: 'graveyard', name: 'Balnir Farmstead', nx: .75, ny: .6, members: ['graveMarshal', 'wisp'] },
+    { kind: 'watchtower', name: 'Undercity Guard Post', nx: .545, ny: .369, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Brill Guard Post', nx: .541, ny: .538, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'The Bulwark Guard Post', nx: .841, ny: .597, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Deathknell Guard Post', nx: .311, ny: .611, faction: 'horde', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'graveMarshal', weight: 30 }, { kind: 'hound', weight: 20 }, { kind: 'caster', weight: 16 },
@@ -238,6 +247,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Gahrron\'s Withering', nx: .6, ny: .55, members: ['graveMarshal', 'caster'] },
     { kind: 'camp', name: 'Northridge Lumber Camp', nx: .5, ny: .32, members: ['archer', 'brute'] },
     { kind: 'beastDen', name: 'Plaguehound Den', nx: .3, ny: .4, members: ['hound', 'stalker'] },
+    { kind: 'watchtower', name: 'Chillwind Camp Guard Post', nx: .451, ny: .837, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'The Bulwark Guard Post', nx: .156, ny: .597, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Chillwind Patrol', nx: .5, ny: .78, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Bulwark Warband', nx: .22, ny: .55, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'graveMarshal', weight: 32 }, { kind: 'caster', weight: 20 }, { kind: 'stalker', weight: 16 },
@@ -338,6 +351,9 @@ defineZoneContent({
     { kind: 'beastDen', name: 'The Skittering Dark', nx: .35, ny: .18, members: ['stalker'] },
     { kind: 'camp', name: 'Olsen\'s Farthing', nx: .45, ny: .52, members: ['graveMarshal'] },
     { kind: 'camp', name: 'Deep Elem Mine', nx: .58, ny: .48, members: ['goblin', 'brute'] },
+    { kind: 'watchtower', name: 'The Sepulcher Guard Post', nx: .459, ny: .459, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Pyrewood Village Guard Post', nx: .453, ny: .707, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Ambermill Guard Post', nx: .61, ny: .592, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 26 }, { kind: 'hound', weight: 22 }, { kind: 'graveMarshal', weight: 20 },
@@ -396,6 +412,11 @@ defineZoneContent({
     { kind: 'camp', name: 'Dun Garok', nx: .72, ny: .78, members: ['brute', 'archer'] },
     { kind: 'beastDen', name: 'Hillsbrad Yeti Cave', nx: .45, ny: .28, members: ['brute', 'stalker'] },
     { kind: 'camp', name: 'Syndicate Camp', nx: .55, ny: .2, members: ['archer', 'caster'] },
+    { kind: 'watchtower', name: 'Southshore Guard Post', nx: .5, ny: .774, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Tarren Mill Guard Post', nx: .597, ny: .371, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Hillsbrad Fields Guard Post', nx: .325, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Southshore Patrol', nx: .45, ny: .72, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Tarren Mill Warband', nx: .55, ny: .42, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'brute', weight: 24 }, { kind: 'stalker', weight: 20 }, { kind: 'archer', weight: 18 },
@@ -458,6 +479,11 @@ defineZoneContent({
     { kind: 'camp', name: 'Hiri\'watha', nx: .32, ny: .6, members: ['archer', 'caster'] },
     { kind: 'beastDen', name: 'Skulk Rock', nx: .55, ny: .42, members: ['mireSpitter', 'stalker'] },
     { kind: 'beastDen', name: 'The Creeping Ruin', nx: .5, ny: .55, members: ['stalker'] },
+    { kind: 'watchtower', name: 'Aerie Peak Guard Post', nx: .167, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Revantusk Village Guard Post', nx: .788, ny: .791, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Quel\'Danil Lodge Guard Post', nx: .332, ny: .424, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Aerie Peak Patrol', nx: .22, ny: .55, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Revantusk Warband', nx: .72, ny: .72, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'hound', weight: 24 }, { kind: 'archer', weight: 20 }, { kind: 'stalker', weight: 18 },
@@ -567,6 +593,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Go\'Shek Farm', nx: .6, ny: .55, members: ['archer', 'caster'] },
     { kind: 'camp', name: 'Dabyrie\'s Farmstead', nx: .5, ny: .4, members: ['archer', 'brute'] },
     { kind: 'beastDen', name: 'Boulder\'gor', nx: .32, ny: .3, members: ['brute', 'stalker'] },
+    { kind: 'watchtower', name: 'Refuge Pointe Guard Post', nx: .454, ny: .411, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Hammerfall Guard Post', nx: .712, ny: .357, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Refuge Pointe Patrol', nx: .5, ny: .45, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Hammerfall Warband', nx: .65, ny: .42, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 26 }, { kind: 'brute', weight: 22 }, { kind: 'archer', weight: 18 },
@@ -618,6 +648,9 @@ defineZoneContent({
     { kind: 'camp', name: 'Ironbeard\'s Tomb', nx: .45, ny: .28, members: ['graveMarshal', 'wisp'] },
     { kind: 'beastDen', name: 'The Green Belt', nx: .55, ny: .4, members: ['stalker', 'mireSpitter'] },
     { kind: 'camp', name: 'Mosshide Fen', nx: .62, ny: .6, members: ['brute', 'archer'] },
+    { kind: 'watchtower', name: 'Menethil Harbor Guard Post', nx: .163, ny: .548, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Dun Modr Guard Post', nx: .451, ny: .193, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Greenwarden\'s Grove Guard Post', nx: .571, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'mireSpitter', weight: 30 }, { kind: 'stalker', weight: 24 }, { kind: 'brute', weight: 18 },
@@ -680,6 +713,11 @@ defineZoneContent({
     { kind: 'camp', name: 'Grik\'nir\'s Camp', nx: .75, ny: .55, members: ['brute', 'caster'] },
     { kind: 'beastDen', name: 'Grizzled Den', nx: .48, ny: .58, members: ['hound', 'stalker'] },
     { kind: 'camp', name: 'Leper Gnome Camp', nx: .28, ny: .42, members: ['goblin', 'caster'] },
+    { kind: 'watchtower', name: 'Ironforge Guard Post', nx: .548, ny: .32, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Kharanos Guard Post', nx: .456, ny: .538, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Anvilmar Guard Post', nx: .306, ny: .707, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Brewnall Village Guard Post', nx: .328, ny: .455, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Steelgrill\'s Depot Guard Post', nx: .5, ny: .537, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'hound', weight: 26 }, { kind: 'brute', weight: 22 }, { kind: 'goblin', weight: 16 },
@@ -735,6 +773,7 @@ defineZoneContent({
     { kind: 'camp', name: 'Ironband\'s Excavation', nx: .65, ny: .65, members: ['goblin', 'brute'] },
     { kind: 'beastDen', name: 'Grizzlepaw Ridge', nx: .4, ny: .65, members: ['brute', 'hound'] },
     { kind: 'camp', name: 'South Gate Camp', nx: .2, ny: .2, members: ['brute', 'archer'] },
+    { kind: 'watchtower', name: 'Thelsamar Guard Post', nx: .36, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'brute', weight: 28 }, { kind: 'goblin', weight: 20 }, { kind: 'stalker', weight: 20 },
@@ -835,6 +874,8 @@ defineZoneContent({
     { kind: 'camp', name: 'Camp Boff', nx: .6, ny: .7, members: ['brute'] },
     { kind: 'camp', name: 'Camp Wurg', nx: .15, ny: .3, members: ['brute'] },
     { kind: 'beastDen', name: 'Lethlor Ravine', nx: .75, ny: .5, members: ['stalker', 'emberAcolyte'] },
+    { kind: 'watchtower', name: 'Kargath Guard Post', nx: .109, ny: .452, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Angor Rampart', nx: .45, ny: .4, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'hound', weight: 26 }, { kind: 'brute', weight: 24 }, { kind: 'stalker', weight: 18 },
@@ -890,6 +931,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Pillar of Ash', nx: .45, ny: .55, members: ['archer', 'brute'] },
     { kind: 'beastDen', name: 'Terror Wing Path', nx: .82, ny: .3, members: ['emberAcolyte', 'stalker'] },
     { kind: 'camp', name: 'Ruins of Thaurissan', nx: .55, ny: .4, members: ['graveMarshal', 'caster'] },
+    { kind: 'watchtower', name: 'Morgan\'s Vigil Guard Post', nx: .789, ny: .689, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Flame Crest Guard Post', nx: .594, ny: .317, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Morgan\'s Vigil Patrol', nx: .72, ny: .62, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Flame Crest Warband', nx: .52, ny: .38, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'archer', weight: 24 }, { kind: 'brute', weight: 22 }, { kind: 'emberAcolyte', weight: 18 },
@@ -950,6 +995,11 @@ defineZoneContent({
     { kind: 'camp', name: 'Hogger Hill', nx: .28, ny: .82, members: ['brute', 'archer'] },
     { kind: 'beastDen', name: 'Forest\'s Edge', nx: .3, ny: .75, members: ['hound', 'stalker'] },
     { kind: 'camp', name: 'Brackwell Pumpkin Patch', nx: .7, ny: .78, members: ['archer', 'caster'] },
+    { kind: 'watchtower', name: 'Stormwind City Guard Post', nx: .355, ny: .169, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Goldshire Guard Post', nx: .455, ny: .585, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Northshire Abbey Guard Post', nx: .545, ny: .415, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Eastvale Logging Camp Guard Post', nx: .791, ny: .642, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Westbrook Garrison Guard Post', nx: .256, ny: .712, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'hound', weight: 28 }, { kind: 'goblin', weight: 20 }, { kind: 'stalker', weight: 18 },
@@ -1003,6 +1053,7 @@ defineZoneContent({
     { kind: 'camp', name: 'Dead Acre', nx: .62, ny: .6, members: ['ashColossus'] },
     { kind: 'beastDen', name: 'The Dust Plains', nx: .6, ny: .75, members: ['brute', 'hound'] },
     { kind: 'camp', name: 'The Molsen Farm', nx: .45, ny: .38, members: ['archer', 'brute'] },
+    { kind: 'watchtower', name: 'Sentinel Hill Guard Post', nx: .537, ny: .459, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'archer', weight: 26 }, { kind: 'brute', weight: 22 }, { kind: 'hound', weight: 18 },
@@ -1061,6 +1112,7 @@ defineZoneContent({
     { kind: 'camp', name: 'Redridge Canyons', nx: .3, ny: .3, members: ['brute', 'archer'] },
     { kind: 'beastDen', name: 'Rethban Caverns', nx: .2, ny: .25, members: ['goblin', 'stalker'] },
     { kind: 'camp', name: 'Galardell Valley', nx: .75, ny: .45, members: ['archer', 'caster'] },
+    { kind: 'watchtower', name: 'Lakeshire Guard Post', nx: .312, ny: .546, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'brute', weight: 26 }, { kind: 'archer', weight: 22 }, { kind: 'mireSpitter', weight: 16 },
@@ -1107,6 +1159,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Sorrowmurk', nx: .82, ny: .4, members: ['brute', 'archer'] },
     { kind: 'beastDen', name: 'The Shifting Mire', nx: .4, ny: .4, members: ['stalker', 'mireSpitter'] },
     { kind: 'camp', name: 'Lost One Camp', nx: .65, ny: .65, members: ['brute', 'caster'] },
+    { kind: 'watchtower', name: 'Stonard Guard Post', nx: .457, ny: .538, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'The Harborage Guard Post', nx: .286, ny: .357, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Stonard Warband', nx: .5, ny: .62, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Harborage Patrol', nx: .34, ny: .42, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 28 }, { kind: 'mireSpitter', weight: 26 }, { kind: 'brute', weight: 18 },
@@ -1155,6 +1211,8 @@ defineZoneContent({
     { kind: 'graveyard', name: 'Raven Hill Cemetery', nx: .22, ny: .42, members: ['graveMarshal', 'caster', 'wisp'] },
     { kind: 'graveyard', name: 'Tranquil Gardens', nx: .78, ny: .7, members: ['graveMarshal', 'wisp'] },
     { kind: 'beastDen', name: 'The Darkened Bank', nx: .55, ny: .25, members: ['stalker', 'hound'] },
+    { kind: 'watchtower', name: 'Darkshire Guard Post', nx: .744, ny: .453, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Raven Hill Guard Post', nx: .206, ny: .547, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 28 }, { kind: 'graveMarshal', weight: 24 }, { kind: 'hound', weight: 18 },
@@ -1257,6 +1315,8 @@ defineZoneContent({
     { kind: 'camp', name: 'Rise of the Defiler', nx: .48, ny: .45, members: ['emberAcolyte', 'caster'] },
     { kind: 'beastDen', name: 'The Tainted Scar', nx: .35, ny: .55, members: ['emberAcolyte', 'brute'] },
     { kind: 'camp', name: 'Serpent\'s Coil', nx: .58, ny: .35, members: ['caster', 'archer'] },
+    { kind: 'watchtower', name: 'Nethergarde Keep Guard Post', nx: .597, ny: .216, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Dreadmaul Warband', nx: .45, ny: .55, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'emberAcolyte', weight: 26 }, { kind: 'brute', weight: 22 }, { kind: 'duneScuttler', weight: 16 },
@@ -1308,6 +1368,10 @@ defineZoneContent({
     { kind: 'camp', name: 'Bloodsail Compound', nx: .28, ny: .75, members: ['archer', 'brute', 'caster'] },
     { kind: 'beastDen', name: 'The Crystalvein Mine', nx: .42, ny: .5, members: ['stalker', 'mireSpitter'] },
     { kind: 'camp', name: 'Ziata\'jai Ruins', nx: .45, ny: .4, members: ['archer', 'caster'] },
+    { kind: 'watchtower', name: 'Grom\'gol Base Camp Guard Post', nx: .353, ny: .306, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Rebel Camp Guard Post', nx: .401, ny: .107, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Grom\'gol Warband', nx: .4, ny: .36, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Rebel Patrol', nx: .44, ny: .18, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 30 }, { kind: 'brute', weight: 20 }, { kind: 'archer', weight: 18 },

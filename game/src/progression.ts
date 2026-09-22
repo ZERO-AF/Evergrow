@@ -1,4 +1,4 @@
-import { ENEMY_RANKS, MAX_CONTENT_LEVEL, monsterExperienceScale, normalizeLevel } from './progression-content.ts';
+import { ENEMY_RANKS, MAX_PLAYER_LEVEL, monsterExperienceScale, normalizeLevel } from './progression-content.ts';
 import type { EnemyRank } from './progression-content.ts';
 
 /** XP is local to the current level; reaching the threshold carries the remainder. */
@@ -32,19 +32,19 @@ export function enemyXPReward(baseXP: number, playerLevel: number, monsterLevel:
   return Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, Math.round(sourceReward * xpLevelFactor(playerLevel, monsterLevel))));
 }
 
-/** Exact threshold arithmetic, bounded by the numeric content ceiling; normal kills cross at most a few levels. */
+/** Exact threshold arithmetic, bounded by the WotLK level cap; normal kills cross at most a few levels. */
 export function awardExperience(progress: ExperienceProgress, amount: number): void {
   if (!Number.isFinite(amount) || amount <= 0) return;
   const reward = Math.min(Number.MAX_SAFE_INTEGER, Math.floor(amount));
   if (reward < 1) return;
-  progress.level = normalizeLevel(progress.level);
+  progress.level = Math.min(normalizeLevel(progress.level), MAX_PLAYER_LEVEL);
   const currentXP = Number.isFinite(progress.xp) ? Math.max(0, Math.floor(progress.xp)) : 0;
   progress.xp = Math.min(Number.MAX_SAFE_INTEGER, currentXP + reward);
-  while (progress.level < MAX_CONTENT_LEVEL) {
+  while (progress.level < MAX_PLAYER_LEVEL) {
     const threshold = xpForNextLevel(progress.level);
     if (progress.xp < threshold) break;
     progress.xp -= threshold;
     progress.level++;
   }
-  if (progress.level === MAX_CONTENT_LEVEL) progress.xp = 0;
+  if (progress.level >= MAX_PLAYER_LEVEL) progress.xp = 0;
 }

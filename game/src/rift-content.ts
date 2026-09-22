@@ -1,6 +1,6 @@
 import type { Item, ItemTier } from './character-types.ts';
 import type { EnemyRank } from './progression-content.ts';
-export const RIFT_RULES = Object.freeze({ minimumLevel:20, guardianArrival:2.4, duration:600, progress:600, offset:10, rewards:8, keyUpgradeChance:.35, maximumKeyTier:5, goldMultiplier:6 });
+export const RIFT_RULES = Object.freeze({ minimumLevel:20, guardianArrival:2.4, duration:600, progress:600, offset:10, rewards:8, bountyCap:20, keyTierGrowth:1.12, fastClear:300, goldMultiplier:6 });
 export interface RiftTag { attempt:number; layout?:'clearings'; keySeed?:number; keyTier?:number }
 export interface RiftProgress { elapsed:number; points:number; phase:'hunt'|'boss'|'complete'|'failed'; claimed:boolean; guardian?:{x:number;y:number;at:number}; treasure?:{x:number;y:number}; exit?:{x:number;y:number} }
 export interface RiftRecord { level:number; seconds:number; keyTier:number }
@@ -37,33 +37,35 @@ export function riftModifiers(tag:RiftTag):readonly RiftModifier[] {
 }
 export function riftBonus(tag:RiftTag|undefined,id:string):number {return tag?riftModifiers(tag).find(m=>m.id===id)?.value??0:0;}
 export function createRiftKey(seed:number,level:number,tier=1):Item {
-  seed=seed>>>0;level=Math.max(1,Math.min(1e6,Math.floor(level)));tier=Math.max(1,Math.min(RIFT_RULES.maximumKeyTier,Math.floor(tier)));
+  seed=seed>>>0;level=Math.max(1,Math.min(1e6,Math.floor(level)));tier=Math.max(1,Math.min(1e6,Math.floor(tier)));
   const tiers:ItemTier[]=['common','magic','rare','epic','legendary'];
-  return {id:`rift-key:${seed}:${level}:${tier}`,seed,name:'Crimson Rift Key',baseName:'Crimson Rift Key',kind:'riftKey',tier:tiers[tier-1],itemLevel:level,requiredLevel:20,power:0,
+  return {id:`rift-key:${seed}:${level}:${tier}`,seed,name:'Crimson Rift Key',baseName:'Crimson Rift Key',kind:'riftKey',tier:tiers[Math.min(tier,tiers.length)-1],itemLevel:level,requiredLevel:20,power:0,
     implicit:{},affixes:[],recipe:{riftKeyTier:tier,starter:false,enhancement:0,revision:0,targetedRolls:0,fullRolls:0,rolls:[]},
     appearance:{base:'#7c234b',shadow:'#260f2b',edge:'#ef739d',trim:'#daaaef',style:'plate'}};
 }
 export function validRiftKey(v:unknown):v is Item {
   if(!v||typeof v!=='object')return false;
   const k=v as Item,t=k.recipe?.riftKeyTier;
-  if(!Number.isInteger(k.seed)||k.seed<0||k.seed>4294967295||!Number.isInteger(k.itemLevel)||k.itemLevel<1||k.itemLevel>1e6||!Number.isInteger(t)||t!<1||t!>5||k.locked!==undefined&&typeof k.locked!=='boolean')return false;
+  if(!Number.isInteger(k.seed)||k.seed<0||k.seed>4294967295||!Number.isInteger(k.itemLevel)||k.itemLevel<1||k.itemLevel>1e6||!Number.isInteger(t)||t!<1||t!>1e6||k.locked!==undefined&&typeof k.locked!=='boolean')return false;
   const expected=createRiftKey(k.seed,k.itemLevel,t);
   return Object.keys(expected).every(key=>JSON.stringify(k[key as keyof Item])===JSON.stringify(expected[key as keyof Item]));
 }
 export function validRiftTag(v:unknown):v is RiftTag {
   if(!v||typeof v!=='object')return false;const t=v as RiftTag;
-  return (t.layout===undefined||t.layout==='clearings')&&Number.isSafeInteger(t.attempt)&&t.attempt>0&&t.attempt<1e9&&(t.keySeed===undefined?t.keyTier===undefined:Number.isInteger(t.keySeed)&&t.keySeed>=0&&t.keySeed<=4294967295&&Number.isInteger(t.keyTier)&&t.keyTier!>=1&&t.keyTier!<=5);
+  return (t.layout===undefined||t.layout==='clearings')&&Number.isSafeInteger(t.attempt)&&t.attempt>0&&t.attempt<1e9&&(t.keySeed===undefined?t.keyTier===undefined:Number.isInteger(t.keySeed)&&t.keySeed>=0&&t.keySeed<=4294967295&&Number.isInteger(t.keyTier)&&t.keyTier!>=1&&t.keyTier!<=1e6);
 }
 export function validRiftLedger(v:unknown):v is RiftLedger {
   if(!v||typeof v!=='object')return false;const l=v as RiftLedger;
-  return Number.isSafeInteger(l.attempts)&&l.attempts>=0&&l.attempts<1e9&&Number.isInteger(l.clears)&&l.clears>=0&&l.clears<=l.attempts&&Number.isInteger(l.highest)&&l.highest>=0&&l.highest<=1e6&&Array.isArray(l.best)&&l.best.length<=600&&l.best.every(r=>Number.isInteger(r.level)&&r.level>=1&&r.level<=1e6&&Number.isFinite(r.seconds)&&r.seconds>=0&&r.seconds<=600&&Number.isInteger(r.keyTier)&&r.keyTier>=0&&r.keyTier<=5);
+  return Number.isSafeInteger(l.attempts)&&l.attempts>=0&&l.attempts<1e9&&Number.isInteger(l.clears)&&l.clears>=0&&l.clears<=l.attempts&&Number.isInteger(l.highest)&&l.highest>=0&&l.highest<=1e6&&Array.isArray(l.best)&&l.best.length<=600&&l.best.every(r=>Number.isInteger(r.level)&&r.level>=1&&r.level<=1e6&&Number.isFinite(r.seconds)&&r.seconds>=0&&r.seconds<=600&&Number.isInteger(r.keyTier)&&r.keyTier>=0&&r.keyTier<=1e6);
 }
 
+/** Each key tier multiplies monster life and damage on top of the rolled hazards. */
 export function riftEnemyStats<T extends {maxHp:number;damage:number}>(stats:T,tag?:RiftTag):T {
   if(!tag)return stats;
-  return {...stats,maxHp:Math.round(stats.maxHp*(1+riftBonus(tag,'vital')/100)),damage:Math.round(stats.damage*(1+riftBonus(tag,'savage')/100))};
+  const scale=Math.pow(RIFT_RULES.keyTierGrowth,tag.keyTier??0);
+  return {...stats,maxHp:Math.round(stats.maxHp*scale*(1+riftBonus(tag,'vital')/100)),damage:Math.round(stats.damage*scale*(1+riftBonus(tag,'savage')/100))};
 }
 
 /** Gear rolls plus the guaranteed key; gold uses the following claim bit. */
-export const riftRewardItemCount=(tag:RiftTag)=>RIFT_RULES.rewards+riftBonus(tag,'bounty')+1;
+export const riftRewardItemCount=(tag:RiftTag)=>RIFT_RULES.rewards+Math.min(riftBonus(tag,'bounty'),RIFT_RULES.bountyCap)+1;
 export const riftRewardMask=(tag:RiftTag)=>(1 << (riftRewardItemCount(tag)+1))-1;

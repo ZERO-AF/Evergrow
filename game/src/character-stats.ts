@@ -105,5 +105,6 @@ export function deriveCharacterStats(sheet: CharacterSheet, treeBonuses: StatMod
     lifeOnHit: bounded(value('lifeOnHit'), 0, 1e6),
     blockChance: shield ? bounded((shield.blockChance + value('blockChance')) / 100, 0, .75) : 0,
     blockReduction: shield ? bounded((shield.blockReduction + value('blockReduction')) / 100, 0, .9) : 0,
+    hitRating: bounded(value('hitRating'), 0, 1e6), expertise: bounded(value('expertise'), 0, 1e6),
   };
 }

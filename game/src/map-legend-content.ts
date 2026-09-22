@@ -1,7 +1,7 @@
 import { POI_DEFINITIONS, type POIKind, type WorldPOI } from './world-pois.ts';
 import type { DungeonMapIcon } from './dungeon-map-icon-art.ts';
 
-export type MapIconId = POIKind | `dungeon:${DungeonMapIcon}` | 'player' | 'journey:destination' | 'journey:search' | 'enemy:normal' | 'enemy:brute' | 'enemy:caster' | 'enemy:veteran' | 'enemy:elite';
+export type MapIconId = POIKind | `dungeon:${DungeonMapIcon}` | 'player' | 'journey:destination' | 'journey:search' | 'enemy:normal' | 'enemy:brute' | 'enemy:caster' | 'enemy:veteran' | 'enemy:elite' | 'loot';
 export type MapServiceKind = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash';
 export const MAP_SERVICES: readonly MapServiceKind[] = ['blacksmith', 'jeweler', 'enchanter', 'gambler', 'stash'];
 export interface MapLegendEntry { id: MapIconId; label: string; description: string; service?: MapServiceKind }
@@ -17,6 +17,9 @@ export const MAP_LEGEND_GROUPS: readonly MapLegendGroup[] = [
     { id: 'player', label: 'Your character', description: 'Your location and facing' },
     { id: 'journey:destination', label: 'Journey destination', description: 'Objective flag; edge arrow when offscreen' },
     { id: 'journey:search', label: 'Journey search area', description: 'Search circle; edge arrow when offscreen' },
+  ] },
+  { id: 'loot', label: 'Valuable drops', entries: [
+    { id: 'loot', label: 'Epic or better drop', description: 'Uncollected epic, legendary or unique item on the ground' },
   ] },
   { id: 'dungeons', label: 'Inside dungeons', entries: [
     { id: 'dungeon:entry', label: 'Entrance / exit', description: 'Return to the surface' },

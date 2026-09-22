@@ -19,6 +19,7 @@ import { clampMapCoordinate, fitMapBounds, getMinimapRect, getMinimapChartRect, 
 import { POI_DEFINITIONS } from './world-pois.ts';
 import { drawWorldEventMinimapMarkers } from './world-event-art.ts';
 import { worldEventMapMarkers, type WorldEventState } from './world-event-state.ts';
+import { lootMapMarkers, drawLootMapMarkers, type LootMapDrop } from './minimap-zone.ts';
 export { getMinimapRect, projectMapPoint, unprojectMapPoint, zoomMapAt, type MapView, type MapZoomLimits, MAP_ZOOM } from './map-view.ts';
 import type { ExplorationWorld, MapPOI, MapRect } from './exploration.ts';
 import { text } from './font.ts';
@@ -103,6 +104,8 @@ function createMapRoadLayer(x: number, y: number, size: number, seed: number): H
 
 interface PresentationState {
   x: number; y: number; angle: number; revision: number; status: string; message: string;
+  /** Count + id checksum of epic+ ground drops so the open map redraws when they change. */
+  loot: string;
 }
 const bounds = (view: MapView): MapRect => ({ x: view.centerX - view.width / view.zoom / 2,
   y: view.centerY - view.height / view.zoom / 2, width: view.width / view.zoom, height: view.height / view.zoom });
@@ -228,6 +231,9 @@ export class WorldMap {
   setPortalMarkers(reader: () => MapPOI[]) { this.portalMarkers = reader; this.render(); }
   private worldEvents: () => { state: WorldEventState; time: number } | null = () => null;
   setWorldEventReader(reader: () => { state: WorldEventState; time: number } | null) { this.worldEvents = reader; }
+  private lootMarkers: () => readonly LootMapDrop[] = () => [];
+  /** Uncollected epic+ ground drops; the reader is polled each update so the open map stays fresh. */
+  setLootMarkerReader(reader: () => readonly LootMapDrop[]) { this.lootMarkers = reader; }
   private minimapPointer: { x: number; y: number } | null = null;
   private drag: { id: number; x: number; y: number; centerX: number; centerY: number } | null = null;
   private hovered: MapPOI | null = null;
@@ -334,9 +340,15 @@ export class WorldMap {
     }
     this.exploration.reveal(player.x, player.y);
     const previous = this.presentation;
-    if (this.opened && (!previous || previous.x !== player.x || previous.y !== player.y
-      || previous.angle !== player.angle || previous.revision !== this.exploration.revision
-      || previous.status !== this.exploration.storageStatus || previous.message !== this.exploration.persistenceMessage)) this.render();
+    if (this.opened) {
+      const drops = lootMapMarkers(this.lootMarkers?.() ?? []);
+      let checksum = 0; for (const drop of drops) checksum = (checksum + drop.id) | 0;
+      const loot = `${drops.length}:${checksum}`;
+      if (!previous || previous.x !== player.x || previous.y !== player.y
+        || previous.angle !== player.angle || previous.revision !== this.exploration.revision
+        || previous.loot !== loot
+        || previous.status !== this.exploration.storageStatus || previous.message !== this.exploration.persistenceMessage) this.render();
+    }
   }
   resize() {
     this.render();
@@ -721,6 +733,10 @@ export class WorldMap {
         text(c, poi.name, p.x, p.y + 12, 1.15, palette.ivory, 'center');
       }
     }
+    // Epic+ ground drops get a star on both the minimap and the open map; the
+    // legend 'loot' toggle hides them, and the exploration chart skips them.
+    if (!simple && mapIconVisible(this.iconVisibility, 'loot'))
+      drawLootMapMarkers(c, view, lootMapMarkers(this.lootMarkers?.() ?? []), mini ? 3.4 : 5);
     drawJourneyMapMarker(c,view,this.journeyMarker,mini,this.iconVisibility);
     c.restore();
     return pois;
@@ -817,9 +833,11 @@ export class WorldMap {
     this.focusPing.style.left = `${focusPoint.x}px`;
     this.focusPing.style.top = `${focusPoint.y}px`;
     if (this.pendingTerrain || this.recenter) this.invalidate();
+    const drops = lootMapMarkers(this.lootMarkers?.() ?? []);
+    let checksum = 0; for (const drop of drops) checksum = (checksum + drop.id) | 0;
     this.presentation = { x: this.player.x, y: this.player.y, angle: this.player.angle,
       revision: this.exploration.revision, status: this.exploration.storageStatus,
-      message: this.exploration.persistenceMessage };
+      message: this.exploration.persistenceMessage, loot: `${drops.length}:${checksum}` };
   }
 
   private drawChart() {

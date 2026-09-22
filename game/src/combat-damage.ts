@@ -18,8 +18,53 @@ import { COMBAT_TIMING, ENEMY_DEFINITIONS } from './combat-content.ts';
 import { ENCOUNTER_RULES } from './encounter-director.ts';
 import { armorReduction } from './progression-content.ts';
 import { alertEnemy, transitionEnemy, interruptStaggeredEnemy } from './enemy-state.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { resourceModelOf } from './player-skill-effects.ts';
 import { demonFamilyForAlly } from './pet-content.ts';
+import { angleDifference } from './combat-geometry.ts';
+import { enemyDisplayName } from './zone-roster.ts';
+
+/** WoW melee attack table (docs/wow-transformation.md): a direct melee contact rolls
+ * miss → dodge → parry → glancing before the ordinary hit/crit resolution. Every
+ * chance scales with the level gap (target − attacker), so equal-level fights are
+ * unchanged; hit rating and expertise are the player's answers. Dodge and parry
+ * require the target to face the blow — attacks from behind can only miss or glance. */
+export const ATTACK_TABLE = Object.freeze({
+  /** Rating points that convert to one percentage point of avoidance reduction. */
+  ratingPerPercent: 8,
+  /** Miss chance per level the target outlevels the attacker. */
+  missPerLevel: .05,
+  /** Dodge chance per level the target outlevels the attacker. */
+  dodgePerLevel: .015,
+  /** Parry chance per level the target outlevels the attacker. */
+  parryPerLevel: .015,
+  /** Glancing-blow chance per level the target outlevels the attacker. */
+  glancePerLevel: .1,
+  /** Damage a glancing blow still deals. */
+  glanceDamage: .65,
+  /** Frontal arc (half-angle) inside which dodge and parry apply. */
+  facingArc: Math.PI / 2,
+  /** Combined avoidance never exceeds this share of the table. */
+  cap: .8,
+});
+export type AttackOutcome = 'miss' | 'dodge' | 'parry' | 'glancing' | 'hit';
+/** One seeded roll over the attack table; consumes no randomness when nothing can fail. */
+export function attackTableRoll(random: () => number, attackerLevel: number, targetLevel: number,
+  targetFacing: number, hitAngle: number, hitRating = 0, expertise = 0): { outcome: AttackOutcome; damage: number } {
+  const delta = Math.max(0, targetLevel - attackerLevel);
+  const facing = Math.abs(angleDifference(targetFacing, hitAngle + Math.PI)) <= ATTACK_TABLE.facingArc;
+  const miss = Math.max(0, delta * ATTACK_TABLE.missPerLevel - hitRating / (ATTACK_TABLE.ratingPerPercent * 100));
+  const dodge = facing ? Math.max(0, delta * ATTACK_TABLE.dodgePerLevel - expertise / (ATTACK_TABLE.ratingPerPercent * 100)) : 0;
+  const parry = facing ? Math.max(0, delta * ATTACK_TABLE.parryPerLevel - expertise / (ATTACK_TABLE.ratingPerPercent * 100)) : 0;
+  const glance = Math.min(ATTACK_TABLE.cap, delta * ATTACK_TABLE.glancePerLevel);
+  if (miss + dodge + parry + glance <= 0) return { outcome: 'hit', damage: 1 };
+  const roll = random();
+  if (roll < miss) return { outcome: 'miss', damage: 0 };
+  if (roll < miss + dodge) return { outcome: 'dodge', damage: 0 };
+  if (roll < miss + dodge + parry) return { outcome: 'parry', damage: 0 };
+  if (roll < miss + dodge + parry + glance) return { outcome: 'glancing', damage: ATTACK_TABLE.glanceDamage };
+  return { outcome: 'hit', damage: 1 };
+}
 
 export interface EnemyDamageContext {
   player: Player; enemies: readonly Enemy[];
@@ -39,17 +84,14 @@ export interface PlayerDamageContext {
   addBuff?(name: string, color: string, spec: BuffSpec, id?: string): void;
   /** Legendary 'onBeingHit' proc roll, injected by the simulation to avoid a combat-damage import cycle. */
   defensiveProc?(player: Player, context: PlayerDamageContext): void;
+  /** Attacker's melee ratings for the attack table (PvP sources); enemies carry none. */
+  offense?: { readonly hitRating?: number; readonly expertise?: number };
 }
 
 /** One contact owner: damage, awareness, impulse, interruption and death commitment. */
 export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: boolean,
   context: EnemyDamageContext, periodic = false, style?: ProjectileStyle, elementalDamage?: number, offense?: HitSnapshot, authoredBurn = false): void {
   if (enemy.state === 'dead') return;
-  if(riftWardActive(enemy,context.visible)){damage*=1-RIFT_TACTICS.wardReduction;if(elementalDamage!==undefined)elementalDamage*=1-RIFT_TACTICS.wardReduction;}
-  if(!periodic){const oath=bloodOathHit(context.player,enemy,melee);damage*=oath;if(elementalDamage!==undefined)elementalDamage*=oath;}
-  const exposure=resonanceHit(context.player,enemy,style,periodic);
-  if(elementalDamage!==undefined){damage+=elementalDamage*(exposure-1);elementalDamage*=exposure;}else damage*=exposure;
-  if(enemy.sundered&&enemy.sundered.remaining>0){damage*=1+enemy.sundered.fraction;if(elementalDamage!==undefined)elementalDamage*=1+enemy.sundered.fraction;}
   if (!periodic) {
     alertEnemy(enemy, context.player);
     // A camp shares danger only with nearby members who can see the struck ally.
@@ -57,6 +99,33 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
       && ally.state !== 'dead' && Math.hypot(ally.x - enemy.x, ally.y - enemy.y) < 190
       && context.visible(ally.x, ally.y, enemy.x, enemy.y)) alertEnemy(ally, context.player);
   }
+  // Shielding elites are briefly invulnerable: no table roll, no statuses, no hit.
+  if (enemy.affixState?.shielded) {
+    context.emit({ type: 'block', x: enemy.x, y: enemy.y, angle, value: 0 });
+    return;
+  }
+  const hitStats = offense ?? context.player.derived;
+  // WoW attack table: a direct melee contact can miss, be dodged or parried by a
+  // facing target, or glance off a higher-level one. Periodic ticks, bolts and
+  // authored burns bypass the table; a whiff still alerts the target above.
+  let glancing = false;
+  if (melee && !periodic && GAME_FEATURES.attackTable) {
+    const roll = attackTableRoll(context.random, context.player.level, enemy.level, enemy.angle, angle,
+      hitStats.hitRating ?? 0, hitStats.expertise ?? 0);
+    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing') {
+      context.emit({ type: 'avoid', outcome: roll.outcome, x: enemy.x, y: enemy.y, angle,
+        targetId: enemy.id, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), classId: context.player.character?.classId });
+      return;
+    }
+    glancing = roll.outcome === 'glancing';
+    damage *= roll.damage;
+    if (elementalDamage !== undefined) elementalDamage *= roll.damage;
+  }
+  if(riftWardActive(enemy,context.visible)){damage*=1-RIFT_TACTICS.wardReduction;if(elementalDamage!==undefined)elementalDamage*=1-RIFT_TACTICS.wardReduction;}
+  if(!periodic){const oath=bloodOathHit(context.player,enemy,melee);damage*=oath;if(elementalDamage!==undefined)elementalDamage*=oath;}
+  const exposure=resonanceHit(context.player,enemy,style,periodic);
+  if(elementalDamage!==undefined){damage+=elementalDamage*(exposure-1);elementalDamage*=exposure;}else damage*=exposure;
+  if(enemy.sundered&&enemy.sundered.remaining>0){damage*=1+enemy.sundered.fraction;if(elementalDamage!==undefined)elementalDamage*=1+enemy.sundered.fraction;}
   // Contact status uses the elemental portion, never physical damage or recursive burn ticks.
   const statusDamage = elementalDamage ?? (style === 'fire' || style === 'frost' || style === 'lightning' || style === 'arcane' || style === 'spirit' ? damage : 0);
   const elementKind = (elementalDamage && elementalDamage > 0) ? (style ?? 'fire') : style;
@@ -79,7 +148,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
             other.fractureTime = Math.max(other.fractureTime ?? 0, ELEMENTAL_REACTION_RULES.superconductDuration);
             other.stagger = Math.max(other.stagger, other.stagger + ELEMENTAL_REACTION_RULES.superconductStaggerBonus);
             context.emit({ type: 'chain', x: enemy.x, y: enemy.y, toX: other.x, toY: other.y, duration: 0.28, style: 'lightning', color: '#67e8f9', reaction: 'cascade' });
-            context.emit({ type: 'hit', actualValue: Math.round(statusDamage * 0.3), angle: pushAngle, value: Math.round(statusDamage * 0.3), targetId: other.id, remainingHp: other.hp, enemyKind: other.kind, heavy: true, reaction: 'cascade', color: '#67e8f9', x: other.x, y: other.y });
+            context.emit({ type: 'hit', actualValue: Math.round(statusDamage * 0.3), angle: pushAngle, value: Math.round(statusDamage * 0.3), targetId: other.id, remainingHp: other.hp, enemyKind: other.kind, enemyName: enemyDisplayName(other), heavy: true, reaction: 'cascade', color: '#67e8f9', x: other.x, y: other.y });
           }
         }
       }
@@ -111,8 +180,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   if (!periodic) primeSpellweave(context.player, melee, style);
   if (!periodic && !(style === 'fire' && authoredBurn)) applyElementalContact(enemy, style, statusDamage);
   const elementFraction=style && projectileDamageType(style)==='arcane'?1:Math.min(1,Math.max(0,statusDamage/Math.max(1,damage)));
-  const hitStats = offense ?? context.player.derived;
-  const critical = !periodic && hitStats.critChance > 0 && context.random() < hitStats.critChance;
+  const critical = !periodic && !glancing && hitStats.critChance > 0 && context.random() < hitStats.critChance;
   damage = Math.max(1, Math.round(damage * (critical ? hitStats.critMultiplier : 1) * (periodic ? 1 : hitStats.directDamageMultiplier ?? 1)));
   const actualValue = Math.min(enemy.hp, damage);
   enemy.hp = Math.max(0, enemy.hp - damage);
@@ -132,8 +200,8 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     enemy.knockbackX += Math.cos(angle) * shove / COMBAT_TIMING.knockbackDecay;
     enemy.knockbackY += Math.sin(angle) * shove / COMBAT_TIMING.knockbackDecay;
   }
-  context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
-    targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, heavy: critical || !!reaction });
+  context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), ...(glancing ? { glancing: true } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
+    targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), heavy: critical || !!reaction });
   // Legendary weapon procs roll on direct player hits only — never on periodic
   // ticks, ally strikes or proc-sourced damage (offense.proc guards recursion).
   if (!periodic && !offense?.ally && !offense?.proc) context.proc?.(context.player, enemy, context);
@@ -152,7 +220,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     transitionEnemy(enemy, 'dead', ENCOUNTER_RULES.corpseDuration);
     context.killed(enemy);
     context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'kill', x: enemy.x, y: enemy.y, angle, facing: enemy.angle,
-      targetId: enemy.id, remainingHp: 0, enemyKind: enemy.kind });
+      targetId: enemy.id, remainingHp: 0, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy) });
   } else if (definition.interruptible && melee) {
     applyStun(enemy, COMBAT_TIMING.staggerDuration, 'stagger');
     interruptStaggeredEnemy(enemy);
@@ -162,10 +230,22 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
 /** Returns whether damage landed; the clock owner handles input/fixed-step cancellation.
  * `context.player` is the TARGET — any Player-shaped actor, including PvP combatants.
  * Periodic ticks (dots/burns) bypass the hurt guard and never grant protection. */
-export function damageCombatant(amount: number, angle: number, sourceLevel: number, damageType: DamageType, context: PlayerDamageContext, kind?: EnemyKind, periodic = false, style?: ProjectileStyle): boolean {
+export function damageCombatant(amount: number, angle: number, sourceLevel: number, damageType: DamageType, context: PlayerDamageContext, kind?: EnemyKind, periodic = false, style?: ProjectileStyle, sourceName?: string, melee = false): boolean {
   const p = context.player;
   if (p.dead || (!periodic && p.invulnerable > 0) || context.world.isSanctuary?.(p.x, p.y)) return false;
   if (p.buffs?.some(buff => buff.immunity && buff.remaining > 0)) return false;
+  // The same attack table guards the player: a facing combatant can dodge or
+  // parry a melee blow, and a lower-level attacker's hits glance off.
+  let glancingHit = false;
+  if (melee && !periodic && GAME_FEATURES.attackTable) {
+    const roll = attackTableRoll(context.random, sourceLevel, p.level, p.angle, angle,
+      context.offense?.hitRating ?? 0, context.offense?.expertise ?? 0);
+    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing') {
+      context.emit({ type: 'avoid', outcome: roll.outcome, x: p.x, y: p.y, angle, incoming: true, enemyKind: kind, enemyName: sourceName });
+      return false;
+    }
+    if (roll.outcome === 'glancing') { amount *= roll.damage; glancingHit = true; }
+  }
   const reduction = damageType === 'physical' ? armorReduction(effectiveArmor(p), sourceLevel) : p.derived.resistances[damageType];
   amount = Math.max(1, Math.round(amount * (1 - reduction) * (damageType==='physical'?1-auraPower(p,'ironroot')/800:1)));
   for (const buff of p.buffs ?? []) if (buff.reduction && buff.remaining > 0) amount = Math.max(1, Math.round(amount * (1 - buff.reduction)));
@@ -204,7 +284,7 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
   // PvP combatants never gain the PvE hurt guard: focus fire and dot ticks must land.
   if (!periodic && p.team === undefined) p.invulnerable = COMBAT_TIMING.hurtGuard;
   context.emit({ type: 'hurt', ...(damageType === 'physical' ? {} : { style: damageType }), actualValue, x: p.x, y: p.y, angle, value: amount,
-    remainingHp: p.hp, enemyKind: kind, heavy: amount >= 20 });
+    remainingHp: p.hp, enemyKind: kind, ...(sourceName ? { enemyName: sourceName } : {}), heavy: amount >= 20, ...(glancingHit ? { glancing: true } : {}) });
   const resource = resourceModelOf(p);
   if (resource && resource.gainOnHit > 0) p.mana = Math.min(p.maxMana, p.mana + resource.gainOnHit);
   if (p.stealthed) { p.stealthed = false; p.buffs = p.buffs?.filter(buff => !buff.stealth); }

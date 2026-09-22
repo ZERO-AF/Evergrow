@@ -1,5 +1,6 @@
 import { MANA_RULES } from './mana-content.ts';
-import { LAIR_RULES } from './wilderness-boss-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
+import { LAIR_RULES, isBossKind } from './wilderness-boss-content.ts';
 import type { Enemy, EnemyKind, Projectile, ProjectileStyle } from './model.ts';
 import type { PetFamily } from './pet-content.ts';
 
@@ -209,3 +210,91 @@ export const LOOT_RULES = Object.freeze({
   maxPickups: 32, life: 20, radius: 4, healthEveryKills: 3, healthFraction: .12, manaFraction: MANA_RULES.vialMaxFraction,
   collectDistance: 18, magnetDistance: 55, magnetSpeed: 100,
 });
+
+/** Diablo-style elite affixes: one seeded roll per elite at spawn (lootSeed),
+ * executed by enemy-ai.ts, drawn by enemy-warning-art.ts + nameplate-art.ts. */
+export type EliteAffixId = 'molten' | 'arcane' | 'frozen' | 'swift' | 'shielding' | 'avenger';
+export interface EliteAffix {
+  readonly id: EliteAffixId;
+  readonly name: string;
+  readonly color: string;
+  readonly description: string;
+}
+export const ELITE_AFFIXES: Readonly<Record<EliteAffixId, EliteAffix>> = Object.freeze({
+  molten: Object.freeze({ id: 'molten', name: 'Molten', color: '#f2793a',
+    description: 'Leaves burning ground while engaged.' }),
+  arcane: Object.freeze({ id: 'arcane', name: 'Arcane', color: '#c98ef5',
+    description: 'Channels a rotating arcane beam.' }),
+  frozen: Object.freeze({ id: 'frozen', name: 'Frozen', color: '#8fd8f2',
+    description: 'Periodically detonates a chilling nova.' }),
+  swift: Object.freeze({ id: 'swift', name: 'Swift', color: '#a9e87c',
+    description: 'Moves and attacks faster.' }),
+  shielding: Object.freeze({ id: 'shielding', name: 'Shielding', color: '#f0d98a',
+    description: 'Periodically becomes briefly invulnerable.' }),
+  avenger: Object.freeze({ id: 'avenger', name: 'Avenger', color: '#e86a6a',
+    description: 'Grows stronger as nearby allies die.' }),
+});
+export const ELITE_AFFIX_IDS: readonly EliteAffixId[] = Object.freeze(
+  ['molten', 'arcane', 'frozen', 'swift', 'shielding', 'avenger']);
+
+/** Affix tuning; radii/durations are world units and seconds. */
+export const ELITE_AFFIX_RULES = Object.freeze({
+  molten: Object.freeze({ interval: .55, radius: 26, duration: 3.2, damageFraction: .3, maxPatches: 5 }),
+  arcane: Object.freeze({ period: 6.5, telegraph: 1.1, active: 2.6, length: 150, width: 13,
+    revolutionsPerSecond: .55, damageFraction: .5 }),
+  frozen: Object.freeze({ period: 5.5, telegraph: .9, radius: 95, damageFraction: .45,
+    chillSeconds: 2.5, chillPercent: -35 }),
+  swift: Object.freeze({ moveFactor: 1.3, attackFactor: .75 }),
+  shielding: Object.freeze({ period: 7, duration: 1.6 }),
+  avenger: Object.freeze({ radius: 260, damagePerStack: .15, scalePerStack: .07, maxStacks: 5 }),
+});
+
+/** Deterministic affix roll: elites only, never bosses, keyed on the loot seed. */
+export function eliteAffix(enemy: Pick<Enemy, 'kind' | 'rank' | 'lootSeed'>): EliteAffixId | undefined {
+  if (enemy.rank !== 'elite' || isBossKind(enemy.kind)) return undefined;
+  let n = Math.imul(enemy.lootSeed ^ 0x51ab3f7d, 0x45d9f3b);
+  n = Math.imul(n ^ n >>> 16, 0x45d9f3b);
+  return ELITE_AFFIX_IDS[((n ^ n >>> 16) >>> 0) % ELITE_AFFIX_IDS.length];
+}
+
+/** Swift reads through the shared movement/recovery multipliers. */
+export function affixMoveFactor(enemy: Pick<Enemy, 'affix'>): number {
+  return enemy.affix === 'swift' ? ELITE_AFFIX_RULES.swift.moveFactor : 1;
+}
+export function affixAttackFactor(enemy: Pick<Enemy, 'affix'>): number {
+  return enemy.affix === 'swift' ? ELITE_AFFIX_RULES.swift.attackFactor : 1;
+}
+/** Avenger stacks multiply outgoing damage; other affixes leave it at one. */
+export function affixDamageMultiplier(enemy: Pick<Enemy, 'affix' | 'affixState'>): number {
+  return enemy.affix === 'avenger'
+    ? 1 + (enemy.affixState?.stacks ?? 0) * ELITE_AFFIX_RULES.avenger.damagePerStack : 1;
+}
+
+/** Treasure goblin: a rare goblin variant that flees, sheds gold and erupts in loot. */
+export const TREASURE_GOBLIN = Object.freeze({
+  chance: .02, speedFactor: 1.55, escapeSeconds: 15, goldInterval: .8,
+  goldBase: 6, goldPerLevel: 2, fountainItems: 4, fountainGold: 6,
+});
+export function treasureGoblinSeed(enemy: Pick<Enemy, 'kind' | 'lootSeed'>): boolean {
+  if (enemy.kind !== 'goblin') return false;
+  let n = Math.imul(enemy.lootSeed ^ 0x7a11c0de, 0x45d9f3b);
+  n = Math.imul(n ^ n >>> 16, 0x45d9f3b);
+  return ((n ^ n >>> 16) >>> 0) / 4294967296 < TREASURE_GOBLIN.chance;
+}
+
+/** Spawn-time trait roll shared by fresh spawns and save/camp restores. */
+export function applySpawnTraits(enemy: Enemy): void {
+  enemy.affix = GAME_FEATURES.eliteAffixes ? eliteAffix(enemy) : undefined;
+  enemy.treasure = GAME_FEATURES.treasureGoblins && treasureGoblinSeed(enemy)
+    ? { fleeing: 0, goldClock: 0, drops: 0 } : undefined;
+}
+
+/** Diablo massacre streaks: kills inside the window chain; thresholds announce. */
+export const KILL_STREAK = Object.freeze({
+  window: 3, thresholds: Object.freeze([10, 25, 50, 100] as const),
+  /** +1% XP per chained kill, capped at +100%. */
+  bonusPerKill: .01, bonusCap: 1,
+});
+export function streakBonusFraction(count: number): number {
+  return Math.min(KILL_STREAK.bonusCap, Math.max(0, count) * KILL_STREAK.bonusPerKill);
+}

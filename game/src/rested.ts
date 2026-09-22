@@ -1,5 +1,5 @@
 import type { Player, WorldQuery } from './model.ts';
-import { MAX_CONTENT_LEVEL } from './progression-content.ts';
+import { MAX_PLAYER_LEVEL } from './progression-content.ts';
 import { xpForNextLevel } from './progression.ts';
 
 /** WoW rested XP: time in a settlement banks a pool worth up to 1.5 levels (30 bubbles); kills spend it for double XP. */
@@ -21,7 +21,7 @@ export function restedCap(player: Pick<Player, 'level'>): number {
  * Returns the amount added this tick (0 outside towns, while dead, or at the level cap).
  */
 export function restedAccrual(player: Player, world: WorldQuery, dt: number): number {
-  if (player.dead || dt <= 0 || player.level >= MAX_CONTENT_LEVEL || !world.isSanctuary?.(player.x, player.y)) return 0;
+  if (player.dead || dt <= 0 || player.level >= MAX_PLAYER_LEVEL || !world.isSanctuary?.(player.x, player.y)) return 0;
   const cap = restedCap(player);
   const before = Math.min(cap, Math.max(0, player.restedXp ?? 0));
   const after = Math.min(cap, before + xpForNextLevel(player.level) * RESTED_RULES.levelsPerSecond * dt);
@@ -34,7 +34,7 @@ export function restedAccrual(player: Player, world: WorldQuery, dt: number): nu
  * Returns the extra XP to add to the base reward; the pool shrinks by the same amount.
  */
 export function restedBonus(player: Player, baseReward: number): number {
-  if (player.dead || player.level >= MAX_CONTENT_LEVEL || !Number.isFinite(baseReward) || baseReward <= 0) return 0;
+  if (player.dead || player.level >= MAX_PLAYER_LEVEL || !Number.isFinite(baseReward) || baseReward <= 0) return 0;
   const pool = Math.max(0, player.restedXp ?? 0);
   const bonus = Math.floor(Math.min(pool, baseReward));
   if (bonus < 1) return 0;

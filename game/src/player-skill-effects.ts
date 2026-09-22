@@ -31,7 +31,7 @@ export interface PlayerSkillEffects {
 }
 export const skillEffects = (p: Player): PlayerSkillEffects => p.skillEffects ??= { echoes: [] };
 export function snapshotSkillOffense(p: Player, skill?: SkillId): HitSnapshot {
-  return { ...(skill ? { skill } : {}), critChance:p.derived.critChance,critMultiplier:p.derived.critMultiplier,lifeOnHit:p.derived.lifeOnHit,directDamageMultiplier:p.derived.directDamageMultiplier ?? 1 };
+  return { ...(skill ? { skill } : {}), critChance:p.derived.critChance,critMultiplier:p.derived.critMultiplier,lifeOnHit:p.derived.lifeOnHit,directDamageMultiplier:p.derived.directDamageMultiplier ?? 1,hitRating:p.derived.hitRating,expertise:p.derived.expertise };
 }
 /** Consume at manual action commitment, once for a sweep/volley, never per contact. */
 export function consumeRally(p: Player, melee: boolean): number {

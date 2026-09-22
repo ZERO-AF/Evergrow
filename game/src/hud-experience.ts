@@ -1,5 +1,6 @@
 import type { Player } from './model.ts';
 import { xpForNextLevel } from './progression.ts';
+import { MAX_PLAYER_LEVEL } from './progression-content.ts';
 import { HUD_ART } from './hud-layout.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
@@ -128,7 +129,7 @@ export function drawHUDExperience(c: CanvasRenderingContext2D, player: Progress,
   const cy = y + h - 10;
   c.beginPath(); c.moveTo(x + 5, cy - 3); c.lineTo(x + 8, cy); c.lineTo(x + 5, cy + 3); c.lineTo(x + 2, cy); c.closePath();
   c.fillStyle = '#13202c'; c.fill(); c.strokeStyle = '#9c9ebc'; c.lineWidth = .65; c.stroke();
-  const level = `LV ${display?.level ?? player.level}`, amount = `${display?.xp ?? player.xp} / ${needed} XP`;
+  const level = `LV ${display?.level ?? player.level}`, amount = (display?.level ?? player.level) >= MAX_PLAYER_LEVEL ? 'MAX' : `${display?.xp ?? player.xp} / ${needed} XP`;
   const size = Math.min(1.04 * textScale, (w - 24) / Math.max(1, textWidth(level) + textWidth(amount)));
   text(c, level, x + 13, cy - 3.85 * size, size, pulse > .6 ? '#e9ddff' : ui.silver);
   text(c, amount, x + w - 2, cy - 3.85 * size, size, '#b5accb', 'right');

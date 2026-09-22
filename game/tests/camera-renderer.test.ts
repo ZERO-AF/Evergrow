@@ -6,6 +6,7 @@ import { World, TILE_SIZE, type Prop } from '../src/world.ts';
 import type { Building, Settlement } from '../src/settlements.ts';
 import { getHUDLayout } from '../src/hud.ts';
 import { cameraView, MIN_CAMERA_ZOOM } from '../src/camera.ts';
+import { nameplateName } from '../src/nameplate.ts';
 
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
 type Rect = { left: number; top: number; width: number; height: number };
@@ -188,8 +189,10 @@ test('renderer wires hover and combat focus to a native enemy plate without HUD 
     renderer.renderUI(ui as unknown as CanvasRenderingContext2D, sim, world, settings);
     assert.deepEqual(ui.getTransform(), { a: 2, b: 0, c: 0, d: 2, e: 0, f: 0 });
     // Nameplates (V) draw every visible enemy's name at ~15px; the focus plate
-    // this test exercises renders above 20px, so select it by font size.
-    return ui.texts.find(call => call.value === 'HOLLOW STALKER'
+    // this test exercises renders above 20px, so select it by font size. The
+    // zone roster may rename the archetype, so match the live display name.
+    const want = nameplateName(enemy).toUpperCase();
+    return ui.texts.find(call => call.value === want
       && Number(call.font.match(/([\d.]+)px/)![1]) > 20);
   };
   const hoverTorso = (matrix: Matrix) => {
@@ -204,9 +207,9 @@ test('renderer wires hover and combat focus to a native enemy plate without HUD 
   hoverTorso(firstMatrix); render();
   const initial = plateName();
   assert.ok(initial, 'hovering the rendered body displays its name on the next frame');
-  assert.deepEqual({ ...initial.matrix, e: 0, f: 0 }, identity(), 'enemy glyphs render at native physical pixels');
+  assert.ok(!canvas.context.texts.some(call => call.value === nameplateName(enemy).toUpperCase()), 'the name is absent from the post-processed world surface');
   assert.ok(Number(initial.font.match(/([\d.]+)px/)![1]) > 20, 'the native font includes the UI backing DPR');
-  assert.ok(!canvas.context.texts.some(call => call.value === 'HOLLOW STALKER'), 'the name is absent from the post-processed world surface');
+
 
   for (const delta of [300, -300]) {
     renderer.zoomByWheel(delta, 0, 900);

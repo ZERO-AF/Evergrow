@@ -35,6 +35,8 @@ export const EQUIPMENT_SLOTS: readonly EquipmentSlot[] = Object.freeze([
 export const ITEM_KINDS: readonly ItemKind[] = Object.freeze(['weapon', 'shield', 'grimoire', 'orb', 'relic', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'amulet', 'ring', 'charm', 'consumable']);
 /** Classes that may equip a relic (totem/libram/idol/sigil) in the offhand slot. */
 export const RELIC_CLASSES: readonly WowClassId[] = Object.freeze(['shaman', 'paladin', 'druid', 'deathKnight']);
+/** Classes trained to equip shields in the offhand (WoW proficiency). */
+export const SHIELD_CLASSES: readonly WowClassId[] = Object.freeze(['warrior', 'paladin', 'shaman']);
 export const TIER_COLORS: Readonly<Record<ItemTier, string>> = Object.freeze({
   common: '#c5ccc8', magic: '#76b9ee', rare: '#e0c17a', epic: '#b895ef', legendary: '#f0a16b', unique: UNIQUE_COLOR,
 });
@@ -50,6 +52,7 @@ export const STAT_LABELS: Readonly<Record<StatKey, string>> = Object.freeze({
   moveSpeedPercent: 'Movement speed', spellDamagePercent: 'Spell damage', manaRegen: 'Mana / 5 sec',
   lifeRegen: 'Life / sec', manaCostPercent: 'Mana cost reduction', cooldownPercent: 'Cooldown reduction', lifeOnHit: 'Life on hit',
   blockChance: 'Block chance', blockReduction: 'Blocked damage reduction',
+  hitRating: 'Hit rating', expertise: 'Expertise',
 });
 export const PERCENT_STATS = new Set<StatKey>(['goldFindPercent', 'xpGainPercent', ...RESISTANCE_STATS, 'areaPercent', 'potionPercent', 'spellweavePercent', 'afterguardPercent', 'damagePercent', 'attackSpeedPercent', 'castSpeedPercent', 'critChance', 'critDamage', 'moveSpeedPercent', 'spellDamagePercent', 'cooldownPercent', 'manaCostPercent', 'blockChance', 'blockReduction', 'armorPercent']);
 export function formatStatValue(stat: StatKey, value: number): string {
@@ -95,6 +98,8 @@ export const AFFIXES: readonly AffixDefinition[] = [
   { name: 'Efficiency', stat: 'manaCostPercent', base: 4, growth: .15 },
   { name: 'Readiness', stat: 'cooldownPercent', base: 2, growth: .1 },
   { name: 'Sustenance', stat: 'lifeOnHit', base: 1, growth: .12 },
+  { name: 'Accuracy', stat: 'hitRating', base: 4, growth: .8 },
+  { name: 'Deftness', stat: 'expertise', base: 4, growth: .8 },
 ];
 export const SHIELD_AFFIXES: typeof AFFIXES = [
   { name: 'Deflection', stat: 'blockChance', base: 2, growth: .08 },
@@ -104,12 +109,12 @@ export const SHIELD_AFFIXES: typeof AFFIXES = [
 const SLOT_AFFIXES: Partial<Record<ItemKind, readonly StatKey[]>> = {
   head: ['maxMana', 'intelligence', 'manaCostPercent', 'cooldownPercent', 'maxHp', 'armor'],
   chest: ['maxHp', 'armor', 'vitality', 'lifeRegen', 'strength'],
-  gloves: ['attackSpeedPercent', 'castSpeedPercent', 'critChance', 'damagePercent', 'spellDamagePercent', 'dexterity', 'armor'],
+  gloves: ['attackSpeedPercent', 'castSpeedPercent', 'critChance', 'damagePercent', 'spellDamagePercent', 'dexterity', 'armor', 'hitRating', 'expertise'],
   legs: ['maxHp', 'armor', 'vitality', 'lifeRegen', 'strength', 'dexterity'],
   boots: ['moveSpeedPercent', 'maxHp', 'armor', 'vitality', 'dexterity'],
   cloak: ['potionPercent', 'lifeRegen', 'manaRegen', 'cooldownPercent', 'maxHp', 'maxMana', 'intelligence'],
-  ring: [...RESISTANCE_STATS, 'maxHp', 'vitality', 'lifeRegen', 'manaOnKill', 'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'strength', 'dexterity', 'intelligence', 'maxMana', 'manaRegen'],
-  shield: [...RESISTANCE_STATS, 'afterguardPercent', 'blockChance', 'blockReduction', 'armor', 'maxHp', 'vitality', 'lifeRegen', 'strength'],
+  ring: [...RESISTANCE_STATS, 'maxHp', 'vitality', 'lifeRegen', 'manaOnKill', 'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'strength', 'dexterity', 'intelligence', 'maxMana', 'manaRegen', 'hitRating', 'expertise'],
+  shield: [...RESISTANCE_STATS, 'afterguardPercent', 'blockChance', 'blockReduction', 'armor', 'maxHp', 'vitality', 'lifeRegen', 'strength', 'hitRating', 'expertise'],
   grimoire: ['manaOnKill', 'spellweavePercent', 'maxMana', 'manaRegen', 'manaCostPercent', 'cooldownPercent', 'intelligence', 'spellDamagePercent'],
   orb: ['spellDamagePercent', 'critChance', 'critDamage', 'intelligence', 'maxMana', 'manaCostPercent'],
 };
@@ -128,18 +133,18 @@ export function itemAffixPool(item: { kind: ItemKind; weapon?: { family: string;
       return def?.classId !== undefined && RELIC_CLASSES.includes(def.classId);
     }).map(a => ({ ...a, weight: 6 }));
     const stats: StatKey[] = ['strength', 'dexterity', 'intelligence', 'vitality', 'maxHp', 'maxMana', 'armor',
-      'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'manaRegen', 'lifeRegen', 'cooldownPercent', 'manaCostPercent'];
+      'critChance', 'critDamage', 'damagePercent', 'spellDamagePercent', 'manaRegen', 'lifeRegen', 'cooldownPercent', 'manaCostPercent', 'hitRating', 'expertise'];
     return [...AFFIXES.filter(a => stats.includes(a.stat)).map(a => ({ ...a, weight: a.weight ?? 1 })), ...skills];
   }
   const melee = item.kind === 'weapon' && ['sword', 'axe', 'mace', 'dagger', 'fist', 'polearm'].includes(item.weapon?.family ?? '');
   const armor=['head','chest','gloves','legs','boots'].includes(item.kind), construction=item.recipe?.materialId;
   const leather=armor&&construction==='leather', cloth=armor&&isClothMaterial(construction);
-  const specialty:StatKey[]=leather?['dexterity','damagePercent','critChance','critDamage','lifeOnHit']:cloth?['intelligence','maxMana','manaRegen','spellDamagePercent','manaCostPercent']:[];
+  const specialty:StatKey[]=leather?['dexterity','damagePercent','critChance','critDamage','lifeOnHit','hitRating','expertise']:cloth?['intelligence','maxMana','manaRegen','spellDamagePercent','manaCostPercent']:[];
   const jewelry=JEWELRY_PROFILES.find(p=>p.id===item.recipe?.profileId);
   const preferred=jewelry?.affinity??specialty;
   const stats = leather||cloth ? [...specialty,'maxHp','armor',...(item.kind==='gloves'?[cloth?'castSpeedPercent':'attackSpeedPercent']:item.kind==='boots'?['moveSpeedPercent']:item.kind==='head'&&cloth?['cooldownPercent']:[])] : item.kind === 'amulet' ? [...AFFIXES, ...SHIELD_AFFIXES].map(a => a.stat)
     : item.kind === 'weapon' ? melee
-      ? ['areaPercent', 'damagePercent', 'critChance', 'critDamage', 'lifeOnHit', 'strength', 'dexterity']
+      ? ['areaPercent', 'damagePercent', 'critChance', 'critDamage', 'lifeOnHit', 'strength', 'dexterity', 'hitRating', 'expertise']
       : ['bow', 'gun'].includes(item.weapon?.family ?? '') ? ['projectilePierce', 'damagePercent', 'critChance', 'critDamage', 'dexterity', 'lifeOnHit', 'strength']
       : [item.weapon?.family === 'staff' ? 'areaPercent' : 'projectilePierce', 'spellDamagePercent', 'intelligence', 'maxMana', 'critChance', 'critDamage', 'manaCostPercent', 'manaRegen']
     : SLOT_AFFIXES[item.kind] ?? [];

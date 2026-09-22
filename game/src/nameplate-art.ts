@@ -107,6 +107,18 @@ function drawPlate(c: CanvasRenderingContext2D, n: Nameplate, playerLevel: numbe
   text(c, n.name, x + (n.boss ? 5 * s : 0), nameY, nameSize, nameColor, 'center');
   c.shadowBlur = 0; c.shadowOffsetY = 0;
   if (n.boss) bossSkull(c, x - Math.min(w / 2 + 2 * s, textWidth(n.name) * nameSize / 2 + 6 * s), nameY + 3 * s, s);
+  // Elite affix glyph: a small affix-colored diamond left of the name.
+  if (n.affix && n.affixColor) {
+    const half = Math.min(w / 2 + 2 * s, textWidth(n.name) * nameSize / 2 + 6 * s);
+    const gx = x - half - 5 * s, gy = nameY + 3 * s, r = 2.6 * s;
+    c.save();
+    c.fillStyle = n.affixColor;
+    c.strokeStyle = '#010409'; c.lineWidth = Math.max(.6, .8 * s);
+    c.beginPath();
+    c.moveTo(gx, gy - r); c.lineTo(gx + r, gy); c.lineTo(gx, gy + r); c.lineTo(gx - r, gy);
+    c.closePath(); c.fill(); c.stroke();
+    c.restore();
+  }
 
   // Health bar: dark well, hostile red fill, rank-colored border.
   const barX = x - w / 2;

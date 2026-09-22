@@ -12,6 +12,11 @@ import { roamingEscortRole, ROAMING_RULES } from '../src/roaming-encounters.ts';
 import type { EnemyKind } from '../src/model.ts';
 import type { EnemyRank } from '../src/progression-content.ts';
 import type { BiomeId } from '../src/biomes.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
+
+// These tests assert committed damage/control on level-32 elites against a
+// level-1 test player; the WoW attack table would miss, so it is disabled here.
+GAME_FEATURES.attackTable = false;
 
 function fixture(rank:EnemyRank='normal',kind:EnemyKind='stalker') {
   const sim=new Simulation({blocked:()=>false,move:(x,y)=>({x,y})},{spawn:false});

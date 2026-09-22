@@ -12,8 +12,8 @@ import { itemDisplayName } from './items.ts';
 
 type ChatLine = Pick<CombatLogEntry, 'kind' | 'text'>;
 
-const enemyName = (kind: EnemyKind | undefined): string =>
-  kind ? ENEMY_DEFINITIONS[kind]?.name ?? kind : 'Something';
+const enemyName = (kind: EnemyKind | undefined, name?: string): string =>
+  name ?? (kind ? ENEMY_DEFINITIONS[kind]?.name ?? kind : 'Something');
 
 /** Map one drained CombatEvent to chat lines; purely visual events produce none. */
 export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
@@ -24,19 +24,23 @@ export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
       const skillName = skill ? SKILL_DEFINITIONS[skill]?.name : undefined;
       const amount = Math.round(event.actualValue ?? event.value);
       const text = event.periodic
-        ? `${skillName ? `Your ${skillName}` : 'Your effect'} ticks on ${enemyName(event.enemyKind)} for ${amount}.`
-        : `${skillName ? `Your ${skillName}` : 'You'} ${skillName ? (event.heavy ? 'crits' : 'hits') : (event.heavy ? 'crit' : 'hit')} ${enemyName(event.enemyKind)} for ${amount}.`;
+        ? `${skillName ? `Your ${skillName}` : 'Your effect'} ticks on ${enemyName(event.enemyKind, event.enemyName)} for ${amount}.`
+        : `${skillName ? `Your ${skillName}` : 'You'} ${skillName ? (event.heavy ? 'crits' : 'hits') : (event.heavy ? 'crit' : 'hit')} ${enemyName(event.enemyKind, event.enemyName)} for ${amount}.`;
       return [{ kind: 'damage', text }];
     }
     case 'kill':
-      return [{ kind: 'death', text: `You have slain ${enemyName(event.enemyKind)}!` }];
+      return [{ kind: 'death', text: `You have slain ${enemyName(event.enemyKind, event.enemyName)}!` }];
     case 'hurt': {
-      const lines: ChatLine[] = [{ kind: 'damage', text: `${enemyName(event.enemyKind)} ${event.heavy ? 'crits' : 'hits'} you for ${Math.round(event.actualValue ?? event.value)}.` }];
+      const lines: ChatLine[] = [{ kind: 'damage', text: `${enemyName(event.enemyKind, event.enemyName)} ${event.heavy ? 'crits' : 'hits'} you for ${Math.round(event.actualValue ?? event.value)}.` }];
       if (event.remainingHp <= 0) lines.push({ kind: 'death', text: 'You die.' });
       return lines;
     }
     case 'block':
       return [{ kind: 'damage', text: `You block ${Math.round(event.value)} damage.` }];
+    case 'avoid':
+      return [{ kind: 'damage', text: event.incoming
+        ? `${enemyName(event.enemyKind, event.enemyName)} attacks. You ${event.outcome === 'miss' ? 'avoid it' : `${event.outcome} it`}.`
+        : event.outcome === 'miss' ? `You miss ${enemyName(event.enemyKind, event.enemyName)}.` : `${enemyName(event.enemyKind, event.enemyName)} ${event.outcome}s your attack.` }];
     case 'heal':
       return [{ kind: 'heal', text: `You gain ${Math.round(event.value)} health.` }];
     case 'potion': {

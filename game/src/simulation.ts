@@ -40,7 +40,7 @@ import { EventChannel, advanceTrial } from './poi-runtime.ts';
 import { GROUND_EFFECT_RULES, SKILL_EXECUTION } from './skill-execution-content.ts';
 import { freshTravel, PortalChannel, PORTAL_RULES } from './travel.ts';
 import { advanceTransport, type TransportArrival, type TransportRide } from './transport.ts';
-import { advanceGold, type GroundGold } from './gold.ts';
+import { advanceGold, dropGold, type GroundGold } from './gold.ts';
 import { advanceGroundLoot } from './ground-loot.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Attack, CombatEvent, Enemy, EnemyKind, Input, Player, Projectile, ProjectileStyle, ProjectileEffects, GroundEffect, SimulationOptions, WorldQuery, Ally, WowBuff, EnemyDot, EnemyCc } from './model.ts';
@@ -49,6 +49,7 @@ import { createBaseStats, createStartingEquipment, deriveAttackStats, basicAttac
 import { getActiveSwingOffset } from './attack-motion.ts';
 import { RANGED_BASIC_ATTACK_PHASES, BASIC_ATTACK_PHASES, COMBAT_TIMING, SKILL_CAST_MOTION, ENEMY_DEFINITIONS, LOOT_RULES, PLAYER_ABILITIES,
   PLAYER_DEFAULTS, PLAYER_MOVEMENT, type ProjectileDefinition } from './combat-content.ts';
+import { applySpawnTraits, TREASURE_GOBLIN } from './combat-content.ts';
 import { chooseEncounterEnemy, ENCOUNTER_RULES } from './encounter-director.ts';
 import { zoneAt } from './world-atlas.ts';
 import { ZONE_CONTENT, type SpawnEntry } from './zone-content.ts';
@@ -72,6 +73,7 @@ import { enemyLootSeed, scaledEnemyStats } from './zone-progression.ts';
 import { CampPopulation, CAMP_POPULATION_RULES, type CampSpawnSource, type CampState } from './camp-population.ts';
 import { sampleBiome } from './biomes.ts';
 import { RoamingEncounters, ROAMING_RULES, ROAMING_GROUPS, roamingSpawnAnchor, shouldRetireRoamer } from './roaming-encounters.ts';
+import { enemyDisplayName } from './zone-roster.ts';
 import { isSpawnHidden, type SpawnExclusion } from './spawn-visibility.ts';
 import { updateEnemyAI, type EnemyAIContext } from './enemy-ai.ts';
 import { playerCanAttack } from './factions.ts';
@@ -145,8 +147,7 @@ function pickSpawnEntry(table: readonly SpawnEntry[], roll: number, preferred?: 
   for (const entry of table) { if (choice < entry.weight) return entry; choice -= entry.weight; }
   return table[table.length - 1];
 }
-/** Ally hits carry no player crit/life-on-hit; a zeroed snapshot keeps them off player mechanics. */
-const ALLY_OFFENSE: HitSnapshot = Object.freeze({ critChance: 0, critMultiplier: 1, lifeOnHit: 0, directDamageMultiplier: 1, ally: true });
+const ALLY_OFFENSE: HitSnapshot = Object.freeze({ critChance: 0, critMultiplier: 1, lifeOnHit: 0, directDamageMultiplier: 1, hitRating: 0, expertise: 0, ally: true });
 
 export function initialPlayer(x: number, y: number): Player {
   const character = createCharacterSheet();
@@ -380,7 +381,8 @@ export class Simulation {
     for (const actor of saved.actors ?? []) {
       const enemy=this.spawnEnemy(actor.kind,actor.x,actor.y,actor.rank, actor.campId ? {campId:actor.campId,memberId:actor.memberId!,lootSeed:actor.seed,...(actor.faction?{faction:actor.faction}:{})} : undefined);
       if(enemy){Object.assign(enemy,applyEnemyModifiers(scaledEnemyStats(actor.kind,actor.level,actor.rank),{kind:actor.kind,rank:actor.rank,lootSeed:actor.seed,rift:actor.rift}),{rift:actor.rift,faction:actor.faction,level:actor.level,biome:actor.biome,lootSeed:actor.seed,hp:actor.hp,homeX:actor.homeX,homeY:actor.homeY,bossPhases:actor.bossPhases,state:'idle',stateDuration:1});
-        if(actor.dots?.length)enemy.dots=actor.dots;if(actor.cc?.length)enemy.cc=actor.cc;if(actor.sundered)enemy.sundered=actor.sundered;if(actor.taunted)enemy.taunted=actor.taunted;}
+        if(actor.dots?.length)enemy.dots=actor.dots;if(actor.cc?.length)enemy.cc=actor.cc;if(actor.sundered)enemy.sundered=actor.sundered;if(actor.taunted)enemy.taunted=actor.taunted;
+        applySpawnTraits(enemy);}
     }
     // Restored enemies hold fresh ids; a taunt aimed at a despawned ally reverts to the player.
     const liveAllyIds = new Set((p.allies ?? []).map(ally => ally.id));
@@ -565,12 +567,13 @@ export class Simulation {
   /** Player-shaped damage entry: armor/resist/absorb/block mitigation, then the
    * PvP corpse rule. `source` owns combat-clock credit and leech-style procs. */
   private damageCombatant(target: Player, amount: number, angle: number, sourceLevel: number, damageType: DamageType,
-    periodic = false, style?: ProjectileStyle, source?: Player, kind?: EnemyKind): boolean {
+    periodic = false, style?: ProjectileStyle, source?: Player, kind?: EnemyKind, melee = false): boolean {
     const hpBefore = target.hp;
     const landed = damageCombatant(amount, angle, sourceLevel, damageType, {
       player: target, world: this.world, random: () => this.random(), emit: event => this.emit(event),
       addBuff: (name, color, spec, id) => this.addBuffTo(target, name, color, spec, id),
       defensiveProc: (player, context) => tryDefensiveProc(player, context),
+      ...(source ? { offense: { hitRating: source.derived.hitRating, expertise: source.derived.expertise } } : {}),
       wardBurst: burst => {
         this.emit({ type: 'blast', x: target.x, y: target.y, radius: burst.radius, style: 'arcane', skill: 'runicWard', color: '#d98eda' });
         strikeContainers(this.containerContext(), target.x, target.y, burst.radius);
@@ -579,7 +582,7 @@ export class Simulation {
           && this.lineOfSight(target.x, target.y, enemy.x, enemy.y))
           this.damageEnemy(enemy, burst.damage, Math.atan2(enemy.y - target.y, enemy.x - target.x), false, false, 'arcane', undefined, burst.offense, false, target);
       },
-    }, kind, periodic, style);
+    }, kind, periodic, style, undefined, melee);
     if (!landed) return false;
     if (this.pvpDamageSink && isCombatant(target)) this.pvpDamageSink(source, target, hpBefore - target.hp);
     this.bumpCombat(source ?? this.player);
@@ -1030,6 +1033,7 @@ export class Simulation {
       attackHit: false, interrupted: false,
       slowTime: 0, slowFactor: 1, burnTime: 0, burnDps: 0, burnTick: 0,
     };
+    applySpawnTraits(enemy);
     this.enemies.push(enemy);
     this.emit({ type: 'spawn', x, y, enemyKind: kind });
     return enemy;
@@ -1453,7 +1457,7 @@ export class Simulation {
     // PvP combatants take the player-shaped damage path: armor/resist/absorb/block.
     if (isCombatant(enemy)) {
       const damageType = elementalDamage !== undefined && elementalDamage > 0 ? projectileDamageType(style ?? 'arcane') : style ? projectileDamageType(style) : 'physical';
-      this.damageCombatant(enemy, damage + (elementalDamage ?? 0), angle, attacker.level, damageType, periodic, style, attacker);
+      this.damageCombatant(enemy, damage + (elementalDamage ?? 0), angle, attacker.level, damageType, periodic, style, attacker, undefined, melee);
       return;
     }
     // Friendly faction actors are unattackable (world-t05): no damage, no aggro.
@@ -1472,6 +1476,7 @@ export class Simulation {
         const reward = awardKillRewards(actor, this.kills, this.killRecharge, {
           suppressDrops: !!currentDungeon(this.expeditions)?.rift,
           player: this.player, groundGold: this.groundGold, groundItems: this.groundItems, pickups: this.pickups,
+          world: this.world, time: this.time, enemies: this.enemies,
           nextId: () => this.nextId++, emit: event => this.emit(event),
         });
         this.kills = reward.kills; this.killRecharge = reward.recharge;
@@ -1560,10 +1565,13 @@ export class Simulation {
       trial: trial ? { campId: `event:${trial.id}`, x: trial.x, y: trial.y, radius: EVENT_RULES.trialRadius } : worldEventTrialContext(this.worldEvents),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
       move: (actor, vx, vy, delta) => this.moveEnemy(actor, vx, vy, delta),
-      hurt: (amount, angle, actor, damageType) => this.takeDamage(amount, angle, actor.level, damageType, actor.kind),
+      hurt: (amount, angle, actor, damageType) => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical'),
       shoot: (actor, angle, definition, effects) => this.projectile(actor.x, actor.y, angle,
-        definition, undefined, effects, actor.level, actor.kind),
+        definition, undefined, effects, actor.level, actor.kind, enemyDisplayName(actor)),
       emit: event => this.emit(event),
+      dropGold: actor => dropGold(this.groundGold, { id: this.nextId++, x: actor.x, y: actor.y,
+        amount: TREASURE_GOBLIN.goldBase + TREASURE_GOBLIN.goldPerLevel * actor.level, age: 0 }),
+      addBuff: (name, color, spec, id) => this.addBuffTo(this.player, name, color, spec, id),
     } as EnemyAIContext;
     this.riftTactics.tick(context,dt,currentDungeon(this.expeditions)?.rift?.phase==='hunt');
     for (const enemy of this.enemies) {
@@ -1771,7 +1779,7 @@ export class Simulation {
     enemy.y = destination.y;
   }
 
-  takeDamage(amount: number, angle: number, sourceLevel: number, damageType: DamageType, kind?: EnemyKind): void {
+  takeDamage(amount: number, angle: number, sourceLevel: number, damageType: DamageType, kind?: EnemyKind, sourceName?: string, melee = false): void {
     this.bumpCombat(this.player);
     if(currentDungeon(this.expeditions)?.rift?.phase==='complete')return;
     if (!damageCombatant(amount, angle, sourceLevel, damageType, {
@@ -1785,7 +1793,7 @@ export class Simulation {
         for(const enemy of this.activeTargets())if(enemy.state!=='dead'&&Math.hypot(enemy.x-p.x,enemy.y-p.y)<=burst.radius+enemy.radius&&this.lineOfSight(p.x,p.y,enemy.x,enemy.y))
           this.damageEnemy(enemy,burst.damage,Math.atan2(enemy.y-p.y,enemy.x-p.x),false,false,'arcane',undefined,burst.offense);
       },
-    }, kind)) return;
+    }, kind, false, undefined, sourceName, melee)) return;
     this.portal.cancel(); this.eventChannel.cancel(); this.hearthstone.cancel();
     mountOnDamage(this);
     durabilityLoss(this.player, this.player.dead ? 'death' : 'hit-taken', this.time);
@@ -1795,13 +1803,13 @@ export class Simulation {
     if (this.player.dead && !this.pvpCombatants) { this.chains.length = 0; this.clearInput(); }
   }
 
-  private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind): Projectile | undefined {
+  private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind, sourceName?: string): Projectile | undefined {
     if (this.projectiles.length >= MAX_PROJECTILES) return;
     const { life, radius, damage, owner } = definition;
     const hawkeye=owner==='player'&&effects?.style==='arrow'?auraPower(this.player,'hawkeye'):0;
     const speed=definition.speed*(1+hawkeye/100);
     if(hawkeye)effects={...effects!,hawkeye:{x,y,crit:this.player.character.allocatedNodes.includes('keystone:measured-force')?0:hawkeye/200}};
-    const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, x, y, prevX: x, prevY: y,
+    const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, sourceName, x, y, prevX: x, prevY: y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, angle, radius, damage, life, maxLife: life, owner, skill,
       ...(this.pvpCombatants && owner === 'player' ? { source: this.player } : {}),
       effects: effects ? { ...effects, ...(effects.offense ? { offense: { ...effects.offense } } : {}) } : undefined, hitIds: new Set() };
@@ -1836,7 +1844,7 @@ export class Simulation {
         player: this.player, enemies: this.enemies, world: this.world,
         onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
         damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn),
-        hurt: (amount, angle, sourceLevel, damageType, sourceKind) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind),
+        hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName),
         hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
         visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
         emit: event => this.emit(event),
@@ -1858,7 +1866,7 @@ export class Simulation {
           player: source ?? this.player, enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
           onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
           damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source),
-          hurt: (amount, angle, sourceLevel, damageType, sourceKind) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind),
+          hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName),
           hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
           visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
           emit: event => this.emit(event),

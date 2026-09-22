@@ -12,6 +12,7 @@ import { executeDropItem } from './drop-item-command.ts';
 import { CHARM_SIZES, CHARM_FLAVORS } from './charm-content.ts';
 import { PACK_CELLS, resolvePackLayout } from './inventory-grid.ts';
 import { xpForNextLevel } from './progression.ts';
+import { MAX_PLAYER_LEVEL } from './progression-content.ts';
 import { executeCharacterCommand } from './character-commands.ts';
 import './ui-kit.css';
 import './style.css';
@@ -113,7 +114,7 @@ if (comparisonReview) {
 }
 const progressionReview = new URLSearchParams(location.search).has('progression');
 if (progressionReview) {
-  while (p.level < 100) awardCharacterExperience(p, xpForNextLevel(p.level) - p.xp);
+  while (p.level < MAX_PLAYER_LEVEL) awardCharacterExperience(p, xpForNextLevel(p.level) - p.xp);
   for (const id of ['skill:fireball', 'specialization:fireball-fork', 'specialization:fireball-ember', 'skill:cataclysm'])
     executeCharacterCommand(p, { type: 'allocateNode', id });
   for (let rank = 2; rank <= 3; rank++) executeCharacterCommand(p, { type: 'upgradeSkill', skill: 'fireball' });

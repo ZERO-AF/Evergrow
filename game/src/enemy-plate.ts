@@ -3,13 +3,13 @@ import { enemyModifiers } from './enemy-modifiers.ts';
 import { isBossKind } from './wilderness-boss-content.ts';
 import { type EnemyDebuffState } from './enemy-debuffs.ts';
 import type { Enemy } from './model.ts';
-import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import { ENEMY_RANKS } from './progression-content.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
 import { getHUDLayout } from './hud.ts';
 import { getMinimapRect } from './map-view.ts';
 import { drawRankCrest, RANK_METALS } from './enemy-rank-art.ts';
+import { enemyDisplayName } from './zone-roster.ts';
 
 export interface EnemyPlateOptions {
   name?:string;
@@ -103,7 +103,7 @@ function bloodMotion(c: CanvasRenderingContext2D, x: number, y: number, width: n
 }
 
 /** Native text and restrained metalwork, drawn after world post-processing. */
-export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy,'lootSeed'|'rift'|'stateTime'|'stateDuration'>>,
+export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy,'biome'|'lootSeed'|'rift'|'stateTime'|'stateDuration'|'homeX'|'homeY'|'dungeonTheme'>>,
   width: number, height: number, options: EnemyPlateOptions = {}): void {
   const layout = getEnemyPlateLayout(width, height, options.touch, options.topInset, options.hasDebuffs, options.compactLandscape, options.offsetY);
   const opacity = clamp(options.opacity ?? 1);
@@ -127,7 +127,7 @@ export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, '
   c.save(); c.shadowColor = '#010409'; c.shadowBlur = 3; c.shadowOffsetY = 1;
   const traits=enemyModifiers(enemy);
   const role=riftMechanic(enemy);
-  const name = options.name ?? (role==='ritual'?'Rift Cantor':role==='storm'?'Stormbound '+ENEMY_DEFINITIONS[enemy.kind].name:role==='fire'?'Cinder '+ENEMY_DEFINITIONS[enemy.kind].name:ENEMY_DEFINITIONS[enemy.kind].name);
+  const name = options.name ?? (role==='ritual'?'Rift Cantor':role==='storm'?'Stormbound '+enemyDisplayName(enemy):role==='fire'?'Cinder '+enemyDisplayName(enemy):enemyDisplayName(enemy));
   text(c, name, w / 2, 28, Math.min(1.13, (w - 30) / Math.max(1, textWidth(name))), enemy.rank==='normal'?UI.ivory:rank.color, 'center'); c.restore();
   if(traits.length){
     const cell=(w-18)/traits.length;

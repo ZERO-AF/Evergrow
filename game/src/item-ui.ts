@@ -1,4 +1,4 @@
-import { riftModifiers } from './rift-content.ts';
+import { RIFT_RULES, riftModifiers } from './rift-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { setTooltipModel } from './item-set-state.ts';
 import { effectTerm, statTerm } from './effect-terms.ts';
@@ -66,6 +66,7 @@ export const CHANGE_LABELS: Record<PreviewStat, string> = {
   moveSpeedMultiplier: 'Movement speed', manaCostReduction: 'Mana cost reduction', cooldownReduction: 'Cooldown reduction', lifeOnHit: 'Life on hit',
   attackSpeedMultiplier: 'Attack speed', castSpeedMultiplier: 'Cast speed', spellDamageMultiplier: 'Spell damage',
   strength: 'Strength', dexterity: 'Dexterity', intelligence: 'Intelligence', vitality: 'Vitality',
+  hitRating: 'Hit rating', expertise: 'Expertise',
 };
 export const PREVIEW_PERCENT: Record<Extract<PreviewStat, 'goldFindMultiplier' | 'xpGainMultiplier' | 'fireResistance' | 'frostResistance' | 'lightningResistance' | 'arcaneResistance' | 'holyResistance' | 'shadowResistance' | 'natureResistance' | 'blockChance' | 'blockReduction' | 'critChance' | 'critMultiplier' | 'moveSpeedMultiplier' | 'manaCostReduction' | 'cooldownReduction' | 'attackSpeedMultiplier' | 'castSpeedMultiplier' | 'spellDamageMultiplier'>, true> = {
   goldFindMultiplier: true, xpGainMultiplier: true, fireResistance: true, frostResistance: true, lightningResistance: true, arcaneResistance: true,
@@ -86,6 +87,7 @@ const MODIFIER_PREVIEW: Record<Exclude<StatKey, SkillStat>, PreviewStat | null> 
   fireResistance: 'fireResistance', frostResistance: 'frostResistance', lightningResistance: 'lightningResistance', arcaneResistance: 'arcaneResistance', holyResistance: 'holyResistance', shadowResistance: 'shadowResistance', natureResistance: 'natureResistance', allResistance: null,
   goldFindPercent: 'goldFindMultiplier', xpGainPercent: 'xpGainMultiplier',
   fireDamage: null, frostDamage: null, lightningDamage: null,
+  hitRating: 'hitRating', expertise: 'expertise',
 };
 
 function equipChangeCell(change: EquipmentStatChange | undefined, emptyLabel = 'No change', scale = 1): string {
@@ -127,7 +129,7 @@ export function updateItemSlot(cell: HTMLButtonElement, item: Item | null, optio
 
 /** Item data and effective equipment changes are distinct; no inventory DOM location is required. */
 export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
-  if(item.kind==='riftKey')return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span></span><h4>${escapeUI(item.name)}</h4></div></div><p>Single use · Opens an empowered rift</p>${riftModifiers({attempt:1,keySeed:item.seed,keyTier:item.recipe.riftKeyTier}).map(m=>`<div class="ui-item-property ui-rift-modifier" style="color:${m.beneficial?'#a2d5b3':'#ed929f'}"><span>${escapeUI(m.label)}</span><strong>+${m.value}${m.unit}</strong></div>`).join('')}`;
+  if(item.kind==='riftKey')return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span></span><h4>${escapeUI(item.name)}</h4></div></div><p>Single use · Opens an empowered rift</p><div class="ui-item-property ui-rift-modifier" style="color:#ed929f"><span>Key tier ${item.recipe.riftKeyTier}</span><strong>×${Math.pow(RIFT_RULES.keyTierGrowth,item.recipe.riftKeyTier??1).toFixed(2)} monsters</strong></div>${riftModifiers({attempt:1,keySeed:item.seed,keyTier:item.recipe.riftKeyTier}).map(m=>`<div class="ui-item-property ui-rift-modifier" style="color:${m.beneficial?'#a2d5b3':'#ed929f'}"><span>${escapeUI(m.label)}</span><strong>+${m.value}${m.unit}</strong></div>`).join('')}`;
   if (item.kind === 'consumable') {
     const def = consumableFor(item); if (!def) return '';
     const count = item.stack ?? 1;

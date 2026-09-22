@@ -24,7 +24,8 @@ const enemies: Record<Exclude<CharacterPose['kind'], 'player'>,
 export function drawHumanoid(ctx: CanvasRenderingContext2D, pose: CharacterPose): void {
   ctx.save();
   const flash = Math.pow(clamp(pose.hitFlash / 0.16), 3.2) * 0.97;
-  const color: Color = flash > 0 ? (value) => mixColor(value, '#fff3d9', flash) : (value) => value;
+  const tint = pose.tint && pose.kind !== 'player' ? (value: string) => mixColor(value, pose.tint!, pose.tintAmount ?? .3) : (value: string) => value;
+  const color: Color = flash > 0 ? (value) => mixColor(tint(value), '#fff3d9', flash) : tint;
   if (pose.dead) ctx.globalAlpha *= 0.6;
   ctx.transform(...characterTransform(pose));
   if (pose.kind === 'player') {

@@ -5,6 +5,8 @@ import { skillSoundFamily, SKILL_SOUNDS } from './skill-audio-content.ts';
 import { MATERIALS } from './material-content.ts';
 import { eventMaterial } from './material-response.ts';
 import type { CombatEvent } from './model.ts';
+import type { ItemTier } from './character-types.ts';
+import { GAME_FEATURES } from './game-features.ts';
 
 interface Voice {
   source: AudioScheduledSourceNode;
@@ -75,6 +77,7 @@ export class GameAudio {
     this.hiss({ duration: .045, frequency: 1600, endFrequency: 450, volume: .035, delay: open ? 0 : .065 }, 1);
     this.tone(open ? 125 : 105, 65, .085, .07, 1, 'sine', open ? .025 : .07, .008);
   }
+  private lootStingerAt = -Infinity;
   private goldSoundAt = -Infinity;
   private xpSoundAt = -Infinity;
   private levelSoundAt = -Infinity;
@@ -275,6 +278,35 @@ export class GameAudio {
       }
     }
   }
+  /**
+   * Legendary-moment stinger (GAME_FEATURES.legendaryMoment): a deep chime with a
+   * rising shimmer for legendary/unique, a richer two-note blip for epic. Fires
+   * when the drop lands and again on collect; one shared cooldown keeps a
+   * vacuumed drop from sounding twice. Outranks every routine pickup voice.
+   */
+  lootMoment(tier: ItemTier) {
+    if (!GAME_FEATURES.legendaryMoment || !this.enabled || !this.foreground || this.volumes.sfx <= 0
+      || !this.ctx || !this.bus || this.disposed || this.ctx.state !== 'running') return;
+    if (tier !== 'epic' && tier !== 'legendary' && tier !== 'unique') return;
+    const now = this.ctx.currentTime;
+    if (now - this.lootStingerAt < .45) return;
+    this.lootStingerAt = now;
+    if (tier === 'epic') {
+      // A warm fifth with a soft sparkle tail — richer than a pickup, below the legendary chime.
+      this.tone(392, 392, .3, .12, 3, 'sine', 0, .01);
+      this.tone(587.33, 587.33, .42, .09, 3, 'sine', .09, .012);
+      this.tone(1174.7, 1174.7, .3, .03, 3, 'sine', .16, .02);
+      this.hiss({ duration: .3, frequency: 2600, endFrequency: 5200, volume: .035, attack: .05, q: .6 }, 2);
+      return;
+    }
+    // A deep bell strike, then a rising shimmer and a high resolving chime.
+    this.tone(196, 98, .8, .2, 4, 'sine', 0, .012);
+    this.tone(392, 392, .7, .08, 4, 'triangle', .02, .02);
+    this.hiss({ duration: .9, frequency: 1400, endFrequency: 6800, volume: .05, attack: .18, q: .5 }, 3);
+    for (const [i, note] of [783.99, 987.77, 1174.7, 1568].entries())
+      this.tone(note, note, .55 - i * .06, .055, 4, 'sine', .16 + i * .09, .015);
+    this.tone(523.25, 523.25, .9, .04, 4, 'sine', .3, .05);
+  }
 
   play(event: CombatEvent) {
     if (!this.enabled || !this.foreground || this.volumes.sfx <= 0 || !this.ctx || !this.bus || this.disposed || this.ctx.state !== 'running') return;
@@ -412,6 +444,15 @@ export class GameAudio {
         tone(392, 392, 1.5, .042, 3, 'sine', .2, .06);
         break;
       case 'loot':
+        // Epic-and-up collections share the drop stinger (rate-limited inside);
+        // ordinary loot keeps the generic blip.
+        if (GAME_FEATURES.legendaryMoment && event.item.tier !== 'common' && event.item.tier !== 'magic' && event.item.tier !== 'rare') {
+          this.lootMoment(event.item.tier);
+          break;
+        }
+        tone(790, 1050, .086, .08, 0, 'sine');
+        tone(1180, 1360, .065, .03, 0, 'sine', .025);
+        break;
       case 'pickup':
         tone(heavy ? 610 : 790, heavy ? 820 : 1050, .086, .08, 0, 'sine');
         tone(heavy ? 910 : 1180, heavy ? 1080 : 1360, .065, .03, 0, 'sine', .025);

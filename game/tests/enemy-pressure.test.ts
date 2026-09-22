@@ -9,6 +9,11 @@ import { BOSS_PRESSURE } from '../src/boss-pressure.ts';
 import { enemyWarnings } from '../src/enemy-warning-art.ts';
 import { enemyPressureProbe } from '../scripts/power-audit.ts';
 import type { EnemyKind } from '../src/model.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
+
+// Timing tests assert raw windup/recovery durations; the 'swift' elite affix
+// would shorten them, so elite affixes are disabled for this file.
+GAME_FEATURES.eliteAffixes = false;
 
 function fixture(kind: EnemyKind, distance=45, seed=7319) {
   const world={blocked:()=>false,move:(x:number,y:number,dx:number,dy:number)=>({x:x+dx,y:y+dy})};

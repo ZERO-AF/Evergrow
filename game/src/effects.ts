@@ -12,6 +12,7 @@ import { playerPose } from './character-pose.ts';
 import { drawGlow } from './lighting.ts';
 import type { PointLight } from './lighting.ts';
 import type { CombatEvent, ProjectileStyle } from './model.ts';
+import type { ItemTier } from './character-types.ts';
 import type { Simulation } from './simulation.ts';
 import { GAME_FONT_STACK, text } from './font.ts';
 import { GAME_FEATURES } from './game-features.ts';
@@ -32,6 +33,12 @@ interface Impact { x: number; y: number; angle: number; life: number; max: numbe
 interface Popup { x: number; y: number; vx: number; vy: number; life: number; max: number; value: string; color: string; size: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
+const LOOT_MOMENT_TIERS: Partial<Record<ItemTier, true>> = { epic: true, legendary: true, unique: true };
+const LOOT_PULSE_TIERS: Partial<Record<ItemTier, true>> = { legendary: true, unique: true };
+const LOOT_PULSE_DURATION = .9;
+
+/** A fresh epic-or-better ground drop, surfaced once for stinger/toast/marker wiring. */
+export interface LootMoment { id: number; x: number; y: number; tier: ItemTier; name: string; }
 
 /** Effects never drive gameplay. All collections and continuous emitters are bounded. */
 export class CombatEffects {
@@ -47,12 +54,18 @@ export class CombatEffects {
   /** Ground-drop ids already seen, so a landing item bursts exactly once. */
   private seenGroundItems = new Set<number>();
   private groundItemsPrimed = false;
+  /** Epic+ drops detected since the last drain, consumed by the shell for stinger/toast/marker. */
+  private pendingLootMoments: LootMoment[] = [];
+  /** Screen-edge glow on legendary/unique drops; read by the renderer, decays in update. */
+  lootPulse = 0;
+  lootPulseColor = LOOT_BEAMS.legendary.color;
 
   reset() {
     this.sparks = []; this.flashes = []; this.impacts = []; this.popups = [];
     this.manaWarningLife = 0;
     this.emitterTime = 0; this.sword.reset(); this.skillEffects.reset(); this.meleeSkills.reset();
     this.seenGroundItems.clear(); this.groundItemsPrimed = false;
+    this.pendingLootMoments = []; this.lootPulse = 0;
   }
 
   /**
@@ -72,6 +85,16 @@ export class CombatEffects {
       if (this.seenGroundItems.has(drop.id)) continue;
       if (drop.flight && sim.time < drop.flight.at + drop.flight.delay + TREASURE_FLIGHT_DURATION) continue;
       this.seenGroundItems.add(drop.id);
+      // The drop moment: epic+ landings surface once for the shell (stinger,
+      // toast, map star); legendary+ also kick the screen-edge pulse.
+      if (GAME_FEATURES.legendaryMoment && LOOT_MOMENT_TIERS[drop.item.tier]) {
+        if (this.pendingLootMoments.length < 16)
+          this.pendingLootMoments.push({ id: drop.id, x: drop.x, y: drop.y, tier: drop.item.tier, name: drop.item.name });
+        if (LOOT_PULSE_TIERS[drop.item.tier]) {
+          this.lootPulse = 1;
+          this.lootPulseColor = LOOT_BEAMS[drop.item.tier].color;
+        }
+      }
       if (bursts >= 8) continue;
       bursts++;
       const spec = LOOT_BEAMS[drop.item.tier];
@@ -85,6 +108,13 @@ export class CombatEffects {
       this.seenGroundItems.clear();
       for (const drop of drops) this.seenGroundItems.add(drop.id);
     }
+  }
+
+  /** Fresh epic+ drops since the last call; the shell turns them into stingers and toasts. */
+  drainLootMoments(): LootMoment[] {
+    const moments = this.pendingLootMoments;
+    this.pendingLootMoments = [];
+    return moments;
   }
 
   private spark(x: number, y: number, angle: number, color: string, strength = 1, airborne = true, luminous = true) {
@@ -147,11 +177,15 @@ export class CombatEffects {
           this.popups.push({ x: event.x, y: event.y - (enemyKind === 'brute' ? 78 : 68), vx: 0, vy: -47,
             life: .75, max: .75, value: tag, color: reactionColor, size: 1.6 });
         }
+        if (event.glancing) this.popups.push({ x: event.x, y: event.y - (enemyKind === 'brute' ? 78 : 68) - (event.reaction ? 14 : 0),
+          vx: 0, vy: -47, life: .75, max: .75, value: 'GLANCING', color: '#c9d4d0', size: 1.6 });
       }
       if (event.type === 'hurt' || event.type === 'heal') this.popups.push({ x: event.x, y: event.y - 61,
         vx: Math.cos(eventAngle) * 14, vy: -55, life: .95, max: .95,
         value: (event.type === 'hurt' ? '-' : '+') + Math.round(event.value),
         color: event.type === 'hurt' ? '#ff9075' : '#83ffbb', size: event.type === 'hurt' ? 2.5 : 2 });
+      if (event.type === 'hurt' && event.glancing) this.popups.push({ x: event.x, y: event.y - 80,
+        vx: 0, vy: -47, life: .75, max: .75, value: 'GLANCING', color: '#c9d4d0', size: 1.6 });
       if (event.type === 'potion') {
         if (event.life > 0) this.popups.push({ x: event.x, y: event.y - 61, vx: -9, vy: -35,
           life: .95, max: .95, value: `+${Math.round(event.life)}`, color: '#ffad9c', size: 1.8 });
@@ -160,6 +194,11 @@ export class CombatEffects {
       }
       if (event.type === 'block') this.popups.push({ x: event.x, y: event.y - 58, vx: 0, vy: -25,
         life: .65, max: .65, value: 'BLOCK', color: '#b4e4ee', size: 1.7 });
+      // Attack-table whiffs read as WoW floating text: MISS over the target,
+      // DODGE/PARRY over whoever avoided the blow.
+      if (event.type === 'avoid') this.popups.push({ x: event.x, y: event.y - (event.incoming ? 58 : enemyKind === 'brute' ? 54 : 44),
+        vx: 0, vy: -25, life: .65, max: .65, value: event.outcome.toUpperCase(),
+        color: event.outcome === 'miss' ? '#9fb4c8' : '#b4e4ee', size: 1.7 });
       // Large event batches must not allocate their entire particle history
       // before enforcing the cap. Keep the same newest effects after each event.
       this.trim();
@@ -180,6 +219,7 @@ export class CombatEffects {
     this.skillEffects.update(dt, sim.enemies);
     this.meleeSkills.update(sim.player, dt, sim.interpolationAlpha);
     this.updateDropBursts(sim);
+    this.lootPulse = Math.max(0, this.lootPulse - dt / LOOT_PULSE_DURATION);
     for (const spark of this.sparks) {
       spark.life -= dt;
       const angle = spark.curl * dt, cos = Math.cos(angle), sin = Math.sin(angle);

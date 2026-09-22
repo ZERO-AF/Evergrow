@@ -17,7 +17,8 @@ import { drawHUDWeapon } from './hud-weapon-icon.ts';
 import { drawHUDUtility } from './hud-utility-art.ts';
 import type { Ally, GroundEffect, Player } from './model.ts';
 import type { SkillId } from './character-types.ts';
-import { PLAYER_ABILITIES } from './combat-content.ts';
+import { PLAYER_ABILITIES, KILL_STREAK } from './combat-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
 import { drawHUDSkillIcon } from './hud-icons.ts';
@@ -353,6 +354,7 @@ export function drawFloatingHUD(c: CanvasRenderingContext2D, p: Player, width: n
   drawPlayerFrame(c, p, options.topInset ?? 0);
   const pet = drawPetFrame(c, p, options.topInset ?? 0);
   drawWowBuffs(c, p, (options.topInset ?? 0) + (pet ? PET_FRAME.height + 4 : 0));
+  drawKillStreak(c, p, options.simTime ?? time, options.topInset ?? 0);
   drawCastBar(c, p, layout);
 }
 /** Compact WoW player frame anchored top-left; the buff strip hangs directly beneath it. */
@@ -482,6 +484,23 @@ function drawWowBuffs(c: CanvasRenderingContext2D, p: Player, topInset: number) 
     }
     c.restore();
   }
+}
+
+/** Diablo-style kill-streak counter under the buff strip: count plus a draining
+ * window bar so the player sees the chain about to expire. */
+function drawKillStreak(c: CanvasRenderingContext2D, p: Player, simTime: number, topInset: number) {
+  const streak = p.killStreak;
+  if (!GAME_FEATURES.killStreaks || !streak || streak.count < 2) return;
+  const remaining = KILL_STREAK.window - (simTime - streak.lastKillAt);
+  if (remaining <= 0) return;
+  const x = PLAYER_FRAME.x, y = PLAYER_FRAME.y + PLAYER_FRAME.height + 30 + Math.max(0, topInset);
+  c.save();
+  c.globalAlpha = Math.min(1, remaining / .6);
+  text(c, `x${streak.count}`, x + 2, y, .9, '#f2b8a8', 'left');
+  const w = 46, h = 3;
+  c.fillStyle = '#060d13'; c.fillRect(x + 2, y + 5, w, h);
+  c.fillStyle = '#e83d59'; c.fillRect(x + 2, y + 5, w * clamp(remaining / KILL_STREAK.window), h);
+  c.restore();
 }
 
 /** WoW cast/channel bar floating just above the Astral instrument. */

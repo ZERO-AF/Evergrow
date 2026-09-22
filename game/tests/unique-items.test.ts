@@ -24,6 +24,11 @@ import { SKILL_DEFINITIONS } from '../src/skill-content.ts';
 import { touchTargeting } from '../src/touch-targeting.ts';
 import type { CombatEvent, Input, WorldQuery } from '../src/model.ts';
 import { skillSimStub } from './fixtures/skill-sim.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
+
+// Decoy/melee-swing tests assert committed contact; the WoW attack table would
+// add miss/dodge variance, so it is disabled for this file.
+GAME_FEATURES.attackTable = false;
 const world:WorldQuery={blocked:()=>false,move:(x,y,dx,dy)=>({x:x+dx,y:y+dy})};
 function fixture(id:string,variant?:string,terrain=world){
  const u=UNIQUES.find(u=>u.id===id)!;const sim=new Simulation(terrain,{spawn:false,startX:0,startY:0});const p=sim.player;p.character.classId='mage';

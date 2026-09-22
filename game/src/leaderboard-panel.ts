@@ -1,3 +1,4 @@
+import { riftTime } from './rift-panel.ts';
 import type { LeaderboardEntry, LeaderboardOrder, LeaderboardSnapshot } from './leaderboard.ts';
 import { escapeUI as esc } from './ui-components.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
@@ -43,18 +44,18 @@ export class LeaderboardPanel {
       if(this.value?.updating&&!this.error&&this.opened)this.refreshTimer=setTimeout(()=>{void this.refresh();},2000);
     }}
   }
-  private row(entry:LeaderboardEntry,pinned=false){return `<div class="rank-row${entry.mine?' is-mine':''}${pinned?' is-pinned':''}" role="row">
+  private row(entry:LeaderboardEntry,pinned=false){const rift=this.order==='rift';return `<div class="rank-row${entry.mine?' is-mine':''}${pinned?' is-pinned':''}" role="row">
     <span class="rank-place${entry.rank<=3?' is-medal':''}" role="cell">${num(entry.rank)}</span>
     <span class="rank-name" role="cell"><strong>${esc(entry.name)}</strong>${entry.mine?'<small>You</small>':''}</span>
-    <span class="rank-level" role="cell">${num(entry.level)}</span><span class="rank-power" role="cell">${entry.gearPower===null?'—':num(entry.gearPower)}</span></div>`;}
+    <span class="rank-level" role="cell">${rift?(entry.riftTier===null?'—':`T${num(entry.riftTier)}`):num(entry.level)}</span><span class="rank-power" role="cell">${rift?(entry.riftSeconds===null?'—':riftTime(entry.riftSeconds)):(entry.gearPower===null?'—':num(entry.gearPower))}</span></div>`;}
   private render(){
     const v=this.value??empty,active=document.activeElement as HTMLElement|null;
     const focusKey=active?.closest('[data-rank-order]')?.getAttribute('data-rank-order');
     const scroll=this.element.querySelector('[data-rank-scroll]')?.scrollTop??0;
     this.element.setAttribute('aria-busy',String(this.busy));
     this.element.innerHTML=`<header class="rank-heading"><h2>Leaderboard</h2><div class="rank-total"><strong>${num(v.total)}</strong><span>characters</span></div></header>
-      <div class="rank-toolbar"><div class="rank-switch" role="group" aria-label="Rank by"><button data-rank-order="level" aria-pressed="${this.order==='level'}">Level</button><button data-rank-order="gear" aria-pressed="${this.order==='gear'}">Gear power</button></div><span class="rank-score-help" title="Average equipped item power across eleven slots. Two-handed weapons count for both hands.">Equipped gear only</span></div>
-      <div class="rank-table" role="table" aria-label="${this.order==='level'?'Level':'Gear power'} rankings"><div class="rank-columns" role="row"><span role="columnheader">Rank</span><span role="columnheader">Character</span><span role="columnheader">Level</span><span role="columnheader">Gear power</span></div>
+      <div class="rank-toolbar"><div class="rank-switch" role="group" aria-label="Rank by"><button data-rank-order="level" aria-pressed="${this.order==='level'}">Level</button><button data-rank-order="gear" aria-pressed="${this.order==='gear'}">Gear power</button><button data-rank-order="rift" aria-pressed="${this.order==='rift'}">Rift</button></div><span class="rank-score-help" title="${this.order==='rift'?'Highest cleared rift key tier, then fastest clear at that tier.':'Average equipped item power across eleven slots. Two-handed weapons count for both hands.'}">${this.order==='rift'?'Tier, then time':'Equipped gear only'}</span></div>
+      <div class="rank-table" role="table" aria-label="${this.order==='level'?'Level':this.order==='rift'?'Rift':'Gear power'} rankings"><div class="rank-columns" role="row"><span role="columnheader">Rank</span><span role="columnheader">Character</span><span role="columnheader">${this.order==='rift'?'Tier':'Level'}</span><span role="columnheader">${this.order==='rift'?'Clear time':'Gear power'}</span></div>
       <div class="rank-scroll ui-scroll-area" data-rank-scroll tabindex="0" role="rowgroup" aria-label="Rankings">${v.entries.length?v.entries.map(r=>this.row(r)).join(''):`<div class="rank-empty" role="status"><span class="rank-empty-star">✧</span><h3>${this.busy?'Gathering champions…':this.error?'The trail is quiet':'An unwritten legend'}</h3><p>${this.busy?'':this.error?esc(this.error):'Be the first to leave your mark.'}</p>${this.error?'<button class="ui-button" data-rank-retry>Try again</button>':''}</div>`}</div></div>
       ${v.own.some(r=>r.rank>100)?`<div class="rank-own" aria-label="Your characters outside the top 100">${v.own.filter(r=>r.rank>100).map(r=>this.row(r,true)).join('')}</div>`:''}
       <footer class="rank-footer">${this.error&&v.entries.length?`<span class="rank-error" role="status">${esc(this.error)}</span>`:''}<span>Top 100</span></footer>`;

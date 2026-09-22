@@ -48,6 +48,8 @@ export function effectExplanation(id: string): string | undefined {
     manaOnKill: ['Mana on kill', 'Restores mana immediately when an enemy dies, up to unreserved capacity.'],
     doctrine: ['Doctrine', 'Choose one option per family. Buying another replaces the current choice. Once paid, switching within that family is free and clears temporary skill buffs.'],
     measuredForce: ['Measured Force', `Cannot crit. Each percentage point of critical chance gives 1% more ${effectTerm('direct','direct damage')}, capped at 30%. Periodic damage is unaffected.`],
+    hitRating: ['Hit rating', 'Melee attacks against higher-level enemies can miss. Each 8 rating removes 1% miss chance.'],
+    expertise: ['Expertise', 'Enemies facing your melee attacks can dodge or parry them. Each 8 rating removes 1% dodge and 1% parry chance. Attacks from behind cannot be dodged or parried.'],
     openHand: ['Open Hand', 'Requires exactly one one-handed melee weapon with an empty offhand. Grants 20% more weapon damage and 8% movement; every other loadout has 10% less weapon damage.'],
     more: ['Borrowed Flame', `${effectTerm('spellweave','Spellweave')} actions gain a separate ×1.4 multiplier, beyond the ordinary 100% bonus cap. Also enables Spellweave by itself. All weapon and spell damage is ×0.85; together, an empowered action is ×1.19 before other Spellweave bonuses.`],
     overload: ['Arcane Overload', 'While enabled, Arcana skills deal 30% more damage and cost 60% more mana, including Tempest upkeep. Utility skills pay the extra cost without a damage benefit. Disable it in the skill atlas.'],
@@ -72,6 +74,7 @@ const STAT_TERMS: Record<string, string> = {
   projectilePierce:'pierce', pierce:'pierce', lifeOnHit:'lifeOnHit', armor:'armor', armorPercent:'armor', armorReduction:'armor',
   blockChance:'block', blockReduction:'block', activeGuard:'block', attackSpeedPercent:'attackSpeed', attackSpeedMultiplier:'attackSpeed', attackSpeed:'attackSpeed',
   castSpeedPercent:'castSpeed', castSpeedMultiplier:'castSpeed', castSpeed:'castSpeed', potionPercent:'potion', potion:'potion', manaOnKill:'manaOnKill', measuredForce:'measuredForce',
+  hitRating:'hitRating', expertise:'expertise',
 };
 export function statTerm(id: string, label: string): string {
   const key = id.startsWith('skill:') ? 'ranks' : /Resistance$/.test(id) ? 'resistance' : STAT_TERMS[id];

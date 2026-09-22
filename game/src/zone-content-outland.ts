@@ -80,6 +80,12 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Ravager Den', nx: .30, ny: .80, members: ['stalker', 'hound'] },
     { kind: 'watchtower', name: 'Broken Hill Watch', nx: .45, ny: .72 },
     { kind: 'corruptedGrove', name: 'Thornfang Hill', nx: .12, ny: .42, members: ['thornReaver', 'stalker'] },
+    { kind: 'watchtower', name: 'Honor Hold Guard Post', nx: .544, ny: .585, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Thrallmar Guard Post', nx: .544, ny: .415, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Temple of Telhamat Guard Post', nx: .263, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Falcon Watch Guard Post', nx: .292, ny: .593, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Honor Hold Patrol', nx: .62, ny: .55, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Thrallmar Warband', nx: .48, ny: .35, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'brute', weight: 24 },        // fel orcs
@@ -168,6 +174,12 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Fen Strider Nest', nx: .55, ny: .75, members: ['stalker', 'mireSpitter'] },
     { kind: 'corruptedGrove', name: 'The Dead Mire', nx: .82, ny: .30, members: ['wisp', 'stalker'] },
     { kind: 'watchtower', name: 'Sporeggar Watch', nx: .15, ny: .45 },
+    { kind: 'watchtower', name: 'Telredor Guard Post', nx: .667, ny: .5, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Zabra\'jin Guard Post', nx: .313, ny: .5, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Orebor Harborage Guard Post', nx: .425, ny: .316, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Swamprat Post Guard Post', nx: .841, ny: .548, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Telredor Patrol', nx: .6, ny: .55, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Zabra\'jin Warband', nx: .38, ny: .55, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'mireSpitter', weight: 26 }, // naga / spore beasts
@@ -253,6 +265,10 @@ defineZoneContent({
     { kind: 'graveyard', name: 'Auchenai Grounds', nx: .38, ny: .62, members: ['graveMarshal', 'stalker', 'caster'] },
     { kind: 'beastDen', name: 'Warpstalker Hollow', nx: .25, ny: .70, members: ['stalker', 'hound'] },
     { kind: 'ruinedChapel', name: 'Carrion Hill', nx: .45, ny: .70, members: ['graveMarshal', 'caster'] },
+    { kind: 'watchtower', name: 'Allerian Stronghold Guard Post', nx: .541, ny: .538, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Stonebreaker Hold Guard Post', nx: .5, ny: .467, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Allerian Patrol', nx: .6, ny: .6, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Stonebreaker Warband', nx: .45, ny: .52, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'stalker', weight: 24 },      // warp stalkers, arakkoa
@@ -339,6 +355,10 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Windroc Roost', nx: .62, ny: .30, members: ['stalker', 'stalker'] },
     { kind: 'beastDen', name: 'Clefthoof Grounds', nx: .45, ny: .75, members: ['brute', 'hound'] },
     { kind: 'standingStones', name: 'Ancestral Grounds', nx: .38, ny: .60, members: ['wisp', 'graveMarshal'] },
+    { kind: 'watchtower', name: 'Telaar Guard Post', nx: .547, ny: .683, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Garadar Guard Post', nx: .546, ny: .366, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Telaar Patrol', nx: .6, ny: .62, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Garadar Warband', nx: .5, ny: .42, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'brute', weight: 22 },     // clefthooves, ogres
@@ -417,6 +437,11 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Gronn Den', nx: .62, ny: .28, members: ['brute', 'ashColossus'] },
     { kind: 'beastDen', name: 'Raptor Ridge', nx: .72, ny: .65, members: ['stalker', 'hound'] },
     { kind: 'watchtower', name: 'Vekhaar Stand', nx: .75, ny: .72 },
+    { kind: 'watchtower', name: 'Sylvanaar Guard Post', nx: .359, ny: .638, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Thunderlord Stronghold Guard Post', nx: .5, ny: .533, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Toshley\'s Station Guard Post', nx: .594, ny: .685, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Sylvanaar Patrol', nx: .42, ny: .6, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Thunderlord Warband', nx: .55, ny: .6, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'brute', weight: 26 },        // ogres, gronn
@@ -578,6 +603,10 @@ defineZoneContent({
     { kind: 'beastDen', name: 'Netherwing Ledge', nx: .70, ny: .82, members: ['stalker', 'stormSentinel'] },
     { kind: 'corruptedGrove', name: 'The Fel Pits', nx: .48, ny: .72, members: ['emberAcolyte', 'wisp'] },
     { kind: 'ruinedChapel', name: 'Ruins of Karabor', nx: .72, ny: .42, members: ['graveMarshal', 'caster'] },
+    { kind: 'watchtower', name: 'Wildhammer Stronghold Guard Post', nx: .358, ny: .545, faction: 'alliance', members: ['brute', 'archer', 'brute'] },
+    { kind: 'watchtower', name: 'Shadowmoon Village Guard Post', nx: .306, ny: .312, faction: 'horde', members: ['brute', 'archer', 'brute'] },
+    { kind: 'camp', name: 'Wildhammer Patrol', nx: .42, ny: .6, faction: 'alliance', members: ['brute', 'archer', 'caster', 'stalker'] },
+    { kind: 'camp', name: 'Shadowmoon Warband', nx: .36, ny: .38, faction: 'horde', members: ['brute', 'archer', 'caster', 'stalker'] },
   ],
   spawns: [
     { kind: 'emberAcolyte', weight: 24 }, // demons of Legion Hold

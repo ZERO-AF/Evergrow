@@ -3,13 +3,14 @@ import type { Simulation } from './simulation.ts';
 import { worldToScreen, type CameraView } from './camera.ts';
 import { enemyBodyBounds } from './enemy-body.ts';
 import { enemyCast, type EnemyCast } from './cast-bar.ts';
-import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { isBossKind, isWildernessBoss, BOSS_NAMES } from './wilderness-boss-content.ts';
 import { raidBossName } from './raid-boss-content.ts';
 import { raid2BossName } from './raid2-boss-content.ts';
 import { DUNGEON_THEMES } from './dungeon-content.ts';
 import { riftMechanic } from './rift-encounters.ts';
+import { enemyDisplayName } from './zone-roster.ts';
+import { ELITE_AFFIXES, type EliteAffixId } from './combat-content.ts';
 
 /**
  * WoW-style floating enemy nameplates (V key). Headless model: resolves which
@@ -51,6 +52,9 @@ export interface Nameplate {
   readonly engaged: boolean;
   /** Raw hit-flash timer for the white damage blink. */
   readonly hitFlash: number;
+  /** Elite affix id + display color for the glyph left of the name. */
+  readonly affix?: EliteAffixId;
+  readonly affixColor?: string;
 }
 
 /** Most plates drawn at once; extras are culled by priority, nearest first. */
@@ -65,8 +69,9 @@ export function enemyEngaged(e: Enemy): boolean {
 
 /** Display name, mirroring enemy-plate.ts: rift roles, then boss identities, then the archetype. */
 export function nameplateName(e: Enemy): string {
+  if (e.treasure) return 'Treasure Goblin';
   const role = riftMechanic(e);
-  const base = ENEMY_DEFINITIONS[e.kind].name;
+  const base = enemyDisplayName(e);
   if (role === 'ritual') return 'Rift Cantor';
   if (role === 'storm') return `Stormbound ${base}`;
   if (role === 'fire') return `Cinder ${base}`;
@@ -107,6 +112,7 @@ export function collectNameplates(sim: Simulation, view: CameraView,
       name: nameplateName(e), level: e.level, hp: Math.max(0, e.hp), maxHp: Math.max(1, e.maxHp),
       rank: e.rank, crest: isBossKind(e.kind) ? 'boss' : e.rank === 'elite' ? 'elite' : e.rank === 'veteran' ? 'rare' : 'none', boss: isBossKind(e.kind),
       casting: enemyCast(e), targeted, engaged, hitFlash: e.hitFlash,
+      affix: e.affix, affixColor: e.affix ? ELITE_AFFIXES[e.affix].color : undefined,
     });
   }
   if (plates.length > limit) {

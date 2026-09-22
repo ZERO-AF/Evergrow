@@ -6,8 +6,9 @@ import type { Ally, DamageType } from './model.ts';
 import { hasWalkableSegment } from './world-navigation.ts';
 import { goblinSpeed, goblinDamage } from './warband.ts';
 import { alertEnemy, transitionEnemy } from './enemy-state.ts';
-import { WOW_COMBAT, type CcKind } from './wow-types.ts';
+import { WOW_COMBAT, type BuffSpec, type CcKind } from './wow-types.ts';
 import { ENEMY_AI_RULES, ENEMY_DEFINITIONS, enemyAttackVariant, enemyAttackDefinition, type EnemyDefinition, type ProjectileDefinition } from './combat-content.ts';
+import { ELITE_AFFIX_RULES, TREASURE_GOBLIN, affixAttackFactor, affixDamageMultiplier, affixMoveFactor } from './combat-content.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
 import type { CombatEvent, Enemy, Player, ProjectileEffects, WorldQuery } from './model.ts';
 import { enemyHostility, enemyHuntsPlayer } from './factions.ts';
@@ -30,6 +31,10 @@ export interface EnemyAIContext {
   hurt(amount: number, angle: number, enemy: Enemy, damageType: DamageType): void;
   shoot(enemy: Enemy, angle: number, definition: ProjectileDefinition, effects: ProjectileEffects): void;
   emit(event: CombatEvent): void;
+  /** Treasure goblins shed gold piles while fleeing (simulation owns the piles). */
+  dropGold?(enemy: Enemy): void;
+  /** Frozen elites chill the player through the shared buff overlay. */
+  addBuff?(name: string, color: string, spec: BuffSpec, id?: string): void;
 }
 /** Live crowd-control check; entries expire when remaining reaches zero. */
 function ccActive(enemy: Enemy, kind: CcKind): boolean {
@@ -71,6 +76,7 @@ function separatedMotion(enemy: Enemy, vx: number, vy: number, context: EnemyAIC
     }
   }
   const maxSpeed = ENEMY_DEFINITIONS[enemy.kind].speed * goblinSpeed(enemy)*enemyMovementMultiplier(enemy)
+    * affixMoveFactor(enemy) * (enemy.treasure ? TREASURE_GOBLIN.speedFactor : 1)
     * (enemy.state === 'chase' ? ENEMY_AI_RULES.pursuitSpeedMultiplier : 1);
   const length = Math.hypot(vx, vy), scale = length > maxSpeed ? maxSpeed / length : 1;
   return { vx: vx * scale, vy: vy * scale };
@@ -88,8 +94,8 @@ function moveToward(enemy: Enemy, x: number, y: number, speed: number, dt: numbe
   // A patrol target drifts much more slowly than a hound can run. Arrive gently
   // instead of stepping past it and reversing on the next fixed tick.
   const arriving = enemy.state === 'patrol' || (enemy.state === 'chase' && !enemy.seesPlayer);
-  const approachSpeed = Math.min(speed * goblinSpeed(enemy)*enemyMovementMultiplier(enemy), distance / dt,
-    arriving ? distance * ENEMY_AI_RULES.arrivalResponse : speed * goblinSpeed(enemy)*enemyMovementMultiplier(enemy));
+  const approachSpeed = Math.min(speed * goblinSpeed(enemy)*enemyMovementMultiplier(enemy)*affixMoveFactor(enemy), distance / dt,
+    arriving ? distance * ENEMY_AI_RULES.arrivalResponse : speed * goblinSpeed(enemy)*enemyMovementMultiplier(enemy)*affixMoveFactor(enemy));
   const velocity = separatedMotion(enemy, dx / distance * approachSpeed, dy / distance * approachSpeed, context);
   const beforeX = enemy.x, beforeY = enemy.y;
   context.move(enemy, velocity.vx, velocity.vy, dt);
@@ -174,10 +180,10 @@ function chase(enemy: Enemy, dt: number, context: EnemyAIContext, definition: En
   if (action && hasSight && distance <= attackDistance && distance > minDistance
     && context.visible(enemy.x, enemy.y, p.x, p.y)) {
     if (action !== definition) enemy.attackVariant = 0;
-    enemy.attackDamage = enemy.damage * (action.damage / basic.damage) * goblinDamage(enemy) * ((enemy.rallyTime??0)>0?1.25:1);
+    enemy.attackDamage = enemy.damage * (action.damage / basic.damage) * goblinDamage(enemy) * affixDamageMultiplier(enemy) * ((enemy.rallyTime??0)>0?1.25:1);
     enemy.attackAngle = angle; enemy.attackTargetX = p.x; enemy.attackTargetY = p.y;
     enemy.attackTurns = ((enemy.attackTurns ?? 0) + 1) % 3;
-    transitionEnemy(enemy, 'windup', enemyWindupDuration(enemy, action.windup)); return;
+    transitionEnemy(enemy, 'windup', enemyWindupDuration(enemy, action.windup) * affixAttackFactor(enemy)); return;
   }
 
   if (!hasSight || !context.visible(enemy.x, enemy.y, targetX, targetY)) { moveToward(enemy, targetX, targetY, pursuitSpeed * .8, dt, context); return; }
@@ -199,6 +205,131 @@ function chase(enemy: Enemy, dt: number, context: EnemyAIContext, definition: En
   moveToward(enemy, p.x + Math.cos(around) * ring, p.y + Math.sin(around) * ring, pursuitSpeed, dt, context);
   enemy.angle = angle;
 }
+/** Elite affix runtime: one behavior per rolled affix on a shared clock.
+ * Telegraphs reuse the rift-warning cadence (warn → resolve → recover). */
+function tickAffix(enemy: Enemy, dt: number, context: EnemyAIContext): void {
+  const affix = enemy.affix;
+  if (!affix) return;
+  const rules = ELITE_AFFIX_RULES;
+  const state = enemy.affixState ??= { clock: 0, shielded: 0, stacks: 0 };
+  // Shielding decays and molten patches burn out even while the elite disengages.
+  state.shielded = Math.max(0, state.shielded - dt);
+  if (state.patches) {
+    const p = context.player;
+    for (const patch of state.patches) {
+      patch.remaining -= dt;
+      if (patch.remaining > 0 && !p.dead
+        && Math.hypot(p.x - patch.x, p.y - patch.y) <= rules.molten.radius + p.radius
+        && context.visible(patch.x, patch.y, p.x, p.y))
+        context.hurt(enemy.damage * rules.molten.damageFraction * affixDamageMultiplier(enemy),
+          Math.atan2(p.y - patch.y, p.x - patch.x), enemy, 'fire');
+    }
+    state.patches = state.patches.filter(patch => patch.remaining > 0);
+    if (!state.patches.length) delete state.patches;
+  }
+  // Affixes only cycle while the elite is committed to the fight.
+  if (enemy.awareness < 1 || context.player.dead) return;
+  state.clock += dt;
+  switch (affix) {
+    case 'molten': {
+      if (state.clock < rules.molten.interval) break;
+      state.clock = 0;
+      const patches = state.patches ??= [];
+      patches.push({ x: enemy.x, y: enemy.y, remaining: rules.molten.duration });
+      if (patches.length > rules.molten.maxPatches) patches.shift();
+      break;
+    }
+    case 'arcane': {
+      const r = rules.arcane, phase = state.clock % r.period;
+      if (phase >= r.telegraph && phase < r.telegraph + r.active) {
+        const angle = enemy.id * 1.7 + (phase - r.telegraph) * r.revolutionsPerSecond * Math.PI * 2;
+        const p = context.player;
+        if (!p.dead && circleIntersectsSector(p.x, p.y, p.radius, enemy.x, enemy.y, angle, r.length, r.width / r.length)
+          && context.visible(enemy.x, enemy.y, p.x, p.y))
+          context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy), angle, enemy, 'arcane');
+      }
+      break;
+    }
+    case 'frozen': {
+      const r = rules.frozen;
+      if (state.clock < r.period) break;
+      state.clock -= r.period;
+      const p = context.player;
+      context.emit({ type: 'blast', x: enemy.x, y: enemy.y, radius: r.radius, style: 'frost', enemyKind: enemy.kind });
+      if (!p.dead && Math.hypot(p.x - enemy.x, p.y - enemy.y) <= r.radius + p.radius
+        && context.visible(enemy.x, enemy.y, p.x, p.y)) {
+        context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy),
+          Math.atan2(p.y - enemy.y, p.x - enemy.x), enemy, 'frost');
+        context.addBuff?.('Chilled', '#8fd8f2',
+          { duration: r.chillSeconds, stats: { moveSpeedPercent: r.chillPercent } }, `affix-chill:${enemy.id}`);
+      }
+      break;
+    }
+    case 'shielding': {
+      if (state.clock < rules.shielding.period) break;
+      state.clock -= rules.shielding.period;
+      state.shielded = rules.shielding.duration;
+      context.emit({ type: 'blast', x: enemy.x, y: enemy.y, radius: enemy.radius + 14, style: 'holy', enemyKind: enemy.kind });
+      break;
+    }
+    // 'swift' is passive (movement/attack factors); 'avenger' stacks on packmate deaths.
+  }
+}
+
+/** Treasure goblins never fight: on awareness they rout, shedding gold, and
+ * portal out if they survive the escape window. */
+function updateTreasureGoblin(enemy: Enemy, dt: number, context: EnemyAIContext): void {
+  const treasure = enemy.treasure!, p = context.player;
+  // Hard control still holds the goblin; fear wanders it like any other actor.
+  if (ccActive(enemy, 'incapacitate') || ccActive(enemy, 'polymorph')) {
+    enemy.stateTime = Math.max(0, enemy.stateTime - dt); enemy.vx = enemy.vy = 0; return;
+  }
+  if (ccActive(enemy, 'fear')) {
+    const away = Math.atan2(enemy.y - p.y, enemy.x - p.x) + Math.sin(context.time * 2.3 + enemy.id * 1.7 + enemy.patrolPhase) * .6;
+    enemy.angle = away;
+    context.move(enemy, Math.cos(away) * ENEMY_DEFINITIONS[enemy.kind].speed * .6,
+      Math.sin(away) * ENEMY_DEFINITIONS[enemy.kind].speed * .6, dt);
+    return;
+  }
+  const distance = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+  if (!treasure.fleeing) {
+    if (p.dead) return;
+    // Same senses as a normal goblin: sight range plus a closer hearing bubble.
+    const definition = ENEMY_DEFINITIONS[enemy.kind];
+    if (distance < definition.awarenessDistance && context.visible(enemy.x, enemy.y, p.x, p.y))
+      enemy.awareness = Math.min(1, enemy.awareness + dt / ENEMY_AI_RULES.awarenessSeconds
+        * (distance < ENEMY_AI_RULES.hearingDistance ? 2 : 1));
+    if (enemy.awareness >= 1) {
+      transitionEnemy(enemy, 'chase');
+      treasure.fleeing = dt;
+      context.emit({ type: 'notice', x: enemy.x, y: enemy.y, message: 'A Treasure Goblin shrieks and bolts!' });
+    } else if (enemy.state === 'idle' && enemy.stateTime >= enemy.stateDuration) transitionEnemy(enemy, 'patrol');
+    else if (enemy.state === 'patrol') patrol(enemy, dt, context);
+    return;
+  }
+  if (p.dead) { treasure.fleeing = 0; enemy.awareness = 0; disengage(enemy); return; }
+  treasure.fleeing += dt;
+  if (treasure.fleeing >= TREASURE_GOBLIN.escapeSeconds) {
+    // The portal escape is a despawn, not a kill: no rewards, no corpse.
+    enemy.hp = 0;
+    transitionEnemy(enemy, 'dead', 0);
+    context.emit({ type: 'blast', x: enemy.x, y: enemy.y, radius: 40, style: 'arcane', enemyKind: enemy.kind });
+    context.emit({ type: 'notice', x: enemy.x, y: enemy.y, message: 'The Treasure Goblin cackles and escapes through a portal!' });
+    return;
+  }
+  treasure.goldClock += dt;
+  if (treasure.goldClock >= TREASURE_GOBLIN.goldInterval) {
+    treasure.goldClock -= TREASURE_GOBLIN.goldInterval;
+    treasure.drops++;
+    context.dropGold?.(enemy);
+  }
+  const away = Math.atan2(enemy.y - p.y, enemy.x - p.x) + Math.sin(context.time * 2.1 + enemy.id * 1.3) * .5;
+  enemy.angle = away;
+  const speed = ENEMY_DEFINITIONS[enemy.kind].speed * TREASURE_GOBLIN.speedFactor;
+  const velocity = separatedMotion(enemy, Math.cos(away) * speed, Math.sin(away) * speed, context);
+  context.move(enemy, velocity.vx, velocity.vy, dt);
+}
+
 
 /** Tick only a living, unstaggered actor; status/damage integration remains simulation-owned. */
 export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext): void {
@@ -235,13 +366,16 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
   if(ccActive(enemy,'fear')){
     if(enemy.state==='windup'||enemy.state==='attack'){
       enemy.interrupted=true;
-      transitionEnemy(enemy,'recover',enemyRecoveryDuration(enemy,definition.recovery));
+      transitionEnemy(enemy,'recover',enemyRecoveryDuration(enemy,definition.recovery)*affixAttackFactor(enemy));
     }
     const away=Math.atan2(enemy.y-p.y,enemy.x-p.x)+Math.sin(context.time*2.3+enemy.id*1.7+enemy.patrolPhase)*.6;
     enemy.angle=away;
     context.move(enemy,Math.cos(away)*definition.speed*.6,Math.sin(away)*definition.speed*.6,dt);
     return;
   }
+  // Treasure goblins never fight: they rout on awareness, shed gold, and portal out.
+  if (enemy.treasure) { updateTreasureGoblin(enemy, dt, context); return; }
+  tickAffix(enemy, dt, context);
   // Faction layer (world-t05): opposing-faction actors hunt on sight; neutral
   // actors only retaliate once alerted (damage, taunt, trial); friendly actors
   // never fight the player — a forced combat state walks them home instead.
@@ -323,6 +457,6 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
     if(definition.attack==='melee'&&enemy.decoyTarget&&!enemy.attackHit&&!real.dead
       &&circleIntersectsSector(real.x,real.y,real.radius,enemy.x,enemy.y,enemy.attackAngle,definition.range,definition.arc)
       &&context.visible(enemy.x,enemy.y,real.x,real.y)){enemy.attackHit=true;original.hurt(enemy.attackDamage??enemy.damage,enemy.attackAngle,enemy,'physical');}
-    if (enemy.stateTime + 1e-9 >= enemy.stateDuration) transitionEnemy(enemy, 'recover', enemyRecoveryDuration(enemy, definition.recovery));
+    if (enemy.stateTime + 1e-9 >= enemy.stateDuration) transitionEnemy(enemy, 'recover', enemyRecoveryDuration(enemy, definition.recovery) * affixAttackFactor(enemy));
   }
 }

@@ -1,4 +1,4 @@
-import { equippedGearPower } from './leaderboard.ts';
+import { bestRiftClear, equippedGearPower } from './leaderboard.ts';
 import { characterPower, previewCharacter } from './character-summary.ts';
 import { bundleChart, chartKey, encodeChart, decodeSaveBundle } from './save-bundle.ts';
 import { CloudSaveError } from './cloud-errors.ts';
@@ -30,8 +30,10 @@ scope.onmessage = ({ data }) => {
             const decoded = decodeSaveBundle(JSON.stringify(bundle));
             if (!decoded) throw new CloudSaveError();
             const record = decoded.character;
+            const rift=bestRiftClear(record.checkpoint.expeditions?.rifts);
             return { ...info, summary: { name: record.name, level: record.checkpoint.level, updatedAt: record.updatedAt,
               power: characterPower(previewCharacter(record)).power, gearPower: equippedGearPower(record.checkpoint.character),
+              ...(rift?{riftTier:rift.tier,riftSeconds:rift.seconds}:{riftTier:null,riftSeconds:null}),
               classId: record.checkpoint.character.classId, raceId: record.checkpoint.character.raceId } };
           } catch { return { ...info, invalid: true }; }
         });

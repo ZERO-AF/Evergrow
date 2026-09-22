@@ -26,7 +26,7 @@ export function riftKill(sim:Simulation,enemy:Enemy):void {
     metric(chronicle,'riftClears');metric(chronicle,'highestRiftLevel',run.entrance.level);
     metric(chronicle,'bestRiftSeconds',r.elapsed);
     if(run.entrance.rift?.keyTier){metric(chronicle,'riftKeyedClears');metric(chronicle,'highestRiftKeyTier',run.entrance.rift.keyTier);}
-    if(r.elapsed<=300)metric(chronicle,'riftFastClears');
+    if(r.elapsed<=RIFT_RULES.fastClear)metric(chronicle,'riftFastClears');
     metric(chronicle,'seen:riftBiome:'+run.entrance.biome);
 
     // Rewards follow the actual kill, including a guardian pursued away from its arrival.

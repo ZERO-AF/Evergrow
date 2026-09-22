@@ -4,7 +4,7 @@ import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
 import { ENCOUNTER_RULES } from '../src/encounter-director.ts';
 import type { EnemyKind, Input, WorldQuery } from '../src/model.ts';
 import { awardExperience, enemyXPReward, xpForNextLevel, xpLevelFactor } from '../src/progression.ts';
-import { MAX_CONTENT_LEVEL } from '../src/progression-content.ts';
+import { MAX_CONTENT_LEVEL, MAX_PLAYER_LEVEL } from '../src/progression-content.ts';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import { createCharacterSheet } from '../src/items.ts';
 import { refreshCharacter } from '../src/character.ts';
@@ -69,7 +69,7 @@ test('XP rewards use source level and rank, with a bounded player-level differen
   assert.equal(enemyXPReward(Number.NaN, 1, 1, 'normal'), 0);
 });
 
-test('invalid rewards are ignored and extreme rewards remain bounded with exact ordinary overflow', () => {
+test('invalid rewards are ignored and extreme rewards stop at the level 80 cap', () => {
   const progress = { level: 1, xp: 20 };
   for (const reward of [Number.NaN, Infinity, -Infinity, -20, 0, .5]) awardExperience(progress, reward);
   assert.deepEqual(progress, { level: 1, xp: 20 });
@@ -78,13 +78,15 @@ test('invalid rewards are ignored and extreme rewards remain bounded with exact 
   assert.deepEqual(damaged, { level: 2, xp: 0 });
   const huge = { level: 1, xp: 0 };
   awardExperience(huge, Number.MAX_VALUE);
-  assert.ok(Number.isSafeInteger(huge.level) && huge.level > 1000 && huge.level <= MAX_CONTENT_LEVEL);
-  assert.ok(Number.isSafeInteger(huge.xp) && huge.xp >= 0 && huge.xp < xpForNextLevel(huge.level));
-  const edge = { level: MAX_CONTENT_LEVEL - 1, xp: 0 };
+  assert.deepEqual(huge, { level: MAX_PLAYER_LEVEL, xp: 0 }, 'a single award cannot pass the WotLK cap');
+  const edge = { level: MAX_PLAYER_LEVEL - 1, xp: 0 };
   awardExperience(edge, xpForNextLevel(edge.level) + 100);
-  assert.deepEqual(edge, { level: MAX_CONTENT_LEVEL, xp: 0 });
+  assert.deepEqual(edge, { level: MAX_PLAYER_LEVEL, xp: 0 });
   awardExperience(edge, Number.MAX_VALUE);
-  assert.deepEqual(edge, { level: MAX_CONTENT_LEVEL, xp: 0 });
+  assert.deepEqual(edge, { level: MAX_PLAYER_LEVEL, xp: 0 }, 'XP beyond 80 keeps level 80');
+  const legacy = { level: MAX_CONTENT_LEVEL, xp: 0 };
+  awardExperience(legacy, 100);
+  assert.deepEqual(legacy, { level: MAX_PLAYER_LEVEL, xp: 0 }, 'over-cap legacy levels clamp on the next award');
 });
 
 test('each enemy archetype awards its authored XP once on lethal melee contact', () => {

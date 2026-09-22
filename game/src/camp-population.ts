@@ -4,7 +4,7 @@ import { storedActor, type StoredActor } from './dungeon-state.ts';
 import { getZoneAt, scaledEnemyStats } from './zone-progression.ts';
 import type { Enemy, Player, WorldQuery } from './model.ts';
 import type { CampMember, EnemyCamp } from './wilderness-sites.ts';
-import { ENEMY_DEFINITIONS } from './combat-content.ts';
+import { ENEMY_DEFINITIONS, applySpawnTraits } from './combat-content.ts';
 import { transitionEnemy } from './enemy-state.ts';
 import type { FactionTag } from './factions.ts';
 import { isEnemyInactive, isSpawnHidden, type SpawnExclusion } from './spawn-visibility.ts';
@@ -125,7 +125,7 @@ export class CampPopulation {
             ...(member.faction ?? camp.faction ? { faction: member.faction ?? camp.faction } : {}) });
         if (enemy) {
           const wound=this.wounds.get(member.id);
-          if(wound)Object.assign(enemy,scaledEnemyStats(wound.kind,wound.level,wound.rank),{hp:wound.hp,level:wound.level,biome:wound.biome,lootSeed:wound.seed});
+          if(wound){Object.assign(enemy,scaledEnemyStats(wound.kind,wound.level,wound.rank),{hp:wound.hp,level:wound.level,biome:wound.biome,lootSeed:wound.seed});applySpawnTraits(enemy);}
           created.push(enemy);
         }
       }

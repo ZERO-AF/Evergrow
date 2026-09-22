@@ -10,7 +10,8 @@ export type Attribute = 'strength' | 'dexterity' | 'intelligence' | 'vitality';
 export type StatKey = Attribute | ResistanceStat | 'goldFindPercent' | 'xpGainPercent' | 'maxHp' | 'maxHpPercent' | 'maxMana' | 'armor' | 'armorPercent' | 'damagePercent' | 'attackSpeedPercent' | 'castSpeedPercent'
   | 'critChance' | 'critDamage' | 'moveSpeedPercent' | 'spellDamagePercent' | 'manaRegen'
   | `skill:${SkillId}` | 'manaOnKill' | 'areaPercent' | 'potionPercent' | 'projectilePierce' | 'spellweavePercent' | 'afterguardPercent'
-  | 'lifeRegen' | 'manaCostPercent' | 'cooldownPercent' | 'lifeOnHit' | 'blockChance' | 'blockReduction' | 'fireDamage' | 'frostDamage' | 'lightningDamage';
+  | 'lifeRegen' | 'manaCostPercent' | 'cooldownPercent' | 'lifeOnHit' | 'blockChance' | 'blockReduction' | 'fireDamage' | 'frostDamage' | 'lightningDamage'
+  | 'hitRating' | 'expertise';
 export type StatModifiers = Partial<Record<StatKey, number>>;
 export type EquipmentSlot = 'weapon' | 'offhand' | 'head' | 'chest' | 'gloves' | 'legs' | 'boots' | 'cloak' | 'amulet' | 'ring1' | 'ring2';
 export type ItemKind = Exclude<EquipmentSlot, 'offhand' | 'ring1' | 'ring2'> | 'ring' | 'shield' | 'grimoire' | 'orb' | 'relic' | 'charm' | 'riftKey' | 'consumable';
@@ -191,7 +192,7 @@ export interface DerivedCharacterStats {
   critChance: number; critMultiplier: number; moveSpeedMultiplier: number;
   spellDamageMultiplier: number; manaRegeneration: number; lifeRegeneration: number;
   manaCostMultiplier: number; cooldownMultiplier: number; lifeOnHit: number;
-  blockChance: number; blockReduction: number;
+  blockChance: number; blockReduction: number; hitRating: number; expertise: number;
   manaOnKill: number; areaMultiplier: number; potionMultiplier: number; projectilePierce: number;
   spellweavePercent: number; afterguardPercent: number; skillBonuses: Partial<Record<SkillId, number>>;
   attributes: Record<Attribute, number>;

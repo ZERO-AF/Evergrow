@@ -328,6 +328,7 @@ export class Game {
     this.worldMap.setActivityStateReader(poi => activityStatus(poi, this.journeys.facts()));
     this.worldMap.setWorldEventReader(() => ({ state: this.sim.worldEvents, time: this.sim.time }));
     this.worldMap.setPortalMarkers(() => portalMapMarkers(this.sim.travel, band => this.overworld.getPortalAnchor(band)));
+    this.worldMap.setLootMarkerReader(() => GAME_FEATURES.legendaryMoment ? this.sim.groundItems : []);
       this.inventoryPanel = this.lifetime.own(new InventoryPanel(this.shell.panelMount, {
         close: () => this.closeCharacterPanel(),
         assignSkill: (slot, skill) => this.characterAction({ type: 'assignSkill', slot, skill }),
@@ -1008,6 +1009,7 @@ export class Game {
     this.worldMap.setActivityStateReader(poi => activityStatus(poi, this.journeys.facts()));
     this.worldMap.setPortalMarkers(() => portalMapMarkers(this.sim.travel, band => this.overworld.getPortalAnchor(band)));
     this.worldMap.setWorldEventReader(() => ({ state: this.sim.worldEvents, time: this.sim.time }));
+    this.worldMap.setLootMarkerReader(() => GAME_FEATURES.legendaryMoment ? this.sim.groundItems : []);
     this.worldMap.resize(); this.titleScreen.close(); this.saveError = '';
     this.projectBeacons(); this.enterWorld();
     if(this.sim.player.character.treeRefunded){
@@ -1838,6 +1840,10 @@ export class Game {
         else if (event.type === 'journey') this.shell.notifications.announce(`${event.name} complete. Gained ${event.xp} XP.`);
         else if (event.type === 'level') this.shell.notifications.announce(`Level ${event.level}. Gained ${event.statPoints} attribute points and ${event.skillPoints} skill points.`);
         else if (event.type === 'notice') this.notify(event.message);
+        else if (event.type === 'streak') {
+          this.renderer.streakBanner.show({ count: event.count, bonusPercent: event.bonusPercent });
+          this.audio.pvpCue('firstBlood');
+        }
         if (!(event.type === 'cast' && event.enemyKind)) this.audio.play(event);
       }
       if (this.sim.hearthstone.ready) {
@@ -1932,6 +1938,15 @@ export class Game {
     const renderStart = this.performance.start();
     this.renderer.render(this.sim, this.world, dt, settings);
     this.performance.end('world', renderStart);
+    // Legendary moment: a fresh epic+ landing gets its stinger here (the collect
+    // event re-sounds it for vacuumed drops); named legendaries also toast.
+    for (const moment of this.renderer.drainLootMoments()) {
+      this.audio.lootMoment(moment.tier);
+      if (moment.tier === 'legendary' || moment.tier === 'unique') {
+        const drop = this.sim.groundItems.find(d => d.id === moment.id);
+        if (drop) this.shell.notifications.push({ kind: 'loot', item: drop.item, dropped: true });
+      }
+    }
     const fxStart = this.performance.start();
     this.fx.render(this.renderer.canvas, this.renderer.hurt, this.renderer.emission);
     this.performance.end('postfx', fxStart);

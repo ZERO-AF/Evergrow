@@ -5,6 +5,9 @@ import { hashService } from './npcs.ts';
 import { text, textWidth } from './font.ts';
 import { UI_THEME } from './ui-theme.ts';
 import type { BiomeId } from './biomes.ts';
+import { projectMapPoint, type MapView } from './map-view.ts';
+import { TIER_COLORS } from './items.ts';
+import type { ItemTier } from './character-types.ts';
 
 const palette = UI_THEME.palette;
 
@@ -156,5 +159,44 @@ export class ZoneBanner {
     text(c, banner.title, 0, -22, titleSize, color, 'center');
     if (banner.subtitle) text(c, banner.subtitle, 0, 16, .95, palette.muted, 'center');
     c.restore();
+  }
+}
+
+/** Minimal ground-drop shape the loot marker needs; `GroundItem` satisfies it. */
+export interface LootMapDrop { id: number; x: number; y: number; item: { tier: ItemTier } }
+
+/** Epic-and-up uncollected drops earn a star on the minimap and world map. */
+export function lootMapMarkers(drops: readonly LootMapDrop[]): readonly LootMapDrop[] {
+  return drops.filter(drop => drop.item.tier === 'epic' || drop.item.tier === 'legendary' || drop.item.tier === 'unique');
+}
+
+/** Four-point star in the drop's tier color; legendary/unique get a faint halo ring. */
+export function drawLootMapMarker(c: CanvasRenderingContext2D, x: number, y: number, tier: ItemTier, size = 4): void {
+  const color = TIER_COLORS[tier];
+  c.save();
+  c.translate(x, y);
+  if (tier === 'legendary' || tier === 'unique') {
+    c.strokeStyle = `${color}66`; c.lineWidth = .9;
+    c.beginPath(); c.arc(0, 0, size + 2.6, 0, Math.PI * 2); c.stroke();
+  }
+  c.fillStyle = color; c.strokeStyle = '#0a111b'; c.lineWidth = .8; c.lineJoin = 'round';
+  const inner = size * .38;
+  c.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const radius = i % 2 === 0 ? size : inner, angle = i * Math.PI / 4 - Math.PI / 2;
+    const px = Math.cos(angle) * radius, py = Math.sin(angle) * radius;
+    if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+  }
+  c.closePath(); c.fill(); c.stroke();
+  c.restore();
+}
+
+/** Star markers for epic+ ground drops inside a map viewport; caller clips. */
+export function drawLootMapMarkers(c: CanvasRenderingContext2D, view: MapView,
+  drops: readonly LootMapDrop[], size = 4): void {
+  for (const drop of drops) {
+    const p = projectMapPoint(drop.x, drop.y, view);
+    if (p.x < view.x - 6 || p.y < view.y - 6 || p.x > view.x + view.width + 6 || p.y > view.y + view.height + 6) continue;
+    drawLootMapMarker(c, p.x, p.y, drop.item.tier, size);
   }
 }

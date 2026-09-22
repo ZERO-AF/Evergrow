@@ -23,6 +23,8 @@ export const GAME_FEATURES = {
   glyphs: true,
   // WoW jewelcrafting: socketed gems, socket bonuses, jeweler gem stock
   gems: true,
+  // WoW melee attack table: miss/dodge/parry/glancing vs level delta + facing.
+  attackTable: true,
  raidBoss: true,
  dungeon2: true,
  // Wave C (docs/wow-deepening.md, second pass)
@@ -51,4 +53,16 @@ export const GAME_FEATURES = {
   // Presentation-only combat juice: hit-stop, magnitude-scaled screen shake,
   // kill impact and crit popups. Never touches the 120 Hz simulation clock.
   combatJuice: true,
+  // Legendary/epic drop moment: rarity stinger, minimap/world-map star,
+  // name toast and a brief screen-edge pulse. Presentation only.
+  legendaryMoment: true,
+  // Diablo-style elite affixes: one seeded roll per elite (molten, arcane,
+  // frozen, swift, shielding, avenger) with telegraphs and nameplate glyphs.
+  eliteAffixes: true,
+  // Massacre kill streaks: chained kills inside the window grant bonus XP and
+  // announce at 10/25/50/100.
+  killStreaks: true,
+  // Rare goblin variant that flees, sheds gold, fountains loot on death and
+  // portals out if it survives the escape window.
+  treasureGoblins: true,
 };

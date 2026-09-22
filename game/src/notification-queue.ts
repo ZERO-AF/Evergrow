@@ -2,7 +2,7 @@ import type { Item } from './character-types.ts';
 import type { WorldPOI } from './world-pois.ts';
 
 export type GameNotice =
-  | { kind: 'loot'; item: Item }
+  | { kind: 'loot'; item: Item; /** Set when the notice celebrates a fresh drop rather than a pickup. */ dropped?: boolean }
   | { kind: 'discovery'; poi: WorldPOI }
   | { kind: 'info'; message: string };
 export interface NoticeEntry { id: number; notice: GameNotice; age: number; duration: number; }

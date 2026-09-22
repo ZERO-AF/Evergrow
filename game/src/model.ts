@@ -6,6 +6,7 @@ import type { CharacterSheet, DerivedCharacterStats, SkillId, Item } from './cha
 import type { BiomeId } from './biomes.ts';
 import type { EnemyCamp } from './wilderness-sites.ts';
 import type { EnemyRank } from './progression-content.ts';
+import type { EliteAffixId } from './combat-content.ts';
 import type { CcKind, WowClassId } from './wow-types.ts';
 import type { FactionTag } from './factions.ts';
 
@@ -54,7 +55,9 @@ export interface Input {
   barPage?: number;
 }
 
-export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number; readonly ally?: boolean; readonly proc?: boolean };
+export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number; readonly ally?: boolean; readonly proc?: boolean;
+  /** Attack-table ratings snapshotted with the swing; absent on ally/proc echoes means 0. */
+  readonly hitRating?: number; readonly expertise?: number };
 
 export interface Attack {
   embersReleased?: boolean;
@@ -268,6 +271,8 @@ export interface Player {
   durability?: Partial<Record<import('./character-types.ts').EquipmentSlot, number>>;
   /** Bounded combat/system log ring (last 40). */
   combatLog?: import('./combat-log.ts').CombatLogEntry[];
+  /** Diablo-style kill streak (combat-rewards.ts): kills inside the window chain. */
+  killStreak?: { count: number; lastKillAt: number };
   /** Faction reputation ledger: faction id → standing points. */
   reputation?: Record<string, number>;
 }
@@ -397,6 +402,15 @@ export interface Enemy {
   commandClock?: number;
   attackDamage?: number;
   warband?: { order: 'rush' | 'surround' | 'rout'; remaining: number; warning: boolean };
+  /** Elite affix rolled at spawn from lootSeed (combat-content.ts); undefined for
+   * non-elites and bosses. Re-derived on restore, never serialized. */
+  affix?: EliteAffixId;
+  /** Live affix runtime: shared clock plus per-affix payload. */
+  affixState?: { clock: number; shielded: number; stacks: number;
+    patches?: { x: number; y: number; remaining: number }[] };
+  /** Treasure goblin variant (combat-content.ts): flees, sheds gold, fountains
+   * loot on death, portals out after escapeSeconds. */
+  treasure?: { fleeing: number; goldClock: number; drops: number };
   id: number;
   readonly level: number;
   readonly rank: EnemyRank;
@@ -484,6 +498,8 @@ export interface Projectile {
   id: number;
   readonly sourceLevel: number;
   readonly sourceKind?: EnemyKind;
+  /** Zone-roster display name of the firing enemy; rides the shot so the hurt log names it. */
+  readonly sourceName?: string;
   x: number;
   y: number;
   prevX: number;
@@ -548,11 +564,15 @@ export type CombatEvent = EventAppearance & (
   | { readonly type: 'skill-strike'; readonly skill: SkillId; readonly angle: number; readonly range: number; readonly arc: number; readonly rear: boolean }
   | { readonly type: 'swing'; readonly angle: number }
   | { readonly type: 'hit'; actualValue?: number; elementalValue?: number; melee?: boolean; periodic?: boolean; readonly angle: number; readonly value: number; readonly targetId: number;
-      readonly remainingHp: number; readonly enemyKind: EnemyKind; readonly heavy: boolean }
-  | { readonly type: 'kill'; readonly angle: number; readonly facing: number; readonly targetId: number; readonly remainingHp: 0; readonly enemyKind: EnemyKind }
+      readonly remainingHp: number; readonly enemyKind: EnemyKind; readonly enemyName?: string; readonly heavy: boolean; readonly glancing?: boolean }
+  | { readonly type: 'avoid'; readonly outcome: 'miss' | 'dodge' | 'parry'; readonly angle: number;
+      /** True when the player avoided an incoming hit; absent means the player's attack was avoided. */
+      readonly incoming?: boolean; readonly enemyKind?: EnemyKind; readonly enemyName?: string; readonly targetId?: number }
+  | { readonly type: 'kill'; readonly angle: number; readonly facing: number; readonly targetId: number; readonly remainingHp: 0; readonly enemyKind: EnemyKind; readonly enemyName?: string }
   | { readonly type: 'cast'; readonly angle: number; readonly launch?: WeaponLaunch; readonly enemyKind?: EnemyKind }
   | { readonly type: 'hurt'; readonly actualValue?: number; readonly angle: number; readonly value: number; readonly remainingHp: number;
-      readonly enemyKind?: EnemyKind; readonly heavy: boolean }
+      readonly enemyKind?: EnemyKind; readonly enemyName?: string; readonly heavy: boolean; readonly glancing?: boolean }
+  | { readonly type: 'streak'; readonly count: number; readonly bonusPercent: number }
   | { readonly type: 'dodge'; readonly angle: number }
   | { readonly type: 'heal'; readonly value: number }
   | { readonly type: 'potion'; readonly life: number; readonly mana: number }

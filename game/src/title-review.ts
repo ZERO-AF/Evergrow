@@ -43,7 +43,7 @@ for (const [i,name] of ['Rowan','Isolde','Aldric'].entries()) {
  history.sources[id]={id,name,started:Date.now()-86400000,values,unlocked:{}};
  history.characters[id]={id,name,level:24-i*6,updatedAt:Date.now(),sources:[id],deleted:false};
 }
-const previewRanks:LeaderboardEntry[]=['Vesper','Ironbriar','Isolde','Mossheart','Aldric','Nightjar','Ember','Hollow','Thorn','Silversong','Rowan','Ash'].map((name,i)=>({rank:i+1,name,level:68-i*3,gearPower:660-i*29+(i%3)*40,updatedAt:Date.now(),mine:[2,4,10].includes(i)}));
+const previewRanks:LeaderboardEntry[]=['Vesper','Ironbriar','Isolde','Mossheart','Aldric','Nightjar','Ember','Hollow','Thorn','Silversong','Rowan','Ash'].map((name,i)=>({rank:i+1,name,level:68-i*3,gearPower:660-i*29+(i%3)*40,riftTier:i<9?12-i:null,riftSeconds:i<9?480-i*17:null,updatedAt:Date.now(),mine:[2,4,10].includes(i)}));
 const root = document.querySelector<HTMLElement>('#app')!;
 root.innerHTML = '<div class="game-shell"><canvas id="title-world"></canvas><div id="title-review-mount"></div></div>';
 const canvas = root.querySelector<HTMLCanvasElement>('#title-world')!, renderer = new Renderer(), fx = life.own(new PostFX(canvas));
@@ -64,7 +64,7 @@ const title = life.own(new TitleScreen(root.querySelector('#title-review-mount')
   continueRecovery: () => title.message('Frozen preview — recovery gameplay is not started.'),
   useCloud: () => title.message('Frozen preview — both copies are preserved.'),
   chronicle:async()=>history,
-  leaderboard:async order=>{const entries=[...previewRanks].sort((a,b)=>order==='gear'?b.gearPower!-a.gearPower!:b.level-a.level).map((r,i)=>({...r,rank:i+1}));return {entries,own:entries.filter(r=>r.mine),total:entries.length,signedIn:!query.has('signedout')};},
+  leaderboard:async order=>{const entries=[...previewRanks].sort((a,b)=>order==='rift'?(b.riftTier??-1)-(a.riftTier??-1)||(a.riftSeconds??Infinity)-(b.riftSeconds??Infinity):order==='gear'?b.gearPower!-a.gearPower!:b.level-a.level).map((r,i)=>({...r,rank:i+1}));return {entries,own:entries.filter(r=>r.mine),total:entries.length,signedIn:!query.has('signedout')};},
   source: mode => { title.setSource({ supported: true, mode, signedIn: !query.has('signedout'), status: query.has('conflict') ? 'Conflict' : 'Synced' }); title.open(mode === 'cloud' && query.has('signedout') ? [] : repository.list()); } }));
 if (query.has('cloud')) title.setSource({ supported: true, mode: 'cloud', signedIn: !query.has('signedout'), status: query.has('conflict') ? 'Conflict' : 'Synced' });
 const slots = repository.list();

@@ -63,7 +63,7 @@ export class GameNotifications {
           const notice = entry.notice; card.notice = notice;
           let title: string, detail: string, icon: string, color: string;
           if (notice.kind === 'loot') {
-            title = itemDisplayName(notice.item); detail = `${TIER_NAMES[notice.item.tier]} · Item level ${notice.item.itemLevel}`;
+            title = itemDisplayName(notice.item); detail = notice.dropped ? `${TIER_NAMES[notice.item.tier]} · has dropped` : `${TIER_NAMES[notice.item.tier]} · Item level ${notice.item.itemLevel}`;
             icon = itemIconSVG(notice.item, 46); color = TIER_COLORS[notice.item.tier];
 
           } else if (notice.kind === 'discovery') {

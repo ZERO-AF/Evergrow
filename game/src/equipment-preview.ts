@@ -26,6 +26,7 @@ function values(sheet: CharacterSheet, level: number) {
     manaOnKill: stats.manaOnKill, areaPercent: (stats.areaMultiplier ** 2 - 1) * 100,
     potionPercent: (stats.potionMultiplier - 1) * 100, projectilePierce: stats.projectilePierce,
     spellweavePercent: stats.spellweavePercent, afterguardPercent: stats.afterguardPercent,
+    hitRating: stats.hitRating, expertise: stats.expertise,
     ...Object.fromEntries(Object.keys(SKILL_STATS).map(key => [key, stats.skillBonuses[key.slice(6) as SkillId] ?? 0])) as Record<SkillStat, number>,
     ...stats.attributes };
 }

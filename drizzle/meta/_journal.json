@@ -29,6 +29,13 @@
       "when": 1788847642180,
       "tag": "0003_blue_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790058722194,
+      "tag": "0004_crimson_rift_ranks",
+      "breakpoints": true
     }
   ]
 }

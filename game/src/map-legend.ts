@@ -2,6 +2,7 @@ import { MAP_LEGEND_GROUPS, type MapIconId, type MapServiceKind, MapIconVisibili
 import { drawMapPOIIcon, drawMapPlayerIcon, drawMapEnemyIcon } from './map-icon-art.ts';
 import { drawDungeonMapIcon, type DungeonMapIcon } from './dungeon-map-icon-art.ts';
 import { drawMapSymbol } from './map-symbol-art.ts';
+import { drawLootMapMarker } from './minimap-zone.ts';
 import { POI_DEFINITIONS, type POIKind } from './world-pois.ts';
 import { escapeUI, uiIcon } from './ui-components.ts';
 
@@ -80,6 +81,7 @@ export class MapLegend {
       else if (id.startsWith('dungeon:')) drawDungeonMapIcon(c, id.slice(8) as DungeonMapIcon, 0, 0);
       else if (id.startsWith('enemy:')) { c.scale(2.8, 2.8); const kind = id.slice(6); drawMapEnemyIcon(c, 0, 0, kind, kind === 'elite' || kind === 'veteran' ? kind : undefined); }
       else if (id.startsWith('journey:')) drawMapSymbol(c, id === 'journey:search' ? 'search' : 'destination', 9, '#ead7a1', '#101b22');
+      else if (id === 'loot') drawLootMapMarker(c, 0, 0, 'legendary', 8);
       else if (Object.hasOwn(POI_DEFINITIONS, id)) drawMapPOIIcon(c, id as POIKind, 0, 0, 9);
     }
   }

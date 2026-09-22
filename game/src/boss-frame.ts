@@ -3,7 +3,6 @@ import { isBossKind, isWildernessBoss } from './wilderness-boss-content.ts';
 import { enemyEngaged } from './enemy-engagement.ts';
 import { debuffDuration, type EnemyDebuff, type EnemyDebuffState } from './enemy-debuffs.ts';
 import type { Enemy, Player } from './model.ts';
-import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import { ENEMY_RANKS } from './progression-content.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
@@ -12,6 +11,7 @@ import { getMinimapRect } from './map-view.ts';
 import { drawBossCrest, BOSS_METAL, RANK_METALS } from './enemy-rank-art.ts';
 import { drawSkillIcon } from './skill-icon-canvas.ts';
 import { SKILL_ICON_RECIPES } from './skill-icon-content.ts';
+import { enemyDisplayName } from './zone-roster.ts';
 import type { SkillId } from './character-types.ts';
 
 /** WoW-style encounter frame: one large unit plate per engaged boss or elite. */
@@ -128,7 +128,7 @@ function debuffIcon(c: CanvasRenderingContext2D, debuff: EnemyDebuff, x: number,
 }
 
 /** The encounter frame: ornate crest, name, health bar with percent, and status icons. */
-export function drawBossFrame(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy, 'lootSeed' | 'rift' | 'stateTime' | 'stateDuration'>>,
+export function drawBossFrame(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy, 'biome' | 'lootSeed' | 'rift' | 'stateTime' | 'stateDuration' | 'homeX' | 'homeY' | 'dungeonTheme'>>,
   width: number, height: number, options: BossFrameOptions = {}): void {
   const layout = getBossFrameLayout(width, height, options);
   const opacity = clamp(options.opacity ?? 1);
@@ -168,7 +168,7 @@ export function drawBossFrame(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'k
   const barX = 66, barWidth = w - 82;
   // Name row: rank-colored name on the left, BOSS/rank tag on the right.
   const role = riftMechanic(enemy);
-  const name = options.name ?? (role === 'ritual' ? 'Rift Cantor' : role === 'storm' ? `Stormbound ${ENEMY_DEFINITIONS[enemy.kind].name}` : role === 'fire' ? `Cinder ${ENEMY_DEFINITIONS[enemy.kind].name}` : ENEMY_DEFINITIONS[enemy.kind].name);
+  const name = options.name ?? (role === 'ritual' ? 'Rift Cantor' : role === 'storm' ? `Stormbound ${enemyDisplayName(enemy)}` : role === 'fire' ? `Cinder ${enemyDisplayName(enemy)}` : enemyDisplayName(enemy));
   const tag = boss ? 'BOSS' : rank.name;
   c.save(); c.shadowColor = '#010409'; c.shadowBlur = 3; c.shadowOffsetY = 1;
   text(c, name, barX, 13, Math.min(1.05, (barWidth - 52) / Math.max(1, textWidth(name))), boss ? trim.light : rank.color);

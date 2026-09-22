@@ -107,7 +107,7 @@ test('equipping an item changes actual melee damage and repeated attack timing t
 });
 
 test('equipping larger resource pools preserves current values and removing gear clamps them', () => {
-  const sim = createSim(), item = generateItem(879, 1, 'head'), player = sim.player;
+  const sim = createSim(), item = generateItem(879, 1, 'head', undefined, 'common', 'silk'), player = sim.player;
   item.implicit = { maxHp: 40, maxMana: 30 }; item.affixes = [];
   player.hp = 37; player.mana = 29; player.character.inventory[4] = item;
   assert.ok(equipItem(player.character, 4, 1).ok); refreshCharacter(player);
@@ -141,7 +141,7 @@ for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_
     // so the resource assertion stays exact — racials cost no class resource).
     const sim = definition.classId ? createWowSim(definition.classId)
       : definition.raceId ? createWowSim(manaClassForRace(definition.raceId), definition.raceId)
-      : createWowSim(definition.requirement === 'bow' || definition.requirement === 'heavy' ? 'hunter' : 'mage', 'undead');
+      : createWowSim(definition.requirement === 'bow' || definition.requirement === 'heavy' ? 'hunter' : definition.requirement === 'shield' ? 'paladin' : 'mage', 'undead');
     const player = sim.player, wowClass = WOW_CLASSES[player.character.classId!];
     const slot = definition.raceId ? RACIAL_SLOT : 0;
     unlock(sim, id, definition.raceId ? 0 : 0);
@@ -311,6 +311,8 @@ test('a full inventory preserves dropped loot until a cell is available, then an
   sim.player.character.inventory = Array.from({ length: PACK_CELLS }, (_, index) => generateItem(9000 + index, 1, 'ring'));
   const enemy = sim.spawnEnemy('stalker', 22, 0)!; enemy.hp = 1; enemy.stateDuration = 999;
   advance(sim, .25, { attack: true });
+  // Kill loot now arcs out of the corpse (treasure flight); let it land.
+  advance(sim, 1.5);
   assert.equal(sim.groundItems.length, 1);
   const drop = sim.groundItems[0];
   assert.equal(sim.player.character.inventory.some(item => item?.id === drop.item.id), false);

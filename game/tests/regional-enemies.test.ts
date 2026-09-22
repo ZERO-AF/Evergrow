@@ -11,6 +11,13 @@ import { drawRegionalEnemy } from '../src/regional-enemy-art.ts';
 import { ENEMY_BODY_BOUNDS } from '../src/enemy-body.ts';
 import type { EnemyKind, WorldQuery, CombatEvent } from '../src/model.ts';
 import type { BiomeId } from '../src/biomes.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
+
+// These tests assert committed source-scaled damage/timing; the WoW attack table
+// would glance/miss hits against the level-100 test player, and elite affixes
+// (e.g. swift) would shorten windups, so both are disabled for this file.
+GAME_FEATURES.attackTable = false;
+GAME_FEATURES.eliteAffixes = false;
 
 const world: WorldQuery = { blocked: () => false, move: (x,y,dx,dy) => ({x:x+dx,y:y+dy}) };
 function fixture(kind: EnemyKind, elite=false) {

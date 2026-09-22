@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { IDBFactory } from 'fake-indexeddb';
 import cloudServer, { cloudAPI, type CloudEnv } from '../server/worker.ts';
-import { backfillGearPower, savedGearPower } from '../server/leaderboard-backfill.ts';
+import { backfillRankings, savedGearPower } from '../server/leaderboard-backfill.ts';
 import { equippedGearPower } from '../src/leaderboard.ts';
 import { openCloudCache, type CloudRow } from '../src/cloud-cache.ts';
 import { makeSaveBundle, decodeSaveBundle, bundleChart, chartKey } from '../src/save-bundle.ts';
@@ -25,6 +25,7 @@ function server() {
   db.exec(readFileSync(new URL('../../drizzle/0001_worthless_slipstream.sql', import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../../drizzle/0002_amazing_old_lace.sql', import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../../drizzle/0003_blue_mercury.sql', import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../../drizzle/0004_crimson_rift_ranks.sql', import.meta.url),'utf8'));
   const blobs = new Map<string, string>(); let failPut = false, failCommit = false, uncertainCommit = false;
   const env: CloudEnv = {
     DB: { prepare(sql) {
@@ -77,12 +78,12 @@ test('gear projection tolerates historical world/chart data but rejects damaged 
 });
 test('unavailable backfill objects retry later without blocking other characters',async t=>{
   const s=server();t.after(()=>s.db.close());const old=legacy(s,'A');legacy(s,'B');s.blobs.delete(old.key);
-  assert.equal(await backfillGearPower(s.env,1000000),false);
+  assert.equal(await backfillRankings(s.env,1000000),false);
   assert.equal(s.db.prepare('SELECT rank_gear FROM characters WHERE owner=?').get('A')!.rank_gear,null);
   s.blobs.set(old.key,old.raw);
-  await backfillGearPower(s.env,1000001);
+  await backfillRankings(s.env,1000001);
   assert.equal(s.db.prepare('SELECT rank_gear FROM characters WHERE owner=?').get('A')!.rank_gear,null);
-  await backfillGearPower(s.env,1300001);
+  await backfillRankings(s.env,1300001);
   assert.equal(s.db.prepare('SELECT rank_gear FROM characters WHERE owner=?').get('A')!.rank_gear,savedGearPower(old.raw));
 });
 test('backfill cannot overwrite a newer save or resurrect a deleted ranking',async t=>{
@@ -93,7 +94,7 @@ test('backfill cannot overwrite a newer save or resurrect a deleted ranking',asy
     else s.db.prepare("UPDATE characters SET revision=8,object=NULL,rank_gear=NULL,rank_name=NULL WHERE owner='B'").run();
     return get(key);
   };
-  await backfillGearPower(s.env);
+  await backfillRankings(s.env);
   const result=await(await s.request(null,'leaderboard')).json();
   assert.equal(result.total,1);assert.equal(result.entries[0].gearPower,999);
 });
@@ -207,7 +208,7 @@ test('leaderboard includes every cloud character and exposes no account identity
   const publicRanks=await(await s.request(null,'leaderboard')).json();
   assert.equal(publicRanks.total,3);assert.equal(publicRanks.entries.length,3);assert.deepEqual(publicRanks.own,[]);
   assert.deepEqual(publicRanks.entries.map((r:any)=>r.name).sort(),['Ash','Isolde','Rowan']);
-  for(const r of publicRanks.entries)assert.deepEqual(Object.keys(r).sort(),['gearPower','level','mine','name','rank','updatedAt']);
+  for(const r of publicRanks.entries)assert.deepEqual(Object.keys(r).sort(),['gearPower','level','mine','name','rank','riftSeconds','riftTier','updatedAt']);
   assert(!JSON.stringify(publicRanks).includes('private-'));
   const mine=await(await s.request('private-A','leaderboard')).json();assert.equal(mine.own.length,2);assert.equal(mine.entries.filter((r:any)=>r.mine).length,2);
   assert.equal((await s.request('private-A','leaderboard',undefined,{'X-Evergrow-Account':'private-B'})).status,401);
@@ -223,6 +224,30 @@ test('rankings sort characters by level or gear and retain every owned character
   assert.equal(level.total,106);assert.equal(level.entries.length,100);assert.equal(level.own.length,2);assert(level.own.every((r:any)=>r.rank>100));
   assert.equal(level.entries[0].name,'Hero 0');
   const gear=await(await s.request(null,'leaderboard?order=gear')).json();assert.equal(gear.entries[0].name,'Hero 104');
+});
+test('rift rankings order by highest cleared key tier then fastest clear', async t=>{
+  const s=server();t.after(()=>s.db.close());
+  const insert="INSERT INTO characters(owner,slot,revision,object,rank_name,rank_level,rank_gear,rank_rift,rank_rift_seconds,updated_at,operation,digest) VALUES(?,0,1,?,?,?,?,?,?,1,'test','test')";
+  s.db.prepare(insert).run('rift-fast','blob-f','Swift',30,100,7,241.5);
+  s.db.prepare(insert).run('rift-slow','blob-s','Steady',30,100,7,412.25);
+  s.db.prepare(insert).run('rift-high','blob-h','Pusher',30,100,9,590);
+  s.db.prepare(insert).run('rift-unkeyed','blob-u','Fresh',30,100,0,300);
+  s.db.prepare(insert).run('rift-none','blob-n','NoRift',30,100,null,null);
+  const rift=await(await s.request(null,'leaderboard?order=rift')).json();
+  assert.deepEqual(rift.entries.map((r:any)=>r.name),['Pusher','Swift','Steady','Fresh','NoRift']);
+  assert.equal(rift.entries[0].riftTier,9);assert.equal(rift.entries[0].riftSeconds,590);
+  assert.equal(rift.entries[3].riftTier,0);assert.equal(rift.entries[4].riftTier,null);
+});
+test('published saves record their best rift clear for rankings', async t=>{
+  const s=server();t.after(()=>s.db.close());
+  const bundle=fixture();
+  bundle.character.checkpoint.expeditions={cleared:[],location:null,runs:[],surface:null,surfaceX:0,surfaceY:0,rifts:{attempts:9,clears:4,highest:40,best:[{level:40,seconds:500,keyTier:6},{level:40,seconds:388,keyTier:6},{level:30,seconds:200,keyTier:2}]}};
+  assert.equal((await s.request('rift-owner','characters/0',write(bundle))).status,200);
+  const row=s.db.prepare('SELECT rank_rift,rank_rift_seconds,summary FROM characters WHERE owner=?').get('rift-owner')!;
+  assert.equal(row.rank_rift,6);assert.equal(row.rank_rift_seconds,388);
+  assert.equal(JSON.parse(row.summary as string).riftTier,6);
+  const rift=await(await s.request(null,'leaderboard?order=rift')).json();
+  assert.equal(rift.entries[0].name,'Rowan');assert.equal(rift.entries[0].riftTier,6);assert.equal(rift.entries[0].riftSeconds,388);
 });
 test('failed or stale writes cannot publish leaderboard changes', async t=>{
   const s=server();t.after(()=>s.db.close());await s.request('A','characters/0',write(fixture()));

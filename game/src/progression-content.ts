@@ -1,5 +1,8 @@
 /** Current numeric prototype bounds; these are not an infinite-number representation. */
 export const MAX_CONTENT_LEVEL = 1_000_000;
+/** WotLK character cap: normal XP stops advancing the player at level 80.
+ * Monsters, items and rifts still scale on the wider content ceiling. */
+export const MAX_PLAYER_LEVEL = 80;
 export const normalizeLevel = (level: number): number => Math.max(1, Math.min(MAX_CONTENT_LEVEL,
   Math.floor(Number.isFinite(level) ? level : 1)));
 
