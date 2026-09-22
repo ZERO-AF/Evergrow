@@ -48,6 +48,9 @@ const PANEL_FRAMES: readonly UiFrameSpec[] = [
   { id: 'transmog', label: 'Transmogrify' },
   { id: 'arena', label: 'Arena & Battlegrounds' },
   { id: 'pvpVendor', label: 'PvP Quartermaster' },
+  { id: 'dungeonFinder', label: 'Dungeon Finder' },
+  { id: 'guild', label: 'Guild' },
+  { id: 'auction', label: 'Auction House' },
 ].map(spec => ({ group: 'Panels' as const, ...spec }));
 
 /** Register all DOM panel frames. Idempotent — safe to call more than once. */

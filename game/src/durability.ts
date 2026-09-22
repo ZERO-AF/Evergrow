@@ -5,6 +5,7 @@ import { refreshCharacter } from './character.ts';
 import { itemDisplayName } from './items.ts';
 import { pushChatMessage } from './chat-log.ts';
 import { ARMOR_SLOTS, DURABLE_SLOTS, DURABILITY_RULES, STRIKE_SLOTS, durabilityOf } from './durability-state.ts';
+import { guildBarterFactor, guildDurabilityLossFactor } from './guild-state.ts';
 import type { DurabilityMap } from './durability-state.ts';
 import type { CharacterSheet, EquipmentSlot, Item } from './character-types.ts';
 import type { Player } from './model.ts';
@@ -25,8 +26,9 @@ export const DURABILITY_SLOT_NAMES: Record<EquipmentSlot, string> = {
  * Pass sim time as `now` to also log WoW-style warnings to the chat frame. */
 export function durabilityLoss(player: Player, cause: DurabilityCause, now?: number): BrokenItem[] {
   if (!GAME_FEATURES.durability) return [];
-  const amount = cause === 'death' ? DURABILITY_RULES.deathLoss
-    : cause === 'hit-taken' ? DURABILITY_RULES.hitTakenLoss : DURABILITY_RULES.strikeLoss;
+  const amount = (cause === 'death' ? DURABILITY_RULES.deathLoss
+    : cause === 'hit-taken' ? DURABILITY_RULES.hitTakenLoss : DURABILITY_RULES.strikeLoss)
+    * guildDurabilityLossFactor(player, cause);
   const slots = cause === 'strike' ? STRIKE_SLOTS : cause === 'hit-taken' ? ARMOR_SLOTS : DURABLE_SLOTS;
   const broken: BrokenItem[] = [];
   for (const slot of slots) {
@@ -42,7 +44,7 @@ export function durabilityLoss(player: Player, cause: DurabilityCause, now?: num
   // A freshly broken piece changes derived stats and the equipped weapon projection.
   if (broken.length) refreshCharacter(player);
   if (now !== undefined) {
-    if (cause === 'death') pushChatMessage(player, 'death', 'Your equipped items suffer 10% durability loss.', now);
+    if (cause === 'death') pushChatMessage(player, 'death', `Your equipped items suffer ${Math.round(amount)}% durability loss.`, now);
     for (const { item } of broken) pushChatMessage(player, 'system', `${itemDisplayName(item)} has broken!`, now);
   }
   return broken;
@@ -66,7 +68,7 @@ export function repairQuote(player: Player, slot?: EquipmentSlot): RepairQuote {
   });
   if (!slots.length)
     return { ok: false, message: slot === undefined ? 'Nothing needs repair.' : 'That item does not need repair.' };
-  const cost = slots.reduce((sum, s) => sum + repairCost(player.character.equipped[s]!, durabilityOf(player, s)!), 0);
+  const cost = Math.max(1, Math.round(slots.reduce((sum, s) => sum + repairCost(player.character.equipped[s]!, durabilityOf(player, s)!), 0) * guildBarterFactor(player)));
   return { ok: true, slots, cost };
 }
 

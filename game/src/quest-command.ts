@@ -27,7 +27,7 @@ import {
 } from './quest-content.ts';
 import {
   QUEST_RULES, applyCollect, applyExplore, applyKill, questAvailable, questPreviewable,
-  questState, stageAbandon, stageAccept, stageTurnIn, objectiveText,
+  questState, resetDailies, stageAbandon, stageAccept, stageTurnIn, objectiveText,
   type QuestProgressNote, type QuestsCarrier,
 } from './quest-state.ts';
 
@@ -138,6 +138,8 @@ export interface QuestGreeting {
 /** Quests relevant to one giver spec, bucketed for the dialog. */
 export function questsAtGiver(player: Player, spec: QuestGiver): Omit<QuestGreeting, 'anchor' | 'label' | 'service'> {
   const turnIns: QuestDef[] = [], offers: QuestDef[] = [], upcoming: QuestDef[] = [], pending: QuestDef[] = [];
+  // A daily turned in before today's UTC boundary re-offers here.
+  resetDailies(player);
   for (const def of Object.values(QUEST_BY_ID)) {
     const state = questState(player, def.id);
     const sameGiver = (s: QuestGiver) => s.role === spec.role && s.poi === spec.poi
@@ -194,6 +196,8 @@ export async function questAccept(sim: Simulation, id: QuestId, persist: QuestPe
   if (!GAME_FEATURES.quests) return fail('Quests are not available.');
   if (!def) return fail('Unknown quest.');
   if (p.dead) return fail('You are dead.');
+  // Sweep yesterday's daily receipts so a reset daily can be re-accepted.
+  resetDailies(p);
   if (questState(p, id)) return fail('Quest already accepted.');
   if (!questAvailable(p, def)) return fail(p.level < def.level ? `Requires level ${def.level}.` : 'Quest is not available.');
   const checkpoint = stageLedger(sim, sim.captureCheckpoint() as CheckpointWithQuests);
@@ -221,7 +225,7 @@ export async function questAbandon(sim: Simulation, id: QuestId, persist: QuestP
 }
 
 /** Turn in a complete quest: xp/gold/items/skill points commit atomically. */
-export async function questTurnIn(sim: Simulation, id: QuestId, persist: QuestPersist): Promise<QuestResult> {
+export async function questTurnIn(sim: Simulation, id: QuestId, persist: QuestPersist, now = Date.now()): Promise<QuestResult> {
   const def = QUEST_BY_ID[id], p = sim.player;
   if (!GAME_FEATURES.quests) return fail('Quests are not available.');
   if (!def) return fail('Unknown quest.');
@@ -236,7 +240,7 @@ export async function questTurnIn(sim: Simulation, id: QuestId, persist: QuestPe
   const gear = (def.rewards.items ?? []).filter(item => item.startsWith('gear:'))
     .map((item, i) => generateRewardItem(hashService(`${def.id}:${i}`), def.level, item.slice(5) as ItemKind));
   for (const item of gear) if (!canPackItem(checkpoint.character, item)) return fail('Your bags are full.');
-  stageTurnIn(checkpoint, id);
+  stageTurnIn(checkpoint, id, now);
   const staged = { ...p, character: checkpoint.character, level: checkpoint.level, xp: checkpoint.xp };
   const xp = Math.round(def.rewards.xp * xpLevelFactor(p.level, def.level) * p.derived.xpGainMultiplier);
   if (xp > 0) awardCharacterExperience(staged, xp);

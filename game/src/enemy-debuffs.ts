@@ -17,15 +17,15 @@ export interface EnemyDebuff extends ActiveBuff { label: string }
 const active = (n: number | undefined): n is number => Number.isFinite(n) && n! > 0;
 
 /** WoW debuff presentation: school/kind fallbacks keep icons valid before class art lands. */
-const DOT_COLORS: Record<string, string> = {
+export const DOT_COLORS: Record<string, string> = {
   physical: '#d9a08a', bleed: '#e26a6a', poison: '#8fd06a', nature: '#7fd06a',
   fire: '#f5ab75', frost: '#9bdbea', lightning: '#e5cf8b', arcane: '#c7a0ef', shadow: '#8a6fb8', holy: '#ffd76e',
 };
-const DOT_ICONS: Record<string, SkillId> = {
+export const DOT_ICONS: Record<string, SkillId> = {
   physical: 'cleave', bleed: 'backstab', poison: 'smokeVeil', nature: 'smokeVeil',
   fire: 'fireball', frost: 'frostLance', lightning: 'arcLightning', arcane: 'meteor', shadow: 'siphon', holy: 'runicWard',
 };
-const CC_META: Record<CcKind, { name: string; icon: SkillId; color: string; summary: string }> = {
+export const CC_META: Record<CcKind, { name: string; icon: SkillId; color: string; summary: string }> = {
   root: { name: 'Rooted', icon: 'earthshatter', color: '#a8c686', summary: 'Cannot move.' },
   fear: { name: 'Feared', icon: 'smokeVeil', color: '#c5b6ef', summary: 'Flees in terror; cannot attack.' },
   incapacitate: { name: 'Incapacitated', icon: 'brace', color: '#e5bd80', summary: 'Cannot act; breaks on damage.' },
@@ -37,14 +37,14 @@ const CC_META: Record<CcKind, { name: string; icon: SkillId; color: string; summ
 };
 /** Dots/CC carry no applied duration; the longest observed remaining time drives the drain sweep. */
 const debuffSeen = new WeakMap<object, Map<string, number>>();
-function seenDuration(enemy: object, key: string, remaining: number): number {
+export function seenDuration(enemy: object, key: string, remaining: number): number {
   let seen = debuffSeen.get(enemy);
   if (!seen) debuffSeen.set(enemy, seen = new Map());
   const longest = Math.max(remaining, seen.get(key) ?? 0);
   seen.set(key, longest);
   return longest;
 }
-function dotIcon(id: string, school: DotSchool): SkillId {
+export function dotIcon(id: string, school: DotSchool): SkillId {
   const skill = id as SkillId;
   return SKILL_ICON_RECIPES[skill] ? skill : DOT_ICONS[school] ?? 'cleave';
 }

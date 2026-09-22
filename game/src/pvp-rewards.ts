@@ -16,6 +16,8 @@ import type { ActionResult, Item } from './character-types.ts';
 import type { AchievementDef } from './achievement-content.ts';
 import { achievementTrack } from './achievement-state.ts';
 import { applyReputation } from './reputation-state.ts';
+import { EXALTED_CAP } from './reputation-content.ts';
+import { guildHonorFactor, guildReputationFactor } from './guild-state.ts';
 import { addInventoryItem } from './inventory.ts';
 import { refreshCharacter } from './character.ts';
 import { pushChatMessage } from './chat-log.ts';
@@ -95,9 +97,10 @@ type PvpAwardCheckpoint = CharacterCheckpoint & {
  * `honorFromKills: true` in the PvpMatchResult so the end award skips them. */
 export function pvpOnCombatantKill(sim: Simulation): number {
   if (!pvpEnabled()) return 0;
-  if (!creditHonor(sim.player.character, PVP_REWARDS.honorPerKill)) return 0;
-  pushChatMessage(sim.player, 'system', `+${PVP_REWARDS.honorPerKill} Honor`, sim.time);
-  return PVP_REWARDS.honorPerKill;
+  const honor = Math.round(PVP_REWARDS.honorPerKill * guildHonorFactor(sim.player));
+  if (!creditHonor(sim.player.character, honor)) return 0;
+  pushChatMessage(sim.player, 'system', `+${honor} Honor`, sim.time);
+  return honor;
 }
 
 /** The durable match-end award: currency + reputation + items in one checkpoint. */
@@ -107,11 +110,11 @@ export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult,
   const p = sim.player;
   const kills = Math.max(0, Math.floor(result.kills ?? 0));
   const objectives = Math.max(0, Math.floor(result.objectives ?? 0));
-  const honor = (result.won
+  const honor = Math.round(((result.won
     ? result.mode === 'arena' ? PVP_REWARDS.arenaWin : PVP_REWARDS.battlegroundWin
     : result.mode === 'arena' ? PVP_REWARDS.arenaLoss : PVP_REWARDS.battlegroundLoss)
     + (result.honorFromKills ? 0 : kills * PVP_REWARDS.honorPerKill)
-    + objectives * PVP_REWARDS.honorPerObjective;
+    + objectives * PVP_REWARDS.honorPerObjective) * guildHonorFactor(p));
   const arenaPoints = result.mode === 'arena'
     ? result.won ? PVP_REWARDS.arenaPointsWin : PVP_REWARDS.arenaPointsLoss
     : 0;
@@ -134,7 +137,7 @@ export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult,
     p.achievements = achievementsBefore;
     return { ...none, ok: false, message: 'Your PvP purse cannot hold the reward.' };
   }
-  const gain = applyReputation(checkpoint, 'warsong', rep);
+  const gain = applyReputation(checkpoint, 'warsong', rep, EXALTED_CAP, guildReputationFactor(checkpoint));
   const delivered: string[] = [];
   for (const item of result.items ?? [])
     if (addInventoryItem(checkpoint.character, item)) delivered.push(item.name);

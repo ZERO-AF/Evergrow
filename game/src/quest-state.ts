@@ -5,7 +5,7 @@ import type { Player } from './model.ts';
 import type { EnemyKind } from './model.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import {
-  QUESTS, QUEST_PREV, QUEST_ITEMS,
+  QUESTS, QUEST_PREV, QUEST_ITEMS, QUEST_BY_ID,
   type QuestDef, type QuestId, type QuestObjective, type QuestState,
 } from './quest-content.ts';
 
@@ -74,6 +74,55 @@ export function questLog(player: QuestsCarrier): { active: QuestDef[]; complete:
     else if (status === 'turnedIn') turnedIn.push(def);
   }
   return { active, complete, turnedIn };
+}
+
+// ── Dailies (WotLK repeatables; docs/wow-deepening.md §1) ────────────────────
+
+/** UTC day number for an epoch-ms instant — the daily reset boundary. */
+export function dailyResetKey(now: number): number {
+  return Math.floor(now / 86400000);
+}
+
+/** Seconds until the next UTC midnight (for the "resets in …" countdown). */
+export function dailyResetCountdown(now: number): number {
+  return 86400 - Math.floor(now / 1000) % 86400;
+}
+
+/** "23h 59m" countdown label for the quest log. */
+export function dailyResetLabel(now: number): string {
+  const totalMinutes = Math.ceil(dailyResetCountdown(now) / 60);
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+}
+
+/** A turned-in daily whose stamp predates today's UTC boundary is due to reset.
+ * A missing stamp (legacy save) counts as a prior day — the quest re-offers. */
+export function dailyResettable(state: QuestState | undefined, now: number): boolean {
+  return state?.status === 'turnedIn'
+    && (state.lastCompletedAt === undefined || dailyResetKey(state.lastCompletedAt * 1000) < dailyResetKey(now));
+}
+
+/** Daily defs the player can pick up today: not held, or turned in on a prior
+ * UTC day (the ledger entry still sits there until `resetDailies` sweeps it). */
+export function availableDailies(player: Player, now: number): readonly QuestDef[] {
+  if (!GAME_FEATURES.dailyQuests) return [];
+  return QUESTS.filter(def => def.daily && questUnlocked(player, def) && player.level >= def.level
+    && (player.quests?.[def.id] === undefined || dailyResettable(player.quests[def.id], now)));
+}
+
+/** Sweep stale daily receipts: a daily turned in before today's UTC boundary
+ * loses its ledger entry (status, progress and visited all clear), so the giver
+ * offers it again. Idempotent within a day; returns the defs reset. */
+export function resetDailies(player: QuestsCarrier, now = Date.now()): readonly QuestDef[] {
+  if (!GAME_FEATURES.dailyQuests || !player.quests) return [];
+  const reset: QuestDef[] = [];
+  for (const def of QUESTS) {
+    if (!def.daily) continue;
+    if (dailyResettable(player.quests[def.id], now)) {
+      delete player.quests[def.id];
+      reset.push(def);
+    }
+  }
+  return reset;
 }
 
 // ── Progress application (live ledger; persisted by the next checkpoint) ─────
@@ -160,8 +209,11 @@ export function stageAccept(carrier: QuestsCarrier, def: QuestDef): void {
 export function stageAbandon(carrier: QuestsCarrier, id: QuestId): void {
   if (carrier.quests && carrier.quests[id]?.status !== 'turnedIn') delete carrier.quests[id];
 }
-export function stageTurnIn(carrier: QuestsCarrier, id: QuestId): void {
+export function stageTurnIn(carrier: QuestsCarrier, id: QuestId, now?: number): void {
   const state = carrier.quests?.[id];
-  if (state) state.status = 'turnedIn';
+  if (!state) return;
+  state.status = 'turnedIn';
+  // Dailies stamp the wall-clock day so the UTC reset can re-offer them.
+  if (QUEST_BY_ID[id]?.daily) state.lastCompletedAt = Math.floor((now ?? Date.now()) / 1000);
 }
 

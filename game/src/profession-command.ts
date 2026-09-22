@@ -23,6 +23,7 @@ import {
 import {
   GATHER_RULES, cancelGatherChannel, focusGatherNode, gatherChannelOf, gatherProblem, rollNodeYields, startGather, type GatherNode,
 } from './gather-node.ts';
+import { guildProfessionChanceFactor } from './guild-state.ts';
 
 export interface ProfessionResult { ok: boolean; message: string }
 export type ProfessionPersist = (checkpoint: CharacterCheckpoint) => ProfessionResult | Promise<ProfessionResult>;
@@ -91,7 +92,7 @@ export async function executeGather(sim: Simulation, node: GatherNode, persist: 
   markGathered(staged, profession, node.id, sim.time);
   progress.gatherSeq = attempt + 1;
   pruneGathered(progress, sim.time, GATHER_RULES.respawn);
-  const levels = awardSkill(progress, skillDifficulty(node.def.skill, progress.level), attemptRoll(node.id, attempt));
+  const levels = awardSkill(progress, skillDifficulty(node.def.skill, progress.level), attemptRoll(node.id, attempt), guildProfessionChanceFactor(p));
   const result = await persist(checkpoint);
   if (!result.ok) return result;
   commitBags(sim, checkpoint);
@@ -141,7 +142,7 @@ export async function executeCraft(sim: Simulation, recipeId: string, persist: P
     crafted = `${PROFESSION_MATERIALS[recipe.result]?.name ?? recipe.name}${recipe.resultCount > 1 ? ` ×${recipe.resultCount}` : ''}`;
   }
   progress.crafted = (progress.crafted ?? 0) + 1;
-  const levels = awardSkill(progress, skillDifficulty(recipe.skill, progress.level), attemptRoll(recipe.id, progress.crafted));
+  const levels = awardSkill(progress, skillDifficulty(recipe.skill, progress.level), attemptRoll(recipe.id, progress.crafted), guildProfessionChanceFactor(sim.player));
   const result = await persist(checkpoint);
   if (!result.ok) return result;
   commitBags(sim, checkpoint);
@@ -186,7 +187,7 @@ export async function executeDisenchant(sim: Simulation, inventoryIndex: number,
   for (const yield_ of yields) grantMaterial(staged, yield_.id, yield_.count);
   progress.disenchanted = attempt + 1;
   const required = disenchantSkillRequired(item);
-  const levels = awardSkill(progress, skillDifficulty([required, required + 20, required + 40, required + 60], progress.level), attemptRoll(item.id, attempt));
+  const levels = awardSkill(progress, skillDifficulty([required, required + 20, required + 40, required + 60], progress.level), attemptRoll(item.id, attempt), guildProfessionChanceFactor(sim.player));
   const result = await persist(checkpoint);
   if (!result.ok) return result;
   commitBags(sim, checkpoint);

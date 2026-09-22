@@ -15,6 +15,7 @@ import type { Attribute, CharacterSheet, DerivedCharacterStats, StatKey, StatMod
 import type { WowBuff } from './model.ts';
 import { durabilityFactor } from './durability-state.ts';
 import { glyphStats } from './glyph-state.ts';
+import { guildStats } from './guild-state.ts';
 import { setBonusSources } from './item-set-bonus.ts';
 import type { Player } from './model.ts';
 
@@ -42,6 +43,10 @@ export function characterModifierSources(sheet: CharacterSheet, treeBonuses: Sta
     if (Object.keys(glyphs).length) sources.push({ label: 'Glyphs', modifiers: glyphs });
   }
   if (GAME_FEATURES.itemSets) sources.push(...setBonusSources(sheet.equipped, player?.durability));
+  if (GAME_FEATURES.guilds) {
+    const guild = guildStats(sheet);
+    if (Object.keys(guild).length) sources.push({ label: `${sheet.guild!.name} perks`, modifiers: guild });
+  }
   const blessing = sheet.blessing?.remaining ? sheet.blessing.kind : null;
   if (blessing === 'haste') sources.push({ label: 'Haste blessing', modifiers: { attackSpeedPercent: 15, castSpeedPercent: 15 } });
   if (blessing === 'wellspring') sources.push({ label: 'Wellspring blessing', modifiers: { manaCostPercent: 20 } });

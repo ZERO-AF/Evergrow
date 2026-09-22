@@ -5,6 +5,9 @@ import type { ArenaPointsWallet, GoldWallet, HonorWallet } from './wallet.ts';
 import type { WeaponDefinition, FocusDefinition, ShieldDefinition } from './model.ts';
 import type { WowClassId, WowRaceId } from './wow-types.ts';
 import type { PetStable } from './pet-content.ts';
+import type { GuildMembership } from './guild-state.ts';
+import type { DungeonFinderState } from './dungeon-finder-state.ts';
+import type { AuctionHouseState } from './auction-state.ts';
 
 export type Attribute = 'strength' | 'dexterity' | 'intelligence' | 'vitality';
 export type StatKey = Attribute | ResistanceStat | 'goldFindPercent' | 'xpGainPercent' | 'maxHp' | 'maxHpPercent' | 'maxMana' | 'armor' | 'armorPercent' | 'damagePercent' | 'attackSpeedPercent' | 'castSpeedPercent'
@@ -168,6 +171,10 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   bags?: Array<Item | null>;
   /** Personal storage shared by settlement chests: one to five consecutive 96-item tabs. */
   stash?: Array<Item | null>;
+  /** Guild membership ledger (guild-state.ts); absent until the guild is founded. */
+  guild?: GuildMembership;
+  /** Shared guild vault: one 96-item tab unlocked by the Mobile Banking perk. */
+  guildVault?: Array<Item | null>;
   /** Newest acquired first; absent until the first tracked pickup. */
   recentItems?: string[];
   equipped: Record<EquipmentSlot, Item | null>;
@@ -183,6 +190,10 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   activeSpec?: number;
   /** Hunter pet stable: the active companion plus stabled pets (pet-content.ts). */
   pets?: PetStable;
+  /** Dungeon Finder queue marker: the queued catalog id and when (dungeon-finder-state.ts). */
+  dungeonFinder?: DungeonFinderState;
+  /** Auction House ledger: posted listings, sale receipts, pending proceeds (auction-state.ts). */
+  auctionHouse?: AuctionHouseState;
 }
 export interface DerivedCharacterStats {
   directDamageMultiplier?: number;

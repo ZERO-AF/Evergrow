@@ -5,6 +5,7 @@ import type { Player, WorldQuery } from './model.ts';
 import type { Simulation } from './simulation.ts';
 import { MOUNTS, type MountId } from './mount-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
+import { guildMountSpeedFactor } from './guild-state.ts';
 
 export const MOUNT_RULES = Object.freeze({
   /** Summon cast time in seconds; movement, offense or damage interrupts it. */
@@ -18,9 +19,10 @@ export interface MountWorld extends WorldQuery {
   sampleGroundContact?(x: number, y: number): { indoors: boolean };
 }
 
-/** Movement-speed multiplier applied while mounted; 1 otherwise. */
-export function mountSpeedFactor(player: Pick<Player, 'mounted'>): number {
-  return GAME_FEATURES.mounts && player.mounted ? MOUNTS[player.mounted.id].speed : 1;
+/** Movement-speed multiplier applied while mounted; 1 otherwise.
+ * The Mount Up guild perk multiplies the mount's listed speed. */
+export function mountSpeedFactor(player: Pick<Player, 'mounted' | 'character'>): number {
+  return GAME_FEATURES.mounts && player.mounted ? MOUNTS[player.mounted.id].speed * guildMountSpeedFactor(player) : 1;
 }
 
 /** Mounts are outdoor-only: dungeons and building interiors reject them. */

@@ -1,5 +1,6 @@
 import { STASH_CAPACITY, storageTabCount, hasStorageTab, nextStorageTabPrice } from './storage-content.ts';
 import { repPriceAdjust, type ReputationCarrier } from './reputation-state.ts';
+import { guildBarterFactor } from './guild-state.ts';
 export { STASH_CAPACITY } from './storage-content.ts';
 import { bulkSaleItems } from './item-protection.ts';
 import { normalizePackLayout, canPackItem, packSpaceProblem } from './inventory-grid.ts';
@@ -97,7 +98,7 @@ export function sourceItem(sheet: CharacterSheet, source: ItemSource): Item | nu
 }
 export function quoteService(sheet: CharacterSheet, npc: TownNPC, level: number, request: ServiceRequest, rep?: ReputationCarrier, worldSeed?: number): QuoteResult {
   let item: Item | null = null, price = 0;
-  const adjust = rep ? repPriceAdjust(rep, npc, worldSeed) : 1;
+  const adjust = (rep ? repPriceAdjust(rep, npc, worldSeed) : 1) * guildBarterFactor(sheet);
   const fail = (message: string): QuoteResult => ({ ok: false, message });
   if (request.type === 'refreshStock') {
     if (npc.role !== 'blacksmith' && npc.role !== 'jeweler') return fail('This merchant does not sell stock.');

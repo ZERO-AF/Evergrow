@@ -43,6 +43,9 @@ export const CONTROL_ACTIONS = [
   { id: 'transmog', label: 'Transmogrify', group: 'World & menus', defaults: ['KeyG', null], pad: '—' },
   { id: 'nameplates', label: 'Enemy nameplates', group: 'World & menus', defaults: ['KeyV', null], pad: '—' },
   { id: 'pvpScore', label: 'PvP scoreboard', group: 'World & menus', defaults: ['Semicolon', null], pad: '—' },
+  { id: 'dungeonFinder', label: 'Dungeon Finder', group: 'World & menus', defaults: ['F6', null], pad: '—' },
+  { id: 'auctionHouse', label: 'Auction House', group: 'World & menus', defaults: ['F7', null], pad: '—' },
+  { id: 'guild', label: 'Guild', group: 'World & menus', defaults: ['F8', null], pad: '—' },
 ] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number]['id'];
 export function isGameplayAction(action: ControlAction | undefined): boolean {

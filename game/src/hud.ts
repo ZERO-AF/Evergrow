@@ -353,7 +353,7 @@ export function drawFloatingHUD(c: CanvasRenderingContext2D, p: Player, width: n
   c.restore();
   drawPlayerFrame(c, p, options.topInset ?? 0);
   const pet = drawPetFrame(c, p, options.topInset ?? 0);
-  drawWowBuffs(c, p, (options.topInset ?? 0) + (pet ? PET_FRAME.height + 4 : 0));
+  if (!GAME_FEATURES.buffFrames) drawWowBuffs(c, p, (options.topInset ?? 0) + (pet ? PET_FRAME.height + 4 : 0));
   drawKillStreak(c, p, options.simTime ?? time, options.topInset ?? 0);
   drawCastBar(c, p, layout);
 }

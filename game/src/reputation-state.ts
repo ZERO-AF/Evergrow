@@ -118,8 +118,9 @@ export interface RepGain {
 }
 
 /** Add points to one faction's ledger; returns the applied gain (0 at cap). */
-export function applyReputation(carrier: ReputationCarrier, id: FactionId, amount: number, maxPoints = EXALTED_CAP): RepGain {
+export function applyReputation(carrier: ReputationCarrier, id: FactionId, amount: number, maxPoints = EXALTED_CAP, factor = 1): RepGain {
   const faction = FACTION_BY_ID[id];
+  amount = Math.round(amount * factor);
   const before = reputationPoints(carrier, id);
   const after = Math.max(HATED_FLOOR, Math.min(maxPoints, before + amount));
   const applied = after - before;
@@ -130,13 +131,13 @@ export function applyReputation(carrier: ReputationCarrier, id: FactionId, amoun
 
 /** Apply a kill's reputation (rank-scaled; bosses pay `KILL_REP.boss`); returns
  * undefined when no faction claims the kill or its kill cap is reached. */
-export function applyKillReputation(carrier: ReputationCarrier, enemy: Pick<Enemy, 'kind' | 'biome' | 'rank'> & { dungeonTheme?: DungeonThemeId }): RepGain | undefined {
+export function applyKillReputation(carrier: ReputationCarrier, enemy: Pick<Enemy, 'kind' | 'biome' | 'rank'> & { dungeonTheme?: DungeonThemeId }, factor = 1): RepGain | undefined {
   const faction = factionForKill(enemy);
   if (!faction) return undefined;
   const capMin = STANDING_BY_TIER[faction.killCap ?? 'revered'].min;
   if (reputationPoints(carrier, faction.id) >= capMin) return undefined;
   const amount = isBossKind(enemy.kind) ? KILL_REP.boss : KILL_REP[enemy.rank];
-  return applyReputation(carrier, faction.id, amount, capMin);
+  return applyReputation(carrier, faction.id, amount, capMin, factor);
 }
 
 // ── Rewards ──────────────────────────────────────────────────────────────────

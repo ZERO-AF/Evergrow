@@ -101,7 +101,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   }
   // Shielding elites are briefly invulnerable: no table roll, no statuses, no hit.
   if (enemy.affixState?.shielded) {
-    context.emit({ type: 'block', x: enemy.x, y: enemy.y, angle, value: 0 });
+    context.emit({ type: 'block', x: enemy.x, y: enemy.y, angle, value: 0, blocked: 'immune', enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy) });
     return;
   }
   const hitStats = offense ?? context.player.derived;
@@ -114,7 +114,8 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
       hitStats.hitRating ?? 0, hitStats.expertise ?? 0);
     if (roll.outcome !== 'hit' && roll.outcome !== 'glancing') {
       context.emit({ type: 'avoid', outcome: roll.outcome, x: enemy.x, y: enemy.y, angle,
-        targetId: enemy.id, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), classId: context.player.character?.classId });
+        targetId: enemy.id, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), classId: context.player.character?.classId,
+        ...(offense?.allyId !== undefined ? { allyId: offense.allyId } : {}) });
       return;
     }
     glancing = roll.outcome === 'glancing';
@@ -200,7 +201,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     enemy.knockbackX += Math.cos(angle) * shove / COMBAT_TIMING.knockbackDecay;
     enemy.knockbackY += Math.sin(angle) * shove / COMBAT_TIMING.knockbackDecay;
   }
-  context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), ...(glancing ? { glancing: true } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
+  context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(offense?.allyId !== undefined ? { allyId: offense.allyId } : {}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), ...(glancing ? { glancing: true } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
     targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), heavy: critical || !!reaction });
   // Legendary weapon procs roll on direct player hits only — never on periodic
   // ticks, ally strikes or proc-sourced damage (offense.proc guards recursion).
@@ -233,7 +234,10 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
 export function damageCombatant(amount: number, angle: number, sourceLevel: number, damageType: DamageType, context: PlayerDamageContext, kind?: EnemyKind, periodic = false, style?: ProjectileStyle, sourceName?: string, melee = false): boolean {
   const p = context.player;
   if (p.dead || (!periodic && p.invulnerable > 0) || context.world.isSanctuary?.(p.x, p.y)) return false;
-  if (p.buffs?.some(buff => buff.immunity && buff.remaining > 0)) return false;
+  if (p.buffs?.some(buff => buff.immunity && buff.remaining > 0)) {
+    context.emit({ type: 'block', x: p.x, y: p.y, angle, value: 0, blocked: 'immune', incoming: true });
+    return false;
+  }
   // The same attack table guards the player: a facing combatant can dodge or
   // parry a melee blow, and a lower-level attacker's hits glance off.
   let glancingHit = false;
@@ -247,7 +251,11 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
     if (roll.outcome === 'glancing') { amount *= roll.damage; glancingHit = true; }
   }
   const reduction = damageType === 'physical' ? armorReduction(effectiveArmor(p), sourceLevel) : p.derived.resistances[damageType];
+  const preResist = amount;
   amount = Math.max(1, Math.round(amount * (1 - reduction) * (damageType==='physical'?1-auraPower(p,'ironroot')/800:1)));
+  // WoW partial resist readout: elemental damage shaved by resistance floats "N Resisted".
+  if (damageType !== 'physical' && preResist - amount >= 1)
+    context.emit({ type: 'block', x: p.x, y: p.y, angle, value: preResist - amount, blocked: 'resist', incoming: true });
   for (const buff of p.buffs ?? []) if (buff.reduction && buff.remaining > 0) amount = Math.max(1, Math.round(amount * (1 - buff.reduction)));
   if (!periodic && p.equipment.offHand?.kind === 'shield' && (p.guardTime > 0 || context.random() < p.derived.blockChance)) {
     const reduction = p.guardTime > 0 ? Math.max(p.guardReduction, p.derived.blockReduction) : p.derived.blockReduction;
@@ -255,7 +263,7 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
     storeBastion(p,blocked);
     amount = Math.max(1, amount - blocked);
     primeAfterguard(p);
-    context.emit({ type: 'block', x: p.x, y: p.y, angle, value: blocked, color: '#a9daca' });
+    context.emit({ type: 'block', x: p.x, y: p.y, angle, value: blocked, color: '#a9daca', blocked: 'shield', incoming: true });
   }
   const mitigated=mitigateSkillHit(p,amount); amount=mitigated.damage;
   let buffAbsorbed = 0;
@@ -269,7 +277,7 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
     const redirected = Math.min(pet.hp, Math.round(amount * petShare));
     pet.hp -= redirected; amount = Math.max(0, amount - redirected);
   }
-  if(mitigated.absorbed+buffAbsorbed)context.emit({type:'block',x:p.x,y:p.y,angle,value:mitigated.absorbed+buffAbsorbed,color:'#9ed6d5'});
+  if(mitigated.absorbed+buffAbsorbed)context.emit({type:'block',x:p.x,y:p.y,angle,value:mitigated.absorbed+buffAbsorbed,color:'#9ed6d5',blocked:'absorb',incoming:true});
   // PvP combatants carry the enemy status surface: sunder amplifies, elemental
   // contacts apply burn/chill/interrupt, and damage strips break-on-damage CC.
   const combatant = p.team !== undefined ? p as unknown as Enemy : undefined;

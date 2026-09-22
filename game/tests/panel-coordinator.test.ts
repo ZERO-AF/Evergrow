@@ -7,7 +7,7 @@ function setup() {
   const log: string[] = [], active = new Set<string>(), input = new GameInput();
   const sim = new Simulation({ blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) }, { spawn: false });
   const panel = (name: string) => ({ open: () => { assert.equal(active.size, 0); active.add(name); log.push(`open:${name}`); }, close: () => { active.delete(name); log.push(`close:${name}`); } });
-  const coordinator = new PanelCoordinator({chronicle:panel('chronicle'), journeys: panel('journeys'), event: panel('event'), service: panel('service'), stable: panel('stable'), map: panel('map'), character: panel('character'), skills: panel('skills'), achievements: panel('achievements'), questLog: panel('questLog'), professions: panel('professions'), glyphs: panel('glyphs'), spellbook: panel('spellbook'), stats: panel('stats'), reputation: panel('reputation'), transmog: panel('transmog'), arena: panel('arena'), pvpVendor: panel('pvpVendor') }, {
+  const coordinator = new PanelCoordinator({chronicle:panel('chronicle'), journeys: panel('journeys'), event: panel('event'), service: panel('service'), stable: panel('stable'), map: panel('map'), character: panel('character'), skills: panel('skills'), achievements: panel('achievements'), questLog: panel('questLog'), professions: panel('professions'), glyphs: panel('glyphs'), spellbook: panel('spellbook'), stats: panel('stats'), reputation: panel('reputation'), transmog: panel('transmog'), arena: panel('arena'), pvpVendor: panel('pvpVendor'), dungeonFinder: panel('dungeonFinder'), auctionHouse: panel('auctionHouse'), guild: panel('guild') }, {
     clearInput: preserve => { input.clear(preserve); sim.clearInput(preserve); log.push('clear'); },
     changed: phase => log.push(`phase:${phase}`), resumeGameplay: () => { assert.equal(active.size, 0); log.push('focus:game'); }, save: () => log.push('save'),
   });
@@ -68,7 +68,7 @@ test('map mode is established before opening the view and only hold mode advance
   const modes: boolean[] = [], movement: boolean[] = [];
   const panel = { open() {}, close() {} };
   const c = new PanelCoordinator({ map: { open() { modes.push(c.mapHeld); }, close() {} },
-    character: panel, skills: panel, journeys: panel, event: panel, service: panel, stable: panel, chronicle: panel, achievements: panel, questLog: panel, professions: panel, glyphs: panel, spellbook: panel, stats: panel, reputation: panel, transmog: panel, arena: panel, pvpVendor: panel }, {
+    character: panel, skills: panel, journeys: panel, event: panel, service: panel, stable: panel, chronicle: panel, achievements: panel, questLog: panel, professions: panel, glyphs: panel, spellbook: panel, stats: panel, reputation: panel, transmog: panel, arena: panel, pvpVendor: panel, dungeonFinder: panel, auctionHouse: panel, guild: panel }, {
     clearInput: preserve => movement.push(!!preserve), changed() {}, resumeGameplay() {}, save() {},
   });
   c.transition('playing'); assert.equal(c.simulationActive, true);

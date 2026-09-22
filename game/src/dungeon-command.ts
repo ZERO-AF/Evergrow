@@ -134,7 +134,7 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
         if (!next) {
             if (state.runs.some(r => (r.states.warden?.hp ?? 0) > 0 && !r.entrance.expedition) && action.kind!=='expedition' && action.kind!=='rift' && action.kind!=='pvp')
                 return { ok: false, message: 'Finish your active expedition first.' };
-            const scaling = entrance.rift || entrance.pvp ? undefined : entrance.expedition ? entrance.scaling! : encounterScaleAt(entrance.x, entrance.y, surface.seed, p.level);
+            const scaling = entrance.rift || entrance.pvp ? undefined : entrance.expedition ? entrance.scaling! : entrance.scaling ?? encounterScaleAt(entrance.x, entrance.y, surface.seed, p.level);
             next = createDungeonRun({ ...entrance, scaling, level: scaling?.base??entrance.level });
             state.runs.push(next);
         }

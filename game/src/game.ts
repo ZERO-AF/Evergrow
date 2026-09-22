@@ -53,6 +53,7 @@ import { activatePortalAnchor } from './travel-command.ts';
 import { townPortalAnchor, withinPortalReach, portalMapMarkers, type PortalAnchor } from './travel.ts';
 import { portalActionMode, portalDestinations } from './portal-destination.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
+import type { CharacterSheet } from './character-types.ts';
 import { ServicePanel } from './service-panel.ts';
 import { buildingNPC, focusNPC, canInteractNPC, focusedStableMaster, stableMastersNear, battlemastersNear, focusedBattlemaster, positionedNPC, npcTown, type TownNPC, type StableMaster, type Battlemaster } from './npcs.ts';
 import type { ServiceQuote } from './commerce.ts';
@@ -146,6 +147,14 @@ import { pendingWorldEventReward, claimWorldEventReward } from './world-event-co
 import { SpellbookPanel } from './spellbook-panel.ts';
 import { StatsPanel } from './stats-panel.ts';
 import { ReputationPanel } from './reputation-panel.ts';
+import { DungeonFinderPanel } from './dungeon-finder-panel.ts';
+import { AuctionHousePanel } from './auction-panel.ts';
+import { GuildPanel } from './guild-panel.ts';
+import { BuffFrame } from './buff-frame-art.ts';
+import { queueForDungeon, leaveQueue } from './dungeon-finder-command.ts';
+import { postAuction, buyoutAuction, cancelAuction, collectAuctionProceeds } from './auction-command.ts';
+import { foundGuild, guildVaultDeposit, guildVaultWithdraw } from './guild-command.ts';
+import { cancelBuff } from './buff-frame.ts';
 import { repOnQuestTurnIn, repClaimReward } from './reputation-command.ts';
 import { UiLayoutPanel, registerPanelFrames } from './ui-layout-panel.ts';
 import { uiEditMode, setUiEditMode } from './ui-layout.ts';
@@ -252,6 +261,11 @@ export class Game {
   private autosave: Promise<boolean> | null = null;
   private saveAgain = false;
   private chatFrame = new ChatFrame();
+  private actionBarPanel!: ActionBarPanel;
+  private dungeonFinderPanel!: DungeonFinderPanel;
+  private auctionPanel!: AuctionHousePanel;
+  private guildPanel!: GuildPanel;
+  private buffFrame!: BuffFrame;
   private zoneBanner = new ZoneBanner();
   private minimapTracking = new MinimapTracking();
   private fishing: FishingSession = freshFishing();
@@ -260,7 +274,6 @@ export class Game {
   private achievementPanel!: AchievementPanel;
   private achievementToasts!: AchievementToasts;
   private glyphPanel!: GlyphPanel;
-  private actionBarPanel!: ActionBarPanel;
   private spellbookPanel!: SpellbookPanel;
   private statsPanel!: StatsPanel;
   private reputationPanel!: ReputationPanel;
@@ -484,6 +497,39 @@ export class Game {
         clear: slot => this.durable(() => executeTransmogClear(this.sim, slot, c => this.persistTravel(c)), { ok: false, message: 'Saving the previous action…' }),
         close: () => this.resume(),
       }));
+      // Wave-2 WoW panels: RDF, Auction House, Guild. Each rides the shared
+      // persist-before-commit wrapper; the sheet persist builds a checkpoint.
+      const persistSheet = async (character: CharacterSheet, hp: number, mana: number) => {
+        const saved = await this.session.save({ ...this.sim.captureCheckpoint(), character, hp, mana }, Date.now());
+        if (!saved) this.shell.setSaveStatus(this.session.error, true);
+        return { ok: saved, message: this.session.error };
+      };
+      this.dungeonFinderPanel = this.lifetime.own(new DungeonFinderPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        queue: id => this.durable(async () => {
+          const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c));
+          if (!r.ok) this.notify(r.message ?? 'Could not queue.'); return r.ok;
+        }, false),
+        leave: () => this.durable(async () => {
+          const r = await leaveQueue(this.sim, c => this.persistTravel(c));
+          if (!r.ok) this.notify(r.message ?? ''); return r.ok;
+        }, false),
+      }));
+      this.auctionPanel = this.lifetime.own(new AuctionHousePanel(this.shell.panelMount, {
+        post: (i, b, h) => this.durable(() => postAuction(this.sim.player, i, b, h, persistSheet), { ok: false, message: 'Saving…' }),
+        buyout: id => this.durable(() => buyoutAuction(this.sim.player, id, persistSheet), { ok: false, message: 'Saving…' }),
+        cancel: id => this.durable(() => cancelAuction(this.sim.player, id, persistSheet), { ok: false, message: 'Saving…' }),
+        collect: () => this.durable(() => collectAuctionProceeds(this.sim.player, persistSheet), { ok: false, message: 'Saving…' }),
+      }));
+      this.guildPanel = this.lifetime.own(new GuildPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        found: name => { void this.durable(async () => { const r = await foundGuild(this.sim.player, name, persistSheet); this.notify(r.message ?? ''); }, undefined); },
+        deposit: i => { void this.durable(async () => { const r = await guildVaultDeposit(this.sim.player, i, persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
+        withdraw: i => { void this.durable(async () => { const r = await guildVaultWithdraw(this.sim.player, i, persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
+      }));
+      this.buffFrame = this.lifetime.own(new BuffFrame());
+      this.buffFrame.mount(this.canvas.parentElement!);
+      this.buffFrame.onCancel = key => { const r = cancelBuff(this.sim.player, key); if (!r.ok) this.notify(r.message ?? ''); };
       this.uiLayoutPanel = this.lifetime.own(new UiLayoutPanel(this.shell.panelMount, { close: () => this.canvas.focus() }));
       registerPanelFrames();
       registerHotbarFrames();
@@ -520,6 +566,9 @@ export class Game {
         spellbook: { open: () => { this.spellbookPanel.open(); this.shell.setStatus('Spellbook open. Game paused.'); }, close: () => this.spellbookPanel.close() },
         stats: { open: () => { this.statsPanel.open(); this.shell.setStatus('Character stats open. Game paused.'); }, close: () => this.statsPanel.close() },
         reputation: { open: () => { this.reputationPanel.open(); this.shell.setStatus('Reputation open. Game paused.'); }, close: () => this.reputationPanel.close() },
+        dungeonFinder: { open: () => { this.dungeonFinderPanel.open(this.sim.player); this.shell.setStatus('Dungeon Finder open. Game paused.'); }, close: () => this.dungeonFinderPanel.close() },
+        auctionHouse: { open: () => { this.auctionPanel.open(this.sim.player); this.shell.setStatus('Auction House open. Game paused.'); }, close: () => this.auctionPanel.close() },
+        guild: { open: () => { this.guildPanel.open(); this.guildPanel.update(this.sim.player); this.shell.setStatus('Guild open. Game paused.'); }, close: () => this.guildPanel.close() },
       }, {
         clearInput: preserveMovement => this.clearInput(preserveMovement), changed: phase => {
           if (phase !== this.audioPhase || phase === 'map') {
@@ -805,6 +854,9 @@ export class Game {
     if (action === 'stats' && GAME_FEATURES.stats && (this.panels.canOpen('stats') || this.phase === 'stats')) { if (!repeat) this.panels.toggle('stats'); return true; }
     if (action === 'reputation' && GAME_FEATURES.reputation && (this.panels.canOpen('reputation') || this.phase === 'reputation')) { if (!repeat) this.panels.toggle('reputation'); return true; }
     if (action === 'transmog' && GAME_FEATURES.transmog && (this.panels.canOpen('transmog') || this.phase === 'transmog')) { if (!repeat) this.panels.toggle('transmog'); return true; }
+    if (action === 'dungeonFinder' && GAME_FEATURES.dungeonFinder && (this.panels.canOpen('dungeonFinder') || this.phase === 'dungeonFinder')) { if (!repeat) this.panels.toggle('dungeonFinder'); return true; }
+    if (action === 'auctionHouse' && GAME_FEATURES.auctionHouse && (this.panels.canOpen('auctionHouse') || this.phase === 'auctionHouse')) { if (!repeat) this.panels.toggle('auctionHouse'); return true; }
+    if (action === 'guild' && GAME_FEATURES.guilds && (this.panels.canOpen('guild') || this.phase === 'guild')) { if (!repeat) this.panels.toggle('guild'); return true; }
     if (action === 'nameplates') { if (!repeat) this.notify(`Enemy nameplates: ${cycleNameplateMode()}`); return true; }
     if (action === 'editLayout') { if (!repeat) this.uiLayoutPanel.toggle(); return true; }
 
@@ -1976,6 +2028,10 @@ export class Game {
     this.spellbookPanel.update(this.sim.player);
     this.statsPanel.update(this.sim.player, this.sim.time);
     this.reputationPanel.update(this.sim.player);
+    this.buffFrame.render(this.sim.player);
+    this.dungeonFinderPanel.render();
+    this.auctionPanel.update(this.sim.player);
+    this.guildPanel.update(this.sim.player);
     this.professionPanel.update(this.sim.player);
     this.achievementPanel.update(this.sim.player);
     this.glyphPanel.update(this.sim.player);

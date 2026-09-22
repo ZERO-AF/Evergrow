@@ -6,6 +6,7 @@ import { hashService } from './npcs.ts';
 import { interruptTrial } from './poi-content.ts';
 import type { Simulation } from './simulation.ts';
 import type { Building } from './settlements.ts';
+import { guildHearthstoneChannelFactor } from './guild-state.ts';
 import { portalLanding } from './travel.ts';
 
 /** WoW hearthstone: a long interruptible cast that returns the player to their bound inn. */
@@ -83,21 +84,24 @@ export function hearthstoneProblem(player: Player, world: WorldQuery): string | 
 export class HearthstoneChannel {
   origin: { x: number; y: number } | null = null;
   elapsed = 0;
+  /** Cast length snapshotted at start (Hasty Hearth halves it). */
+  private duration: number = HEARTHSTONE_RULES.channel;
   get active() { return this.origin !== null; }
-  get ready() { return this.active && this.elapsed + 1e-9 >= HEARTHSTONE_RULES.channel; }
-  get progress() { return Math.min(1, this.elapsed / HEARTHSTONE_RULES.channel); }
+  get ready() { return this.active && this.elapsed + 1e-9 >= this.duration; }
+  get progress() { return Math.min(1, this.elapsed / this.duration); }
   start(player: Player, world: WorldQuery): string | null {
     if (this.active) { this.cancel(); return null; }
     const problem = hearthstoneProblem(player, world); if (problem) return problem;
+    this.duration = HEARTHSTONE_RULES.channel * guildHearthstoneChannelFactor(player);
     this.origin = { x: player.x, y: player.y }; this.elapsed = 0; return null;
   }
-  cancel() { this.origin = null; this.elapsed = 0; }
+  cancel() { this.origin = null; this.elapsed = 0; this.duration = HEARTHSTONE_RULES.channel; }
   advance(dt: number, player: Player, input: Input): void {
     if (!this.origin) return;
     if (player.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
       || player.attack || player.dash || player.castTime > 0 || player.dodgeTime > 0
       || Math.hypot(player.x - this.origin.x, player.y - this.origin.y) > .5) { this.cancel(); return; }
-    this.elapsed = Math.min(HEARTHSTONE_RULES.channel, this.elapsed + dt);
+    this.elapsed = Math.min(this.duration, this.elapsed + dt);
   }
 }
 

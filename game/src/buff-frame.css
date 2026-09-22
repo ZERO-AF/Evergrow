@@ -1,0 +1,41 @@
+/* WoW aura frame: buff row under the player unit frame, debuff row beneath it. */
+.buff-frame {
+  position: absolute; z-index: 12; left: 12px; top: calc(50px + var(--buff-frame-inset, 0px));
+  display: flex; flex-direction: column; gap: 14px; pointer-events: none;
+  max-width: min(460px, calc(100vw - 24px));
+}
+.buff-frame[hidden] { display: none; }
+.buff-frame-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.buff-frame-row[hidden] { display: none; }
+.buff-frame-row > button {
+  position: relative; width: 30px; height: 30px; padding: 1px; overflow: visible;
+  border: 1px solid #829da9; border-color: var(--buff-color); border-radius: 0;
+  color: var(--buff-color); background: #0d1821;
+  box-shadow: inset 0 0 8px #c7dce51a, 0 2px 6px #0008;
+  pointer-events: auto; cursor: help; font-family: var(--ui-font);
+}
+.buff-frame-row > button.cancelable { cursor: pointer; }
+.buff-frame svg { width: 100%; height: 100%; display: block; }
+/* WoW clock wipe: the drained share darkens from the top. */
+.buff-sweep {
+  position: absolute; inset: 0; pointer-events: none;
+  background: conic-gradient(#030910b8 var(--buff-spent), transparent 0);
+}
+/* Seconds label sits under the icon like the WoW aura countdown. */
+.buff-time {
+  position: absolute; top: calc(100% + 1px); left: 50%; transform: translateX(-50%);
+  min-width: 100%; color: #edf5f5; font-size: 11px; line-height: 12px; font-weight: 500;
+  text-align: center; text-shadow: 0 1px 2px #000; pointer-events: none;
+}
+.buff-time:empty { display: none; }
+/* Harmful effects: red border, no cancel affordance. */
+.buff-frame-debuffs > button { border-color: #c0392b; box-shadow: inset 0 0 8px #e05a4d26, 0 2px 6px #0008; }
+.buff-frame-debuffs > button .buff-time { color: #f2b8a8; }
+.buff-frame button:focus-visible { outline: 2px solid #edf5f5; outline-offset: 2px; }
+@media (pointer: coarse) { .buff-frame-row > button { width: 36px; height: 36px; } }
+@media (forced-colors: active) {
+  .buff-frame-row > button { border-color: ButtonText; background: Canvas; color: CanvasText; }
+  .buff-frame-debuffs > button { border-color: Mark; }
+  .buff-sweep { display: none; }
+  .buff-time { color: CanvasText; text-shadow: none; }
+}

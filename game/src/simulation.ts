@@ -105,6 +105,7 @@ import { DEMON_FAMILIES, PET_SKILLS, PET_RULES, adoptPet, adjustPetLoyalty, crea
   petFamilyForAlly, petStatsFor, stableActivePet, tameableFamily, type PetRecord, type PetSkill } from './pet-content.ts';
 import { worldEventOnKill } from './world-event-command.ts';
 import { GHOST_RULES, RESURRECTION_SICKNESS, type GhostState } from './death-content.ts';
+import { guildReviveFactor } from './guild-state.ts';
 import { asCombatant, releaseCombatant, isCombatant, type Combatant, type PvpTeam, type ActorControl } from './pvp-combatant.ts';
 import { decideCombatantInput } from './pvp-ai.ts';
 import { advanceCombatantStatuses, combatantControl, sanitizeCombatantInput } from './pvp-status.ts';
@@ -437,7 +438,7 @@ export class Simulation {
   /** Corpse resurrection: half life and mana, a short sickness, no extra wear. */
   resurrectAtCorpse(): boolean {
     if (this.ghostPrompt() !== 'corpse') return false;
-    this.finishResurrection(GHOST_RULES.corpseHealth, GHOST_RULES.corpseMana, RESURRECTION_SICKNESS.corpse);
+    this.finishResurrection(GHOST_RULES.corpseHealth * guildReviveFactor(this.player), GHOST_RULES.corpseMana * guildReviveFactor(this.player), RESURRECTION_SICKNESS.corpse);
     this.emit({ type: 'notice', x: this.player.x, y: this.player.y, message: 'You return to your body.' });
     return true;
   }
@@ -445,7 +446,7 @@ export class Simulation {
   /** Spirit healer resurrection: weaker return, the WoW durability tax and a long sickness. */
   resurrectAtHealer(): boolean {
     if (this.ghostPrompt() !== 'healer') return false;
-    this.finishResurrection(GHOST_RULES.healerHealth, GHOST_RULES.healerMana, RESURRECTION_SICKNESS.healer);
+    this.finishResurrection(GHOST_RULES.healerHealth * guildReviveFactor(this.player), GHOST_RULES.healerMana * guildReviveFactor(this.player), RESURRECTION_SICKNESS.healer);
     durabilityLoss(this.player, 'death', this.time);
     this.emit({ type: 'notice', x: this.player.x, y: this.player.y, message: 'The spirit healer restores you — at a price.' });
     return true;
@@ -1687,7 +1688,7 @@ export class Simulation {
         && this.lineOfSight(ally.x, ally.y, target.x, target.y)) {
         ally.attackCooldown = template.attackInterval;
         const allyDamage = 1 + (p.buffs ?? []).reduce((bonus, buff) => bonus + (buff.remaining > 0 ? buff.allyDamage ?? 0 : 0), 0);
-        this.damageEnemy(target, ally.damage * allyDamage, ally.angle, template.attackRange === 0, false, undefined, undefined, ALLY_OFFENSE);
+        this.damageEnemy(target, ally.damage * allyDamage, ally.angle, template.attackRange === 0, false, undefined, undefined, { ...ALLY_OFFENSE, allyId: ally.id });
         if (ally.kind === 'shadowfiend') p.mana = Math.min(p.maxMana, p.mana + p.maxMana * .01);
       }
     }
@@ -1726,7 +1727,7 @@ export class Simulation {
         const arc = effect.arc ?? 0;
         for (const enemy of this.enemies) {
           if (enemy.state !== 'dead' && (enemy === target || (arc > 0 && circleIntersectsSector(enemy.x, enemy.y, enemy.radius, ally.x, ally.y, ally.angle, ally.radius + 48, arc)))) {
-            this.damageEnemy(enemy, ally.damage * effect.damageMultiplier * allyDamage, Math.atan2(enemy.y - ally.y, enemy.x - ally.x), skill.range === 0, false, schoolProjectileStyle(effect.school), undefined, ALLY_OFFENSE);
+            this.damageEnemy(enemy, ally.damage * effect.damageMultiplier * allyDamage, Math.atan2(enemy.y - ally.y, enemy.x - ally.x), skill.range === 0, false, schoolProjectileStyle(effect.school), undefined, { ...ALLY_OFFENSE, allyId: ally.id });
             if (effect.stun) applyStun(enemy, effect.stun);
             if (effect.sunder) applySunderStatus(enemy, effect.sunder, 15);
             if (effect.slow) applySlow(enemy, effect.slow);
@@ -1734,7 +1735,7 @@ export class Simulation {
         }
         break;
       }
-      case 'dot': applyDotStatus(target, skill.id, effect.dot, ally.damage * allyDamage, 'ally'); break;
+      case 'dot': applyDotStatus(target, skill.id, effect.dot, ally.damage * allyDamage, 'ally', ally.id); break;
       case 'taunt':
         target.taunted = { remaining: effect.duration, allyId: ally.id };
         target.awareness = Math.max(target.awareness, 1);
@@ -1743,7 +1744,7 @@ export class Simulation {
       case 'projectile':
         this.projectile(ally.x, ally.y, Math.atan2(target.y - ally.y, target.x - ally.x),
           { owner: 'player', speed: 480, life: Math.max(.1, skill.range / 480), radius: 4, damage: ally.damage * effect.damageMultiplier * allyDamage },
-          undefined, { style: schoolProjectileStyle(effect.school) ?? 'arcane', offense: ALLY_OFFENSE });
+          undefined, { style: schoolProjectileStyle(effect.school) ?? 'arcane', offense: { ...ALLY_OFFENSE, allyId: ally.id } });
         break;
       case 'guard': ally.guard = { remaining: effect.duration, reduction: effect.reduction }; break;
       case 'stealth': ally.stealth = { remaining: effect.duration }; break;

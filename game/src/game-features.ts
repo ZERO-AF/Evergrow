@@ -65,4 +65,18 @@ export const GAME_FEATURES = {
   // Rare goblin variant that flees, sheds gold, fountains loot on death and
   // portals out if it survives the escape window.
   treasureGoblins: true,
+  // WoW threat meter: per-target threat readout under the enemy plate plus a
+  // side list for the engaged group. Presentation only.
+  threatMeter: true,
+  // WotLK Dungeon Finder (RDF): queue-for-dungeon panel + teleport entry.
+  dungeonFinder: true,
+  // Guilds (docs/wow-deepening.md, guild wave): levels 1-25, perks, shared vault.
+  guilds: true,
+  // WoW aura frame: buff/debuff icon rows under the player frame with
+  // tooltips and right-click cancel; off keeps the legacy canvas strip.
+  buffFrames: true,
+  // WotLK repeatable dailies: UTC-day reset, 'Daily' badge + countdown in the log.
+  dailyQuests: true,
+  // WotLK Auction House: local seeded market, escrow listings, 5% deposit/cut.
+  auctionHouse: true,
 };

@@ -56,6 +56,8 @@ export interface Input {
 }
 
 export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number; readonly ally?: boolean; readonly proc?: boolean;
+  /** Attacking ally's entity id (pet/summon); threat attribution only. */
+  readonly allyId?: number;
   /** Attack-table ratings snapshotted with the swing; absent on ally/proc echoes means 0. */
   readonly hitRating?: number; readonly expertise?: number };
 
@@ -367,6 +369,8 @@ export interface EnemyDot {
   readonly ramp?: number;
   readonly detonate?: number;
   readonly source: 'player' | 'ally';
+  /** Attacking ally's entity id when source is 'ally'; threat attribution only. */
+  allyId?: number;
 }
 
 /** Crowd-control instance on an enemy. */
@@ -564,10 +568,14 @@ export type CombatEvent = EventAppearance & (
   | { readonly type: 'skill-strike'; readonly skill: SkillId; readonly angle: number; readonly range: number; readonly arc: number; readonly rear: boolean }
   | { readonly type: 'swing'; readonly angle: number }
   | { readonly type: 'hit'; actualValue?: number; elementalValue?: number; melee?: boolean; periodic?: boolean; readonly angle: number; readonly value: number; readonly targetId: number;
+      /** Attacking ally's entity id; absent for player-sourced damage. */
+      readonly allyId?: number;
       readonly remainingHp: number; readonly enemyKind: EnemyKind; readonly enemyName?: string; readonly heavy: boolean; readonly glancing?: boolean }
   | { readonly type: 'avoid'; readonly outcome: 'miss' | 'dodge' | 'parry'; readonly angle: number;
       /** True when the player avoided an incoming hit; absent means the player's attack was avoided. */
-      readonly incoming?: boolean; readonly enemyKind?: EnemyKind; readonly enemyName?: string; readonly targetId?: number }
+      readonly incoming?: boolean; readonly enemyKind?: EnemyKind; readonly enemyName?: string; readonly targetId?: number;
+      /** Attacking ally's entity id when a pet's swing was avoided. */
+      readonly allyId?: number }
   | { readonly type: 'kill'; readonly angle: number; readonly facing: number; readonly targetId: number; readonly remainingHp: 0; readonly enemyKind: EnemyKind; readonly enemyName?: string }
   | { readonly type: 'cast'; readonly angle: number; readonly launch?: WeaponLaunch; readonly enemyKind?: EnemyKind }
   | { readonly type: 'hurt'; readonly actualValue?: number; readonly angle: number; readonly value: number; readonly remainingHp: number;
@@ -586,7 +594,11 @@ export type CombatEvent = EventAppearance & (
   | { readonly type: 'notice'; readonly message: string }
   | { readonly type: 'blast'; readonly groundKind?: GroundEffect['kind']; readonly radius: number; readonly duration?: number; readonly enemyKind?: EnemyKind }
   | { readonly type: 'chain'; readonly chainTargetId?: number; readonly travelDuration?: number; readonly toX: number; readonly toY: number; readonly duration?: number }
-  | { readonly type: 'block'; readonly angle: number; readonly value: number }
+  | { readonly type: 'block'; readonly angle: number; readonly value: number;
+      /** What stopped the damage: shield block, absorb ward, partial resist or full immunity. */
+      readonly blocked?: 'shield' | 'absorb' | 'resist' | 'immune';
+      /** True when the player-side defense triggered; absent for enemy-side immunity. */
+      readonly incoming?: boolean; readonly enemyKind?: EnemyKind; readonly enemyName?: string }
   | { readonly type: 'ground'; readonly radius: number; readonly duration: number; readonly style: ProjectileStyle; readonly skill: SkillId }
 );
 export type CombatEventType = CombatEvent['type'];

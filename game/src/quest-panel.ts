@@ -12,7 +12,7 @@ import {
   QUEST_BY_ID, turnInSpec, type QuestDef, type QuestId,
 } from './quest-content.ts';
 import {
-  objectiveText, questItemName, questLog, questState,
+  dailyResetLabel, objectiveText, questItemName, questLog, questState,
 } from './quest-state.ts';
 import { giverLabel, type QuestGreeting } from './quest-command.ts';
 import './quest-panel.css';
@@ -97,7 +97,9 @@ export class QuestPanel {
       if (html !== this.trackerSignature) { this.tracker.innerHTML = html; this.trackerSignature = html; }
     }
     if (this.element.hidden) return;
-    const signature = JSON.stringify([player.quests ?? {}, player.level, this.greeting?.label ?? '', this.selected]);
+    // Dailies show a reset countdown; re-render when the minute ticks over.
+    const signature = JSON.stringify([player.quests ?? {}, player.level, this.greeting?.label ?? '', this.selected,
+      GAME_FEATURES.dailyQuests ? Math.floor(Date.now() / 60000) : 0]);
     if (signature !== this.signature) { this.signature = signature; this.render(); }
   }
 
@@ -144,8 +146,10 @@ export class QuestPanel {
 
   private questRow(def: QuestDef, mark: string, extra = ''): string {
     const selected = this.selected === def.id;
+    const daily = def.daily && GAME_FEATURES.dailyQuests
+      ? `<span class="quest-daily">Daily · resets in ${e(dailyResetLabel(Date.now()))}</span>` : '';
     return `<button class="quest-list-row ${selected ? 'is-selected' : ''}" data-select="${e(def.id)}" aria-pressed="${selected}">
-      <span class="quest-list-mark">${mark}</span><span>${e(def.name)}</span>
+      <span class="quest-list-mark">${mark}</span><span>${e(def.name)}${daily}</span>
       <span class="quest-list-level">${def.level}${extra}</span></button>`;
   }
 
@@ -166,7 +170,7 @@ export class QuestPanel {
       : `${this.hooks.map ? '<button class="ui-button" data-map>Show on map</button>' : ''}
          ${state?.status === 'active' ? `<button class="ui-button" data-abandon="${e(def.id)}">Abandon</button>` : ''}`;
     return `<h3>${e(def.name)}</h3>
-      <div class="quest-meta"><span class="ui-badge">Level ${def.level}</span><span class="ui-badge">${TYPE_LABELS[def.type]}</span>${def.zone ? `<span>${e(def.zone)}</span>` : ''}</div>
+      <div class="quest-meta"><span class="ui-badge">Level ${def.level}</span><span class="ui-badge">${TYPE_LABELS[def.type]}</span>${def.daily && GAME_FEATURES.dailyQuests ? '<span class="ui-badge quest-daily-badge">Daily</span>' : ''}${def.zone ? `<span>${e(def.zone)}</span>` : ''}</div>
       <p class="quest-description">${e(def.description)}</p>
       ${objectives}${status}
       <div class="quest-rewards"><h4>Rewards</h4><p>${e(this.rewardLine(def))}</p></div>

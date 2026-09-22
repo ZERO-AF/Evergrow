@@ -21,13 +21,14 @@ import type { Simulation } from './simulation.ts';
 import type { DungeonThemeId } from './dungeon-content.ts';
 import type { QuestDef } from './quest-content.ts';
 import {
-  FACTION_BY_ID, isFactionId, type FactionDef, type FactionId, type FactionReward,
+  EXALTED_CAP, FACTION_BY_ID, isFactionId, type FactionDef, type FactionId, type FactionReward,
 } from './reputation-content.ts';
 import {
   applyKillReputation, applyReputation, factionForDungeon, factionForQuest,
   reputationEnabled, rewardProblem, stageClaim,
   type RepGain, type ReputationCarrier,
 } from './reputation-state.ts';
+import { guildReputationFactor } from './guild-state.ts';
 
 export type ReputationResult = ActionResult;
 export type ReputationPersist = (checkpoint: CharacterCheckpoint) => ActionResult | Promise<ActionResult>;
@@ -53,7 +54,7 @@ function reportGain(sim: Simulation, gain: RepGain): void {
 export function repOnKill(sim: Simulation, enemy: Pick<Enemy, 'kind' | 'biome' | 'rank'> & { dungeonTheme?: DungeonThemeId }): RepGain | undefined {
   if (!reputationEnabled()) return undefined;
   // `reputation` joins Player with the integrator's checkpoint field; widen here.
-  const gain = applyKillReputation(sim.player as Simulation['player'] & ReputationCarrier, enemy);
+  const gain = applyKillReputation(sim.player as Simulation['player'] & ReputationCarrier, enemy, guildReputationFactor(sim.player));
   if (gain) reportGain(sim, gain);
   return gain;
 }
@@ -64,7 +65,7 @@ export function repOnQuestTurnIn(sim: Simulation, def: QuestDef): RepGain | unde
   if (!reputationEnabled()) return undefined;
   const faction = factionForQuest(def);
   if (!faction) return undefined;
-  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, faction.questRep);
+  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, faction.questRep, EXALTED_CAP, guildReputationFactor(sim.player));
   reportGain(sim, gain);
   return gain;
 }
@@ -76,7 +77,7 @@ export function repOnDungeonClear(sim: Simulation, entrance: { id: string; theme
   if (!reputationEnabled()) return undefined;
   const faction = factionForDungeon(entrance);
   if (!faction) return undefined;
-  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, faction.clearRep);
+  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, faction.clearRep, EXALTED_CAP, guildReputationFactor(sim.player));
   reportGain(sim, gain);
   return gain;
 }

@@ -51,6 +51,10 @@
     "src/pvp-combatant.ts", "src/pvp-status.ts", "src/pvp-ai.ts", "src/pvp-chargen.ts", "src/pvp-setup.ts", "src/pvp-floor.ts", "src/pvp-instance.ts",
     "src/pvp-currency.ts", "src/pvp-vendor.ts", "src/pvp-rewards.ts",
     "src/arena-maps.ts", "src/pvp-match.ts", "src/pvp-scoreboard.ts",
-    "src/bg-maps.ts", "src/pvp-objectives.ts", "src/pvp-bg.ts", "src/pvp-directives.ts", "src/pvp-announce.ts"
+    "src/bg-maps.ts", "src/pvp-objectives.ts", "src/pvp-bg.ts", "src/pvp-directives.ts", "src/pvp-announce.ts",
+    "src/guild-content.ts", "src/guild-state.ts", "src/guild-command.ts",
+    "src/dungeon-finder-content.ts", "src/dungeon-finder-state.ts", "src/dungeon-finder-command.ts",
+    "src/auction-content.ts", "src/auction-state.ts", "src/auction-command.ts",
+    "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts"
   ]
 }

@@ -22,6 +22,7 @@ import { SkillEffects } from './skill-effects.ts';
 import { LOOT_BEAMS } from './loot-beam.ts';
 import { LOOT_RULES } from './combat-content.ts';
 import { TREASURE_FLIGHT_DURATION } from './treasure-flight.ts';
+import { combatTextForEvent, type CombatPopup } from './combat-text.ts';
 
 interface Spark {
   x: number; y: number; vx: number; vy: number;
@@ -30,7 +31,6 @@ interface Spark {
 }
 interface Flash { x: number; y: number; life: number; max: number; radius: number; color: string; ring: boolean; radiant?: boolean; }
 interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
-interface Popup { x: number; y: number; vx: number; vy: number; life: number; max: number; value: string; color: string; size: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
 const LOOT_MOMENT_TIERS: Partial<Record<ItemTier, true>> = { epic: true, legendary: true, unique: true };
@@ -45,7 +45,7 @@ export class CombatEffects {
   private sparks: Spark[] = [];
   private flashes: Flash[] = [];
   private impacts: Impact[] = [];
-  private popups: Popup[] = [];
+  private popups: CombatPopup[] = [];
   private manaWarningLife = 0;
   private emitterTime = 0;
   private sword = new SwordTrail();
@@ -164,41 +164,8 @@ export class CombatEffects {
           radius: seal ? 58 : event.type === 'kill' ? (GAME_FEATURES.combatJuice ? 96 : 62) : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
           radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' || (event.type === 'kill' && GAME_FEATURES.combatJuice) });
       }
-      if (event.type === 'hit' && event.value) {
-        // Juice crits: bigger, hotter, longer-lived numbers that always show,
-        // even where heavy-hit popups are otherwise suppressed for loot beams.
-        const crit = heavy && !event.reaction && GAME_FEATURES.combatJuice;
-        const reactionColor = event.reaction === 'melt' ? '#ffd177' : event.reaction === 'overload' ? '#ff77aa' : event.reaction === 'superconduct' ? '#a0d0ff' : event.reaction === 'singularity' ? '#c578ff' : event.reaction === 'combustion' ? '#ff4d79' : event.reaction === 'cascade' ? '#67e8f9' : (crit ? '#ffb347' : heavy ? '#ffd177' : '#fff0c8');
-        if (!(heavy && GAME_FEATURES.lootBeams) || crit) this.popups.push({ x: event.x + (Math.random() - .5) * 10,
-          y: event.y - (enemyKind === 'brute' ? 54 : 44), vx: (Math.random() - .5) * 22, vy: crit ? -58 : -47,
-          life: crit ? 1 : .85, max: crit ? 1 : .85, value: String(Math.round(event.value)), color: reactionColor, size: crit ? 3.4 : heavy ? 2.6 : 2 });
-        if (event.reaction) {
-          const tag = event.reaction.toUpperCase();
-          this.popups.push({ x: event.x, y: event.y - (enemyKind === 'brute' ? 78 : 68), vx: 0, vy: -47,
-            life: .75, max: .75, value: tag, color: reactionColor, size: 1.6 });
-        }
-        if (event.glancing) this.popups.push({ x: event.x, y: event.y - (enemyKind === 'brute' ? 78 : 68) - (event.reaction ? 14 : 0),
-          vx: 0, vy: -47, life: .75, max: .75, value: 'GLANCING', color: '#c9d4d0', size: 1.6 });
-      }
-      if (event.type === 'hurt' || event.type === 'heal') this.popups.push({ x: event.x, y: event.y - 61,
-        vx: Math.cos(eventAngle) * 14, vy: -55, life: .95, max: .95,
-        value: (event.type === 'hurt' ? '-' : '+') + Math.round(event.value),
-        color: event.type === 'hurt' ? '#ff9075' : '#83ffbb', size: event.type === 'hurt' ? 2.5 : 2 });
-      if (event.type === 'hurt' && event.glancing) this.popups.push({ x: event.x, y: event.y - 80,
-        vx: 0, vy: -47, life: .75, max: .75, value: 'GLANCING', color: '#c9d4d0', size: 1.6 });
-      if (event.type === 'potion') {
-        if (event.life > 0) this.popups.push({ x: event.x, y: event.y - 61, vx: -9, vy: -35,
-          life: .95, max: .95, value: `+${Math.round(event.life)}`, color: '#ffad9c', size: 1.8 });
-        if (event.mana > 0) this.popups.push({ x: event.x, y: event.y - (event.life > 0 ? 80 : 61), vx: 9, vy: -35,
-          life: .95, max: .95, value: `+${Math.round(event.mana)}`, color: '#91c8ff', size: 1.8 });
-      }
-      if (event.type === 'block') this.popups.push({ x: event.x, y: event.y - 58, vx: 0, vy: -25,
-        life: .65, max: .65, value: 'BLOCK', color: '#b4e4ee', size: 1.7 });
-      // Attack-table whiffs read as WoW floating text: MISS over the target,
-      // DODGE/PARRY over whoever avoided the blow.
-      if (event.type === 'avoid') this.popups.push({ x: event.x, y: event.y - (event.incoming ? 58 : enemyKind === 'brute' ? 54 : 44),
-        vx: 0, vy: -25, life: .65, max: .65, value: event.outcome.toUpperCase(),
-        color: event.outcome === 'miss' ? '#9fb4c8' : '#b4e4ee', size: 1.7 });
+      // WoW floating combat text: labels/colors/sizes live in combat-text.ts.
+      this.popups.push(...combatTextForEvent(event));
       // Large event batches must not allocate their entire particle history
       // before enforcing the cap. Keep the same newest effects after each event.
       this.trim();
@@ -378,9 +345,11 @@ export class CombatEffects {
       const size = popup.size * pop;
       const { x, y } = project(popup.x, popup.y);
       c.globalAlpha = Math.min(1, popup.life / .2);
-      text(c, popup.value, x - 1, y, size, '#04070b', 'center');
-      text(c, popup.value, x + 1, y + 1, size, '#04070b', 'center');
-      text(c, popup.value, x, y, size, popup.color, 'center');
+      // WoW crit flourish: the number pops with a trailing '!'.
+      const value = popup.crit ? `${popup.value}!` : popup.value;
+      text(c, value, x - 1, y, size, '#04070b', 'center');
+      text(c, value, x + 1, y + 1, size, '#04070b', 'center');
+      text(c, value, x, y, size, popup.color, 'center');
     }
     c.restore();
   }

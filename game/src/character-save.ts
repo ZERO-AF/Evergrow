@@ -38,7 +38,11 @@ import { ENEMY_DEFINITIONS, LOOT_RULES } from './combat-content.ts';
 import { validTransmogMap } from './transmog-state.ts';
 import { validSpecs } from './dual-spec-state.ts';
 import { freshWorldEvents, validWorldEvents, type WorldEventState } from './world-event-state.ts';
+import { validAuctionHouse } from './auction-state.ts';
 import { PET_FAMILIES, PET_RULES, petXpForLevel } from './pet-content.ts';
+import { GUILD_RULES, GUILD_VAULT_CAPACITY } from './guild-content.ts';
+import type { GuildMembership } from './guild-state.ts';
+import { validDungeonFinder } from './dungeon-finder-state.ts';
 
 export const CHARACTER_SLOT_COUNT = 8;
 export const CHARACTER_SAVE_VERSION = 7;
@@ -82,11 +86,18 @@ function inferWowClassId(character: ObjectValue): WowClassId {
   return 'warrior';
 }
 
+/** Guild membership + shared vault (guild-state.ts); the vault requires a guild. */
+function validGuild(v: unknown): v is GuildMembership {
+  return object(v) && text(v.name, GUILD_RULES.nameMax) && v.name.trim().length >= GUILD_RULES.nameMin
+    && integer(v.level, 1, GUILD_RULES.maxLevel) && integer(v.xp, 0, 1e9) && number(v.memberSince, 0, 1e12);
+}
 function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (object(v) && v.recentItems !== undefined && (!Array.isArray(v.recentItems)
     || v.recentItems.length > INVENTORY_CAPACITY + EQUIPMENT_SLOTS.length
     || !v.recentItems.every(id => text(id, 160)) || new Set(v.recentItems).size !== v.recentItems.length)) return false;
   if (object(v) && v.stash !== undefined && (!Array.isArray(v.stash) || v.stash.length < STASH_CAPACITY || v.stash.length > STASH_CAPACITY * MAX_STORAGE_TABS || v.stash.length % STASH_CAPACITY !== 0 || !v.stash.every(i=>i===null||validItem(i)))) return false;
+  if (object(v) && v.guild !== undefined && !validGuild(v.guild)) return false;
+  if (object(v) && v.guildVault !== undefined && (!object(v.guild) || !Array.isArray(v.guildVault) || v.guildVault.length !== GUILD_VAULT_CAPACITY || !v.guildVault.every(i => i === null || validItem(i)))) return false;
   if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
     || v.attributeResetUsed !== undefined && v.attributeResetUsed !== true
     || !integer(v.statPoints, 0, 5e6) || !integer(v.skillPoints, 0, MAX_CONTENT_LEVEL)
@@ -98,9 +109,11 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
     || !v.allocatedNodes.every(id => typeof id === 'string' && SKILL_NODES.has(id)) || new Set(v.allocatedNodes).size !== v.allocatedNodes.length) return false;
   if (v.transmog !== undefined && !validTransmogMap(v.transmog)) return false;
   if (v.pets !== undefined && !validPetStable(v.pets)) return false;
+  if (v.dungeonFinder !== undefined && !validDungeonFinder(v.dungeonFinder)) return false;
+  if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
   const sheet = v as unknown as CharacterSheet;
   if (sheet.treeVersion!==SKILL_TREE_VERSION || sheet.treeRefunded!==undefined&&sheet.treeRefunded!==true || sheet.allocatedNodes.some(id=>{const node=SKILL_NODES.get(id)!;return doctrineConflict(sheet.allocatedNodes,node)||node.classId!==undefined&&node.classId!==sheet.classId;}) || !validSkillProgression(sheet) || sheet.inventory.length > bagGridLayout(sheet).totalCells || !validPackLayout(sheet.inventory, sheet.inventoryLayout, bagGridLayout(sheet)) || !validSpecs(sheet.specs, sheet.activeSpec, sheet.classId, sheet.raceId, level)) return false;
-  const ids = [...(sheet.stash??[]), ...sheet.inventory, ...Object.values(sheet.equipped), ...(sheet.bags??[])].filter((i): i is Item => i !== null).map(i => i.id);
+  const ids = [...(sheet.stash??[]), ...(sheet.guildVault??[]), ...sheet.inventory, ...Object.values(sheet.equipped), ...(sheet.bags??[])].filter((i): i is Item => i !== null).map(i => i.id);
   if (new Set(ids).size !== ids.length || sheet.equipped.weapon?.weapon?.hands === 2 && sheet.equipped.offhand !== null) return false;
   const allocated = new Set(sheet.allocatedNodes), connected = new Set(['origin']), queue = ['origin'];
   for (let i = 0; i < queue.length; i++) for (const next of SKILL_NODES.get(queue[i])!.neighbors) {
@@ -188,7 +201,7 @@ function validWowState(p: ObjectValue): boolean {
   if (p.restedXp !== undefined && !number(p.restedXp, 0, 1e12)) return false;
   if (p.hearthstone !== undefined && p.hearthstone !== null && !(object(p.hearthstone) && number(p.hearthstone.x, -4e7, 4e7) && number(p.hearthstone.y, -4e7, 4e7) && text(p.hearthstone.zone, 120))) return false;
   if (p.professions !== undefined && !(object(p.professions) && Object.entries(p.professions).every(([id, pr]) => isProfessionId(id) && object(pr) && integer(pr.level, 1, 450) && number(pr.xp, 0, 1e9)))) return false;
-  if (p.quests !== undefined && !(object(p.quests) && Object.values(p.quests).every(q => object(q) && ['active', 'complete', 'turnedIn'].includes(q.status as string) && Array.isArray(q.progress) && q.progress.every((n: unknown) => integer(n, 0, 1e6))))) return false;
+  if (p.quests !== undefined && !(object(p.quests) && Object.values(p.quests).every(q => object(q) && ['active', 'complete', 'turnedIn'].includes(q.status as string) && Array.isArray(q.progress) && q.progress.every((n: unknown) => integer(n, 0, 1e6)) && (q.visited === undefined || Array.isArray(q.visited) && q.visited.length <= 64 && q.visited.every((v: unknown) => text(v, 80))) && (q.lastCompletedAt === undefined || number(q.lastCompletedAt, 0, 1e12))))) return false;
   if (p.achievements !== undefined && !(object(p.achievements) && Object.values(p.achievements).every(n => number(n, 0, 1e12)))) return false;
   if (p.glyphs !== undefined && !(object(p.glyphs) && Object.entries(p.glyphs).every(([slot, id]) => GLYPH_SLOTS.includes(slot as never) && isGlyphId(id)))) return false;
   if (p.fishing !== undefined && !(object(p.fishing) && integer(p.fishing.level, 1, 450) && number(p.fishing.xp, 0, 1e9))) return false;
@@ -207,7 +220,8 @@ function validActorWowExtras(actors: unknown): boolean {
         && number((d as ObjectValue).tick, 0, 1e6) && number((d as ObjectValue).interval, 0, 1e4)
         && ((d as ObjectValue).ramp === undefined || number((d as ObjectValue).ramp, 0, 100))
         && ((d as ObjectValue).detonate === undefined || number((d as ObjectValue).detonate, 0, 100))
-        && ['player', 'ally'].includes((d as ObjectValue).source as string)))
+        && ['player', 'ally'].includes((d as ObjectValue).source as string)
+        && ((d as ObjectValue).allyId === undefined || integer((d as ObjectValue).allyId, 1))))
       && (a.cc === undefined || Array.isArray(a.cc) && a.cc.length <= 8 && a.cc.every((c: unknown) => object(c)
         && typeof (c as ObjectValue).kind === 'string' && CC_KINDS.has((c as ObjectValue).kind as string)
         && number((c as ObjectValue).remaining, 0, 1e6) && typeof (c as ObjectValue).breakOnDamage === 'boolean'
@@ -262,7 +276,7 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
     if (expedition?.location && !expedition.runs.some(r=>r.entrance.id===expedition.location)) return null;
     const dungeonReturn=(p.travel as TravelState | undefined)?.returnTo?.dungeon;
     if(dungeonReturn && !expedition?.runs.some(r=>r.entrance.id===dungeonReturn))return null;
-    const items = [...storedItems,...(p.character.stash??[]),...p.character.inventory, ...Object.values(p.character.equipped), ...p.groundItems.map(i => i.item), ...p.character.commerce.buyback.map(i => i.item)].filter(Boolean) as Item[];
+    const items = [...storedItems,...(p.character.stash??[]),...(p.character.guildVault??[]),...p.character.inventory, ...Object.values(p.character.equipped), ...p.groundItems.map(i => i.item), ...p.character.commerce.buyback.map(i => i.item)].filter(Boolean) as Item[];
     if (new Set(items.map(i => i.id)).size !== items.length || new Set(p.groundItems.map(i => i.id)).size !== p.groundItems.length) return null;
     for (const item of items) {
       if (!item.id.startsWith('stock:')) continue;

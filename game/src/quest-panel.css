@@ -14,6 +14,8 @@
 .quest-mark { color: #f0c33c; font-weight: 700; text-align: center; }
 .quest-mark--pending, .quest-mark--locked { color: #9aa4a6; }
 .quest-mark--done { color: #8fbf6a; }
+.quest-daily { display: block; margin-top: 1px; font-size: 10px; color: #7fb0e8; }
+.quest-daily-badge { color: #7fb0e8; border-color: #3a5a8a; }
 .quest-empty { padding: 14px 10px; color: #97a08a; font-size: 12px; line-height: 1.5; }
 .quest-detail { overflow-y: auto; padding: 4px 10px 10px; }
 .quest-detail h3 { margin: 2px 0 6px; font-size: 15px; color: #ead7a1; }

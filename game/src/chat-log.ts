@@ -23,7 +23,9 @@ export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
       const skill = (event as { skill?: SkillId }).skill;
       const skillName = skill ? SKILL_DEFINITIONS[skill]?.name : undefined;
       const amount = Math.round(event.actualValue ?? event.value);
-      const text = event.periodic
+      const text = event.allyId !== undefined
+        ? `Your pet ${event.heavy ? 'crits' : 'hits'} ${enemyName(event.enemyKind, event.enemyName)} for ${amount}.`
+        : event.periodic
         ? `${skillName ? `Your ${skillName}` : 'Your effect'} ticks on ${enemyName(event.enemyKind, event.enemyName)} for ${amount}.`
         : `${skillName ? `Your ${skillName}` : 'You'} ${skillName ? (event.heavy ? 'crits' : 'hits') : (event.heavy ? 'crit' : 'hit')} ${enemyName(event.enemyKind, event.enemyName)} for ${amount}.`;
       return [{ kind: 'damage', text }];
@@ -36,7 +38,12 @@ export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
       return lines;
     }
     case 'block':
-      return [{ kind: 'damage', text: `You block ${Math.round(event.value)} damage.` }];
+      return [{ kind: 'damage', text: !event.incoming
+        ? `${enemyName(event.enemyKind, event.enemyName)} is immune.`
+        : event.blocked === 'absorb' ? `You absorb ${Math.round(event.value)} damage.`
+        : event.blocked === 'resist' ? `You resist ${Math.round(event.value)} damage.`
+        : event.blocked === 'immune' ? 'You are immune.'
+        : `You block ${Math.round(event.value)} damage.` }];
     case 'avoid':
       return [{ kind: 'damage', text: event.incoming
         ? `${enemyName(event.enemyKind, event.enemyName)} attacks. You ${event.outcome === 'miss' ? 'avoid it' : `${event.outcome} it`}.`

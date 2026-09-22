@@ -111,6 +111,8 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     description: 'The united front against the Scourge. Every revenant and grave-lord destroyed is a debt repaid.',
     enemyKinds: ['frostRevenant', 'graveMarshal'],
     dungeonThemes: ['ossuary'],
+    // WotLK Argent dailies (quest-content.ts Northrend dailies block).
+    quests: ['defending-wyrmrest-temple', 'troll-patrol', 'intelligence-gathering', 'threat-from-above', 'slaves-to-saronite'],
     clearRep: 300, questRep: 200,
     rewards: [
       gear('argent-commission', 'Argent Dawn Commission', 'honored', 'amulet', 'rare'),
@@ -162,6 +164,8 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     description: 'Frost giants of the storm peaks. Their favor is bought in blood and ice.',
     biomes: ['frostpine'],
     dungeonThemes: ['rime'],
+    // WotLK Sons of Hodir dailies at Dun Niffelem / Frosthold.
+    quests: ['pushed-too-far', 'hot-and-cold'],
     clearRep: 250, questRep: 150,
     rewards: [
       gear('giant-friend-kilt', 'Giant-Friend Kilt', 'honored', 'legs', 'rare'),

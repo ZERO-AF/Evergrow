@@ -107,11 +107,12 @@ export function allMaterials(carrier: ProfessionsCarrier): { def: MaterialDef; c
 
 // ── Skill progression ────────────────────────────────────────────────────────
 
-/** Award profession XP for one gather/craft. `roll` ∈ [0,1) gates the skill-up chance.
+/** Award profession XP for one gather/craft. `roll` ∈ [0,1) gates the skill-up chance;
+ * `chanceFactor` (Working Overtime guild perk) widens that chance.
  * Returns the gained levels (0 when gray, capped, or the roll fails). */
-export function awardSkill(progress: ProfessionProgress, difficulty: SkillDifficulty, roll: number): number {
+export function awardSkill(progress: ProfessionProgress, difficulty: SkillDifficulty, roll: number, chanceFactor = 1): number {
   if (progress.level >= PROFESSION_RULES.maxSkill || difficulty === 'gray') return 0;
-  if (roll >= PROFESSION_RULES.chanceByDifficulty[difficulty]) return 0;
+  if (roll >= Math.min(1, PROFESSION_RULES.chanceByDifficulty[difficulty] * chanceFactor)) return 0;
   progress.xp += PROFESSION_RULES.xpByDifficulty[difficulty];
   let levels = 0;
   while (progress.level < PROFESSION_RULES.maxSkill && progress.xp >= PROFESSION_RULES.xpForLevel(progress.level)) {

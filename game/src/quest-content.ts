@@ -63,6 +63,8 @@ export interface QuestDef {
   readonly giver: NPCRole | 'poi';
   readonly level: number;
   readonly type: QuestType;
+  /** WotLK repeatable: resets at the UTC day boundary (quest-state.ts `resetDailies`). */
+  readonly daily?: boolean;
   readonly objectives: readonly QuestObjective[];
   readonly rewards: QuestReward;
   /** Follow-up quest unlocked on turn-in. */
@@ -85,6 +87,9 @@ export interface QuestState {
   progress: number[];
   /** Explore dedupe: POI ids already counted, kept across save/load. */
   visited?: string[];
+  /** Daily quests only: epoch seconds of the last turn-in. A stamp on a prior
+   * UTC day makes the quest available again. */
+  lastCompletedAt?: number;
 }
 
 const obj = (kind: QuestType, target: string, count: number, label: string,
@@ -144,11 +149,14 @@ export const QUEST_ITEMS: Readonly<Record<string, string>> = Object.freeze({
   crusaderParachute: 'Crusader Parachute', ancientEctoplasm: 'Ancient Ectoplasm',
   ventureCoDeed: 'Venture Co. Deed', shardhornHorn: 'Shardhorn Horn',
   unstableCrystal: 'Unstable Crystal', frostwyrmIchor: 'Frostwyrm Ichor',
-  vrykulBanner: 'Vrykul Banner', crystallineResin: 'Crystalline Resin', whisperingHerb: 'Whispering Herb',
+  viciousTeromothSample: 'Vicious Teromoth Sample', draeneiTome: 'Draenei Tome',
+  // Northrend dailies
+  snowfallGladePup: 'Snowfall Glade Pup', kaskalaSupplies: 'Kaskala Supplies',
+  tastyReefFish: 'Tasty Reef Fish', drakkariOffering: 'Drakkari Offering',
+  essenceOfIce: 'Essence of Ice', saroniteSlave: 'Freed Saronite Slave',
   // Outland
   legionPlans: 'Burning Legion Plans', felOrcBooty: 'Fel Orc Booty',
   nagaClaws: 'Naga Claws', unidentifiedPlant: 'Unidentified Plant Parts',
-  viciousTeromothSample: 'Vicious Teromoth Sample', draeneiTome: 'Draenei Tome',
   pollutedEssence: 'Polluted Essence', thunderlordPelt: 'Thunderlord Pelt',
   vindicatorBrand: 'Vindicator\'s Brand', zaxxisInsignia: 'Zaxxis Insignia',
   etherealTech: 'Ethereal Technology', manaBombFragment: 'Mana Bomb Fragment',
@@ -2024,6 +2032,85 @@ export const QUESTS: readonly QuestDef[] = Object.freeze([
     objectives: [obj('kill', 'caster', 8, 'Dawnblade forces slain')],
     rewards: { xp: 4600, gold: toCopper(0, 24, 0) },
     description: 'The Shattered Sun Offensive posts a bounty at Sun\'s Reach: break the Dawnblade holding the isle.' }),
+  // ── Northrend dailies (WotLK repeatables; reset at the UTC day boundary) ──
+  q({ id: 'planning-for-the-future', name: 'Planning for the Future', zone: 'Borean Tundra', daily: true,
+    giver: 'enchanter', giverLabel: 'Trapjaw Rix', giverBiome: 'frostpine', giverTier: 'village',
+    level: 70, type: 'collect',
+    objectives: [obj('collect', 'snowfallGladePup', 12, 'Snowfall Glade pups rescued', { dropFrom: 'stalker', dropChance: .6 })],
+    rewards: { xp: 2400, gold: toCopper(0, 32, 0) },
+    description: 'The Kalu’ak of Kaskala need their pups carried to safety. Trapjaw Rix asks you to snatch them from the Snowfall Glade raiders — again today, and again tomorrow.' }),
+  q({ id: 'preparing-for-the-worst', name: 'Preparing for the Worst', zone: 'Borean Tundra', daily: true,
+    giver: 'enchanter', giverLabel: 'Utaik', giverBiome: 'frostpine',
+    level: 70, type: 'collect',
+    objectives: [obj('collect', 'kaskalaSupplies', 8, 'Kaskala supplies recovered', { dropFrom: 'stalker', dropChance: .55 })],
+    rewards: { xp: 2400, gold: toCopper(0, 32, 0) },
+    description: 'Utaik stockpiles supplies against the next raid. Recover the bundles the raiders scattered across the tundra.' }),
+  q({ id: 'the-way-to-his-heart', name: 'The Way to His Heart…', zone: 'Howling Fjord', daily: true,
+    giver: 'enchanter', giverLabel: 'Anuniaq', giverBiome: 'highlands',
+    level: 70, type: 'collect',
+    objectives: [obj('collect', 'tastyReefFish', 6, 'Tasty reef fish gathered', { dropFrom: 'mireSpitter', dropChance: .6 })],
+    rewards: { xp: 2400, gold: toCopper(0, 32, 0) },
+    description: 'Anuniaq’s courtship needs tasty reef fish. The murloc spitters of the fjord shallows carry the freshest catch.' }),
+  q({ id: 'break-the-blockade', name: 'Break the Blockade', zone: 'Howling Fjord', daily: true,
+    giver: 'jeweler', giverLabel: 'Lieutenant Maeve', giverBiome: 'highlands',
+    level: 70, type: 'kill',
+    objectives: [obj('kill', 'stalker', 10, 'Northsea pirates slain')],
+    rewards: { xp: 2400, gold: toCopper(0, 32, 0) },
+    description: 'Northsea pirates blockade the fjord approaches. Maeve wants their boarding parties broken — every day they regroup, every day you answer.' }),
+  q({ id: 'defending-wyrmrest-temple', name: 'Defending Wyrmrest Temple', zone: 'Dragonblight', daily: true,
+    giver: 'enchanter', giverLabel: 'Lord Devrestrasz', giverBiome: 'frostpine', giverTier: 'village',
+    level: 73, type: 'kill',
+    objectives: [obj('kill', 'frostRevenant', 8, 'Azure dragonspawn slain'), obj('kill', 'caster', 6, 'Azure magi slain')],
+    rewards: { xp: 2600, gold: toCopper(0, 34, 0) },
+    description: 'The blue dragonflight presses Wyrmrest daily. Devrestrasz needs the temple’s defenders reinforced — slay the azure assault.' }),
+  q({ id: 'keep-em-on-their-heels', name: 'Keep ’Em on Their Heels', zone: 'Grizzly Hills', daily: true,
+    giver: 'blacksmith', giverLabel: 'Lieutenant Stuart', giverBiome: 'verdant', giverTier: 'village',
+    level: 74, type: 'kill',
+    objectives: [obj('kill', 'stalker', 10, 'Horde scouts slain')],
+    rewards: { xp: 2600, gold: toCopper(0, 34, 0) },
+    description: 'Stuart’s rangers keep the Horde off balance in the hills. Hit their scouts before they dig in.' }),
+  q({ id: 'troll-patrol', name: 'Troll Patrol', zone: 'Zul\'Drak', daily: true,
+    giver: 'blacksmith', giverLabel: 'Commander Kunz', giverBiome: 'frostpine', giverTier: 'village',
+    level: 75, type: 'kill',
+    objectives: [obj('kill', 'stalker', 8, 'Drakkari patrols slain'), obj('kill', 'brute', 4, 'Drakkari enforcers slain')],
+    rewards: { xp: 2700, gold: toCopper(0, 35, 0) },
+    description: 'Kunz runs the Argent Stand’s daily patrol. Sweep the Drakkari patrols and their enforcers from the approaches.' }),
+  q({ id: 'intelligence-gathering', name: 'Intelligence Gathering', zone: 'Zul\'Drak', daily: true,
+    giver: 'enchanter', giverLabel: 'Stefan Vadu', giverBiome: 'frostpine',
+    level: 75, type: 'collect',
+    objectives: [obj('collect', 'drakkariOffering', 6, 'Drakkari offerings recovered', { dropFrom: 'caster', dropChance: .55 })],
+    rewards: { xp: 2700, gold: toCopper(0, 35, 0) },
+    description: 'Vadu reads the Drakkari’s plans in their ritual offerings. Take them from the cult’s casters.' }),
+  q({ id: 'a-cleansing-song', name: 'A Cleansing Song', zone: 'Sholazar Basin', daily: true,
+    giver: 'enchanter', giverLabel: 'Oracle Soo-nee', giverBiome: 'verdant',
+    level: 77, type: 'explore',
+    objectives: [obj('explore', 'corruptedGrove', 3, 'Tainted sites cleansed')],
+    rewards: { xp: 2800, gold: toCopper(0, 36, 0) },
+    description: 'Soo-nee’s song cleanses the basin’s tainted ground. Carry the horn to the corrupted groves and let it sing.' }),
+  q({ id: 'pushed-too-far', name: 'Pushed Too Far', zone: 'The Storm Peaks', daily: true,
+    giver: 'enchanter', giverLabel: 'Fjorlin Frostbrow', giverBiome: 'frostpine', giverTier: 'village',
+    level: 78, type: 'kill',
+    objectives: [obj('kill', 'stormSentinel', 8, 'Stormforged sentinels destroyed')],
+    rewards: { xp: 2900, gold: toCopper(0, 37, 0) },
+    description: 'The stormforged push Frosthold’s lines daily. Fjorlin wants their sentinels scrapped before the next assault.' }),
+  q({ id: 'hot-and-cold', name: 'Hot and Cold', zone: 'The Storm Peaks', daily: true,
+    giver: 'enchanter', giverLabel: 'Frostworg Denmother', giverBiome: 'frostpine',
+    level: 78, type: 'collect',
+    objectives: [obj('collect', 'essenceOfIce', 6, 'Essences of ice collected', { dropFrom: 'frostRevenant', dropChance: .55 })],
+    rewards: { xp: 2900, gold: toCopper(0, 37, 0) },
+    description: 'The Denmother’s whelps need essence of ice to grow strong. The revenants of the frozen fields carry it.' }),
+  q({ id: 'threat-from-above', name: 'Threat From Above', zone: 'Icecrown', daily: true,
+    giver: 'blacksmith', giverLabel: 'Marshal Ivalius', giverBiome: 'frostpine', giverTier: 'village',
+    level: 80, type: 'kill',
+    objectives: [obj('kill', 'frostRevenant', 10, 'Frostbrood whelps slain'), obj('kill', 'graveMarshal', 3, 'Chillmaw’s brood-lords slain')],
+    rewards: { xp: 3100, gold: toCopper(0, 40, 0) },
+    description: 'Chillmaw’s brood circles the tournament grounds daily. Ivalius posts a standing bounty on the whelps and their brood-lords.' }),
+  q({ id: 'slaves-to-saronite', name: 'Slaves to Saronite', zone: 'Icecrown', daily: true,
+    giver: 'enchanter', giverLabel: 'Baron Sliver', giverBiome: 'frostpine', giverTier: 'village',
+    level: 79, type: 'collect',
+    objectives: [obj('collect', 'saroniteSlave', 10, 'Saronite slaves freed', { dropFrom: 'stalker', dropChance: .6 })],
+    rewards: { xp: 3000, gold: toCopper(0, 38, 0) },
+    description: 'The Scourge works slaves to madness in the saronite pits. Sliver’s knights free them — break the overseers’ grip.' }),
 ]);
 
 export const QUEST_IDS: readonly QuestId[] = Object.freeze(QUESTS.map(def => def.id));

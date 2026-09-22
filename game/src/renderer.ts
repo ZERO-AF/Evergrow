@@ -103,6 +103,7 @@ import { resolveRangedAim, resolveDirectionalAim, PROJECTILE_HEIGHT, type Ranged
 import { deriveAttackStats } from './equipment.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { drawEnemyPlate, getEnemyPlateLayout } from './enemy-plate.ts';
+import { ThreatMeter, drawThreatRows, drawThreatList } from './threat-meter.ts';
 import { enemyRosterSkin } from './zone-roster.ts';
 import { bossFrameEligible, bossFrameTargets, drawBossFrame, getBossFrameLayout, BOSS_FRAME } from './boss-frame.ts';
 import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-art.ts';
@@ -248,6 +249,7 @@ export class Renderer {
   private get cachedProps() { return this.visibility.props; }
   groundLootLabels: GroundLootLabel[] = [];
   private enemyFocus = new EnemyFocus();
+  private threat = new ThreatMeter();
   private battleBarks = new BattleBarkScene();
   private focusedEnemy: Enemy | null = null;
   targetEffects: { id: number; buffs: ActiveBuff[]; x: number; y: number; opacity: number } | null = null;
@@ -355,7 +357,7 @@ export class Renderer {
     this.hurt = 0; this.hitStop = 0; this.cameraShake.reset();
     this.damageTrails.clear(); this.playerHealthTrail = 100; this.playerHealthHold = 0;
     this.rewards.reset(); this.experienceFeedback.reset(); this.experienceDisplay = undefined;
-    this.enemyFocus.reset(); this.focusedEnemy = this.plateEnemy = null; this.plateOpacity = 0;
+    this.enemyFocus.reset(); this.threat.reset(); this.focusedEnemy = this.plateEnemy = null; this.plateOpacity = 0;
     this.visibility.reset();
     this.vfx.reset(); this.bossWarnings.clear(); this.lootBeams = []; this.gatherNodes = []; this.focusedGatherNode = null;
   }
@@ -365,8 +367,9 @@ export class Renderer {
     this.effects.handleEvents(events);
     this.rewards.handleEvents(events, reducedMotion);
     this.experienceFeedback.handleEvents(events);
-    this.enemyFocus.noteHits(events);
+    if (GAME_FEATURES.threatMeter) this.threat.handleEvents(events);
     if (GAME_FEATURES.lootBeams) this.vfx.handleEvents(events);
+    this.enemyFocus.noteHits(events);
     if (GAME_FEATURES.bossWarnings) this.bossWarnings.handleEvents(events);
     this.battleBarks.noteEvents(events);
     for (const e of events) {
@@ -452,6 +455,7 @@ export class Renderer {
       this.cameraX += (target.x - this.cameraX) * follow;
       this.cameraY += (target.y - this.cameraY) * follow;
     }
+    if (GAME_FEATURES.threatMeter) this.threat.update(sim.enemies);
     this.effects.update(sim, feedbackStep);
     this.deaths.update(feedbackStep); this.materials.update(feedbackStep);
     for (const ghost of this.ghosts) ghost.life -= step;
@@ -803,6 +807,19 @@ export class Renderer {
         hitPulse: settings.reducedMotion ? 0 : Math.min(1, frameEnemy.hitFlash / COMBAT_TIMING.hitFlashDuration),
         comboPoints: framed ? p.comboPoints : undefined,
       });
+    }
+    // WoW threat meter: per-target holder rows under the plate/boss frame, plus
+    // a side list of the player's share on every engaged enemy.
+    let threatBottom = 0;
+    if (GAME_FEATURES.threatMeter && settings.phase === 'playing' && !p.dead && target) {
+      const anchor = targetFramed ? bossLayouts.find(frame => frame.enemy === target)!.layout : targetPlate;
+      threatBottom = anchor.y + anchor.height + drawThreatRows(c, this.threat, target, p, anchor,
+        targetFramed ? 1 : this.plateOpacity);
+    }
+    if (GAME_FEATURES.threatMeter && settings.phase === 'playing' && !p.dead) {
+      const map = getMinimapRect(plateWidth, plateHeight);
+      drawThreatList(c, this.threat, sim.enemies, p, plateWidth, plateHeight,
+        Math.max(map.y + map.height + 8, threatBottom + 6));
     }
     const primaryBoss = bossLayouts.find(frame => isBossKind(frame.enemy.kind));
     if (primaryBoss && this.focusedEnemy?.id === primaryBoss.enemy.id)

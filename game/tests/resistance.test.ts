@@ -42,7 +42,7 @@ test('resistance applies before block; caps and exactly-once immunity preserve d
   p.character.equipped.ring1.implicit={allResistance:999};p.character.equipped.ring1.affixes=[];refreshCharacter(p);
   p.guardTime=1;p.guardReduction=.8;const events:CombatEvent[]=[];
   const context={player:p,world,random:()=>1,emit:(e:CombatEvent)=>events.push(e)};
-  damageCombatant(100,0,1,'fire',context);assert.equal(p.hp,95);assert.equal(events.find(e=>e.type==='block')?.value,20);
+  damageCombatant(100,0,1,'fire',context);assert.equal(p.hp,95);assert.equal(events.filter(e=>e.type==='block').find(e=>e.blocked==='shield')?.value,20);
   damageCombatant(100,0,1,'fire',context);assert.equal(p.hp,95,'hurt immunity does not award a second hit');
   p.invulnerable=0;p.hp=1;damageCombatant(1,0,1,'fire',context);assert.equal(p.hp,0);assert.equal(p.dead,true);
 });
