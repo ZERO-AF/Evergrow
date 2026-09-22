@@ -116,6 +116,10 @@ import { advanceWorldEvents, freshWorldEvents, recordWorldEventKill, worldEventT
 import { DEMON_FAMILIES, PET_SKILLS, PET_RULES, adoptPet, adjustPetLoyalty, createPetRecord, demonFamilyForAlly, freshPetStable,
   petFamilyForAlly, petStatsFor, stableActivePet, tameableFamily, type PetRecord, type PetSkill } from './pet-content.ts';
 import { worldEventOnKill } from './world-event-command.ts';
+import { updateWorldBosses, updateWorldBoss, isWorldBossActor, worldBossOnKill } from './world-boss.ts';
+import { freshWorldBossLedger, type WorldBossLedger } from './world-boss-state.ts';
+import type { AchievementDef } from './achievement-content.ts';
+import { freshHoliday, type HolidayState } from './holiday-state.ts';
 import { GHOST_RULES, RESURRECTION_SICKNESS, type GhostState } from './death-content.ts';
 import { guildReviveFactor } from './guild-state.ts';
 import { asCombatant, releaseCombatant, isCombatant, type Combatant, type PvpTeam, type ActorControl } from './pvp-combatant.ts';
@@ -134,6 +138,8 @@ type WowCheckpoint = CharacterCheckpoint & {
   soulShards?: number; stealthed?: boolean; autoAttack?: boolean;
   actors?: Array<StoredActor & { dots?: EnemyDot[]; cc?: EnemyCc[]; sundered?: Enemy['sundered']; taunted?: Enemy['taunted'] }>;
   worldEvents?: WorldEventState;
+  worldBosses?: WorldBossLedger;
+  holiday?: HolidayState;
   mounted?: Player['mounted']; restedXp?: number; hearthstone?: Player['hearthstone'];
   professions?: Player['professions']; quests?: Player['quests']; achievements?: Player['achievements'];
   glyphs?: Player['glyphs']; fishing?: Player['fishing']; durability?: Player['durability']; combatLog?: Player['combatLog'];
@@ -237,6 +243,10 @@ export class Simulation {
   expeditions: Expeditions = freshExpeditions();
   dungeonFloor: DungeonFloor | null = null;
   worldEvents: WorldEventState = freshWorldEvents();
+  worldBosses: WorldBossLedger = freshWorldBossLedger();
+  holiday: HolidayState = freshHoliday();
+  /** Achievement defs unlocked inside the sim (world bosses); game.ts drains to toasts. */
+  pendingAchievements: AchievementDef[] = [];
   private options: SimulationOptions;
   private randomState = 1;
   private accumulator = 0;
@@ -283,6 +293,9 @@ export class Simulation {
   }
 
   reset(): void {
+    this.worldEvents = freshWorldEvents();
+    this.worldBosses = freshWorldBossLedger();
+    this.holiday = freshHoliday();
     this.playerMovement.clear();
     this.brokenContainers.clear(); this.world.setBrokenContainers?.(this.brokenContainers);
     this.journeys = freshJourneys();
@@ -330,7 +343,7 @@ export class Simulation {
       flasks: p.flasks, healCooldown: p.healCooldown, dodgeCharges: p.dodgeCharges, dodgeRecharge: p.dodgeRecharge,
       skillCooldowns: p.skillCooldowns, time: this.time, kills: this.kills,
       mounted: p.mounted, restedXp: p.restedXp, hearthstone: p.hearthstone, professions: p.professions,
-      worldEvents: this.worldEvents,
+      worldEvents: this.worldEvents, worldBosses: this.worldBosses, holiday: this.holiday,
       quests: p.quests, achievements: p.achievements, glyphs: p.glyphs, fishing: p.fishing,
       reputation: p.reputation,
       randomState: this.randomState, spawnOrdinal: this.spawnOrdinal, killRecharge: this.killRecharge,
@@ -348,11 +361,13 @@ export class Simulation {
     this.reset();
     const saved = cloneData(checkpoint) as WowCheckpoint;
     for (const id of saved.brokenContainers ?? []) this.brokenContainers.add(id);
+    this.worldEvents = saved.worldEvents ?? freshWorldEvents();
+    this.worldBosses = saved.worldBosses ?? freshWorldBossLedger();
+    this.holiday = saved.holiday ?? freshHoliday();
     this.expeditions = saved.expeditions ?? freshExpeditions(); this.dungeonFloor = dungeonFromState(this);
     this.journeys = saved.journeys ?? freshJourneys();
     this.player.chronicle = saved.chronicle ?? freshChronicle();
     syncRiftChronicle(this.player.chronicle,this.expeditions.rifts);
-    this.worldEvents = saved.worldEvents ?? freshWorldEvents();
     this.eventState = saved.events ?? freshEvents();
     this.travel = saved.travel ?? freshTravel();
     if (saved.dead) this.travel.returnTo = null;
@@ -399,6 +414,7 @@ export class Simulation {
         if(actor.dots?.length)enemy.dots=actor.dots;if(actor.cc?.length)enemy.cc=actor.cc;if(actor.sundered)enemy.sundered=actor.sundered;if(actor.taunted)enemy.taunted=actor.taunted;
         applySpawnTraits(enemy);}
     }
+
     // Restored enemies hold fresh ids; a taunt aimed at a despawned ally reverts to the player.
     const liveAllyIds = new Set((p.allies ?? []).map(ally => ally.id));
     for (const enemy of this.enemies) if (enemy.taunted?.allyId !== undefined && !liveAllyIds.has(enemy.taunted.allyId)) delete enemy.taunted.allyId;
@@ -1143,6 +1159,10 @@ export class Simulation {
       playerLevel: this.player.level,
       spawn: (kind, x, y, rank, source) => this.spawnEnemy(kind, x, y, rank, source),
       emit: event => this.emit(event) });
+    if (GAME_FEATURES.worldBosses && !this.dungeonFloor && !this.ghost) updateWorldBosses({ state: this.worldBosses, player: this.player, enemies: this.enemies,
+      world: this.world, view: this.spawnExclusion, time: this.time, worldSeed: this.options.seed!,
+      spawn: (kind, x, y, rank, source) => this.spawnEnemy(kind, x, y, rank, source),
+      emit: event => this.emit(event) });
     if (!this.ghost) {
       this.portal.advance(dt, this.player, input);
       this.hearthstone.advance(dt, this.player, input);
@@ -1518,7 +1538,6 @@ export class Simulation {
       player: attacker, enemies: this.hostileTargets(attacker), random: () => this.random(),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by), emit: event => this.emit(event),
       projectile: (x, y, shotAngle, definition, effects) => this.projectile(x, y, shotAngle, definition, undefined, effects),
-      addBuff: (name, color, spec, id) => this.addBuffTo(attacker, name, color, spec, id),
       proc: (player, enemy, context) => tryProc(player, enemy, context),
       killed: actor => {
         riftKill(this,actor);
@@ -1533,6 +1552,7 @@ export class Simulation {
         questOnKill(this, actor.kind, () => this.random());
         repOnKill(this, { kind: actor.kind, biome: actor.biome, rank: actor.rank, dungeonTheme: this.dungeonFloor?.theme });
         worldEventOnKill(this, actor);
+        this.pendingAchievements.push(...worldBossOnKill(actor, { ledger: this.worldBosses, player: this.player, enemies: this.enemies, world: this.world, time: this.time, now: Date.now(), groundItems: this.groundItems, groundGold: this.groundGold, nextId: () => this.nextId++, emit: e => this.emit(e) }));
         const emblems = awardHeroicBossEmblems(this.expeditions, actor, this.player.character);
         if (emblems) this.emit({ type: 'notice', x: actor.x, y: actor.y, message: `+${emblems} Emblem${emblems > 1 ? 's' : ''} of Heroism` });
         if (actor.campMemberId === 'warden' && this.expeditions.location)
@@ -1635,7 +1655,7 @@ export class Simulation {
       enemy.rallyTime=Math.max(0,(enemy.rallyTime??0)-dt);
       if (!advanceEnemyStatuses(enemy, dt,
         (actor, amount, school) => this.damageEnemy(actor, amount, 0, false, true, schoolProjectileStyle(school ?? 'fire')))) continue;
-      if(isRaid7Boss(enemy)) updateRaid7Boss(enemy,dt,context); else if(isRaid8Boss(enemy)) updateRaid8Boss(enemy,dt,context); else if(isRaid9Boss(enemy)) updateRaid9Boss(enemy,dt,context); else if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
+      if(isWorldBossActor(enemy)) updateWorldBoss(enemy,dt,context); else if(isRaid7Boss(enemy)) updateRaid7Boss(enemy,dt,context); else if(isRaid8Boss(enemy)) updateRaid8Boss(enemy,dt,context); else if(isRaid9Boss(enemy)) updateRaid9Boss(enemy,dt,context); else if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
       this.enemyNeighbors.update(enemy);
       if (p.dead) break;
     }

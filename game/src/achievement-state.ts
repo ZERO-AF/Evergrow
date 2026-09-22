@@ -33,6 +33,8 @@ export type AchievementEvent = CombatEvent
   | { readonly type: 'mount'; readonly mount: MountId }
   | { readonly type: 'dungeon'; readonly id: string; readonly theme?: string }
   | { readonly type: 'raid'; readonly id: string }
+  /** Outdoor world boss defeated (world-boss.ts); `id` is a WorldBossId. */
+  | { readonly type: 'worldBoss'; readonly id: string }
   /** PvP match settled (pvp-rewards.ts): win/loss, honorable kills, post-match
    * rating, the map/bracket id, the player's flag captures and whether their
    * team ever held every node. */
@@ -84,6 +86,8 @@ export function achievementProgress(a: AchievementDef, player: Player): { value:
     case 'mounts': return { value: markerCount(record, 'seen:mount:'), target: a.count };
     case 'distinctDungeons': return { value: markerCount(record, 'seen:dungeon:'), target: a.count };
     case 'pvpMaps': return { value: markerCount(record, `seen:pvpmap:${c.prefix ?? ''}`), target: a.count };
+    case 'worldBoss': return c.id ? { value: Math.min(record?.[a.id] ?? 0, a.count), target: a.count }
+      : { value: markerCount(record, 'seen:worldboss:'), target: a.count };
     case 'distinctRares': return { value: markerCount(record, 'seen:rare:'), target: a.count };
     case 'pvpStreak': return { value: Math.min(record?.['pvp:streak'] ?? 0, a.count), target: a.count };
     case 'meta': return { value: achievementEarnedCount(record), target: a.count };
@@ -164,6 +168,15 @@ export function achievementTrack(player: Player, event: AchievementEvent, enemie
         if (c.kind === 'raid' && (!c.id || c.id === event.id)) bump(a);
       }
       break;
+    case 'worldBoss': {
+      mark(`seen:worldboss:${event.id}`);
+      for (const a of ACHIEVEMENTS) {
+        const c = a.criterion;
+        // Meta defs (no id) count distinct markers in the completion pass.
+        if (c.kind === 'worldBoss' && c.id === event.id) bump(a);
+      }
+      break;
+    }
     case 'pvp-match': {
       if (event.won && event.map) mark(`seen:pvpmap:${event.map}`);
       // The win streak is a live counter: losses reset it, wins grow it.

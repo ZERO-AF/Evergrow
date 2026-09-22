@@ -15,6 +15,7 @@
     "src/skill-tree-shapes.ts", "src/skill-tree-v2.ts", "src/skill-tree-balance.ts", "src/skill-tree-labels.ts", "src/skill-tree-view.ts", "src/player-skill-effects.ts", "src/skill-tree-content.ts", "src/skill-tree-upgrade.ts", "src/skill-tree-previous.ts", "src/item-roll-content.ts", "src/attribute-content.ts", "src/mana-content.ts", "src/enemy-threat.ts", "src/boss-pressure.ts", "src/expedition-modifiers.ts", "src/dungeon-collision.ts",
     "src/drop-item-command.ts", "src/charm-content.ts", "src/resistance-content.ts", "src/encounter-scaling.ts", "src/ground-loot.ts", "src/ground-item-pickup.ts", "src/activity-level.ts", "src/activity-status.ts", "src/journey-director.ts",
     "src/wilderness-boss-content.ts", "src/wilderness-boss.ts", "src/wilderness-boss-rewards.ts",
+    "src/world-boss-content.ts", "src/world-boss-state.ts", "src/world-boss.ts",
     "src/chronicle.ts", "src/chronicle-content.ts", "src/chronicle-tracking.ts",
     "src/jewelry-content.ts", "src/item-materials.ts", "src/gear-material-content.ts", "src/game-features.ts", "src/affix-combat.ts", "src/equipment-affix-content.ts",
     "src/battle-bark-content.ts", "src/battle-barks.ts", "src/battle-bark-layout.ts", "src/enemy-engagement.ts",
@@ -57,8 +58,10 @@
     "src/dungeon-finder-content.ts", "src/dungeon-finder-state.ts", "src/dungeon-finder-command.ts",
     "src/party-content.ts", "src/party-state.ts", "src/party-ai.ts",
     "src/auction-content.ts", "src/auction-state.ts", "src/auction-command.ts",
+    "src/mail-content.ts", "src/mail-state.ts", "src/mail-command.ts",
     "src/heroic-content.ts", "src/emblem-state.ts", "src/emblem-content.ts", "src/badge-vendor.ts",
     "src/enemy-buffs.ts", "src/raid-lockout.ts", "src/raid-loot-content.ts",
-    "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts"
+    "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts",
+    "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts"
   ]
 }

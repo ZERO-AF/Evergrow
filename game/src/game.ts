@@ -178,6 +178,14 @@ import { addGroundItem } from './ground-loot.ts';
 import { treasureLanding } from './treasure-flight.ts';
 import { drawSpiritWorld } from './spirit-world-art.ts';
 import { presentationProfile, presentationViewport, type PresentationProfile } from './presentation-viewport.ts';
+import { MailPanel } from './mail-panel.ts';
+import { mailRecipients, sendMail, collectMail, readMail, deleteMail, tickMail, type MailRepository } from './mail-command.ts';
+import { focusedMailbox, mailboxesNear } from './mail-content.ts';
+import { mailOf } from './mail-state.ts';
+import { HolidayPanel } from './holiday-panel.ts';
+import { playActivity, buyPrize } from './holiday-command.ts';
+import { faireActive, faireBooths, faireSite, faireVendor, type FaireBooth, type FaireNPC, type FaireSite } from './holiday-content.ts';
+import { focusedFaireVendor } from './holiday-state.ts';
 
 /** Coordinates browser lifecycle, simulation and presentation; system rules live in their owners. */
 export class Game {
@@ -273,6 +281,13 @@ export class Game {
   private set hallBusy(value: boolean) { this._hallBusy=value; this.titleScreen?.setBusy(value); }
   private savingAction = false;
   private nextAuctionTick = 0;
+  private nextMailTick = 0;
+  /** MailRepository adapter over the save hub: slot reads, CAS writes, roster list. */
+  private readonly mailRepository: MailRepository = {
+    read: index => this.saveClient.read(index),
+    write: (index, record, expected) => this.saveClient.write(index, record, expected),
+    list: () => this.saveClient.list(),
+  };
   private nextEventClaim = 0;
   private actionPending: Promise<unknown> = Promise.resolve();
   private autosave: Promise<boolean> | null = null;
@@ -281,6 +296,11 @@ export class Game {
   private actionBarPanel!: ActionBarPanel;
   private dungeonFinderPanel!: DungeonFinderPanel;
   private auctionPanel!: AuctionHousePanel;
+  private mailPanel!: MailPanel;
+  private holidayPanel!: HolidayPanel;
+  private activeFaireVendor: FaireNPC | null = null;
+  private activeFaireSite: FaireSite | null = null;
+  private activeFaireBooths: readonly FaireBooth[] = [];
   private guildPanel!: GuildPanel;
   private buffFrame!: BuffFrame;
   private partyFrame!: PartyFrame;
@@ -565,6 +585,28 @@ export class Game {
         deposit: i => { void this.durable(async () => { const r = await guildVaultDeposit(this.sim.player, i, this.persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
         withdraw: i => { void this.durable(async () => { const r = await guildVaultWithdraw(this.sim.player, i, this.persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
       }));
+      // Wave-3 WoW panels: Mailbox (cross-slot letters) and the Darkmoon Faire.
+      // Mail rides persistSheet like the auction house; the faire stages a full
+      // checkpoint (tickets + holiday ledger) through persistTravel.
+      this.mailPanel = this.lifetime.own(new MailPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        recipients: () => mailRecipients(this.mailRepository, this.session.active?.index ?? -1),
+        send: draft => this.durable(() => sendMail(this.sim.player, draft,
+          { slot: this.session.active?.index ?? -1, name: this.session.active?.record.name ?? this.sim.player.name ?? '' },
+          this.mailRepository, this.persistSheet), { ok: false, message: 'Saving…' }),
+        collect: id => this.durable(() => collectMail(this.sim.player, id, this.persistSheet), { ok: false, message: 'Saving…' }),
+        read: id => this.durable(() => readMail(this.sim.player, id, this.persistSheet), { ok: false, message: 'Saving…' }),
+        remove: id => this.durable(() => deleteMail(this.sim.player, id, this.persistSheet), { ok: false, message: 'Saving…' }),
+      }));
+      this.holidayPanel = this.lifetime.own(new HolidayPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        play: booth => this.durable(() => playActivity(this.sim, booth, c => this.persistTravel(c)), { ok: false, message: 'Saving…' }),
+        buy: stockId => this.durable(async () => {
+          const vendor = this.activeFaireVendor;
+          if (!vendor) return { ok: false, message: 'The prize vendor is no longer here.' };
+          return buyPrize(this.sim, vendor, stockId, c => this.persistTravel(c));
+        }, { ok: false, message: 'Saving…' }),
+      }));
       this.buffFrame = this.lifetime.own(new BuffFrame());
       this.buffFrame.mount(this.canvas.parentElement!);
       this.buffFrame.onCancel = key => { const r = cancelBuff(this.sim.player, key); if (!r.ok) this.notify(r.message ?? ''); };
@@ -610,6 +652,8 @@ export class Game {
         dungeonFinder: { open: () => { this.dungeonFinderPanel.open(this.sim.player); this.shell.setStatus('Dungeon Finder open. Game paused.'); }, close: () => this.dungeonFinderPanel.close() },
         auctionHouse: { open: () => { this.auctionPanel.open(this.sim.player); this.shell.setStatus('Auction House open. Game paused.'); }, close: () => this.auctionPanel.close() },
         guild: { open: () => { this.guildPanel.open(); this.guildPanel.update(this.sim.player); this.shell.setStatus('Guild open. Game paused.'); }, close: () => this.guildPanel.close() },
+        mailbox: { open: () => { this.mailPanel.open(this.sim.player); this.shell.setStatus('Mailbox open. Game paused.'); }, close: () => this.mailPanel.close() },
+        holiday: { open: () => { if (this.activeFaireSite) this.holidayPanel.open(this.sim, this.activeFaireSite, this.activeFaireBooths); this.shell.setStatus('Darkmoon Faire open. Game paused.'); }, close: () => { this.holidayPanel.close(); this.activeFaireVendor = null; } },
       }, {
         clearInput: preserveMovement => this.clearInput(preserveMovement), changed: phase => {
           if (phase !== this.audioPhase || phase === 'map') {
@@ -1418,6 +1462,22 @@ export class Game {
               this.panels.open('badgeVendor');
               return true;
           }
+          const mailbox = GAME_FEATURES.mail ? focusedMailbox(mailboxesNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer) : null;
+          if (mailbox) {
+              this.panels.open('mailbox');
+              return true;
+          }
+          if (GAME_FEATURES.holidays && faireActive(Date.now())) {
+              const site = faireSite(this.world);
+              const vendor = focusedFaireVendor(faireVendor(site), p, this.world, pointer);
+              if (vendor) {
+                  this.activeFaireVendor = vendor;
+                  this.activeFaireSite = site;
+                  this.activeFaireBooths = faireBooths(site);
+                  this.panels.open('holiday');
+                  return true;
+              }
+          }
       }
       const npcs = this.world.getBuildings(p.x - 220, p.y - 220, 440, 440).map(buildingNPC).filter((npc): npc is TownNPC => npc !== null).map(npc => this.liveNPC(npc));
       const npc = focusNPC(npcs, p, this.world, pointer);
@@ -2038,6 +2098,17 @@ export class Game {
         this.nextAuctionTick = now + 1000;
         this.savingAction = true;
         void tickAuctions(this.sim.player, this.persistSheet)
+          .then(result => { if (result.ok && result.message) this.notify(result.message); })
+          .finally(() => { this.savingAction = false; });
+      }
+      // Mail tick: sweep expired letters once a second while playing; letters
+      // still holding attachments bounce back to the sender's slot. Same
+      // savingAction window as the market tick.
+      if (GAME_FEATURES.mail && !this.savingAction && !this.sim.player.dead && now >= this.nextMailTick
+        && (mailOf(this.sim.player.character)?.messages.length ?? 0) > 0) {
+        this.nextMailTick = now + 1000;
+        this.savingAction = true;
+        void tickMail(this.sim.player, this.mailRepository, this.persistSheet)
           .then(result => { if (result.ok && result.message) this.notify(result.message); })
           .finally(() => { this.savingAction = false; });
       }

@@ -49,6 +49,8 @@ export type AchievementCriterion =
   | { readonly kind: 'rifts' }
   /** Raid boss defeated; matches event id. */
   | { readonly kind: 'raid'; readonly id?: string }
+  /** Outdoor world boss defeated; `id` narrows to one boss, absent counts any. */
+  | { readonly kind: 'worldBoss'; readonly id?: string }
   /** Gold balance reached (computed from event balance). */
   | { readonly kind: 'gold' }
   /** PvP matches won (arena + battleground). */
@@ -131,6 +133,12 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('northrend-dungeonmaster', 'Northrend Dungeonmaster', 'Dungeons', 'Defeat 10 dungeon bosses.', 'skull', { kind: 'dungeons' }, 10),
   def('blackrock-depths', 'Blackrock Depths', 'Dungeons', 'Clear Blackrock Depths.', 'lantern', { kind: 'dungeonId', id: 'blackrock' }, 1),
   def('tripping-the-rifts', 'Tripping the Rifts', 'Dungeons', 'Defeat a rift guardian before the timer expires.', 'portal', { kind: 'rifts' }, 1),
+  // ── World bosses ──
+  def('lord-kazzak', 'Lord Kazzak', 'Combat', 'Defeat Lord Kazzak in the Blasted Lands.', 'skull', { kind: 'worldBoss', id: 'kazzak' }, 1),
+  def('azuregos', 'Azuregos', 'Combat', 'Defeat Azuregos in Azshara.', 'skull', { kind: 'worldBoss', id: 'azuregos' }, 1),
+  def('emeriss', 'Emeriss', 'Combat', 'Defeat Emeriss in Duskwood.', 'leaf', { kind: 'worldBoss', id: 'emeriss' }, 1),
+  def('ysondre', 'Ysondre', 'Combat', 'Defeat Ysondre in the Hinterlands.', 'leaf', { kind: 'worldBoss', id: 'ysondre' }, 1),
+  def('outdoor-raider', 'Outdoor Raider', 'Combat', 'Defeat all four outdoor world bosses.', 'diamond', { kind: 'worldBoss' }, 4),
   def('molten-core', 'Molten Core', 'Dungeons', 'Defeat the raid boss.', 'skull', { kind: 'raid' }, 1),
   // ── PvP ──
   def('first-blood-arena', 'First Blood', 'PvP', 'Win your first arena or battleground match.', 'sword', { kind: 'pvpWins' }, 1),

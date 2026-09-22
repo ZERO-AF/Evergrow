@@ -55,6 +55,9 @@ import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } 
 import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, positionedNPC, NPC_NAMES, NPC_COLORS, type TownNPC } from './npcs.ts';
 import { pvpVendorFor, pvpVendorsNear, focusedPvpVendor } from './pvp-vendor.ts';
 import { badgeVendorFor, badgeVendorsNear, focusedBadgeVendor } from './badge-vendor.ts';
+import { mailboxFor, focusedMailbox, mailboxesNear, type Mailbox } from './mail-content.ts';
+import { faireActive, faireSite, faireVendor, type FaireSite } from './holiday-content.ts';
+import { focusedFaireVendor } from './holiday-state.ts';
 import type { Settlement } from './settlements.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
@@ -71,7 +74,7 @@ import type { CharacterPose } from './art.ts';
 import { World } from './world.ts';
 import { GroundLayer } from './ground-layer.ts';
 import type { Simulation } from './simulation.ts';
-import type { CombatEvent, Enemy, Player } from './model.ts';
+import type { CombatEvent, Enemy, Player, WorldQuery } from './model.ts';
 import { text, textWidth } from './font.ts';
 import { drawFloatingHUD } from './hud.ts';
 import { phoneLandscapeLayout, type TouchViewport } from './touch-layout.ts';
@@ -167,6 +170,18 @@ export interface RenderSettings {
 }
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const TAU = Math.PI * 2;
+/** Settlement mailbox prop: a small post-mounted box beside the stash door. */
+function drawMailbox(c: CanvasRenderingContext2D, box: Mailbox) {
+  c.save(); c.translate(box.x, box.y);
+  c.fillStyle = '#07141c30'; c.beginPath(); c.ellipse(1, 2, 9, 3.5, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#4a3a28'; c.fillRect(-1.5, -12, 3, 12);
+  c.fillStyle = '#6b4f33'; c.beginPath(); c.roundRect(-9, -24, 18, 12, 3); c.fill();
+  c.fillStyle = '#7d5f3e'; c.beginPath(); c.roundRect(-9, -24, 18, 5, 3); c.fill();
+  c.fillStyle = '#3a2c1c'; c.fillRect(7, -31, 1.5, 7);
+  c.fillStyle = '#c94f3d'; c.fillRect(8.5, -31, 5, 4);
+  c.restore();
+}
+
 
 export class Renderer {
   performanceUIBounds: UIRect | null = null;
@@ -248,6 +263,13 @@ export class Renderer {
   /** TownNPC moved to its daily-routine spot for this frame (world-t10). */
   private positioned<T extends TownNPC>(npc: T | null): T | null {
     return npc ? positionedNPC(npc, this.npcTowns.get(npc.buildingId), this.npcTime) : npc;
+  }
+  /** The faire clearing is deterministic per world; probing it is not cheap. */
+  private faireSites = new WeakMap<WorldQuery, FaireSite>();
+  private faireSiteFor(world: WorldQuery): FaireSite {
+    let site = this.faireSites.get(world);
+    if (!site) { site = faireSite(world); this.faireSites.set(world, site); }
+    return site;
   }
   private indoorBlend = 0;
   private lighting = new Lighting();
@@ -643,6 +665,10 @@ export class Renderer {
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) this.drawNPCShadow(badgeVendor.x, badgeVendor.y, npcArtScale(badgeVendor));
     }
+    if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
+      const vendor = faireVendor(this.faireSiteFor(world));
+      this.drawNPCShadow(vendor.x, vendor.y, npcArtScale(vendor));
+    }
     this.enemyFocusMark(alpha);
     drawResourcePickups(c, sim.pickups, this.visualTime, settings.reducedMotion);
     for (const node of this.gatherNodes) drawGatherNode(c, node, this.visualTime, node === this.focusedGatherNode);
@@ -871,6 +897,17 @@ export class Renderer {
         const point = worldToScreen(view, badgeVendor.x, badgeVendor.y - 78);
         text(c, `${badgeVendor.name} - Badge Vendor  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
+      const mailbox = GAME_FEATURES.mail ? focusedMailbox(mailboxesNear(world, p.x - 100, p.y - 100, 200, 200), p, world) : null;
+      if (mailbox) {
+        const point = worldToScreen(view, mailbox.x, mailbox.y - 34);
+        text(c, `Mailbox  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      const faireVendorNPC = GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())
+        ? focusedFaireVendor(faireVendor(this.faireSiteFor(world)), p, world) : null;
+      if (faireVendorNPC) {
+        const point = worldToScreen(view, faireVendorNPC.x, faireVendorNPC.y - 78);
+        text(c, `${faireVendorNPC.name} - Darkmoon Faire  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
       if (this.focusedGatherNode) {
         const point = worldToScreen(view, this.focusedGatherNode.x, this.focusedGatherNode.y - 46);
         text(c, gatherNodeLabel(p, this.focusedGatherNode, gatherChannelOf(sim) !== null), point.x, point.y, 1, '#d6d7b3', 'center');
@@ -1066,9 +1103,15 @@ export class Renderer {
       if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) entries.push({ y: badgeVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(badgeVendor.x,badgeVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, badgeVendor, this.visualTime, settings.reducedMotion)) });
+      const mailbox = GAME_FEATURES.mail ? mailboxFor(building) : null;
+      if (mailbox) entries.push({ y: mailbox.y, stage: 'props', draw: () => drawMailbox(c, mailbox) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
         entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
       }
+    }
+    if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
+      const vendor = faireVendor(this.faireSiteFor(world));
+      entries.push({ y: vendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(vendor.x,vendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, vendor, this.visualTime, settings.reducedMotion)) });
     }
     for (const remains of this.materials.bursts)
       entries.push({ y: remains.y, draw: () => drawMaterialBurst(c, remains, settings.reducedMotion) });
@@ -1221,6 +1264,10 @@ export class Renderer {
       if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) environmentLights.push({ x: badgeVendor.x, y: badgeVendor.y - 20, radius: 60, color: NPC_COLORS.badgeVendor, power: .3 });
+    }
+    if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
+      const vendor = faireVendor(this.faireSiteFor(sim.world));
+      environmentLights.push({ x: vendor.x, y: vendor.y - 20, radius: 60, color: NPC_COLORS.darkmoonVendor, power: .3 });
     }
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));

@@ -81,4 +81,10 @@ export const GAME_FEATURES = {
   auctionHouse: true,
   // WotLK Heroic dungeon mode: RDF heroic toggle, Emblems of Heroism, badge vendor.
   heroicDungeons: true,
+  // WotLK world bosses: Kazzak + the four Nightmare dragons at authored lairs.
+  worldBosses: true,
+  // WotLK mailbox: cross-slot letters with item/gold attachments at the stash.
+  mail: true,
+  // Darkmoon Faire: scheduled carnival site, activity booths, ticket prizes.
+  holidays: true,
 };

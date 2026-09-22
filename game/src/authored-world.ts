@@ -30,6 +30,9 @@ import { isWorldCoordinate, validWorldRectangle, WORLD_QUERY_LIMITS } from './wo
 import { townPortalAnchor, type PortalAnchor } from './travel.ts';
 import type { Place } from './world-geography.ts';
 import { GAME_FEATURES } from './game-features.ts';
+import { WORLD_BOSSES, WORLD_BOSS_IDS } from './world-boss-content.ts';
+import { worldBossPOI } from './world-boss.ts';
+import { faireMapMarker, faireSite } from './holiday-content.ts';
 import type { MaterialId } from './material-content.ts';
 import type { PlayerFaction } from './wow-types.ts';
 import './zone-content-kalimdor.ts';
@@ -318,10 +321,11 @@ export class AuthoredWorld extends World {
   override getPOIs(x: number, y: number, width: number, height: number): POI[] {
     if (!validWorldRectangle(x, y, width, height)) return [];
     const result: POI[] = [
-      ...this.getDungeonEntrances(x, y, width, height).map(e => ({ ...e, kind: 'dungeon' as const, description: `Level ${e.level} · ${e.name}` })),
+      ...this.getEventSites(x, y, width, height).filter(s => s.kind === 'reliquary').map(s => ({ ...s, kind: 'reliquary' as const, description: 'Open the roadside cache.' })),
+      ...(GAME_FEATURES.worldBosses ? WORLD_BOSS_IDS.map(id => worldBossPOI(WORLD_BOSSES[id], this, this.seed)).filter((p): p is POI => p !== null) : []),
+      ...(GAME_FEATURES.holidays ? [faireMapMarker(faireSite(this), Date.now())] : []),
       ...this.getSettlements(x, y, width, height).flatMap(settlementPOIs),
       ...this.getWildernessSites(x, y, width, height).map(wildernessPOI),
-      ...this.getEventSites(x, y, width, height).filter(s => s.kind === 'reliquary').map(s => ({ ...s, kind: 'reliquary' as const, description: 'Open the roadside cache.' })),
     ];
     for (const zone of zonesIn(x, y, width, height)) {
       const rect = zoneWorldRect(zone.id)!;

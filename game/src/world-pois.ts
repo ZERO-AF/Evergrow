@@ -23,6 +23,8 @@ export const POI_DEFINITIONS = {
   standingStones: { label: 'Standing stones', color: '#8ddbd0' },
   caravan: { label: 'Abandoned caravan', color: '#d1ae77' },
   necropolis: { label: 'Necropolis', color: '#8fd6a0' },
+  mailbox: { label: 'Mailbox', color: '#c9b98a' },
+  faire: { label: 'Darkmoon Faire', color: '#d6a8e0' },
 } as const;
 
 export type POIKind = keyof typeof POI_DEFINITIONS;

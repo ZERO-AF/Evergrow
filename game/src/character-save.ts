@@ -38,6 +38,9 @@ import { ENEMY_DEFINITIONS, LOOT_RULES } from './combat-content.ts';
 import { validTransmogMap } from './transmog-state.ts';
 import { validSpecs } from './dual-spec-state.ts';
 import { freshWorldEvents, validWorldEvents, type WorldEventState } from './world-event-state.ts';
+import { freshWorldBossLedger, validWorldBossLedger } from './world-boss-state.ts';
+import { freshHoliday, validHoliday, validDarkmoonTickets } from './holiday-state.ts';
+import { validMailState } from './mail-state.ts';
 import { validAuctionHouse } from './auction-state.ts';
 import { PET_FAMILIES, PET_RULES, petXpForLevel } from './pet-content.ts';
 import { GUILD_RULES, GUILD_VAULT_CAPACITY } from './guild-content.ts';
@@ -66,6 +69,8 @@ export interface CharacterCheckpoint {
   clearedCamps: string[]; defeatedCampMembers: Record<string, string[]>; groundItems: GroundItem[]; groundGold?: GroundGold[];
   /** Scourge Invasion schedule + war-chest ledger (world-event-state.ts). */
   worldEvents?: WorldEventState;
+  worldBosses?: import('./world-boss-state.ts').WorldBossLedger;
+  holiday?: import('./holiday-state.ts').HolidayState;
 }
 export interface CharacterSave {
   version: typeof CHARACTER_SAVE_VERSION; id: string; name: string;
@@ -99,7 +104,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (object(v) && v.stash !== undefined && (!Array.isArray(v.stash) || v.stash.length < STASH_CAPACITY || v.stash.length > STASH_CAPACITY * MAX_STORAGE_TABS || v.stash.length % STASH_CAPACITY !== 0 || !v.stash.every(i=>i===null||validItem(i)))) return false;
   if (object(v) && v.guild !== undefined && !validGuild(v.guild)) return false;
   if (object(v) && v.guildVault !== undefined && (!object(v.guild) || !Array.isArray(v.guildVault) || v.guildVault.length !== GUILD_VAULT_CAPACITY || !v.guildVault.every(i => i === null || validItem(i)))) return false;
-  if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || (v.emblems !== undefined && !validEmblems(v.emblems)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
+  if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || (v.emblems !== undefined && !validEmblems(v.emblems)) || (v.darkmoonTickets !== undefined && !validDarkmoonTickets(v.darkmoonTickets)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
     || v.attributeResetUsed !== undefined && v.attributeResetUsed !== true
     || !integer(v.statPoints, 0, 5e6) || !integer(v.skillPoints, 0, MAX_CONTENT_LEVEL)
     || !Array.isArray(v.inventory) || !(v.inventory.length === 64 || v.inventory.length === 72 || v.inventory.length === bagGridLayout(v as unknown as { bags?: Array<Item | null> }).totalCells) || !v.inventory.every(i => i === null || validItem(i))
@@ -110,7 +115,8 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
     || !v.allocatedNodes.every(id => typeof id === 'string' && SKILL_NODES.has(id)) || new Set(v.allocatedNodes).size !== v.allocatedNodes.length) return false;
   if (v.transmog !== undefined && !validTransmogMap(v.transmog)) return false;
   if (v.pets !== undefined && !validPetStable(v.pets)) return false;
-  if (v.mount !== undefined && !isMountId(v.mount)) return false;
+  if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
+  if (v.mail !== undefined && !validMailState(v.mail)) return false;
   if (v.dungeonFinder !== undefined && !validDungeonFinder(v.dungeonFinder)) return false;
   if (v.raidLockouts !== undefined && !validRaidLockouts(v.raidLockouts)) return false;
   if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
@@ -291,6 +297,8 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
     }
     // Scourge Invasion state is self-healing: malformed or absent data restarts the schedule.
     p.worldEvents = validWorldEvents(p.worldEvents) ? p.worldEvents : freshWorldEvents();
+    p.worldBosses = validWorldBossLedger(p.worldBosses) ? p.worldBosses : freshWorldBossLedger();
+    p.holiday = validHoliday(p.holiday) ? p.holiday : freshHoliday();
     // Retire suppression and opt-out settings; the HUD now follows accepted work.
     if (object(p.journeys)) { delete p.journeys.dismissed; delete p.journeys.suggestions; }
     // Normalize the validated parsed copy, including stored dungeon loot and buyback.

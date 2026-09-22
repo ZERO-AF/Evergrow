@@ -1,0 +1,13 @@
+/* Darkmoon Faire window — booth list above the shared pvp-vendor stock rows. */
+.holiday-panel { width: min(600px, 92vw); }
+.holiday-emblem { color: #c9a44a; }
+.holiday-emblem svg { width: 18px; height: 18px; }
+.holiday-status { margin-left: auto; font-size: 12px; color: var(--ui-text-dim, #9fb3bd); }
+.holiday-section { margin: 0; padding: 10px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-text-dim, #9fb3bd); }
+.holiday-activities { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 8px; }
+.holiday-activity { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid #738b9226; background: #07131c66; }
+.holiday-activity.is-blocked { opacity: .62; }
+.holiday-booth-icon { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #738b9230; background: #040d16; color: #c9a44a; }
+.holiday-booth-icon svg { width: 18px; height: 18px; }
+.holiday-prize-icon { display: grid; place-items: center; color: #c9a44a; }
+.holiday-prize-icon svg { width: 22px; height: 22px; }
