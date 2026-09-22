@@ -122,7 +122,7 @@ import type { AchievementDef } from './achievement-content.ts';
 import { freshHoliday, type HolidayState } from './holiday-state.ts';
 import { GHOST_RULES, RESURRECTION_SICKNESS, type GhostState } from './death-content.ts';
 import { guildReviveFactor } from './guild-state.ts';
-import { asCombatant, releaseCombatant, isCombatant, type Combatant, type PvpTeam, type ActorControl } from './pvp-combatant.ts';
+import { asCombatant, releaseCombatant, isCombatant, freshActorControl, type Combatant, type PvpTeam, type ActorControl } from './pvp-combatant.ts';
 import { decideCombatantInput } from './pvp-ai.ts';
 import { advanceCombatantStatuses, combatantControl, sanitizeCombatantInput } from './pvp-status.ts';
 import { projectileDamageType } from './resistance-content.ts';
@@ -187,8 +187,24 @@ export function initialPlayer(x: number, y: number): Player {
   };
 }
 
+/** A neutral input frame for a co-op partner with no connected device. */
+function emptyInput(): Input {
+  return { moveX: 0, moveY: 0, aimX: 0, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null, targetId: null };
+}
+
 export class Simulation {
   player: Player;
+  /** Every controlled player in the shared world: [P1] solo, [P1, P2] in co-op.
+   * Canonical objects — never the rebound `this.player` alias mid-turn. */
+  get players(): readonly Player[] {
+    return this.coopPlayers;
+  }
+  /** True while a second local player shares the world. */
+  get coop(): boolean { return this.coopRoster !== null && this.coopRoster.length > 1; }
+  /** Canonical roster backing `players`: [P1] solo, [P1, P2] in co-op. Rebuilt
+   * wherever the primary player object is canonically assigned — never by the
+   * withActor alias swap. */
+  private coopPlayers: Player[] = [];
   journeys = freshJourneys();
   eventState = freshEvents();
   readonly eventChannel = new EventChannel();
@@ -270,6 +286,11 @@ export class Simulation {
   pvpCombatants: Combatant[] | null = null;
   /** The real player object while a PvP match runs (=== pvpCombatants[0]). */
   private pvpPlayer: Combatant | null = null;
+  /** Couch co-op roster: canonical player objects plus each actor's control bag
+   * and ground-pickup channel. Null in single-player; [P1, P2] while co-op runs.
+   * `this.player` stays the mutable 'current actor' alias — it is rebound to the
+   * actor whose turn is running, so it must never seed this roster. */
+  private coopRoster: { player: Player; control: ActorControl; pickup: GroundItemPickup }[] | null = null;
   /** Hostile list for the combatant whose turn is currently running. */
   private turnHostiles: Enemy[] | null = null;
   /** Owning combatant per chain flight (ChainFlight has no source field). */
@@ -281,8 +302,14 @@ export class Simulation {
   private combatUntil = 0;
   private resourceInitialized = false;
   private allySkillCooldowns = new Map<number, Map<string, number>>();
-  /** Spirit-release state (WoW corpse run); the player stays alive-but-ghosted while set. */
-  ghost: GhostState | null = null;
+  /** Spirit-release state (WoW corpse run); the player stays alive-but-ghosted while set.
+   * Stored per player so co-op ghosts are independent; `this.ghost` resolves the
+   * current actor's (`this.player`) ghost — the primary's outside actor turns. */
+  private ghosts = new Map<Player, GhostState>();
+  get ghost(): GhostState | null { return this.ghosts.get(this.player) ?? null; }
+  set ghost(value: GhostState | null) {
+    if (value === null) this.ghosts.delete(this.player); else this.ghosts.set(this.player, value);
+  }
   private playerMovement = new PlayerMovement();
 
   constructor(world: WorldQuery, options: SimulationOptions = {}) {
@@ -306,6 +333,7 @@ export class Simulation {
     this.travel = freshTravel(); this.portal.cancel(); this.hearthstone.cancel(); this.arrivalProtection = 0;
     this.transportRide = null; this.transportArrival = null;
     this.player = initialPlayer(this.options.startX!, this.options.startY!);
+    this.coopRoster = null; this.coopPlayers = [this.player];
     this.enemies = [];
     this.projectiles = [];
     this.groundEffects = []; this.chains = [];
@@ -324,7 +352,7 @@ export class Simulation {
     this.allySkillCooldowns.clear();
     this.pvpCombatants = null; this.pvpPlayer = null; this.turnHostiles = null;
     this.chainSources.clear();
-    this.ghost = null;
+    this.ghosts.clear();
     this.spawnExclusion = null; this.combatViewport = null;
     this.roaming.reset(this.player.x, this.player.y);
   }
@@ -550,18 +578,19 @@ export class Simulation {
     const foes = this.pvpCombatants.filter(other => other.team !== actor.team);
     return this.enemies.length ? [...foes, ...this.enemies] : foes;
   }
-
   /** The target list the current actor's combat code reads. */
   private activeTargets(): Enemy[] {
     return this.turnHostiles ?? (this.pvpPlayer ? this.hostileTargets(this.pvpPlayer) : this.enemies);
   }
 
+
   /** Runs fn with the sim's per-actor state swapped to `actor`: player, turn
    * hostiles, input buffers, movement steering and ally cooldowns. `this.enemies`
    * always denotes the real world list — combatant targeting reads the
    * turnHostiles/activeTargets() projection so spawns and splices inside fn()
-   * land on the live list. */
-  private withActor<T>(actor: Combatant, fn: () => T): T {
+   * land on the live list. `control` is the actor's own ActorControl bag (a
+   * combatant's `ai.control`, or a co-op player's roster bag). */
+  private withActor<T>(actor: Player, control: ActorControl, fn: () => T): T {
     const savedPlayer = this.player;
     const savedSkillBuffer = this.skillBuffer, savedBlockedDraw = this.blockedDrawSlot;
     const savedAttack = this.attackBuffer, savedDodge = this.dodgeBuffer, savedHeal = this.healBuffer;
@@ -569,7 +598,6 @@ export class Simulation {
     const savedResourceInit = this.resourceInitialized;
     const savedMovement = this.playerMovement, savedAllyCooldowns = this.allySkillCooldowns;
     const savedTurnHostiles = this.turnHostiles;
-    const control = actor.ai.control;
     this.player = actor;
     this.turnHostiles = this.hostileTargets(actor);
     this.skillBuffer = control.skillBuffer; this.blockedDrawSlot = control.blockedDrawSlot;
@@ -592,6 +620,58 @@ export class Simulation {
       this.playerMovement = savedMovement; this.allySkillCooldowns = savedAllyCooldowns;
       this.turnHostiles = savedTurnHostiles;
     }
+  }
+
+  /** Runs fn with the sim's actor state bound to `player`. Co-op roster members
+   * go through withActor so this.player/this.ghost/buffers resolve to them; a
+   * non-roster player (solo P1, PvP combatant) runs directly. */
+  private forPlayer<T>(player: Player, fn: () => T): T {
+    const actor = this.coopRoster?.find(a => a.player === player);
+    return actor ? this.withActor(actor.player, actor.control, fn) : fn();
+  }
+
+  /** The ground-pickup channel for a player: per-actor in co-op, the shared
+   * field otherwise. */
+  private pickupFor(player: Player): GroundItemPickup {
+    return this.coopRoster?.find(a => a.player === player)?.pickup ?? this.groundPickup;
+  }
+
+  /** Enter couch co-op: `partner` joins the shared world beside the primary
+   * player. Snapshots the primary's live control state into a roster bag so both
+   * players run through the same withActor pipeline. Returns false if a second
+   * player is already present or a PvP match is live. */
+  enterCoop(partner: Player): boolean {
+    if (this.coopRoster || this.pvpCombatants) return false;
+    const primary = this.player;
+    const primaryControl: ActorControl = {
+      skillBuffer: this.skillBuffer, blockedDrawSlot: this.blockedDrawSlot,
+      attackBuffer: this.attackBuffer, dodgeBuffer: this.dodgeBuffer, healBuffer: this.healBuffer,
+      hurtGuard: this.hurtGuard, combatUntil: this.combatUntil,
+      resourceInitialized: this.resourceInitialized,
+      movement: this.playerMovement, allySkillCooldowns: this.allySkillCooldowns,
+    };
+    this.coopRoster = [
+      { player: primary, control: primaryControl, pickup: this.groundPickup },
+      { player: partner, control: freshActorControl(), pickup: new GroundItemPickup() },
+    ];
+    this.coopPlayers = [primary, partner];
+    return true;
+  }
+
+  /** Leave couch co-op: drops the partner and restores the primary's control
+   * state onto the sim fields so single-player continues seamlessly. */
+  exitCoop(): Player | null {
+    const roster = this.coopRoster;
+    if (!roster) return null;
+    const primary = roster[0];
+    this.skillBuffer = primary.control.skillBuffer; this.blockedDrawSlot = primary.control.blockedDrawSlot;
+    this.attackBuffer = primary.control.attackBuffer; this.dodgeBuffer = primary.control.dodgeBuffer;
+    this.healBuffer = primary.control.healBuffer; this.hurtGuard = primary.control.hurtGuard;
+    this.combatUntil = primary.control.combatUntil; this.resourceInitialized = primary.control.resourceInitialized;
+    this.playerMovement = primary.control.movement; this.allySkillCooldowns = primary.control.allySkillCooldowns;
+    this.player = primary.player;
+    this.coopRoster = null; this.coopPlayers = [primary.player];
+    return roster[1]?.player ?? null;
   }
 
   /** Combat-clock bump for rage/runic decay, written to the actor's own bag. */
@@ -1035,21 +1115,36 @@ export class Simulation {
     return true;
   }
 
-  update(dt: number, input: Input): void {
-    if (!Number.isFinite(dt) || dt <= 0 || (this.player.dead && !this.pvpCombatants)) return;
+  /** True when no controlled player can act: all dead or released as ghosts. */
+  private allPlayersDown(): boolean {
+    return this.players.every(p => p.dead || this.ghosts.has(p));
+  }
+
+  update(dt: number, input: Input, partnerInput?: Input): void {
+    const coop = this.coopRoster;
+    if (!Number.isFinite(dt) || dt <= 0) return;
+    if (!coop && this.player.dead && !this.pvpCombatants) return;
+    if (coop && this.allPlayersDown()) return;
     // A released spirit moves only: no combat, targeting, potions or channels.
-    if (this.ghost) input = { moveX: input.moveX, moveY: input.moveY, aimX: input.aimX, aimY: input.aimY,
-      attack: false, dodge: false, heal: false, skillSlot: null, targetId: null };
+    const stripGhost = (player: Player, raw: Input): Input =>
+      this.ghosts.has(player) ? { moveX: raw.moveX, moveY: raw.moveY, aimX: raw.aimX, aimY: raw.aimY,
+        attack: false, dodge: false, heal: false, skillSlot: null, targetId: null } : raw;
+    const inputs: Input[] = coop
+      ? coop.map((a, i) => stripGhost(a.player, i === 0 ? input : (partnerInput ?? emptyInput())))
+      : [stripGhost(this.player, input)];
     // In a PvP match the player's edges resolve against hostile combatants; its
     // control state lives in the combatant bag, so the swap is required here too.
-    if (this.pvpCombatants && this.pvpPlayer && !this.pvpPlayer.dead)
-      this.withActor(this.pvpPlayer, () => this.applyInputEdges(input));
-    else if (!this.pvpCombatants) this.applyInputEdges(input);
+    if (coop) {
+      for (const [i, actor] of coop.entries())
+        if (!actor.player.dead) this.withActor(actor.player, actor.control, () => this.applyInputEdges(inputs[i]));
+    } else if (this.pvpCombatants && this.pvpPlayer && !this.pvpPlayer.dead)
+      this.withActor(this.pvpPlayer, this.pvpPlayer.ai.control, () => this.applyInputEdges(inputs[0]));
+    else if (!this.pvpCombatants) this.applyInputEdges(inputs[0]);
     // Bound catch-up after a suspended tab; normal frames always run at 120 Hz.
     this.accumulator += Math.min(dt, 0.25);
-    while (this.accumulator + 1e-10 >= FIXED_STEP && (!this.player.dead || !!this.pvpCombatants)) {
+    while (this.accumulator + 1e-10 >= FIXED_STEP && (coop ? !this.allPlayersDown() : (!this.player.dead || !!this.pvpCombatants))) {
       this.accumulator -= FIXED_STEP;
-      this.step(FIXED_STEP, input);
+      this.step(FIXED_STEP, inputs);
       if (this.portal.ready || this.eventChannel.ready || this.hearthstone.ready) { this.accumulator = 0; break; }
     }
   }
@@ -1114,7 +1209,9 @@ export class Simulation {
     return ((value ^ value >>> 14) >>> 0) / 4294967296;
   }
 
-  private step(dt: number, input: Input): void {
+  private step(dt: number, inputs: readonly Input[]): void {
+    if (this.coopRoster) { this.stepCoop(dt, inputs); return; }
+    let input = inputs[0];
     if(!this.ghost)input=this.groundPickup.input(this.player,this.groundItems,this.world,this.time,dt,input);
     tickRift(this,dt);
     if(currentDungeon(this.expeditions)?.rift?.phase==='failed')return;
@@ -1191,9 +1288,117 @@ export class Simulation {
       !shouldRetireRoamer(enemy, this.player, this.spawnExclusion!, this.roaming.heading));
   }
 
+  /** Co-op fixed step: identical system ordering to step(), but the per-player
+   * segments run once per roster actor inside withActor and shared world systems
+   * anchor to the primary player. inputs[i] is actor i's frame input. */
+  private stepCoop(dt: number, inputs: readonly Input[]): void {
+    const roster = this.coopRoster!;
+    tickRift(this, dt);
+    if (currentDungeon(this.expeditions)?.rift?.phase === 'failed') return;
+    this.capturePositions();
+    this.player.hitFlash = Math.max(0, this.player.hitFlash - dt);
+    for (const enemy of this.enemies) enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
+    for (const actor of roster) actor.player.hitFlash = Math.max(0, actor.player.hitFlash - dt);
+    this.time += dt;
+    for (const actor of roster) {
+      metric(actor.player.chronicle, 'time', dt);
+      const history = actor.player.chronicle?.sources.find(s => s.id === actor.player.chronicle?.active);
+      if (history) metric(actor.player.chronicle, 'longestLife', (history.values.time ?? 0) - (history.values.highestDeathTime ?? 0));
+    }
+    this.updateCoopActors(dt, inputs);
+    advanceTransport(this, dt);
+    for (const actor of roster) {
+      const p = actor.player;
+      metric(p.chronicle, 'distance', Math.hypot(p.x - p.prevX, p.y - p.prevY));
+      if (!this.dungeonFloor && Math.floor(this.time) !== Math.floor(this.time - dt))
+        metric(p.chronicle, 'seen:biome:' + sampleBiome(p.x, p.y, this.options.seed!).id, 1);
+    }
+    this.updateEnemies(dt);
+    this.updateProjectiles(dt);
+    this.advanceChains(dt);
+    this.updateGroundEffects(dt);
+    this.engagements.update(this.enemies, this.time, event => this.emit(event));
+    this.updatePickups(dt);
+    for (const actor of roster) {
+      const p = actor.player;
+      if (p.dead || this.ghosts.has(p)) continue;
+      this.groundGold = advanceGold(this.groundGold, p, this.world, dt, event => this.emit(event));
+      if (GAME_FEATURES.lootVacuum)
+        advanceGroundLoot(this.groundItems, p, this.world, this.time, dt,
+          index => this.awardGroundItem(index, p), actor.pickup.id);
+      this.collectSelectedGroundItem(p);
+    }
+    syncTrial(this.eventState, this.enemies);
+    if (this.allPlayersDown()) {
+      interruptTrial(this.eventState, this.enemies);
+      this.travel.returnTo = null; this.portal.cancel(); this.eventChannel.cancel(); this.hearthstone.cancel();
+      for (const actor of roster) if (actor.player.character.blessing) { delete actor.player.character.blessing; refreshCharacter(actor.player); }
+      tickRift(this, 0);
+      this.capturePositions();
+      return;
+    }
+    const primary = roster[0].player;
+    if (!this.ghosts.has(primary)) this.eventChannel.advance(dt, primary, inputs[0]);
+    for (const actor of roster) {
+      const p = actor.player, blessing = p.character.blessing;
+      if (blessing && !this.world.isSanctuary?.(p.x, p.y)) {
+        blessing.remaining = Math.max(0, blessing.remaining - dt);
+        if (!blessing.remaining) { delete p.character.blessing; refreshCharacter(p); }
+      }
+    }
+    this.eventTimer -= dt;
+    const anyActive = roster.some(a => !a.player.dead && !this.ghosts.has(a.player));
+    if (!this.dungeonFloor && anyActive && this.eventTimer <= 0) {
+      this.eventTimer = .5;
+      advanceTrial({ state: this.eventState, player: primary, enemies: this.enemies, world: this.world, view: this.spawnExclusion,
+        spawn: (kind, x, y, rank, source) => this.spawnEnemy(kind, x, y, rank, source) });
+    }
+    if (!this.dungeonFloor && anyActive) advanceWorldEvents({ dt, state: this.worldEvents, player: primary, enemies: this.enemies,
+      world: this.world, view: this.spawnExclusion, time: this.time, worldSeed: this.options.seed!,
+      playerLevel: Math.max(...roster.map(a => a.player.level)),
+      spawn: (kind, x, y, rank, source) => this.spawnEnemy(kind, x, y, rank, source),
+      emit: event => this.emit(event) });
+    if (GAME_FEATURES.worldBosses && !this.dungeonFloor && anyActive) updateWorldBosses({ state: this.worldBosses, player: primary, enemies: this.enemies,
+      world: this.world, view: this.spawnExclusion, time: this.time, worldSeed: this.options.seed!,
+      spawn: (kind, x, y, rank, source) => this.spawnEnemy(kind, x, y, rank, source),
+      emit: event => this.emit(event) });
+    for (const [i, actor] of roster.entries()) {
+      const p = actor.player;
+      if (p.dead || this.ghosts.has(p)) continue;
+      this.forPlayer(p, () => {
+        this.portal.advance(dt, p, inputs[i]);
+        this.hearthstone.advance(dt, p, inputs[i]);
+        advanceMount(this, dt, inputs[i], event => this.emit(event));
+        advanceGatherChannel(this, dt, inputs[i]);
+        if (GAME_FEATURES.hearthstone) restedAccrual(p, this.world, dt);
+      });
+    }
+    this.questScanTimer -= dt;
+    if (anyActive && this.questScanTimer <= 0) { this.questScanTimer = 0.5; questExploreScan(this, this.world as QuestWorld); }
+    if (this.dungeonFloor) updateDungeon(this, this.spawnExclusion, dt, event => this.emit(event)); else this.updateSpawns(dt);
+    this.enemies = this.enemies.filter(e => e.state !== 'dead' || e.stateTime < ENCOUNTER_RULES.corpseDuration);
+    if (!this.dungeonFloor && this.spawnExclusion) this.enemies = this.enemies.filter(enemy =>
+      !roster.some(actor => shouldRetireRoamer(enemy, actor.player, this.spawnExclusion!, this.roaming.heading)));
+  }
+
+  /** One fixed step for every co-op actor: each real player consumes its own
+   * input through the shared player pipeline with its control bag swapped in. */
+  private updateCoopActors(dt: number, inputs: readonly Input[]): void {
+    const roster = this.coopRoster!;
+    for (const [i, actor] of roster.entries()) {
+      const p = actor.player;
+      if (p.dead) continue;
+      this.withActor(p, actor.control, () => {
+        let input = inputs[i];
+        if (!this.ghost) input = actor.pickup.input(p, this.groundItems, this.world, this.time, dt, input);
+        this.updatePlayer(dt, input);
+        this.updateAllies(dt);
+      });
+    }
+  }
+
   private capturePositions(): void {
-    this.player.prevX = this.player.x;
-    this.player.prevY = this.player.y;
+    for (const p of this.players) { p.prevX = p.x; p.prevY = p.y; }
     for (const enemy of this.enemies) {
       enemy.prevX = enemy.x;
       enemy.prevY = enemy.y;
@@ -1584,7 +1789,7 @@ export class Simulation {
     for (const combatant of roster) {
       if (combatant.dead) { combatant.stateTime += dt; continue; }
       combatant.stateTime += dt;
-      this.withActor(combatant, () => {
+      this.withActor(combatant, combatant.ai.control, () => {
         const control = advanceCombatantStatuses(combatant, dt,
           (target, amount, damageType) => void this.damageCombatant(target, amount, 0, target.level, damageType, true, undefined, combatant));
         if (combatant.dead) return;
@@ -1891,6 +2096,17 @@ export class Simulation {
     if (this.player.dead && !this.pvpCombatants) { this.chains.length = 0; this.clearInput(); }
   }
 
+  private collectSelectedGroundItem(player: Player = this.player): void {
+    const pickup = this.pickupFor(player);
+    if(pickup.id===null)return;
+    const index=this.groundItems.findIndex(drop=>drop.id===pickup.id);
+    if(index<0)return;
+    const drop=this.groundItems[index];
+    if(!pickup.ready(player,drop,this.world))return;
+    if(drop.flight&&this.time<drop.flight.at+drop.flight.delay+TREASURE_FLIGHT_DURATION)return;
+    this.awardGroundItem(index, player);
+  }
+
   private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number): Projectile | undefined {
     if (this.projectiles.length >= MAX_PROJECTILES) return;
     const { life, radius, damage, owner } = definition;
@@ -2007,55 +2223,51 @@ export class Simulation {
   }
 
   private updatePickups(dt: number): void {
-    const p = this.player;
     for (const pickup of this.pickups) {
       pickup.life -= dt;
-      const needed = pickup.kind === 'health' ? p.hp < p.maxHp : p.mana < manaCapacity(p);
-      if (!needed || pickup.life <= 0 || p.dead || this.ghost) continue;
-      const dx = p.x - pickup.x;
-      const dy = p.y - pickup.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance < LOOT_RULES.collectDistance) {
-        const before = pickup.kind === 'health' ? p.hp : p.mana;
-        if (pickup.kind === 'health') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * pickup.restoreFraction);
-        else p.mana = Math.min(manaCapacity(p), p.mana + manaVialRestoration(p.maxMana,pickup.restoreAmount ?? manaVialAmount(1)));
-        const value = (pickup.kind === 'health' ? p.hp : p.mana) - before;
-        pickup.life = 0;
-        this.emit({ type: 'pickup', x: pickup.x, y: pickup.y, value, heavy: pickup.kind === 'health' });
-      } else if (distance < LOOT_RULES.magnetDistance) {
-        const destination = this.world.move(pickup.x, pickup.y, dx / distance * LOOT_RULES.magnetSpeed * dt,
-          dy / distance * LOOT_RULES.magnetSpeed * dt, pickup.radius);
-        pickup.x = destination.x;
-        pickup.y = destination.y;
+      if (pickup.life <= 0) continue;
+      // Nearest eligible player collects; co-op players share the same piles.
+      for (const p of this.players) {
+        const needed = pickup.kind === 'health' ? p.hp < p.maxHp : p.mana < manaCapacity(p);
+        if (!needed || p.dead || this.ghosts.has(p)) continue;
+        const dx = p.x - pickup.x;
+        const dy = p.y - pickup.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < LOOT_RULES.collectDistance) {
+          const before = pickup.kind === 'health' ? p.hp : p.mana;
+          if (pickup.kind === 'health') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * pickup.restoreFraction);
+          else p.mana = Math.min(manaCapacity(p), p.mana + manaVialRestoration(p.maxMana,pickup.restoreAmount ?? manaVialAmount(1)));
+          const value = (pickup.kind === 'health' ? p.hp : p.mana) - before;
+          pickup.life = 0;
+          this.emit({ type: 'pickup', x: pickup.x, y: pickup.y, value, heavy: pickup.kind === 'health' });
+          break;
+        } else if (distance < LOOT_RULES.magnetDistance) {
+          const destination = this.world.move(pickup.x, pickup.y, dx / distance * LOOT_RULES.magnetSpeed * dt,
+            dy / distance * LOOT_RULES.magnetSpeed * dt, pickup.radius);
+          pickup.x = destination.x;
+          pickup.y = destination.y;
+          break;
+        }
       }
     }
     this.pickups = this.pickups.filter(pickup => pickup.life > 0);
   }
 
-  requestGroundItem(id: number): string | null {
+  requestGroundItem(id: number, player: Player = this.player): string | null {
     this.clearCombatInput();this.portal.cancel();this.eventChannel.cancel();this.hearthstone.cancel();
-    return this.groundPickup.select(this.player,this.groundItems.find(drop=>drop.id===id),this.time);
-  }
-
-  private collectSelectedGroundItem(): void {
-    if(this.groundPickup.id===null)return;
-    const index=this.groundItems.findIndex(drop=>drop.id===this.groundPickup.id);
-    if(index<0)return;
-    const drop=this.groundItems[index];
-    if(!this.groundPickup.ready(this.player,drop,this.world))return;
-    if(drop.flight&&this.time<drop.flight.at+drop.flight.delay+TREASURE_FLIGHT_DURATION)return;
-    this.awardGroundItem(index);
+    return this.pickupFor(player).select(player,this.groundItems.find(drop=>drop.id===id),this.time);
   }
 
   /** The single validated equipment award: pack space, quest hooks and the loot event. */
-  private awardGroundItem(index: number): void {
+  private awardGroundItem(index: number, player: Player = this.player): void {
     const drop=this.groundItems[index];
-    if(this.groundPickup.id===drop.id)this.groundPickup.cancel();
-    if(!addInventoryItem(this.player.character,drop.item)) {
-      this.emit({type:'notice',x:drop.x,y:drop.y,message:`${packSpaceProblem(this.player.character,drop.item)} Item left on the ground.`});return;
+    const pickup = this.pickupFor(player);
+    if(pickup.id===drop.id)pickup.cancel();
+    if(!addInventoryItem(player.character,drop.item)) {
+      this.emit({type:'notice',x:drop.x,y:drop.y,message:`${packSpaceProblem(player.character,drop.item)} Item left on the ground.`});return;
     }
     questOnCollect(this, drop.item.id);
-    if (drop.item.kind === 'charm') refreshCharacter(this.player);
+    if (drop.item.kind === 'charm') refreshCharacter(player);
     this.groundItems.splice(index,1);
     this.emit({type:'loot',x:drop.x,y:drop.y,item:drop.item,color:TIER_COLORS[drop.item.tier]});
   }
