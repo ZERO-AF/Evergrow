@@ -8,6 +8,9 @@ import { GAME_FEATURES } from './game-features.ts';
 import { getHUDLayout } from './hud-layout.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text, textWidth } from './font.ts';
+import { BARK_RULES } from './battle-bark-content.ts';
+import { placeBattleBark } from './battle-bark-layout.ts';
+import { drawBattleBark, measureBattleBark } from './battle-bark-art.ts';
 
 export { combatEventLines, logCombatEvents, pushChatMessage } from './chat-log.ts';
 
@@ -125,4 +128,17 @@ export class ChatFrame {
     }
     c.restore();
   }
+}
+
+/** Player emote/say bubble over the head: same Ashglass speech art as battle
+ * barks, so it shares the battleBarks feature switch and fade timing. `head` is
+ * the player's head in logical screen pixels; `now` is `sim.time`. */
+export function drawEmoteBubble(c: CanvasRenderingContext2D, bubble: { text: string; started: number } | null,
+  head: { x: number; y: number }, width: number, height: number, now: number): void {
+  if (!bubble || !GAME_FEATURES.combatLog) return;
+  const age = now - bubble.started;
+  if (age < 0 || age >= BARK_RULES.duration) return;
+  const box = placeBattleBark(bubble.text, head, { width, height },
+    line => measureBattleBark(c, line), []);
+  if (box) drawBattleBark(c, box, age);
 }

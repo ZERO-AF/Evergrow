@@ -122,7 +122,9 @@ import { playerFaction, startingZone } from './factions.ts';
 import { ActionBars, applyBarInput, activateBarSlot, executeBarCommand } from './action-bar.ts';
 import { ActionBarPanel } from './action-bar-panel.ts';
 import { actionBarSlotAt, drawActionBars, isActionBarPoint } from './hud-action-bars.ts';
-import { ChatFrame, logCombatEvents, pushChatMessage } from './chat-frame.ts';
+import { ChatFrame, drawEmoteBubble, logCombatEvents, pushChatMessage } from './chat-frame.ts';
+import { ChatInput } from './chat-input.ts';
+import { Emotes } from './emote.ts';
 import { useConsumableId } from './consumable-command.ts';
 import { isConsumableItem } from './consumable-content.ts';
 import { MinimapTracking, collectTrackingBlips, drawTrackingBlips, minimapView, minimapWorldBounds } from './minimap-tracking.ts';
@@ -307,6 +309,8 @@ export class Game {
   private autosave: Promise<boolean> | null = null;
   private saveAgain = false;
   private chatFrame = new ChatFrame();
+  private emotes = new Emotes();
+  private chatInput!: ChatInput;
   private actionBarPanel!: ActionBarPanel;
   private dungeonFinderPanel!: DungeonFinderPanel;
   private mailPanel!: MailPanel;
@@ -391,6 +395,10 @@ export class Game {
         isToggle: event => controls.action(event.code) === 'debug',
       }));
       this.groundLootHighlight = this.lifetime.own(new GroundLootHighlight(root, this.canvas));
+      this.chatInput = this.lifetime.own(new ChatInput(this.canvas.parentElement!, {
+        submit: text => this.emotes.submit(this.sim, text),
+        restoreFocus: () => this.canvas.focus({ preventScroll: true }),
+      }));
       this.uiCanvas = this.shell.uiCanvas;
       const uiContext = this.uiCanvas.getContext('2d');
       if (!uiContext) throw new Error('The HUD requires a 2D canvas context.');
@@ -921,6 +929,13 @@ export class Game {
           this.phase === 'paused' ? this.resume() : this.start();
           return;
         }
+        // WoW-style chat: Enter opens the edit box only while playing; the box
+        // swallows every key until Enter/Escape closes it (chat-input.ts).
+        if (event.code === 'Enter' && this.phase === 'playing' && GAME_FEATURES.combatLog
+          && this.chatInput.show({ width: this.renderer.width, height: this.renderer.height })) {
+          event.preventDefault();
+          return;
+        }
         if (event.code === 'KeyR' && this.phase === 'dead') { this.start(); return; }
         if (this.phase !== 'playing') return;
         if (controls.action(event.code)) event.preventDefault();
@@ -1085,6 +1100,7 @@ export class Game {
   }
 
   clearInput(preserveMovement = false) {
+    this.chatInput?.close();
     this.touch?.clear(); this.clearWorldTouch?.();
     this.input.clear(preserveMovement);
     if (!preserveMovement) { this.gamepad.clear(); clearNativeController(); }
@@ -2349,6 +2365,11 @@ export class Game {
     const p = this.sim.player, alpha = this.sim.interpolationAlpha;
     const mapPlayer = { x: p.prevX + (p.x - p.prevX) * alpha,
       y: p.prevY + (p.y - p.prevY) * alpha, angle: p.angle };
+    // Emote/say bubble rides the player's interpolated head like the mana cue.
+    if (this.phase === 'playing' && !p.dead)
+      drawEmoteBubble(ui, this.emotes.active(this.sim.time),
+        this.renderer.worldToScreen(mapPlayer.x, mapPlayer.y - 43),
+        this.renderer.width, this.renderer.height, this.sim.time);
     const dungeonRun=currentDungeon(this.sim.expeditions);
     if(dungeonRun?.rift && this.phase!=='ready')drawRiftHUD(ui,dungeonRun,this.renderer.width);
     if (this.phase !== 'ready' && !dungeonRun) this.worldMap.update(mapPlayer, dt);

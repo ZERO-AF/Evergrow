@@ -1,0 +1,10 @@
+/* WoW-style chat edit box: pinned under the chat frame, shares its materials. */
+.chat-input { position: absolute; z-index: 76; pointer-events: auto; }
+.chat-input input {
+  width: 100%; box-sizing: border-box; padding: 3px 8px;
+  background: rgba(7, 13, 18, .82); border: 1px solid var(--ui-line);
+  border-radius: 3px; color: var(--ui-ivory); font: 13px var(--ui-font);
+  outline: none;
+}
+.chat-input input:focus { border-color: var(--ui-brass); }
+.chat-input input::placeholder { color: var(--ui-faint); }
