@@ -62,8 +62,6 @@ test('a dead co-op partner does not halt the surviving player', () => {
   const p1 = sim.player, p2 = partner(sim);
   sim.enterCoop(p2);
   p2.hp = 1;
-  // Kill P2 via the shared damage path.
-  sim.forPlayer ? null : null;
   p2.dead = true; p2.hp = 0;
   const x = p1.x;
   for (let i = 0; i < 30; i++) sim.update(FIXED_STEP, move(1, 0), idleInput);

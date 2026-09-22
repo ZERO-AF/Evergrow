@@ -28,6 +28,9 @@ export class GamepadInput {
   move = { x: 0, y: 0 };
   aim = { x: 0, y: 0 };
   disconnected = false;
+  /** When set, this instance only ever reads that gamepad index — the co-op
+   * second player binds pad 1 while the primary keeps pad 0 (or keyboard). */
+  padIndex: number | null = null;
   get active() { return this.held.size > 0 || !!(this.move.x || this.move.y || this.aim.x || this.aim.y); }
 
   gameplay(aim: { x: number; y: number }): Input {
@@ -44,11 +47,11 @@ export class GamepadInput {
     this.armed = false; this.previous.clear(); this.held.clear(); this.pressed.clear();
     this.move = { x: 0, y: 0 }; this.aim = { x: 0, y: 0 };
   }
-
   poll(pads: readonly (PadSnapshot | null)[], focused: boolean) {
     const valid = pads.filter((pad): pad is PadSnapshot => !!pad?.connected && pad.mapping === 'standard');
     const key = (pad: PadSnapshot) => `${pad.index}:${pad.id}`;
-    const pad = valid.find(pad => key(pad) === this.identity) ?? valid[0];
+    const pad = valid.find(pad => key(pad) === this.identity)
+      ?? (this.padIndex === null ? valid[0] : valid.find(p => p.index === this.padIndex));
     const identity = pad ? key(pad) : '';
     this.disconnected = !!this.identity && identity !== this.identity;
     if (identity !== this.identity) { this.clear(); this.identity = identity; }

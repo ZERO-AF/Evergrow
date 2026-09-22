@@ -116,7 +116,7 @@ import { GamepadMenu } from './gamepad-menu.ts';
 import { GameShell } from './game-shell.ts';
 import { isGameUIPoint, isUIRectPoint, projectUIRect } from './ui-hit-test.ts';
 import type { GamePhase } from './game-phase.ts';
-import type { Input } from './model.ts';
+import type { Input, Player } from './model.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { playerFaction, startingZone } from './factions.ts';
 import { ActionBars, applyBarInput, activateBarSlot, executeBarCommand } from './action-bar.ts';
@@ -274,6 +274,8 @@ export class Game {
   private input = new GameInput(controls, () => this.bars.page);
 
   private gamepad = new GamepadInput();
+  /** Second controller for couch co-op player two; bound to gamepad index 1. */
+  private gamepad2 = new GamepadInput();
   private gamepadMenu = new GamepadMenu();
   private usingGamepad = false;
   private padAimAngle: number | null = null;
@@ -2036,9 +2038,9 @@ export class Game {
     }, undefined);
   }
 
-  private readInput(): Input {
+  private readInput(player: Player = this.sim.player): Input {
     if (this.touch.active) {
-      const p = this.sim.player, touch = this.touch.input;
+      const p = player, touch = this.touch.input;
       const preview = touch.preview;
       const id = touch.aimingSlot !== null ? p.character.skillSlots[touch.aimingSlot] : null;
       const weapon = id ? skillWeapon(id,p.equipment) ?? basicAttackWeapon(p) : basicAttackWeapon(p);
@@ -2053,31 +2055,11 @@ export class Game {
       this.mouse.x = screen.x; this.mouse.y = screen.y; this.mouse.present = true;
       if(preview) this.sim.clearCombatInput();
       const input = touch.consume(aim);
-      return this.routeInput(assisted ? {...input,rangedAim:{x:assisted.x,y:assisted.y}} : input);
+      return this.routeInput(assisted ? {...input,rangedAim:{x:assisted.x,y:assisted.y}} : input, player);
     }
-    if (this.usingGamepad) {
-      const pad = this.gamepad, p = this.sim.player;
-      if (pad.aim.x || pad.aim.y) {
-        this.padAimAngle = Math.atan2(pad.aim.y, pad.aim.x);
-        this.padAimDistance = 60 + Math.hypot(pad.aim.x, pad.aim.y) * 220;
-      } else if (pad.move.x || pad.move.y) this.padAimAngle = Math.atan2(pad.move.y, pad.move.x);
-      const angle = this.padAimAngle ?? p.angle;
-      let aim = { x: p.x + Math.cos(angle) * this.padAimDistance, y: p.y + Math.sin(angle) * this.padAimDistance };
-      const input = pad.gameplay(aim);
-      const id = input.skillSlot !== null ? p.character.skillSlots[input.skillSlot] : null;
-      const weapon = id ? skillWeapon(id,p.equipment) ?? basicAttackWeapon(p) : basicAttackWeapon(p);
-      const recipe = id ? resolveSkill(id,p.derived,p.character).recipe : null;
-      const assisted = this.renderer.resolveDirectionAim(this.sim, this.world, aim,
-        directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe));
-      if (assisted) aim = assisted;
-      const screen = this.renderer.worldToScreen(aim.x, aim.y);
-      this.mouse.x = screen.x; this.mouse.y = screen.y; this.mouse.present = true;
-      // Controller aiming is independent of the last mouse position and HUD hit regions.
-      return this.routeInput({ ...input, aimX: aim.x, aimY: aim.y,
-        ...(assisted ? { rangedAim: { x: assisted.x, y: assisted.y } } : {}) });
-    }
+    if (this.usingGamepad) return this.readPadInput(player, this.gamepad);
     const blocked = this.pointerInHUD();
-    const p = this.sim.player;
+    const p = player;
     const aim = blocked
       ? { x: p.x + Math.cos(p.angle) * 100, y: p.y + Math.sin(p.angle) * 100 }
       : this.renderer.screenToWorld(this.mouse.x, this.mouse.y);
@@ -2088,13 +2070,37 @@ export class Game {
     const aimSkill = input.skillSlot !== null ? p.character.skillSlots[input.skillSlot] : null;
     const aimWeapon = aimSkill ? skillWeapon(aimSkill, p.equipment) ?? basicAttackWeapon(p) : basicAttackWeapon(p);
     const rangedAim = this.renderer.resolvePointerAim(this.sim, this.world, this.mouse.x, this.mouse.y, !blocked && this.mouse.present, aimWeapon);
-    return this.routeInput(rangedAim ? { ...input, rangedAim: { x: rangedAim.x, y: rangedAim.y } } : input);
+    return this.routeInput(rangedAim ? { ...input, rangedAim: { x: rangedAim.x, y: rangedAim.y } } : input, player);
   }
 
+  /** One gamepad's frame input for a given player: stick aim, skill slots and
+   * direction-assist resolved against that player's position and weapon. */
+  private readPadInput(p: Player, pad: GamepadInput): Input {
+    if (pad.aim.x || pad.aim.y) {
+      this.padAimAngle = Math.atan2(pad.aim.y, pad.aim.x);
+      this.padAimDistance = 60 + Math.hypot(pad.aim.x, pad.aim.y) * 220;
+    } else if (pad.move.x || pad.move.y) this.padAimAngle = Math.atan2(pad.move.y, pad.move.x);
+    const angle = this.padAimAngle ?? p.angle;
+    let aim = { x: p.x + Math.cos(angle) * this.padAimDistance, y: p.y + Math.sin(angle) * this.padAimDistance };
+    const input = pad.gameplay(aim);
+    const id = input.skillSlot !== null ? p.character.skillSlots[input.skillSlot] : null;
+    const weapon = id ? skillWeapon(id,p.equipment) ?? basicAttackWeapon(p) : basicAttackWeapon(p);
+    const recipe = id ? resolveSkill(id,p.derived,p.character).recipe : null;
+    const assisted = this.renderer.resolveDirectionAim(this.sim, this.world, aim,
+      directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe));
+    if (assisted) aim = assisted;
+    const screen = this.renderer.worldToScreen(aim.x, aim.y);
+    this.mouse.x = screen.x; this.mouse.y = screen.y; this.mouse.present = true;
+    // Controller aiming is independent of the last mouse position and HUD hit regions.
+    return this.routeInput({ ...input, aimX: aim.x, aimY: aim.y,
+      ...(assisted ? { rangedAim: { x: assisted.x, y: assisted.y } } : {}) }, p);
+  }
+
+
   /** Bar translation at the input boundary: page switches, potion/mount extras. */
-  private routeInput(input: Input): Input {
+  private routeInput(input: Input, player: Player = this.sim.player): Input {
     if (input.barPage !== undefined) this.bars.page = Math.max(0, Math.min(2, input.barPage));
-    const barred = applyBarInput(this.sim.player, this.bars, input);
+    const barred = applyBarInput(player, this.bars, input);
     for (const id of barred.mounts) this.toggleMount(id);
     for (const id of barred.consumables) this.useConsumable(id);
     return barred.input;
@@ -2152,7 +2158,9 @@ export class Game {
       // AI dungeon party: role targeting, tank threat, healer triage, exit despawn.
       tickDungeonParty(this.sim);
       const previousWeave = this.sim.player.affixBuffs?.spent;
-      this.sim.update(dt, this.readInput());
+      const p2 = this.sim.coop ? this.sim.players[1] : null;
+      const p2Input = p2 ? this.readPadInput(p2, this.gamepad2) : undefined;
+      this.sim.update(dt, this.readInput(), p2Input);
       const spentWeave = this.sim.player.affixBuffs?.spent;
       if (spentWeave && spentWeave !== previousWeave) this.audio.spellweave(spentWeave.kind);
       this.performance.end('simulation', simulationStart);
@@ -2439,6 +2447,7 @@ export class Game {
     let pads: (PadSnapshot | null)[] = nativeController() ?? [];
     try { if(!window.EvergrowAndroid) pads = navigator.getGamepads ? [...navigator.getGamepads()] : []; } catch { /* API may be denied by the host. */ }
     this.gamepad.poll(pads, document.hasFocus() && !document.hidden);
+    if (this.sim.coop) { this.gamepad2.padIndex = 1; this.gamepad2.poll(pads, document.hasFocus() && !document.hidden); }
     if (this.gamepad.disconnected && this.usingGamepad) {
       this.clearInput(); this.usingGamepad = false; this.mouse.present = false;
       if (this.phase === 'playing' || this.phase === 'map') this.pause();
