@@ -28,7 +28,7 @@ export const DRUID_SKILLS: readonly WowSkill[] = Object.freeze([
     manaCost: 90, cooldown: 12, damageMultiplier: 0.5, color: D, targetMode: 'point', range: 420,
     channel: { duration: 8, ticks: 8 },
     description: 'Channel a hurricane onto the target area for 8 seconds, battering enemies with Nature damage.',
-    execution: { kind: 'ground', effect: 'storm', radius: 140, delay: 0.3, duration: 8, interval: 1, style: 'lightning' } },
+    execution: { kind: 'channel', school: 'nature', ticks: 8, duration: 8, radius: 140, targetRange: 420 } },
   { id: 'starfall', name: 'Starfall', classId: 'druid', requirement: 'any', domain: 'Arcana', tier: 'ultimate',
     manaCost: 100, cooldown: 90, damageMultiplier: 0.6, color: D, targetMode: 'point', range: 420,
     description: 'Call down a storm of stars for 10 seconds, striking enemies with Arcane damage.',

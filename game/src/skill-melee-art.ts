@@ -22,12 +22,27 @@ export function skillSweepPoint(angle: number, arc: number, hand: 'main' | 'off'
 export class SkillMeleeArt {
   private sweeps: Sweep[] = [];
   private dashes: Array<{ x: number; y: number; angle: number; radius: number; life: number; color: string }> = [];
-  reset(): void { this.sweeps = []; this.dashes = []; }
+  /** Step dashes (Blink/Disengage) leave a vanish burst at the origin and an arrival flash at the destination. */
+  private teleports: Array<{ ox: number; oy: number; dx: number; dy: number; life: number; color: string }> = [];
+  private lastDash: Player['dash'] | null = null;
+  reset(): void { this.sweeps = []; this.dashes = []; this.teleports = []; this.lastDash = null; }
   update(p: Player, dt: number, alpha = 1): void {
     for (const dash of this.dashes) dash.life -= dt;
-    if (p.dash && Math.hypot(p.x-p.prevX,p.y-p.prevY)>0) this.dashes.push({ x:p.x,y:p.y,angle:p.dash.angle,radius:p.dash.radius,life:.18,
-      color: SKILL_DEFINITIONS[p.dash.skill]?.color ?? (p.dash.style ? PROJECTILE_COLORS[p.dash.style] : '#b7ead8') });
+    for (const tp of this.teleports) tp.life -= dt;
+    const dash = p.dash;
+    if (dash && dash !== this.lastDash && SKILL_EXECUTION[dash.skill]?.kind === 'step') {
+      // One poof pair per step: vanish at the origin, flash where the blink lands.
+      const dist = dash.speed * dash.remaining;
+      this.teleports.push({ ox: p.x, oy: p.y,
+        dx: p.x + Math.cos(dash.angle) * dist, dy: p.y + Math.sin(dash.angle) * dist,
+        life: .3, color: SKILL_DEFINITIONS[dash.skill]?.color ?? (dash.style ? PROJECTILE_COLORS[dash.style] : '#b7ead8') });
+    }
+    this.lastDash = dash;
+    if (dash && SKILL_EXECUTION[dash.skill]?.kind !== 'step' && Math.hypot(p.x-p.prevX,p.y-p.prevY)>0)
+      this.dashes.push({ x:p.x,y:p.y,angle:dash.angle,radius:dash.radius,life:.18,
+        color: SKILL_DEFINITIONS[dash.skill]?.color ?? (dash.style ? PROJECTILE_COLORS[dash.style] : '#b7ead8') });
     this.dashes = this.dashes.filter(d=>d.life>0).slice(-24);
+    this.teleports = this.teleports.filter(t=>t.life>0).slice(-8);
     for (const sweep of this.sweeps) sweep.fade -= dt;
     const attack = p.attack;
     if (attack?.kind === 'melee' && attack.skill && SKILL_EXECUTION[attack.skill].kind === 'sweep'
@@ -55,6 +70,27 @@ export class SkillMeleeArt {
       const width = d.radius * .5;
       c.save(); c.translate(d.x,d.y-14); c.rotate(d.angle); c.globalAlpha = d.life/.18*.5;
       polygon(c, [[-22,-width],[4,0],[-22,width],[-14,0]], d.color); c.restore();
+    }
+    for (const tp of this.teleports) {
+      const age = .3 - tp.life, fade = Math.min(1, tp.life / .15);
+      // Vanish burst: expanding ring plus a few outward sparks at the origin.
+      c.save(); c.translate(tp.ox, tp.oy - 14);
+      c.globalAlpha = fade * .6; c.strokeStyle = tp.color; c.lineWidth = 1.6;
+      c.beginPath(); c.ellipse(0, 0, 6 + age * 90, 3 + age * 40, 0, 0, Math.PI * 2); c.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = i * 1.05 + .4, d = 4 + age * 60;
+        c.globalAlpha = fade * .7;
+        line(c, [[Math.cos(a) * d, Math.sin(a) * d * .5], [Math.cos(a) * (d + 5), Math.sin(a) * (d + 5) * .5]], i % 2 ? tp.color : '#f4faff', 1.2);
+      }
+      c.restore();
+      // Arrival flash: destination marker brightens as the blink lands.
+      const arrive = Math.min(1, age / .12);
+      c.save(); c.translate(tp.dx, tp.dy - 14);
+      c.globalAlpha = fade * .8 * arrive; c.strokeStyle = '#f4faff'; c.lineWidth = 1.4;
+      c.beginPath(); c.ellipse(0, 0, 10 - arrive * 4, 4.5 - arrive * 2, 0, 0, Math.PI * 2); c.stroke();
+      c.globalAlpha = fade * .5 * arrive; c.fillStyle = tp.color;
+      c.beginPath(); c.ellipse(0, -6, 5 * arrive, 8 * arrive, 0, 0, Math.PI * 2); c.fill();
+      c.restore();
     }
     for (const s of this.sweeps) {
       const life = Math.min(1, s.fade / AFTERIMAGE), end = s.progress;

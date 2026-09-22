@@ -25,6 +25,15 @@
 .stable-skill small { color:#8fa1a8; }
 .stable-pet-actions { display:flex; gap:6px; margin-top:auto; }
 .stable-slot.is-empty { display:grid; place-items:center; min-height:96px; border:1px dashed #8ba5ae26; border-radius:3px; color:#5d7079; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+.stable-mount-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; }
+.stable-mount { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #8ba5ae1e; border-left:2px solid var(--mount-color,#8fd18a); border-radius:3px; background:#0b151e66; }
+.stable-mount.is-selected { background:#0e1c1666; border-color:#8fd18a55; }
+.stable-mount.is-locked { opacity:.55; }
+.stable-mount-icon { flex:none; display:grid; place-items:center; width:34px; height:34px; border-radius:3px; background:#0d1720; border:1px solid #8ba5ae2a; }
+.stable-mount-info { flex:1; min-width:0; }
+.stable-mount-speed { font-size:11px; color:#8fa1a8; font-variant-numeric:tabular-nums; }
+.stable-mount-lock { font-size:11px; color:#8fa1a8; letter-spacing:.08em; text-transform:uppercase; }
+.stable-mount-current { font-size:9.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#8fd18a; vertical-align:2px; }
 .stable-empty { margin:4px 0 2px; color:#8fa1a8; font-size:12.5px; }
 .stable-rename { display:flex; gap:6px; align-items:center; }
 .stable-rename input { flex:1; min-width:0; padding:4px 8px; border:1px solid #8ba5ae3a; border-radius:3px; background:#0d1720; color:#e3ddc4; font:inherit; font-size:13px; }

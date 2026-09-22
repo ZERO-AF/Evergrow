@@ -7,6 +7,7 @@ import { transformPoint, type Point } from './art-primitives.ts';
 import { weaponArtLength } from './weapon-shapes.ts';
 import { focusGlowCenter } from './focus-shapes.ts';
 import { ELEMENT_COLORS } from './elemental-weapon.ts';
+import { IMBUE_COLORS } from './weapon-enchantment-art.ts';
 
 /** At most two emitters, attached to the same projected rig as the held geometry. */
 export function heldEquipmentLights(pose: CharacterPose, x: number, y: number) {
@@ -19,7 +20,7 @@ export function heldEquipmentLights(pose: CharacterPose, x: number, y: number) {
   };
   const lights: Array<{ x: number; y: number; radius: number; power: number; color: string; shadows: boolean; core: number; fire: boolean }> = [];
   const weapon = (v: WeaponVisual | undefined, origin: Point, angle: number, scale: number) => {
-    const color = v && (weaponGlowColor(v) ?? (v.element && ELEMENT_COLORS[v.element]));
+    const color = v && ((pose.imbueElement && IMBUE_COLORS[pose.imbueElement]) || weaponGlowColor(v) || (v.element && ELEMENT_COLORS[v.element]));
     if (!v || !color || v.kind === 'bow' || v.kind === 'unarmed') return;
     const caster = v.kind === 'staff' || v.kind === 'wand';
     const length = (weaponArtLength(v) * (caster ? 1 : .72) - (caster ? 1 : 0)) * scale;

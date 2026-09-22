@@ -37,8 +37,11 @@ export function mountUnlocked(player: Pick<Player, 'achievements'>, id: MountId)
   return id !== 'drake' || (player.achievements?.[MOUNT_RULES.drakeAchievement] ?? 0) > 0;
 }
 
-/** Fastest unlocked mount; the X toggle summons this one. */
-export function preferredMount(player: Pick<Player, 'achievements'>): MountId {
+/** The mount the X toggle summons: the stable-master pick when it's still
+ * unlocked, else the fastest unlocked mount (drake > horse). */
+export function preferredMount(player: Pick<Player, 'achievements' | 'character'>): MountId {
+  const picked = player.character.mount;
+  if (picked && mountUnlocked(player, picked)) return picked;
   return mountUnlocked(player, 'drake') ? 'drake' : 'horse';
 }
 

@@ -6,6 +6,8 @@
  * `character` (the live player or a staged checkpoint), and every getter also
  * accepts a bare sheet so `character-stats.ts` can fold perk stats in. */
 import { GAME_FEATURES } from './game-features.ts';
+import type { Player } from './model.ts';
+import { COMBAT_LOG_CAP, type CombatLogKind } from './combat-log.ts';
 import type { CharacterSheet, Item, StatModifiers } from './character-types.ts';
 import {
   GUILD_PERKS, GUILD_RULES, GUILD_VAULT_CAPACITY, guildXpForNext,
@@ -161,6 +163,30 @@ export function addGuildXp(sheet: Pick<CharacterSheet, 'guild'>, amount: number)
 /** The guild's share of an awarded player-XP amount (kills, quests, events). */
 export function guildXpShare(playerXp: number): number {
   return Math.floor(playerXp * GUILD_RULES.xpShare);
+}
+/** Feed the guild a share of awarded player XP (kills, quests, events).
+ * Live ledger mutation like repOnKill — no persist; the next checkpoint saves
+ * it. Lives here (not the command layer) so character.ts can award XP without
+ * a character.ts → guild-command.ts → character.ts import cycle. */
+export function contributeGuildXp(player: Player, amount: number, now?: number): GuildXpResult {
+  const result = addGuildXp(player.character, guildXpShare(amount));
+  if (result.levels > 0 && now !== undefined) {
+    pushGuildLine(player, 'discovery', `${player.character.guild!.name} reaches guild level ${result.level}.`, now);
+    for (const perk of result.unlocked)
+      pushGuildLine(player, 'system', `Guild perk unlocked: ${perk.name}.`, now);
+  }
+  return result;
+}
+
+/** Announce on the combat log ring in place: XP awards often run on staged
+ * players (`{...player, character: checkpoint.character}`) whose reassigned
+ * log would be dropped on commit — the shared array survives the swap. */
+function pushGuildLine(player: Player, kind: CombatLogKind, message: string, now: number): void {
+  if (!GAME_FEATURES.combatLog) return;
+  const log = player.combatLog ?? [];
+  log.push({ kind, text: message.slice(0, 240), time: now });
+  if (log.length > COMBAT_LOG_CAP) log.splice(0, log.length - COMBAT_LOG_CAP);
+  player.combatLog = log;
 }
 
 // ── Guild vault ──────────────────────────────────────────────────────────────

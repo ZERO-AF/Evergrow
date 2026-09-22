@@ -48,6 +48,7 @@ test('all active skills and specialization recipes activate in the isolated stud
     const study=new SkillStudy(emptyWorld,{skill:skill.id,rank:specialization?3:1,specialization,weapon:studyWeapons(skill.id)[0].id,facing:0,targets:'fan',enemy:'brute',x:0,y:0});
     // Sandbox gates: ally-consuming casts get their minion; frozen-only casts get a frozen target.
     if(study.resolved.requiresAlly)study.simulation.summonAlly(study.resolved.requiresAlly==='demon'?'imp':study.resolved.requiresAlly);
+    if(study.resolved.requiresBuff)study.simulation.addBuff(skill.name,skill.color,{duration:60},study.resolved.requiresBuff);
     if(study.resolved.requiresFrozen)for(const enemy of study.simulation.enemies)enemy.freezeTime=999;
     const seen=new Set<string>();for(let i=0;i<240;i++)for(const event of study.step())seen.add(event.type);
     if(isAura(skill.id)){assert.ok(study.simulation.player.auras?.powers[skill.id]);assert.equal(study.casts,0);}else {assert.equal(study.didCast,true,`${skill.id}/${specialization}`);assert.ok(seen.has('cast')||seen.has('swing'));}

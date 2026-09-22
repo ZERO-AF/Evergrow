@@ -89,7 +89,7 @@ test('live scoreboard exposes per-combatant stats and objective credit', async (
 test('warsong flag events announce and credit the carrier', async () => {
     const sim = createWowSim('warrior');
     const result = await enterBattleground(sim,
-        { mode: 'battleground', bracket: 'warsong', teammates: [], custom: { ...createCustomBuild('warrior', 'human'), level: 40, seed: 4242 } },
+        { mode: 'battleground', bracket: 'warsong', teammates: [], custom: { ...createCustomBuild('warrior', 'human'), role: 'tank', level: 40, seed: 4242 } },
         hostFor(sim, 4242));
     assert.ok(result.ok, result.ok ? '' : result.message);
     const match = currentPvpMatch(sim)!;

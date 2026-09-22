@@ -113,7 +113,7 @@ export const DEATHKNIGHT_SKILLS: readonly WowSkill[] = Object.freeze([
     execution: { kind: 'runeStrike', school: 'frost' } },
   { id: 'runeStrike', name: 'Rune Strike', classId: 'deathKnight', requirement: 'melee', domain: 'Might', tier: 'basic',
     manaCost: 20, cooldown: 0, damageMultiplier: 1.2, color: D, targetMode: 'enemy',
-    description: 'Strike the target after dodging or parrying, dealing heavy weapon damage.',
+    description: 'A vicious rune-forged strike that deals heavy weapon damage.',
     execution: { kind: 'runeStrike' } },
   { id: 'deathchill', name: 'Deathchill', classId: 'deathKnight', requirement: 'any', domain: 'Might', tier: 'advanced',
     manaCost: 0, cooldown: 120, damageMultiplier: 0, color: D, targetMode: 'self', offGcd: true,

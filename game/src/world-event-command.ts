@@ -98,7 +98,7 @@ export async function claimWorldEventReward(sim: Simulation, event: InvasionEven
   metric(checkpoint.chronicle, 'worldEvents'); metric(checkpoint.chronicle, 'worldEvent:invasion');
   const stagedPlayer = { ...sim.player, character: checkpoint.character, level: checkpoint.level, xp: checkpoint.xp };
   const reward = Math.round(bundle.xp * xpLevelFactor(checkpoint.level, staged.level) * sim.player.derived.xpGainMultiplier);
-  awardCharacterExperience(stagedPlayer, reward);
+  awardCharacterExperience(stagedPlayer, reward, sim.time);
   metric(checkpoint.chronicle, 'xp', reward); metric(checkpoint.chronicle, 'highestLevel', stagedPlayer.level);
   checkpoint.character = stagedPlayer.character; checkpoint.level = stagedPlayer.level; checkpoint.xp = stagedPlayer.xp;
 

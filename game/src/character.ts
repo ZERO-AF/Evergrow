@@ -19,7 +19,7 @@ import { durabilityFactor } from './durability-state.ts';
 import { transmoggedEquipment } from './transmog-state.ts';
 import { startingZone, deathKnightStart } from './factions.ts';
 import { GAME_FEATURES } from './game-features.ts';
-import { addGuildXp, guildXpShare } from './guild-state.ts';
+import { contributeGuildXp } from './guild-state.ts';
 
 /** Rebuild combat projections from the character's single source of truth. */
 export function refreshCharacter(player: Player): void {
@@ -45,12 +45,13 @@ export function refreshCharacter(player: Player): void {
   player.hp = Math.min(player.hp, player.maxHp); player.mana = Math.min(player.mana, manaCapacity(player));
 }
 
-export function awardCharacterExperience(player: Player, amount: number): number {
+export function awardCharacterExperience(player: Player, amount: number, now?: number): number {
   const before = player.level;
   awardExperience(player, amount);
-  // Guilds earn a share of every awarded XP (kills, quests, events); silent —
-  // level-ups surface in the guild panel and the next checkpoint persists them.
-  if (GAME_FEATURES.guilds) addGuildXp(player.character, guildXpShare(amount));
+  // Guilds earn a share of every awarded XP (kills, quests, events); level-ups
+  // announce in chat when `now` (sim time) is supplied. The contribution rides
+  // the next checkpoint like quest progress — no separate persist.
+  if (GAME_FEATURES.guilds) contributeGuildXp(player, amount, now);
   const levels = player.level - before;
   player.character.skillPoints += levels;
   player.character.statPoints += levels * 5;

@@ -49,6 +49,8 @@ export interface SkillDefinition {
   readonly requiresFrozen?: boolean;
   /** Requires a live ally: a specific kind, or 'demon' for any demon-family summon (Dark Pact). */
   readonly requiresAlly?: import('./wow-types.ts').AllyKind | 'demon';
+  /** Requires an active buff (a stance, aspect, seal, aura or form) by its skill id. */
+  readonly requiresBuff?: SkillId;
 }
 
 /** Costs, potency and equipment requirements are shared by the atlas, HUD and combat. */

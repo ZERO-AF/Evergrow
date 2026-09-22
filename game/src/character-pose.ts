@@ -24,6 +24,10 @@ export function playerPose(player: Player, time: number,
   const offHand: CharacterPose['offHand'] = off?.kind === 'weapon'
     ? { kind: 'weapon', visual: attack?.hand === 'off' ? attack.weapon.visual : off.weapon.visual }
     : off?.kind === 'shield' ? { kind: 'shield', visual: off.shield.visual } : off?.kind === 'focus' ? { kind: 'focus', visual: off.focus.visual } : null;
+  // Live shapeshift/imbue buffs drive the silhouette swap and weapon glow.
+  const liveBuffs = player.buffs ?? [];
+  const form = liveBuffs.find(b => b.form && b.remaining > 0)?.form;
+  const imbueElement = liveBuffs.find(b => b.imbue && b.remaining > 0)?.imbue?.element;
   return {
     kind: 'player', appearance:player.character.look.appearance, raceId:player.character.raceId, outfit:tintedOutfit(outfitFromEquipment(transmoggedSheet(player.character)),player.character.look.armorTints,player.character.look.showHelmet), angle: player.castTime > 0 ? player.castAngle : player.angle,
     time, gaitPhase: player.walkTime, moveAngle: Math.atan2(player.locomotionVY, player.locomotionVX),
@@ -42,6 +46,6 @@ export function playerPose(player: Player, time: number,
     cast: player.castTime > 0 ? 1 - smooth(castProgress) : 0,
     hitFlash: player.hitFlash, impact: Math.min(1, player.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: player.hitAngle,
     dodging: player.dodgeTime > 0, dodgeProgress: 1 - player.dodgeTime / PLAYER_ABILITIES.dodge.duration, dead: player.dead,
-    cc: player.cc, stealthed: player.stealthed,
+    cc: player.cc, stealthed: player.stealthed, form, imbueElement,
   };
 }

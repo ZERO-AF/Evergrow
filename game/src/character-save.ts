@@ -109,6 +109,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
     || !v.allocatedNodes.every(id => typeof id === 'string' && SKILL_NODES.has(id)) || new Set(v.allocatedNodes).size !== v.allocatedNodes.length) return false;
   if (v.transmog !== undefined && !validTransmogMap(v.transmog)) return false;
   if (v.pets !== undefined && !validPetStable(v.pets)) return false;
+  if (v.mount !== undefined && !isMountId(v.mount)) return false;
   if (v.dungeonFinder !== undefined && !validDungeonFinder(v.dungeonFinder)) return false;
   if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
   const sheet = v as unknown as CharacterSheet;

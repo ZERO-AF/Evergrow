@@ -8,11 +8,10 @@ import type { ActionResult, CharacterSheet, Item } from './character-types.ts';
 import type { Player } from './model.ts';
 import { refreshCharacter } from './character.ts';
 import { addInventoryItem } from './inventory.ts';
-import { pushChatMessage } from './chat-log.ts';
 import { GUILD_VAULT_CAPACITY } from './guild-content.ts';
 import {
-  addGuildXp, guildNameProblem, guildOf, guildVaultFreeSlot, guildVaultUnlocked, guildXpShare,
-  guildsEnabled, type GuildXpResult,
+  guildNameProblem, guildOf, guildVaultFreeSlot, guildVaultUnlocked,
+  guildsEnabled,
 } from './guild-state.ts';
 
 
@@ -44,18 +43,9 @@ export async function foundGuild(player: Player, name: string, persist: GuildPer
   return { ok: true, message: `Founded <${trimmed}>.` };
 }
 
-/** Feed the guild a share of awarded player XP (kills, quests, events).
- * Live ledger mutation like repOnKill — no persist; the next checkpoint saves
- * it. Returns the applied result so callers can surface level-ups. */
-export function contributeGuildXp(player: Player, amount: number, now?: number): GuildXpResult {
-  const result = addGuildXp(player.character, guildXpShare(amount));
-  if (result.levels > 0 && now !== undefined) {
-    pushChatMessage(player, 'discovery', `${player.character.guild!.name} reaches guild level ${result.level}.`, now);
-    for (const perk of result.unlocked)
-      pushChatMessage(player, 'system', `Guild perk unlocked: ${perk.name}.`, now);
-  }
-  return result;
-}
+/** Re-exported for callers/tests: the implementation lives in guild-state.ts so
+ * character.ts can award XP without a character.ts → guild-command.ts cycle. */
+export { contributeGuildXp } from './guild-state.ts';
 
 // ── Guild vault (Mobile Banking) ─────────────────────────────────────────────
 

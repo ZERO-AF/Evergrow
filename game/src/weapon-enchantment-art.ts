@@ -4,6 +4,13 @@ import type { WeaponVisual } from './model.ts';
 import { weaponArtLength } from './weapon-shapes.ts';
 import { line, polygon, type Point } from './art-primitives.ts';
 
+/** Weapon-imbue elements carried by WowBuff.imbue (Windfury/Flametongue/poisons/seals/stones). */
+export type ImbueElement = 'fire' | 'frost' | 'lightning' | 'nature' | 'shadow' | 'holy';
+export const IMBUE_COLORS: Readonly<Record<ImbueElement, string>> = Object.freeze({
+  fire: '#f7995c', frost: '#91d4ee', lightning: '#bcb0ff',
+  nature: '#8fd06a', shadow: '#a06ad8', holy: '#ffe9a0',
+});
+
 /** Small equipment glow also works in detached portrait canvases and geometry reviews. */
 export function drawEquipmentGlow(c: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, power: number) {
   c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha *= power;
@@ -13,9 +20,11 @@ export function drawEquipmentGlow(c: CanvasRenderingContext2D, x: number, y: num
 }
 
 /** Local-space bounded effects: no particles allocated per frame, no gameplay state. */
-export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisual, time: number, charge: number) {
-  const glow = weaponGlowColor(v);
-  if (!glow || !v.element || v.element === 'physical' || v.kind === 'bow' || v.kind === 'unarmed') return;
+export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisual, time: number, charge: number, imbue?: ImbueElement) {
+  // An active imbue owns the blade's element and glow while its buff lasts.
+  const element = imbue ?? v.element;
+  const glow = imbue ? IMBUE_COLORS[imbue] : weaponGlowColor(v);
+  if (!glow || !element || element === 'physical' || v.kind === 'bow' || v.kind === 'unarmed') return;
   const wand = v.kind === 'wand', caster = v.kind === 'staff' || wand, length = weaponArtLength(v);
   const start = caster ? length - 3 : length * (v.kind === 'axe' || v.kind === 'mace' ? .65 : .23);
   const end = length - 1, pulse = .65 + Math.sin(time * 2.2) * .08 + charge * .25;
@@ -32,19 +41,29 @@ export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisu
     c.globalAlpha *= .45 + charge * .5;
     if (charge > .05) drawRadiantSeal(c, 1.8 + charge * 2, .25);
     polygon(c, [[-1.5, 0], [0, -.65], [1.8, 0], [0, .65]], RADIANT_COLORS.core);
-  } else if (v.element === 'lightning') {
+  } else if (element === 'lightning') {
     const points: Point[] = Array.from({ length: 8 }, (_, i) => [start + (end - start + 3) * i / 7,
       Math.sin(i * 13.1 + Math.floor(time * 9)) * (i === 0 || i === 7 ? .3 : wand ? .8 : 2.3)]);
     c.globalAlpha *= .7; line(c, points, glow, .9); line(c, points, '#eef5ff', .3);
+  } else if (element === 'shadow' || element === 'holy') {
+    // Seals and stones: slow orbiting motes along the blade instead of flames.
+    for (let i = 0; i < 4; i++) {
+      const phase = ((time * .3 + i * .25) % 1 + 1) % 1;
+      const x = start + (end - start) * phase, y = Math.sin(phase * Math.PI * 2) * (wand ? 1.6 : 3);
+      c.globalAlpha *= 1;
+      c.save(); c.globalAlpha *= Math.sin(phase * Math.PI) * .8;
+      polygon(c, [[x, y - 1.1], [x + .8, y], [x, y + 1.1], [x - .8, y]], glow);
+      c.restore();
+    }
   } else for (let i = 0; i < 4; i++) {
-    const phase = ((time * (v.element === 'fire' ? .55 : .22) + i * .25) % 1 + 1) % 1;
-    const x = start + (end - start) * (i / 3), y = -phase * (wand ? 2.5 : v.element === 'fire' ? 7 : 4);
+    const phase = ((time * (element === 'fire' ? .55 : .22) + i * .25) % 1 + 1) % 1;
+    const x = start + (end - start) * (i / 3), y = -phase * (wand ? 2.5 : element === 'fire' ? 7 : 4);
     c.save(); c.globalAlpha *= Math.sin(phase * Math.PI) * .8;
-    if (v.element === 'fire') {
+    if (element === 'fire') {
       const size = wand ? .4 : 1;
       polygon(c, [[x - .7 * size, y], [x + Math.sin(time * 3 + i) * 1.2 * size, y - 2.8 * size], [x + .8 * size, y + .7 * size]], glow);
     } else {
-      const size = (v.element === 'frost' ? .8 : .55) * (wand ? .65 : 1);
+      const size = (element === 'frost' ? .8 : .55) * (wand ? .65 : 1);
       polygon(c, [[x, y - size], [x + size * .6, y], [x, y + size], [x - size * .6, y]], glow);
     }
     c.restore();

@@ -4,7 +4,8 @@ import { SPELLWEAVE_FEEDBACK_DURATION } from './affix-combat.ts';
 import type { CharacterPose } from './art-types.ts';
 import { playerMotion, characterTransform, PLAYER_ART_SCALE } from './character-motion.ts';
 import { projectArmPoint } from './player-arm-rig.ts';
-import { transformPoint } from './art-primitives.ts';
+import { transformPoint, line, TAU } from './art-primitives.ts';
+import { drawGlow } from './lighting.ts';
 import { UNIQUE_RULES } from './unique-content.ts';
 import { deriveAttackStats } from './equipment.ts';
 import type { Player } from './model.ts';
@@ -20,6 +21,48 @@ export function drawPlayerSkillEffects(c:CanvasRenderingContext2D,p:Player,x:num
      c.beginPath();c.ellipse(0,0,29,11,0,angle,angle+Math.PI*2/auras.length*.82);c.stroke();
      const ax=Math.cos(angle)*29,ay=Math.sin(angle)*11;
      c.beginPath();c.moveTo(ax,ay-3);c.lineTo(ax+2,ay);c.lineTo(ax,ay+3);c.lineTo(ax-2,ay);c.closePath();c.fill();
+   }
+   c.restore();
+ }
+ // Persistent buff auras keyed off BuffSpec fields: absorb bubbles, immunity
+ // shells, reflect motes, and a class-colored under-glow for grouped buffs
+ // (stances/aspects/seals/auras/armors/presences/blessings). Forms and imbues
+ // own their visuals elsewhere (silhouette swap, weapon glow).
+ const buffs=p.buffs??[];
+ if(buffs.length){
+   c.save();c.translate(x,y);c.lineWidth=1.3;
+   for(const buff of buffs){
+     if(buff.remaining<=0)continue;
+     const fadeIn=Math.min(1,buff.remaining*2);
+     if(buff.exclusiveGroup&&buff.exclusiveGroup!=='form'){
+       c.globalAlpha=.16*fadeIn;c.strokeStyle=buff.color;
+       c.beginPath();c.ellipse(0,2,17,7,0,0,TAU);c.stroke();
+       drawGlow(c,0,-6,20,buff.color,.1*fadeIn);
+     }
+     if(buff.immunity){
+       c.globalAlpha=.5*fadeIn;c.strokeStyle=buff.color;c.lineWidth=1.6;
+       c.beginPath();c.ellipse(0,-17,17,25,0,0,TAU);c.stroke();
+       c.globalAlpha=.22*fadeIn;c.lineWidth=3.4;
+       c.beginPath();c.ellipse(0,-17,19,27,0,0,TAU);c.stroke();
+       drawGlow(c,0,-17,30,buff.color,.22*fadeIn);
+     }else if(buff.absorb!==undefined&&(buff.absorbRemaining??1)>0){
+       const strength=Math.min(1,(buff.absorbRemaining??p.maxHp*buff.absorb)/Math.max(1,p.maxHp*buff.absorb));
+       c.globalAlpha=(.3+strength*.25)*fadeIn;c.strokeStyle=buff.color;c.lineWidth=1.2;
+       c.beginPath();c.ellipse(0,-17,16,23,0,0,TAU);c.stroke();
+       c.globalAlpha=(.12+strength*.1)*fadeIn;c.fillStyle=buff.color;
+       c.beginPath();c.ellipse(0,-17,16,23,0,0,TAU);c.fill();
+     }
+     if(buff.reflect){
+       c.globalCompositeOperation='lighter';
+       for(let i=0;i<3;i++){
+         const a=(reducedMotion?0:time*1.6)+i*TAU/3;
+         const mx=Math.cos(a)*17,my=-14+Math.sin(a)*9;
+         c.globalAlpha=.6*fadeIn;c.fillStyle=buff.color;
+         c.beginPath();c.arc(mx,my,1.7,0,TAU);c.fill();
+         line(c,[[mx-Math.cos(a)*4,my-Math.sin(a)*2.2],[mx,my]],buff.color,.7);
+       }
+       c.globalCompositeOperation='source-over';
+     }
    }
    c.restore();
  }

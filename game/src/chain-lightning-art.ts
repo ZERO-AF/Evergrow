@@ -52,3 +52,38 @@ export function drawLightning(c: CanvasRenderingContext2D, link: LightningLink, 
     c.beginPath(); c.ellipse(head[0], head[1], radius, radius * .62, 0, 0, Math.PI * 2); c.stroke();
   }
 }
+
+/** Shadowy grip tether for pull chains (Death Grip, Leap of Faith): a dark
+ * braided link with claw hooks at the head instead of an ionized bolt. */
+export function drawGripTether(c: CanvasRenderingContext2D, link: LightningLink, reducedMotion: boolean): void {
+  const age = link.max - link.life, progress = link.travel ? Math.min(1, age / link.travel) : 1;
+  const fade = Math.min(1, link.life / Math.max(.01, link.max - link.travel));
+  const head = lightningHead(link), end = Math.floor(progress * (link.points.length - 1));
+  const points: Point[] = [...link.points.slice(0, end + 1), head];
+  // Braided shadow: a wide dark core under a thinner tinted strand.
+  c.globalAlpha = fade * .5; line(c, points, '#0d0a14', 6);
+  c.globalAlpha = fade * .85; line(c, points, link.color, 2.4);
+  c.globalAlpha = fade * .6; line(c, points, '#2a1f3d', 1);
+  // Chain links: small crossbars along the tether.
+  for (let i = 1; i < points.length - 1; i++) {
+    const p = points[i], q = points[i + 1];
+    const a = Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2;
+    c.globalAlpha = fade * .8;
+    line(c, [[p[0] - Math.cos(a) * 3, p[1] - Math.sin(a) * 3], [p[0] + Math.cos(a) * 3, p[1] + Math.sin(a) * 3]], '#1a1426', 1.6);
+  }
+  // Claw hooks at the gripping head.
+  const tail = points[Math.max(0, points.length - 2)];
+  const ha = Math.atan2(head[1] - tail[1], head[0] - tail[0]);
+  c.globalAlpha = fade;
+  for (const s of [-1, 0, 1]) {
+    const a = ha + s * .55;
+    line(c, [[head[0], head[1]], [head[0] + Math.cos(a) * 7, head[1] + Math.sin(a) * 7]], '#0d0a14', 2.2);
+    line(c, [[head[0], head[1]], [head[0] + Math.cos(a) * 7, head[1] + Math.sin(a) * 7]], link.color, .8);
+  }
+  drawGlow(c, head[0], head[1], reducedMotion ? 8 : 14, link.color, fade * .5);
+  if (progress === 1 && !reducedMotion) {
+    const impact = Math.max(0, age - link.travel), radius = 3 + impact * 22;
+    c.globalAlpha = fade * .4; c.strokeStyle = link.color; c.lineWidth = 1;
+    c.beginPath(); c.ellipse(head[0], head[1], radius, radius * .55, 0, 0, Math.PI * 2); c.stroke();
+  }
+}

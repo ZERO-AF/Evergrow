@@ -97,3 +97,17 @@ test('moving player cannot start the cast', () => {
   s.player.vx = 50;
   assert.equal(mountToggle(s).ok, false);
 });
+
+test('stable-master pick drives the X toggle; locked picks fall back', () => {
+  const s = sim();
+  s.player.character.mount = 'wolf';
+  assert.equal(preferredMount(s.player), 'wolf');
+  mountToggle(s);
+  for (let i = 0; i < 90; i++) advanceMount(s, 1 / 60, idle);
+  assert.equal(s.player.mounted?.id, 'wolf');
+  // A locked pick (drake without the achievement) falls back to the default.
+  s.player.character.mount = 'drake';
+  assert.equal(preferredMount(s.player), 'horse');
+  s.player.achievements = { 'mount:drake': 1 };
+  assert.equal(preferredMount(s.player), 'drake');
+});

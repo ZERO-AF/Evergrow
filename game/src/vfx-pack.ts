@@ -3,8 +3,79 @@ import type { PointLight } from './lighting.ts';
 import { text } from './font.ts';
 import { resolveSkill } from './skill-progression.ts';
 import { SKILL_DEFINITIONS } from './skill-content.ts';
+import { castSchoolStyle, schoolProjectileStyle } from './spell-school.ts';
+import { PROJECTILE_COLORS } from './projectile-art.ts';
+import { playerPose } from './character-pose.ts';
+import { getPlayerSwordTip } from './art.ts';
+import { line, type Point } from './art-primitives.ts';
 import type { CombatEvent, Enemy, Player } from './model.ts';
 import type { Simulation } from './simulation.ts';
+
+/**
+ * Sustained channel beam: Mind Flay / Drain Life / Drain Soul / Penance tether
+ * to the target; point channels (Blizzard aim, Hunter's Volley) converge on the
+ * ground point; self channels (Evocation, Tranquility, Bladestorm) swirl around
+ * the caster. School-colored via the same castSchoolStyle the cast aura uses.
+ */
+export function drawChannelBeam(c: CanvasRenderingContext2D, sim: Simulation,
+  time: number, reducedMotion = false): void {
+  const cast = sim.player.cast;
+  if (!cast?.channel || cast.duration <= 0) return;
+  const p = sim.player, alpha = sim.interpolationAlpha;
+  const px = p.prevX + (p.x - p.prevX) * alpha, py = p.prevY + (p.y - p.prevY) * alpha;
+  const target = cast.targetId !== undefined ? sim.enemies.find(e => e.id === cast.targetId && e.hp > 0) : undefined;
+  const tx = target ? target.prevX + (target.x - target.prevX) * alpha : cast.x;
+  const ty = target ? target.prevY + (target.y - target.prevY) * alpha : cast.y;
+  const school = schoolProjectileStyle(castSchoolStyle(p, cast.skill));
+  const color = (school && PROJECTILE_COLORS[school]) || SKILL_DEFINITIONS[cast.skill]?.color || '#c0acf0';
+  const t = reducedMotion ? 0 : time;
+  const tip = getPlayerSwordTip(playerPose(p, sim.time));
+  const ox = px + tip.x, oy = py + tip.y;
+  const progress = Math.max(0, Math.min(1, 1 - cast.remaining / cast.duration));
+  const fade = Math.min(1, progress * 6, cast.remaining * 4);
+
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  if (tx === undefined || ty === undefined || Math.hypot(tx - px, ty - py) < 24) {
+    // Self channel: motes spiral into the caster.
+    for (let i = 0; i < 8; i++) {
+      const a = t * 2.2 + i * Math.PI / 4, r = 16 + Math.sin(t * 3 + i * 2.1) * 5;
+      c.globalAlpha = fade * .55;
+      c.fillStyle = i % 2 ? color : '#f4faff';
+      c.beginPath(); c.arc(px + Math.cos(a) * r, py - 16 + Math.sin(a) * r * .5, 1.6, 0, Math.PI * 2); c.fill();
+    }
+    drawGlow(c, px, py - 16, 26, color, fade * .3);
+    c.restore();
+    return;
+  }
+  // Tether: three phase-offset strands from the weapon tip to the target's chest.
+  const dx = tx - ox, dy = ty - 18 - oy, dist = Math.max(1, Math.hypot(dx, dy));
+  const nx = -dy / dist, ny = dx / dist;
+  for (let s = 0; s < 3; s++) {
+    const pts: Point[] = [];
+    for (let i = 0; i <= 10; i++) {
+      const u = i / 10;
+      const wobble = Math.sin(u * Math.PI * 2.2 + t * 9 + s * 2.1) * 4 * Math.sin(u * Math.PI);
+      pts.push([ox + dx * u + nx * wobble, oy + dy * u + ny * wobble]);
+    }
+    c.globalAlpha = fade * (s === 0 ? .16 : s === 1 ? .4 : .8);
+    line(c, pts, s === 2 ? '#f4faff' : color, s === 0 ? 7 : s === 1 ? 3 : 1.4);
+  }
+  // Motes stream along the beam toward the target.
+  if (!reducedMotion) for (let i = 0; i < 6; i++) {
+    const u = (t * 1.4 + i / 6) % 1;
+    const wobble = Math.sin(u * Math.PI * 2.2 + t * 9) * 4 * Math.sin(u * Math.PI);
+    c.globalAlpha = fade * .7 * Math.sin(u * Math.PI);
+    c.fillStyle = color;
+    c.beginPath(); c.arc(ox + dx * u + nx * wobble, oy + dy * u + ny * wobble, 1.5, 0, Math.PI * 2); c.fill();
+  }
+  drawGlow(c, ox, oy, 14, color, fade * .5);
+  drawGlow(c, tx, ty - 18, 18, color, fade * .45);
+  c.globalAlpha = fade * .5;
+  c.strokeStyle = color; c.lineWidth = 1;
+  c.beginPath(); c.ellipse(tx, ty, 10 + Math.sin(t * 6) * 2, 4.5 + Math.sin(t * 6), 0, 0, Math.PI * 2); c.stroke();
+  c.restore();
+}
 
 /**
  * WoW-deepening presentation pack (docs/wow-deepening.md §4). One-shot world

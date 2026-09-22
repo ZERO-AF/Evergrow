@@ -1,5 +1,5 @@
 import { drawFireImpact, drawFrostBloom, drawSingularityImpact, drawCombustionImpact } from './elemental-spell-art.ts';
-import { drawLightning, lightningLight } from './chain-lightning-art.ts';
+import { drawLightning, drawGripTether, lightningLight } from './chain-lightning-art.ts';
 import type { CombatEvent, Enemy, ProjectileStyle } from './model.ts';
 import type { PointLight } from './lighting.ts';
 import { drawGlow } from './lighting.ts';
@@ -9,7 +9,7 @@ import { PROJECTILE_COLORS } from './projectile-art.ts';
 interface Area {
   x: number; y: number; radius: number; life: number; max: number; color: string;
   style: ProjectileStyle; kind: 'blast' | 'block'; seed: number; meteor: boolean; earth: boolean; frostSpell: boolean; fireSpell: boolean; ultimate: boolean;
-  singularity?: boolean; combustion?: boolean; reaction?: string;
+  singularity?: boolean; combustion?: boolean; reaction?: string; portal?: boolean; arrival?: boolean;
 }
 interface Link { travel: number; seed: number; targetId?: number; points: Point[]; life: number; max: number; color: string; style: ProjectileStyle; }
 const TAU = Math.PI * 2;
@@ -46,10 +46,24 @@ export class SkillEffects {
       const singularity = event.type === 'blast' && event.reaction === 'singularity';
       const combustion = event.type === 'blast' && event.reaction === 'combustion';
       const max = meteor ? 1.15 : singularity ? 0.75 : combustion ? 0.65 : event.type === 'block' ? .32 : style === 'frost' ? .7 : .56;
+      // Bare blasts (no style/color/skill) are summon-arrival cues; the themed
+      // burst comes from summonArrival, so the base area stays a dust ring.
+      const arrival = event.type === 'blast' && !event.style && !event.color && !event.skill && !event.reaction && !event.groundKind;
       this.areas.push({ x: event.x, y: event.y, radius: event.type === 'block' ? 22 : bounds(event.radius, 8, 512, 55),
-        life: max, max, style, color, kind: event.type, meteor, earth: event.skill === 'earthshatter', frostSpell: ['iceNova','absoluteZero','frostLance'].includes(event.skill ?? ''), fireSpell: event.skill === 'fireball', ultimate: event.skill === 'absoluteZero', seed: this.sequence++, singularity, combustion, reaction: event.reaction });
+        life: max, max, style, color, kind: event.type, meteor, earth: event.skill === 'earthshatter', frostSpell: ['iceNova','absoluteZero','frostLance'].includes(event.skill ?? ''), fireSpell: event.skill === 'fireball', ultimate: event.skill === 'absoluteZero', seed: this.sequence++, singularity, combustion, reaction: event.reaction, arrival });
       if (this.areas.length > 20) this.areas.shift();
     }
+  }
+
+  /** Themed arrival burst for a freshly summoned ally: infernal meteor,
+   * totem earth-thump, demon fel portal, or a generic school ring. */
+  summonArrival(x: number, y: number, kind: 'meteor' | 'earth' | 'portal' | 'ring', color: string, radius: number): void {
+    const max = kind === 'meteor' ? .9 : .5;
+    this.areas.push({ x, y, radius, life: max, max, color,
+      style: kind === 'portal' ? 'shadow' : kind === 'earth' ? 'nature' : kind === 'meteor' ? 'fire' : 'arcane',
+      kind: 'blast', seed: this.sequence++, meteor: kind === 'meteor', earth: kind === 'earth',
+      portal: kind === 'portal', frostSpell: false, fireSpell: false, ultimate: false });
+    if (this.areas.length > 20) this.areas.shift();
   }
 
   update(dt: number, enemies: readonly Enemy[] = []): void {
@@ -94,16 +108,15 @@ export class SkillEffects {
         c.globalAlpha = life; polygon(c, [[x-3,y],[x,y-6],[x+3,y],[x,y+3]], '#ddffeb');
         continue;
       }
-      const bolt = link.style === 'arrow' ? link.color : PROJECTILE_COLORS[link.style];
-      c.globalAlpha = life * .35;
-      line(c, link.points, bolt, link.style === 'arrow' ? 3 : 8);
-      c.globalAlpha = life;
-      line(c, link.points, bolt, link.style === 'arrow' ? 1.2 : 2.8);
-      line(c, link.points, '#edfbff', .9);
-      if (link.style !== 'arrow') for (let i = 2; i < link.points.length - 1; i += 3) {
-        const point = link.points[i], sign = i % 2 ? -1 : 1;
-        line(c, [point, [point[0] + sign * 6, point[1] - 9], [point[0] + sign * 2, point[1] - 18]], bolt, .7);
+      if (link.style === 'arrow') {
+        c.globalAlpha = life * .35; line(c, link.points, link.color, 3);
+        c.globalAlpha = life; line(c, link.points, link.color, 1.2);
+        line(c, link.points, '#edfbff', .9);
+        continue;
       }
+      // Pull tethers (Death Grip, Leap of Faith) and other non-lightning chains
+      // render as a shadowy grip tether rather than a magic bolt.
+      drawGripTether(c, link, reducedMotion);
     }
     c.restore();
   }
@@ -143,6 +156,39 @@ export class SkillEffects {
       c.beginPath(); c.arc(0, 0, area.radius * (.8 + progress * .4), -Math.PI * .85, -Math.PI * .15); c.stroke();
       polygon(c, [[0, -10], [8, -6], [6, 4], [0, 10], [-6, 4], [-8, -6]], '#568a9d');
       line(c, [[0, -6], [0, 5]], '#e4faff', 1.3);
+      c.restore(); return;
+    }
+    if (area.arrival) {
+      // Summon arrival dust: a low expanding ring and a few rising motes; the
+      // themed burst (meteor/earth/portal) is layered on top by summonArrival.
+      const spread = reducedMotion ? 1 : .4 + progress * .6;
+      c.globalCompositeOperation = 'lighter';
+      c.globalAlpha = life * .5; c.strokeStyle = '#c8b89a'; c.lineWidth = 1.4;
+      c.beginPath(); c.ellipse(0, -2, area.radius * spread, area.radius * spread * .55, 0, 0, TAU); c.stroke();
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU + area.seed;
+        c.globalAlpha = life * .4;
+        line(c, [[Math.cos(a) * area.radius * .5, Math.sin(a) * area.radius * .3 - 2],
+          [Math.cos(a) * area.radius * .7, Math.sin(a) * area.radius * .4 - 8 - progress * 10]], '#d8ccb0', 1);
+      }
+      c.restore(); return;
+    }
+    if (area.portal) {
+      // Fel portal flash: a violet-green rift closing over a ground ring.
+      c.globalCompositeOperation = 'lighter';
+      drawGlow(c, 0, -10, area.radius * .9, '#8a5adf', life * .8);
+      c.globalAlpha = life * .8; c.strokeStyle = '#a06ad8'; c.lineWidth = 1.5 + life * 2;
+      c.beginPath(); c.ellipse(0, -3, area.radius * (reducedMotion ? .8 : .5 + progress * .5), area.radius * .4, 0, 0, TAU); c.stroke();
+      const slit = Math.max(0, life) * area.radius * .5;
+      c.globalAlpha = life * .9;
+      polygon(c, [[0, -6 - slit], [slit * .3, -6], [0, -6 + slit], [-slit * .3, -6]], '#c8f06a');
+      polygon(c, [[0, -6 - slit * .7], [slit * .18, -6], [0, -6 + slit * .7], [-slit * .18, -6]], '#f0ffd8');
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * TAU + area.seed * .9;
+        c.globalAlpha = life * .6;
+        line(c, [[Math.cos(a) * area.radius * .3, Math.sin(a) * area.radius * .2 - 6],
+          [Math.cos(a) * area.radius * .55, Math.sin(a) * area.radius * .35 - 6]], i % 2 ? '#8a5adf' : '#a5d64f', 1.1);
+      }
       c.restore(); return;
     }
     if (area.singularity) {

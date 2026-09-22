@@ -133,8 +133,9 @@ import { QuestPanel } from './quest-panel.ts';
 import { questInteract, questAccept, questAbandon, questTurnIn, questOnExplore, type QuestGreeting } from './quest-command.ts';
 import { questMarkers, questMapMarkers, drawQuestMapMarker } from './quest-marker.ts';
 import type { QuestId } from './quest-content.ts';
-import { mountToggle } from './mount-command.ts';
-import type { MountId } from './mount-content.ts';
+import { dismount, mountToggle } from './mount-command.ts';
+import { MOUNT_IDS, MOUNTS, isMountId, type MountId } from './mount-content.ts';
+import { mountUnlocked, preferredMount } from './mount-state.ts';
 import { isRaidEntranceId } from './raid-boss-content.ts';
 import { isRaid2EntranceId } from './raid2-boss-content.ts';
 import { isRaid3EntranceId } from './raid3-boss-content.ts';
@@ -152,7 +153,7 @@ import { AuctionHousePanel } from './auction-panel.ts';
 import { GuildPanel } from './guild-panel.ts';
 import { BuffFrame } from './buff-frame-art.ts';
 import { queueForDungeon, leaveQueue } from './dungeon-finder-command.ts';
-import { postAuction, buyoutAuction, cancelAuction, collectAuctionProceeds } from './auction-command.ts';
+import { postAuction, buyoutAuction, cancelAuction, collectAuctionProceeds, tickAuctions } from './auction-command.ts';
 import { foundGuild, guildVaultDeposit, guildVaultWithdraw } from './guild-command.ts';
 import { cancelBuff } from './buff-frame.ts';
 import { repOnQuestTurnIn, repClaimReward } from './reputation-command.ts';
@@ -256,6 +257,7 @@ export class Game {
   private get hallBusy() { return this._hallBusy; }
   private set hallBusy(value: boolean) { this._hallBusy=value; this.titleScreen?.setBusy(value); }
   private savingAction = false;
+  private nextAuctionTick = 0;
   private nextEventClaim = 0;
   private actionPending: Promise<unknown> = Promise.resolve();
   private autosave: Promise<boolean> | null = null;
@@ -449,12 +451,14 @@ export class Game {
         abandon: id => this.questCommand('abandon', id),
         map: id => {
           const marker = questMapMarkers(this.world, this.sim.player).find(m => m.quest.id === id);
-          if (!marker) return;
+          if (!marker) { this.notify('No known location for that quest yet.'); return; }
+          this.mapFocus = { x: marker.x, y: marker.y };
+          this.panels.transition('map', true);
+        },
+        service: () => {
           const anchor = this.pendingGiver?.anchor;
           if (anchor?.kind !== 'npc') return;
           this.activeNPC = anchor.npc;
-          this.pendingGiver = null;
-          this.questPanel.close();
           this.panels.transition('service', true);
         },
       }));
@@ -499,11 +503,6 @@ export class Game {
       }));
       // Wave-2 WoW panels: RDF, Auction House, Guild. Each rides the shared
       // persist-before-commit wrapper; the sheet persist builds a checkpoint.
-      const persistSheet = async (character: CharacterSheet, hp: number, mana: number) => {
-        const saved = await this.session.save({ ...this.sim.captureCheckpoint(), character, hp, mana }, Date.now());
-        if (!saved) this.shell.setSaveStatus(this.session.error, true);
-        return { ok: saved, message: this.session.error };
-      };
       this.dungeonFinderPanel = this.lifetime.own(new DungeonFinderPanel(this.shell.panelMount, {
         queue: id => this.durable(async () => {
           const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c));
@@ -523,16 +522,16 @@ export class Game {
         close: () => this.resume(),
       }));
       this.auctionPanel = this.lifetime.own(new AuctionHousePanel(this.shell.panelMount, {
-        post: (i, b, h) => this.durable(() => postAuction(this.sim.player, i, b, h, persistSheet), { ok: false, message: 'Saving…' }),
-        buyout: id => this.durable(() => buyoutAuction(this.sim.player, id, persistSheet), { ok: false, message: 'Saving…' }),
-        cancel: id => this.durable(() => cancelAuction(this.sim.player, id, persistSheet), { ok: false, message: 'Saving…' }),
-        collect: () => this.durable(() => collectAuctionProceeds(this.sim.player, persistSheet), { ok: false, message: 'Saving…' }),
+        post: (i, b, h) => this.durable(() => postAuction(this.sim.player, i, b, h, this.persistSheet), { ok: false, message: 'Saving…' }),
+        buyout: id => this.durable(() => buyoutAuction(this.sim.player, id, this.persistSheet), { ok: false, message: 'Saving…' }),
+        cancel: id => this.durable(() => cancelAuction(this.sim.player, id, this.persistSheet), { ok: false, message: 'Saving…' }),
+        collect: () => this.durable(() => collectAuctionProceeds(this.sim.player, this.persistSheet), { ok: false, message: 'Saving…' }),
       }));
       this.guildPanel = this.lifetime.own(new GuildPanel(this.shell.panelMount, {
         close: () => this.resume(),
-        found: name => { void this.durable(async () => { const r = await foundGuild(this.sim.player, name, persistSheet); this.notify(r.message ?? ''); }, undefined); },
-        deposit: i => { void this.durable(async () => { const r = await guildVaultDeposit(this.sim.player, i, persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
-        withdraw: i => { void this.durable(async () => { const r = await guildVaultWithdraw(this.sim.player, i, persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
+        found: name => { void this.durable(async () => { const r = await foundGuild(this.sim.player, name, this.persistSheet); this.notify(r.message ?? ''); }, undefined); },
+        deposit: i => { void this.durable(async () => { const r = await guildVaultDeposit(this.sim.player, i, this.persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
+        withdraw: i => { void this.durable(async () => { const r = await guildVaultWithdraw(this.sim.player, i, this.persistSheet); if (!r.ok) this.notify(r.message ?? ''); }, undefined); },
       }));
       this.buffFrame = this.lifetime.own(new BuffFrame());
       this.buffFrame.mount(this.canvas.parentElement!);
@@ -567,7 +566,7 @@ export class Game {
         skills: { open: () => { this.skillPanel.open(this.sim.player); this.shell.setStatus('Skill tree open. Game paused.'); }, close: () => this.skillPanel.close() },
         achievements: { open: () => { this.achievementPanel.open(); this.shell.setStatus('Achievements open. Game paused.'); }, close: () => this.achievementPanel.close() },
         transmog: { open: () => { this.transmogPanel.open(); this.shell.setStatus('Transmogrify open. Game paused.'); }, close: () => this.transmogPanel.close() },
-        questLog: { open: () => { const greeting = this.pendingGiver; this.pendingGiver = null; if (greeting) this.questPanel.openGiver(greeting); else this.questPanel.open(); this.shell.setStatus('Quest log open. Game paused.'); }, close: () => { this.questPanel.close(); this.pendingGiver = null; } },
+        questLog: { open: () => { const greeting = this.pendingGiver; if (greeting) this.questPanel.openGiver(greeting); else this.questPanel.open(); this.shell.setStatus('Quest log open. Game paused.'); }, close: () => { this.questPanel.close(); this.pendingGiver = null; } },
         professions: { open: () => { this.professionPanel.open(); this.shell.setStatus('Professions open. Game paused.'); }, close: () => this.professionPanel.close() },
         glyphs: { open: () => { this.glyphPanel.open(); this.shell.setStatus('Glyphs open. Game paused.'); }, close: () => this.glyphPanel.close() },
         spellbook: { open: () => { this.spellbookPanel.open(); this.shell.setStatus('Spellbook open. Game paused.'); }, close: () => this.spellbookPanel.close() },
@@ -1351,7 +1350,7 @@ export class Game {
           const gathered = gatherInteract(this.sim, pointer);
           if (gathered.handled) { if (gathered.problem) this.notify(gathered.problem); return true; }
           const greeting = questInteract(this.sim, this.world, pointer);
-          if (greeting) { this.pendingGiver = greeting; this.panels.open('questLog'); return true; }
+          if (greeting) { this.pendingGiver = greeting; if (!this.panels.open('questLog')) this.pendingGiver = null; return true; }
           const innkeeper = GAME_FEATURES.hearthstone ? focusedInnkeeper(innkeepersNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer) : null;
           if (innkeeper) {
               void this.durable(async () => {
@@ -1457,6 +1456,14 @@ export class Game {
       .find(anchor => withinPortalReach(p, anchor, this.world)
         && (!pointer || Math.hypot(pointer.x - anchor.x, pointer.y - (anchor.y - 25)) < 42));
   }
+
+  /** Sheet-level persist for the commerce commands (auction house, guild): the
+   * staged character rides a fresh checkpoint so hp/mana stay consistent. */
+  private persistSheet = async (character: CharacterSheet, hp: number, mana: number) => {
+    const saved = await this.session.save({ ...this.sim.captureCheckpoint(), character, hp, mana }, Date.now());
+    if (!saved) this.shell.setSaveStatus(this.session.error, true);
+    return { ok: saved, message: this.session.error };
+  };
 
   private async persistTravel(checkpoint: CharacterCheckpoint) {
     const ok = await this.session.save(checkpoint, Date.now());
@@ -1633,6 +1640,26 @@ export class Game {
         if (!pet) return { ok: false, stable, message: 'That pet is no longer here.' };
         return { ok: true, stable: releasePet(stable, petId), message: `${pet.name} released.` };
       }),
+      mounts: () => MOUNT_IDS.map(id => ({
+        id, unlocked: mountUnlocked(this.sim.player, id), selected: preferredMount(this.sim.player) === id,
+      })),
+      selectMount: id => this.durable(async () => {
+        const p = this.sim.player;
+        if (!isMountId(id)) return { ok: false, message: 'Unknown mount.' };
+        if (!mountUnlocked(p, id)) return { ok: false, message: `${MOUNTS[id].name} is still locked.` };
+        const checkpoint = this.sim.captureCheckpoint();
+        checkpoint.character.mount = id;
+        const saved = await this.persistTravel(checkpoint);
+        if (!saved.ok) return { ok: false, message: saved.message ?? 'Could not save. Your mount preference is unchanged.' };
+        p.character = checkpoint.character;
+        if (p.mounted && p.mounted.id !== id) dismount(this.sim);
+        if (!p.mounted) {
+          this.resume();
+          this.toggleMount(id);
+          return { ok: true, message: `Summoning ${MOUNTS[id].name}…` };
+        }
+        return { ok: true, message: `${MOUNTS[id].name} selected.` };
+      }, { ok: false, message: 'A save is already in progress.' }),
     };
   }
 
@@ -1944,6 +1971,17 @@ export class Game {
           const index=this.sim.dungeonFloor.chests.findIndex((_,i)=>!dungeonChestProblem(this.sim,i));
           if(index>=0)void this.durable(async()=>{const result=await claimDungeonChest(this.sim,index,c=>this.persistTravel(c));if(!result.ok){this.nextEventClaim=performance.now()+30000;this.notify(result.message);}
             else if(result.celebration){this.renderer.handleEvents([result.celebration],this.reducedMotion);this.notify(result.message);}},undefined);
+      }
+      // Market tick: settle AH sales/returns once a second while playing. The
+      // savingAction window (not durable — that would eat held inputs) freezes
+      // the sim for the persist so the commit can't clobber live mutations.
+      if (!this.savingAction && !this.sim.player.dead && now >= this.nextAuctionTick
+        && (this.sim.player.character.auctionHouse?.listings.length ?? 0) > 0) {
+        this.nextAuctionTick = now + 1000;
+        this.savingAction = true;
+        void tickAuctions(this.sim.player, this.persistSheet)
+          .then(result => { if (result.ok && result.message) this.notify(result.message); })
+          .finally(() => { this.savingAction = false; });
       }
       if (this.sim.portal.ready) this.travelThrough(this.overworld.getPortalAnchor(this.sim.travel.homeTown, playerFaction(this.sim.player)), false);
       const run=currentDungeon(this.sim.expeditions);

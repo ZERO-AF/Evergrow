@@ -1,4 +1,4 @@
-import { drawIceCrystal, drawTempestField } from './elemental-spell-art.ts';
+import { drawIceCrystal, drawTempestField, type TempestFlavor } from './elemental-spell-art.ts';
 import type { ActiveGroundEffect } from './ground-effects.ts';
 import type { PointLight } from './lighting.ts';
 import { drawGlow } from './lighting.ts';
@@ -57,7 +57,10 @@ export function drawGroundSpell(c: CanvasRenderingContext2D, effect: ActiveGroun
     const fade = Math.min(1, Math.max(0, effect.duration) / .45);
     c.globalAlpha = fade;
     if (effect.kind === 'storm') {
-      drawTempestField(c,r,effect.id,t,Math.min(1,Math.max(0,effect.tick/effect.interval)),fade,reduced);
+      const flavor: TempestFlavor = effect.style === 'frost' ? 'frost' : effect.style === 'fire' ? 'fire'
+        : effect.style === 'shadow' ? 'unholy' : effect.style === 'holy' || effect.style === 'radiant' ? 'holy'
+        : effect.style === 'arcane' ? 'arcane' : effect.style === 'nature' ? 'nature' : 'storm';
+      drawTempestField(c,r,effect.id,t,Math.min(1,Math.max(0,effect.tick/effect.interval)),fade,reduced,flavor);
     } else if (effect.kind === 'frost') {
       // The confirmed blast owns the growing frost front; the field retains only its boundary.
       c.globalAlpha=fade*.2;c.strokeStyle='#b0e9fb';c.lineWidth=1;

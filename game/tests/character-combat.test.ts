@@ -155,6 +155,8 @@ for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_
     if (definition.combo === 'spend') player.comboPoints = 5;
     // Ally-gated casts need a matching summon; frozen-gated casts need a frozen target.
     if (definition.requiresAlly) sim.summonAlly(definition.requiresAlly === 'demon' ? 'imp' : definition.requiresAlly, 1);
+    // Stance/aspect-gated casts need their required buff active.
+    if (definition.requiresBuff) sim.addBuff(definition.name, definition.color, { duration: 60 }, definition.requiresBuff);
     if (definition.requiresFrozen) enemy.freezeTime = 5;
     // Passive regen is orthogonal noise; the assertion isolates the skill's own cost.
     player.derived.manaRegeneration = 0;
@@ -171,8 +173,13 @@ for (const id of (Object.keys(SKILL_DEFINITIONS) as SkillId[]).filter(id=>SKILL_
     player.mana = resourceCap;
     sim.drainEvents();
     // Tick 1 starts the cast; it completes after castTime more ticks.
-    const castTicks = 1 + Math.ceil((definition.castTime ?? 0) / FIXED_STEP);
-    advance(sim, FIXED_STEP * castTicks, { skillSlot: slot, aimX: enemy.x });
+    // Cast speed (haste from allocated passives/gear) shortens the real cast; the window
+    // must use the effective duration so the completion lands inside the first advance.
+    const castTicks = 1 + Math.ceil(((definition.castTime ?? 0) / Math.max(.25, player.derived.castSpeedMultiplier)) / FIXED_STEP);
+    // One deliberate press, then release: holding the slot would buffer a repeat that
+    // re-fires after the GCD inside the observation window (WoW spell-queue behavior).
+    advance(sim, FIXED_STEP, { skillSlot: slot, skillPressed: true, aimX: enemy.x });
+    advance(sim, FIXED_STEP * (castTicks - 1), { aimX: enemy.x });
     // Costs and gains settle at cast start; decay ticks before the cast and, for
     // non-offensive casts (no combatUntil), through the remaining cast time.
     const recipe = SKILL_EXECUTION[id] as { kind?: string; form?: string; resourceGain?: number; resourceGainFrac?: number } | undefined;

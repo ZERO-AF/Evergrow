@@ -243,7 +243,7 @@ export async function questTurnIn(sim: Simulation, id: QuestId, persist: QuestPe
   stageTurnIn(checkpoint, id, now);
   const staged = { ...p, character: checkpoint.character, level: checkpoint.level, xp: checkpoint.xp };
   const xp = Math.round(def.rewards.xp * xpLevelFactor(p.level, def.level) * p.derived.xpGainMultiplier);
-  if (xp > 0) awardCharacterExperience(staged, xp);
+  if (xp > 0) awardCharacterExperience(staged, xp, sim.time);
   checkpoint.character = staged.character;
   checkpoint.level = staged.level;
   checkpoint.xp = staged.xp;

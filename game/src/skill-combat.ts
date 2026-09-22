@@ -241,6 +241,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
         : allies.some(a => a.hp > 0 && a.kind === costs.requiresAlly);
       if (!found) return false;
     }
+    if (costs.requiresBuff && !(p.buffs ?? []).some(b => b.id === costs.requiresBuff && b.remaining > 0)) return false;
     if ((costs.requiresBehind || (recipe.kind === 'comboStrike' && recipe.requiresBehind)) && (!target || !behind(target))) return false;
     if (recipe.kind === 'comboStrike' && recipe.requiresStealth && !p.stealthed) return false;
     if (costs.executeThreshold && (costs.targetMode ?? 'point') === 'enemy' && (!target || target.hp / target.maxHp > costs.executeThreshold)) return false;
@@ -262,15 +263,17 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     if (costs.shardCost) p.soulShards = Math.max(0, (p.soulShards ?? 0) - costs.shardCost);
     if (costs.runeCost) context.sim.addRunicPower((costs.runicPowerGain ?? WOW_COMBAT.runicPowerPerRune) * Object.values(costs.runeCost).reduce((a, b) => a + (b ?? 0), 0));
     else if (costs.runicPowerGain) context.sim.addRunicPower(costs.runicPowerGain);
-    if (!costs.offGcd) p.gcdReady = context.time + (costs.classId === 'rogue' || p.buffs?.some(b => b.form === 'cat' && b.remaining > 0) ? WOW_COMBAT.gcdRogueCat : costs.classId ? WOW_CLASSES[costs.classId].gcd : WOW_COMBAT.gcdDefault);
+    const spellish = costs.requirement === 'magic' || (costs.castTime ?? 0) > 0 || !!costs.channel;
+    const baseGcd = costs.classId === 'rogue' || p.buffs?.some(b => b.form === 'cat' && b.remaining > 0) ? WOW_COMBAT.gcdRogueCat : costs.classId ? WOW_CLASSES[costs.classId].gcd : WOW_COMBAT.gcdDefault;
+    if (!costs.offGcd) p.gcdReady = context.time + (spellish ? Math.max(1, baseGcd / Math.max(.25, p.derived.castSpeedMultiplier)) : baseGcd);
     // Acting breaks stealth; stealth-granting recipes re-apply it below. Non-damaging
     // control that requires stealth (Sap) leaves it up.
     if (recipe.kind !== 'stealth' && !(recipe.kind === 'cc' && costs.requiresStealth)) p.stealthed = false;
     p.skillCooldowns[id] = costs.cooldown;
-    // Cast-time skills start the cast here: the sim owns the clock and re-invokes
-    // prepaid on completion against the snapshotted target/point.
     if ((costs.castTime ?? 0) > 0 && !costs.channel) {
-      p.cast = { skill: id, remaining: costs.castTime!, duration: costs.castTime!,
+      // Cast speed (haste) shortens the cast; Presence of Mind / Bloodlust / gear all feed it.
+      const castDuration = costs.castTime! / Math.max(.25, p.derived.castSpeedMultiplier);
+      p.cast = { skill: id, remaining: castDuration, duration: castDuration,
         ...(target ? { targetId: target.id } : { x: context.aimX, y: context.aimY }),
         ...(recipe.kind === 'tame' && target ? { breakRange: (costs.range ?? attack.range) + target.radius } : {}) };
       p.castAngle = target ? Math.atan2(target.y - p.y, target.x - p.x) : Math.atan2(context.aimY - p.y, context.aimX - p.x);
@@ -560,6 +563,8 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       if (!t) { strikeWhiff(); blastAt(p.x, p.y, 56, hitStyle); break; }
       const angle = Math.atan2(p.y - t.y, p.x - t.x);
       const distance = Math.max(0, Math.hypot(t.x - p.x, t.y - p.y) - (p.radius + t.radius + 8));
+      // Tether visual from the player to the target's pre-pull position (Death Grip).
+      context.emit({ type: 'chain', x: p.x, y: p.y, toX: t.x, toY: t.y, duration: .3, color, style: hitStyle });
       const to = context.world.move(t.x, t.y, Math.cos(angle) * distance, Math.sin(angle) * distance, t.radius);
       t.x = to.x; t.y = to.y;
       t.awareness = Math.max(t.awareness, 1);

@@ -71,6 +71,7 @@ export type WowSkillId =
   | 'slam' | 'rend' | 'victoryRush' | 'intercept' | 'intervene' | 'spellReflection' | 'disarm'
   | 'demoralizingShout' | 'piercingHowl' | 'concussionBlow' | 'shockwave' | 'lastStand' | 'enragedRegeneration'
   | 'commandingShout' | 'taunt' | 'challengingShout' | 'heroicThrow' | 'shatteringThrow' | 'retaliation'
+  | 'battleStance' | 'defensiveStance' | 'berserkerStance'
   // Paladin
   | 'crusaderStrike' | 'judgement' | 'sealOfCommand' | 'consecration' | 'hammerOfJustice' | 'holyLight'
   | 'flashOfLight' | 'divineShield' | 'divineProtection' | 'layOnHands' | 'avengingWrath' | 'hammerOfWrath'
@@ -80,6 +81,7 @@ export type WowSkillId =
   | 'hammerOfTheRighteous' | 'avengersShield' | 'judgementOfLight' | 'judgementOfWisdom' | 'judgementOfJustice'
   | 'sealOfVengeance' | 'sealOfRighteousness' | 'sealOfCorruption' | 'sealOfWisdom' | 'sealOfLight' | 'righteousFury'
   | 'divineIllumination' | 'beaconOfLight' | 'holyWrath' | 'turnEvil' | 'purify' | 'cleanse' | 'redemption' | 'sacredShield'
+  | 'devotionAura' | 'retributionAura' | 'concentrationAura' | 'resistanceAura' | 'crusaderAura'
   // Hunter
   | 'arcaneShot' | 'aimedShot' | 'multiShot' | 'serpentSting' | 'concussiveShot' | 'scatterShot'
   | 'freezingTrap' | 'disengage' | 'aspectHawk' | 'feignDeath' | 'callPet' | 'killCommand'
@@ -88,6 +90,7 @@ export type WowSkillId =
   | 'deterrence' | 'misdirection' | 'tranquilizingShot' | 'viperSting' | 'scorpidSting' | 'mendPet'
   | 'revivePet' | 'intimidation' | 'wyvernSting' | 'blackArrow' | 'silencingShot' | 'readiness'
   | 'tameBeast'
+  | 'aspectViper' | 'aspectCheetah' | 'aspectPack' | 'aspectDragonhawk' | 'aspectBeast'
   // Rogue
   | 'sinisterStrike' | 'eviscerate' | 'ambush' | 'garrote' | 'rupture' | 'kidneyShot' | 'sliceAndDice'
   | 'stealth' | 'vanish' | 'sap' | 'gouge' | 'kick' | 'sprint' | 'evasion' | 'blind' | 'fanOfKnives'
@@ -190,6 +193,8 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   activeSpec?: number;
   /** Hunter pet stable: the active companion plus stabled pets (pet-content.ts). */
   pets?: PetStable;
+  /** Preferred mount for the X summon toggle; set at the stable master (mount-state.ts). */
+  mount?: import('./mount-content.ts').MountId;
   /** Dungeon Finder queue marker: the queued catalog id and when (dungeon-finder-state.ts). */
   dungeonFinder?: DungeonFinderState;
   /** Auction House ledger: posted listings, sale receipts, pending proceeds (auction-state.ts). */

@@ -93,7 +93,7 @@ async function commitEvent(sim: Simulation, site: EventSite, choice: EventChoice
       const reward = Math.round(bundle.xp * xpLevelFactor(checkpoint.level, site.level) * sim.player.derived.xpGainMultiplier);
       const staged = { ...sim.player, character: checkpoint.character, level: checkpoint.level, xp: checkpoint.xp };
       if (reward)
-        awardCharacterExperience(staged, reward);
+        awardCharacterExperience(staged, reward, sim.time);
       metric(checkpoint.chronicle,'xp',reward);metric(checkpoint.chronicle,'highestLevel',staged.level);
       if (site.kind === 'standingStones')
         staged.character.blessing = { kind: record.choice as BlessingKind, remaining: EVENT_RULES.blessingDuration };

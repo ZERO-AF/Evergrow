@@ -2,6 +2,7 @@ import type { GearMaterial } from './gear-material-content.ts';
 import type { WeaponVisual, WeaponGrip } from './equipment.ts';
 import type { EnemyKind, FocusDefinition, ShieldDefinition } from './model.ts';
 import type { CharacterAppearance } from './appearance-content.ts';
+import type { ShapeshiftForm } from './wow-types.ts';
 
 /** Procedural art only: every cached image below is drawn from geometry. */
 export interface Sprite {
@@ -111,4 +112,8 @@ export interface CharacterPose {
   /** Zone-roster skin: whole-rig color wash mixed under the hit-flash. */
   tint?: string;
   tintAmount?: number;
+  /** Active shapeshift form (bear/cat/moonkin/travel/shadow/metamorph/ghostWolf); the rig swaps silhouette. */
+  form?: ShapeshiftForm;
+  /** Active weapon-imbue element (Windfury/Flametongue/poisons/seals/stones); overrides the weapon glow. */
+  imbueElement?: 'fire' | 'frost' | 'lightning' | 'nature' | 'shadow' | 'holy';
 }

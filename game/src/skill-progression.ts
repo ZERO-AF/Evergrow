@@ -278,7 +278,8 @@ export function resolveSkill(id: SkillId, stats: Pick<DerivedCharacterStats, 'ma
     castTime: base.castTime, channel: base.channel, targetMode: base.targetMode, range: base.range,
     offGcd: base.offGcd, executeThreshold: base.executeThreshold, requiresStealth: base.requiresStealth,
     requiresForm: base.requiresForm, requiresBehind: base.requiresBehind,
-    requiresFrozen: base.requiresFrozen, requiresAlly: base.requiresAlly };
+    requiresFrozen: base.requiresFrozen, requiresAlly: base.requiresAlly, requiresBuff: base.requiresBuff,
+    requirement: base.requirement };
 }
 
 /** Strict current-format state validation, including point conservation at the save boundary. */

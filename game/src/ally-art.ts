@@ -21,7 +21,7 @@ type AllyShape = 'quadruped' | 'imp' | 'brute' | 'floater' | 'elemental' | 'huma
   | 'boar' | 'spider' | 'turtle' | 'scorpid' | 'raptor' | 'bird' | 'serpent' | 'treant' | 'gargoyle' | 'fiend';
 
 /** Quadruped proportion overrides; omitted fields draw the baseline wolf body. */
-interface QuadArt {
+export interface QuadArt {
   /** Leg length and stance multiplier. */
   leg?: number;
   /** Torso width multiplier. */
@@ -34,6 +34,84 @@ interface QuadArt {
   snout?: number;
   /** Extra head lift. */
   head?: number;
+  /** Dorsal spikes along the spine (felhunter). */
+  spikes?: boolean;
+}
+
+/** Large biped extras: swept horns, bat wings, flame mantle, rock plates. */
+export interface BruteArt {
+  horns?: boolean; wings?: boolean; flames?: boolean; plates?: boolean;
+}
+
+/**
+ * Ground-plane quadruped (wolf baseline) at local (0,0), facing `angle`.
+ * Shared by summoned allies and player shapeshift forms; pure drawing, no state.
+ */
+export function drawQuadruped(c: CanvasRenderingContext2D, angle: number, gait: number, moving: number,
+  time: number, tint: string, dark: string, accent: string, art: QuadArt = {}, bob = 0, lunge = 0, seed = 0): void {
+  const forward = [Math.cos(angle), Math.sin(angle) * .55] as const;
+  const across = [-Math.sin(angle), Math.cos(angle) * .55] as const;
+  const at = (px: number, py: number, z: number): Point =>
+    [forward[0] * px + across[0] * py, forward[1] * px + across[1] * py - z];
+  const poly = (points: readonly (readonly [number, number, number])[], fill: string) =>
+    polygon(c, points.map(q => at(...q)), fill);
+  const leg = art.leg ?? 1, bulk = art.bulk ?? 1, tail = art.tail ?? 5, ear = art.ear ?? 2.4, snout = art.snout ?? 1;
+  const step = Math.sin(gait) * moving * 2.6;
+  const lift = Math.abs(Math.cos(gait)) * moving * 1.4;
+  const body = 9 * leg + bob * .4 + lunge * 2;
+  for (const side of [-1, 1]) for (const end of [-1, 1]) {
+    const stride = step * (end === side ? -1 : 1);
+    taper(c, at(end * 4.5, side * 2.4 * bulk, body), at(end * 5 + stride, side * 3 * bulk, lift * (end === side ? 1 : .4)), 2.4 * bulk, 1.4 * bulk, dark);
+  }
+  if (tail > 0)
+    taper(c, at(-7 * bulk, 0, body + 1), at(-7 * bulk - tail, .6, body + 4 + Math.sin(time * 4 + seed) * 1.2), 1.6, .7, dark);
+  if (art.spikes) for (const sx of [-4, 0, 4])
+    poly([[sx - 1.4, -1, body + 3.6], [sx, -1, body + 7], [sx + 1.4, -1, body + 3.4]], dark);
+  poly([[-8 * bulk, -2.6 * bulk, body + 2.4], [5 * bulk, -2.6 * bulk, body + 3], [8 * bulk, 0, body + 1.6], [5 * bulk, 2.6 * bulk, body + 1], [-6 * bulk, 2.6 * bulk, body]], tint);
+  poly([[-6 * bulk, -2 * bulk, body + 3.4], [4 * bulk, -2 * bulk, body + 4], [6.4 * bulk, 0, body + 2.6], [-4 * bulk, 1.6 * bulk, body + 1.6]], dark);
+  const head = body + 2 + (art.head ?? 0) + lunge * 2;
+  const nose = 6 + 6.6 * snout;
+  poly([[6, -2.2, head + 1], [9, -1.6, head + 3.4], [nose, -1, head + 1.4], [nose, 1, head + 1], [9, 2.4, head - .4], [6.4, 1.8, head - .8]], tint);
+  if (ear > 0) {
+    poly([[7.4, -1.8, head + 3], [8.6, -2.2, head + 3 + ear], [9.8, -1.6, head + 3.2]], dark);
+    poly([[7.4, 1.8, head + 3], [8.6, 2.2, head + 3 + ear], [9.8, 1.6, head + 3.2]], dark);
+  }
+  const eye = at(4 + 6.4 * snout, -1.2, head + 1.6);
+  c.fillStyle = accent;
+  c.fillRect(eye[0] - .7, eye[1] - .7, 1.4, 1.4);
+}
+
+/**
+ * Billboard biped brute (felguard/infernal baseline) at local (0,0): legs, arms,
+ * torso, head plus optional horns/wings/flames/plates. Shared by summoned allies
+ * and the metamorphosis form; pure drawing, no state.
+ */
+export function drawBrute(c: CanvasRenderingContext2D, gait: number, moving: number, time: number,
+  tint: string, dark: string, accent: string, art: BruteArt = {}, lunge = 0, seed = 0): void {
+  const sway = Math.sin(gait * .5) * moving * 1.2;
+  for (const side of [-1, 1])
+    taper(c, [side * 3.4, -8], [side * 4.4 + Math.sin(gait + side * Math.PI) * moving * 2.4, -1], 3.6, 2.4, dark);
+  for (const side of [-1, 1])
+    taper(c, [side * 6.4 + sway, -20], [side * (8.4 + lunge * 3) + sway, -9 - lunge * 3], 3.4, 2.2, dark);
+  if (art.wings) for (const side of [-1, 1])
+    polygon(c, [[side * 5 + sway, -22], [side * 15 + sway, -26 + Math.sin(time * 3 + seed) * 1.5], [side * 17 + sway, -16], [side * 9 + sway, -14]], dark);
+  polygon(c, [[-7 + sway, -24], [7 + sway, -24], [8.6 + sway, -8], [-8.6 + sway, -8]], tint);
+  polygon(c, [[-4.6 + sway, -23], [4.6 + sway, -23], [5.6 + sway, -10], [-5.6 + sway, -10]], dark);
+  if (art.plates) for (const side of [-1, 1]) {
+    polygon(c, [[side * 4 + sway, -25], [side * 10 + sway, -26], [side * 11 + sway, -19], [side * 5 + sway, -18]], dark);
+    polygon(c, [[side * 5.5 + sway, -24], [side * 9 + sway, -24.6], [side * 9.6 + sway, -20], [side * 6 + sway, -19.6]], tint);
+  } else for (const side of [-1, 1])
+    polygon(c, [[side * 4.4 + sway, -24], [side * 8.4 + sway, -28.4], [side * 7 + sway, -22.4]], dark);
+  polygon(c, [[-3 + sway, -30], [3 + sway, -30], [4 + sway, -23.4], [-4 + sway, -23.4]], tint);
+  if (art.horns) for (const side of [-1, 1])
+    polygon(c, [[side * 2.4 + sway, -29], [side * 6.5 + sway, -34], [side * 4.6 + sway, -27.6]], dark);
+  if (art.flames) for (const side of [-1, 1]) {
+    const flick = Math.sin(time * 9 + seed + side) * 1.2;
+    polygon(c, [[side * 5 + sway, -24], [side * 7 + sway + flick, -31], [side * 8.6 + sway, -23]], accent);
+  }
+  c.fillStyle = accent;
+  c.fillRect(-2 + sway, -27.4, 1.4, 1.4);
+  c.fillRect(.8 + sway, -27.4, 1.4, 1.4);
 }
 
 /** Totem crown glyphs — the pulsing emblem at the pole's tip. */
@@ -180,31 +258,7 @@ export function drawAlly(c: CanvasRenderingContext2D, ally: Ally, x: number, y: 
 
   switch (art.shape) {
     case 'quadruped': {
-      const q = art.quad ?? {};
-      const leg = q.leg ?? 1, bulk = q.bulk ?? 1, tail = q.tail ?? 5, ear = q.ear ?? 2.4, snout = q.snout ?? 1;
-      const step = Math.sin(gait) * moving * 2.6;
-      const lift = Math.abs(Math.cos(gait)) * moving * 1.4;
-      const body = 9 * leg + bob * .4 + lunge * 2;
-      for (const side of [-1, 1]) for (const end of [-1, 1]) {
-        const stride = step * (end === side ? -1 : 1);
-        taper(c, at(end * 4.5, side * 2.4 * bulk, body), at(end * 5 + stride, side * 3 * bulk, lift * (end === side ? 1 : .4)), 2.4 * bulk, 1.4 * bulk, dark);
-      }
-      if (tail > 0)
-        taper(c, at(-7 * bulk, 0, body + 1), at(-7 * bulk - tail, .6, body + 4 + Math.sin(t * 4 + ally.id) * 1.2), 1.6, .7, dark);
-      if (art.spikes) for (const sx of [-4, 0, 4])
-        poly([[sx - 1.4, -1, body + 3.6], [sx, -1, body + 7], [sx + 1.4, -1, body + 3.4]], dark);
-      poly([[-8 * bulk, -2.6 * bulk, body + 2.4], [5 * bulk, -2.6 * bulk, body + 3], [8 * bulk, 0, body + 1.6], [5 * bulk, 2.6 * bulk, body + 1], [-6 * bulk, 2.6 * bulk, body]], tint);
-      poly([[-6 * bulk, -2 * bulk, body + 3.4], [4 * bulk, -2 * bulk, body + 4], [6.4 * bulk, 0, body + 2.6], [-4 * bulk, 1.6 * bulk, body + 1.6]], dark);
-      const head = body + 2 + (q.head ?? 0) + lunge * 2;
-      const nose = 6 + 6.6 * snout;
-      poly([[6, -2.2, head + 1], [9, -1.6, head + 3.4], [nose, -1, head + 1.4], [nose, 1, head + 1], [9, 2.4, head - .4], [6.4, 1.8, head - .8]], tint);
-      if (ear > 0) {
-        poly([[7.4, -1.8, head + 3], [8.6, -2.2, head + 3 + ear], [9.8, -1.6, head + 3.2]], dark);
-        poly([[7.4, 1.8, head + 3], [8.6, 2.2, head + 3 + ear], [9.8, 1.6, head + 3.2]], dark);
-      }
-      const eye = at(4 + 6.4 * snout, -1.2, head + 1.6);
-      c.fillStyle = art.accent;
-      c.fillRect(eye[0] - .7, eye[1] - .7, 1.4, 1.4);
+      drawQuadruped(c, ally.angle, gait, moving, t, tint, dark, art.accent, art.quad, bob, lunge, ally.id);
       break;
     }
     case 'boar': {
@@ -356,30 +410,7 @@ export function drawAlly(c: CanvasRenderingContext2D, ally: Ally, x: number, y: 
       break;
     }
     case 'brute': {
-      const sway = Math.sin(gait * .5) * moving * 1.2;
-      for (const side of [-1, 1])
-        taper(c, [side * 3.4, -8], [side * 4.4 + Math.sin(gait + side * Math.PI) * moving * 2.4, -1], 3.6, 2.4, dark);
-      for (const side of [-1, 1])
-        taper(c, [side * 6.4 + sway, -20], [side * (8.4 + lunge * 3) + sway, -9 - lunge * 3], 3.4, 2.2, dark);
-      if (art.wings) for (const side of [-1, 1])
-        polygon(c, [[side * 5 + sway, -22], [side * 15 + sway, -26 + Math.sin(t * 3 + ally.id) * 1.5], [side * 17 + sway, -16], [side * 9 + sway, -14]], dark);
-      polygon(c, [[-7 + sway, -24], [7 + sway, -24], [8.6 + sway, -8], [-8.6 + sway, -8]], tint);
-      polygon(c, [[-4.6 + sway, -23], [4.6 + sway, -23], [5.6 + sway, -10], [-5.6 + sway, -10]], dark);
-      if (art.plates) for (const side of [-1, 1]) {
-        polygon(c, [[side * 4 + sway, -25], [side * 10 + sway, -26], [side * 11 + sway, -19], [side * 5 + sway, -18]], dark);
-        polygon(c, [[side * 5.5 + sway, -24], [side * 9 + sway, -24.6], [side * 9.6 + sway, -20], [side * 6 + sway, -19.6]], tint);
-      } else for (const side of [-1, 1])
-        polygon(c, [[side * 4.4 + sway, -24], [side * 8.4 + sway, -28.4], [side * 7 + sway, -22.4]], dark);
-      polygon(c, [[-3 + sway, -30], [3 + sway, -30], [4 + sway, -23.4], [-4 + sway, -23.4]], tint);
-      if (art.horns) for (const side of [-1, 1])
-        polygon(c, [[side * 2.4 + sway, -29], [side * 6.5 + sway, -34], [side * 4.6 + sway, -27.6]], dark);
-      if (art.flames) for (const side of [-1, 1]) {
-        const flick = Math.sin(t * 9 + ally.id + side) * 1.2;
-        polygon(c, [[side * 5 + sway, -24], [side * 7 + sway + flick, -31], [side * 8.6 + sway, -23]], art.accent);
-      }
-      c.fillStyle = art.accent;
-      c.fillRect(-2 + sway, -27.4, 1.4, 1.4);
-      c.fillRect(.8 + sway, -27.4, 1.4, 1.4);
+      drawBrute(c, gait, moving, t, tint, dark, art.accent, art, lunge, ally.id);
       break;
     }
     case 'floater': {

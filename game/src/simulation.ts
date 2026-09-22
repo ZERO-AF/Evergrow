@@ -811,6 +811,8 @@ export class Simulation {
         stationary: template.stationary, ...(duration !== undefined ? { remaining: duration } : {}),
         targetId: null, attackCooldown: 0, radius: template.radius,
         ...(template.aura ? { aura: { ...template.aura } } : {}) });
+      // Arrival flash so demons/elementals/totems don't pop in silently.
+      this.emit({ type: 'blast', x: spot.x, y: spot.y, radius: template.radius + 26, duration: .4 });
     }
   }
 

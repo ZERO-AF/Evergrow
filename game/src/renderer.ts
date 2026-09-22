@@ -107,7 +107,7 @@ import { ThreatMeter, drawThreatRows, drawThreatList } from './threat-meter.ts';
 import { enemyRosterSkin } from './zone-roster.ts';
 import { bossFrameEligible, bossFrameTargets, drawBossFrame, getBossFrameLayout, BOSS_FRAME } from './boss-frame.ts';
 import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-art.ts';
-import { VfxPack, drawCastTargetDecal } from './vfx-pack.ts';
+import { VfxPack, drawCastTargetDecal, drawChannelBeam } from './vfx-pack.ts';
 import { BossWarnings } from './boss-warnings.ts';
 import { drawBossWarnings } from './boss-warning-art.ts';
 import { lootBeamAnchors, lootBeamLights, type LootBeamAnchor } from './loot-beam.ts';
@@ -687,7 +687,8 @@ export class Renderer {
         || effect.y + effect.radius < top || effect.y - effect.radius - 500 > top + worldHeight) continue;
       drawGroundSpell(c, effect, this.visualTime, settings.reducedMotion);
     }
-    if (GAME_FEATURES.lootBeams) drawCastTargetDecal(c, sim, this.visualTime, settings.reducedMotion);
+    if (GAME_FEATURES.spellVfx) drawCastTargetDecal(c, sim, this.visualTime, settings.reducedMotion);
+    if (GAME_FEATURES.spellVfx) drawChannelBeam(c, sim, this.visualTime, settings.reducedMotion);
     const platesOn = GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off';
     if (!this.cryptFloor) this.waterArt.drawSplashes(c, this.water.fluid);
     this.damageDirection(px, py);

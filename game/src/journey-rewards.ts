@@ -34,7 +34,7 @@ export function stageJourneyCompletion(checkpoint: CharacterCheckpoint, goal: Jo
   if(state.recommended===goal.id)state.recommended=null;
   if (state.tracked === goal.id) state.tracked = null;
   const staged = { ...player, character: checkpoint.character, level: checkpoint.level, xp: checkpoint.xp };
-  awardCharacterExperience(staged, xp);
+  awardCharacterExperience(staged, xp, time);
   checkpoint.character = staged.character; checkpoint.level = staged.level; checkpoint.xp = staged.xp;
   metric(checkpoint.chronicle,'journeys');metric(checkpoint.chronicle,'xp',xp);metric(checkpoint.chronicle,'highestLevel',staged.level);
   return { id: goal.id, name: goal.name, xp };

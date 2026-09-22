@@ -116,24 +116,67 @@ export function drawFireImpact(c: CanvasRenderingContext2D, radius: number, life
   }
 }
 
+/** Storm flavor per school: ring/mote/bolt palettes plus the falling element. */
+export type TempestFlavor = 'storm' | 'frost' | 'fire' | 'unholy' | 'holy' | 'arcane' | 'nature';
+const TEMPEST_FLAVORS: Readonly<Record<TempestFlavor, { ring: string; ring2: string; mote: string; bolt: string; boltCore: string; drop: 'bolt' | 'shard' | 'ember' | 'star' | 'gust' | 'rise' }>> = Object.freeze({
+  storm:  { ring: '#8897e7', ring2: '#addce9', mote: '#929eda', bolt: '#8483e6', boltCore: '#d9f5ff', drop: 'bolt' },
+  frost:  { ring: '#7fb8d8', ring2: '#d8f2ff', mote: '#a8d8ee', bolt: '#9adcff', boltCore: '#eefaff', drop: 'shard' },
+  fire:   { ring: '#e78a52', ring2: '#ffd4a1', mote: '#ff9a5c', bolt: '#ff7b3c', boltCore: '#ffe9c0', drop: 'ember' },
+  unholy: { ring: '#5c8a4a', ring2: '#9ad87a', mote: '#6aa858', bolt: '#4a7a3c', boltCore: '#c8f0a8', drop: 'rise' },
+  holy:   { ring: '#d8b45c', ring2: '#ffe9a0', mote: '#e8cc7a', bolt: '#f0d080', boltCore: '#fff8dc', drop: 'star' },
+  arcane: { ring: '#9a8ae7', ring2: '#d8ccff', mote: '#b8a8f0', bolt: '#a894f0', boltCore: '#f0eaff', drop: 'star' },
+  nature: { ring: '#6aa87a', ring2: '#c8e8b8', mote: '#8ac898', bolt: '#7ab888', boltCore: '#e8f8dc', drop: 'gust' },
+});
+
 /** Storm boundary follows the live field; narrow strikes use its actual pulse clock. */
-export function drawTempestField(c: CanvasRenderingContext2D, radius: number, seed: number, time: number, pulse: number, fade: number, reduced: boolean): void {
-  const turn=reduced?0:time*.45;
-  c.globalCompositeOperation='lighter';
-  for(let i=0;i<5;i++) {
-    c.globalAlpha=fade*.3;c.strokeStyle=i%2?'#8897e7':'#addce9';c.lineWidth=1.2;
-    c.beginPath();c.arc(0,0,radius*(.83+i*.03),turn+i*TAU/5,turn+i*TAU/5+.65);c.stroke();
+export function drawTempestField(c: CanvasRenderingContext2D, radius: number, seed: number, time: number, pulse: number, fade: number, reduced: boolean, flavor: TempestFlavor = 'storm'): void {
+  const f = TEMPEST_FLAVORS[flavor];
+  const turn = reduced ? 0 : time * .45;
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) {
+    c.globalAlpha = fade * .3; c.strokeStyle = i % 2 ? f.ring : f.ring2; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(0, 0, radius * (.83 + i * .03), turn + i * TAU / 5, turn + i * TAU / 5 + .65); c.stroke();
   }
-  if(!reduced) for(let i=0;i<16;i++) {
-    const a=i/16*TAU+turn,d=radius*(.84+(i%3)*.06),x=Math.cos(a)*d,y=Math.sin(a)*d;
-    c.globalAlpha=fade*.35;
-    line(c,[[x,y],[Math.cos(a-.035)*d,Math.sin(a-.035)*d-2]],i%3?'#929eda':'#e5f9ff',1.3);
+  if (!reduced) for (let i = 0; i < 16; i++) {
+    const a = i / 16 * TAU + turn, d = radius * (.84 + (i % 3) * .06), x = Math.cos(a) * d, y = Math.sin(a) * d;
+    c.globalAlpha = fade * .35;
+    line(c, [[x, y], [Math.cos(a - .035) * d, Math.sin(a - .035) * d - 2]], i % 3 ? f.mote : f.ring2, 1.3);
   }
-  for(let i=0;i<4;i++) {
-    const a=seed+i*2.4+turn*.5,d=radius*(.58+i*.09),x=Math.cos(a)*d,y=Math.sin(a)*d;
-    c.globalAlpha=fade*(reduced?.25:Math.pow(pulse,3)*.8);
-    line(c,[[x-12,y-85],[x+5,y-51],[x-6,y-34],[x,y]],'#8483e6',4);
-    line(c,[[x-12,y-85],[x+5,y-51],[x-6,y-34],[x,y]],'#d9f5ff',1.1);
+  // Falling element per flavor: lightning bolts, ice shards, embers, stars,
+  // wind gusts, or unholy motes rising out of the field.
+  for (let i = 0; i < 4; i++) {
+    const a = seed + i * 2.4 + turn * .5, d = radius * (.58 + i * .09), x = Math.cos(a) * d, y = Math.sin(a) * d;
+    const strike = reduced ? .25 : Math.pow(pulse, 3) * .8;
+    if (f.drop === 'bolt') {
+      c.globalAlpha = fade * strike;
+      line(c, [[x - 12, y - 85], [x + 5, y - 51], [x - 6, y - 34], [x, y]], f.bolt, 4);
+      line(c, [[x - 12, y - 85], [x + 5, y - 51], [x - 6, y - 34], [x, y]], f.boltCore, 1.1);
+    } else if (f.drop === 'shard') {
+      const fall = reduced ? .5 : (time * .8 + i * .37) % 1;
+      c.globalAlpha = fade * (.3 + strike * .6);
+      drawIceCrystal(c, x, y - 90 * (1 - fall), 4 + (i % 2) * 2, a);
+    } else if (f.drop === 'ember') {
+      const fall = reduced ? .5 : (time * .7 + i * .29) % 1;
+      c.globalAlpha = fade * (.3 + strike * .6);
+      c.fillStyle = i % 2 ? f.bolt : f.boltCore;
+      c.beginPath(); c.arc(x + Math.sin(time * 5 + i) * 3, y - 80 * (1 - fall), 2.2, 0, TAU); c.fill();
+    } else if (f.drop === 'star') {
+      const fall = reduced ? .5 : (time * .55 + i * .31) % 1;
+      const sy = y - 85 * (1 - fall);
+      c.globalAlpha = fade * (.3 + strike * .65);
+      polygon(c, [[x, sy - 4], [x + 1.2, sy - 1.2], [x + 4, sy], [x + 1.2, sy + 1.2], [x, sy + 4], [x - 1.2, sy + 1.2], [x - 4, sy], [x - 1.2, sy - 1.2]], i % 2 ? f.bolt : f.boltCore);
+    } else if (f.drop === 'gust') {
+      const drift = reduced ? 0 : Math.sin(time * 2.4 + i * 1.7) * 8;
+      c.globalAlpha = fade * (.25 + strike * .5);
+      c.strokeStyle = i % 2 ? f.mote : f.ring2; c.lineWidth = 1.6;
+      c.beginPath(); c.arc(x + drift, y - 14 - i * 6, 9 + i * 2, a, a + 2.2); c.stroke();
+    } else {
+      // 'rise': unholy motes seep upward out of the field.
+      const rise = reduced ? .5 : (time * .4 + i * .41) % 1;
+      c.globalAlpha = fade * (.3 + strike * .5) * Math.sin(rise * Math.PI);
+      c.fillStyle = i % 2 ? f.mote : f.boltCore;
+      c.beginPath(); c.arc(x + Math.sin(i * 3 + time) * 4, y - rise * 46, 1.8, 0, TAU); c.fill();
+    }
   }
 }
 

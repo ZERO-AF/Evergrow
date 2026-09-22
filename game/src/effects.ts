@@ -13,6 +13,8 @@ import { drawGlow } from './lighting.ts';
 import type { PointLight } from './lighting.ts';
 import type { CombatEvent, ProjectileStyle } from './model.ts';
 import type { ItemTier } from './character-types.ts';
+import { ALLY_TEMPLATES } from './wow-allies.ts';
+import { demonFamilyForAlly } from './pet-content.ts';
 import type { Simulation } from './simulation.ts';
 import { GAME_FONT_STACK, text } from './font.ts';
 import { GAME_FEATURES } from './game-features.ts';
@@ -54,10 +56,12 @@ export class CombatEffects {
   /** Ground-drop ids already seen, so a landing item bursts exactly once. */
   private seenGroundItems = new Set<number>();
   private groundItemsPrimed = false;
-  /** Epic+ drops detected since the last drain, consumed by the shell for stinger/toast/marker. */
-  private pendingLootMoments: LootMoment[] = [];
+  /** Ally ids already primed; a new ally fires one themed arrival burst. */
+  private seenAllies = new Set<number>();
+  private alliesPrimed = false;
   /** Screen-edge glow on legendary/unique drops; read by the renderer, decays in update. */
   lootPulse = 0;
+  private pendingLootMoments: LootMoment[] = [];
   lootPulseColor = LOOT_BEAMS.legendary.color;
 
   reset() {
@@ -65,6 +69,7 @@ export class CombatEffects {
     this.manaWarningLife = 0;
     this.emitterTime = 0; this.sword.reset(); this.skillEffects.reset(); this.meleeSkills.reset();
     this.seenGroundItems.clear(); this.groundItemsPrimed = false;
+    this.seenAllies.clear(); this.alliesPrimed = false;
     this.pendingLootMoments = []; this.lootPulse = 0;
   }
 
@@ -107,6 +112,33 @@ export class CombatEffects {
     if (this.seenGroundItems.size > LOOT_RULES.maxGroundItems * 2) {
       this.seenGroundItems.clear();
       for (const drop of drops) this.seenGroundItems.add(drop.id);
+    }
+  }
+
+  /**
+   * A freshly summoned ally fires one themed arrival burst: infernal meteor,
+   * totem earth-thump, demon fel portal, or a generic school ring for pets.
+   * The first update primes the set so restored allies don't burst.
+   */
+  private updateAllyArrivals(sim: Simulation) {
+    const allies = sim.player.allies ?? [];
+    if (!this.alliesPrimed) {
+      this.alliesPrimed = true;
+      for (const ally of allies) this.seenAllies.add(ally.id);
+      return;
+    }
+    for (const ally of allies) {
+      if (this.seenAllies.has(ally.id)) continue;
+      this.seenAllies.add(ally.id);
+      const template = ALLY_TEMPLATES[ally.kind];
+      const demon = demonFamilyForAlly(ally.kind);
+      const kind = ally.kind === 'infernal' ? 'meteor' : template?.stationary ? 'earth' : demon ? 'portal' : 'ring';
+      const color = kind === 'meteor' ? '#ff8a3c' : kind === 'earth' ? '#a08a4a' : kind === 'portal' ? '#8a5adf' : (template?.color ?? '#c0acf0');
+      this.skillEffects.summonArrival(ally.x, ally.y, kind, color, (template?.radius ?? 10) + 26);
+    }
+    if (this.seenAllies.size > 64) {
+      this.seenAllies.clear();
+      for (const ally of allies) this.seenAllies.add(ally.id);
     }
   }
 
@@ -184,6 +216,7 @@ export class CombatEffects {
     this.manaWarningLife = sim.player.dead ? 0 : Math.max(0, this.manaWarningLife - dt);
     this.sword.update(sim.player, dt, sim.time, sim.interpolationAlpha);
     this.skillEffects.update(dt, sim.enemies);
+    this.updateAllyArrivals(sim);
     this.meleeSkills.update(sim.player, dt, sim.interpolationAlpha);
     this.updateDropBursts(sim);
     this.lootPulse = Math.max(0, this.lootPulse - dt / LOOT_PULSE_DURATION);

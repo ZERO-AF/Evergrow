@@ -6,13 +6,110 @@ import type { StatusPose } from './status-art.ts';
 import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
 import { playerLegRig, projectLegPoint } from './player-leg-rig.ts';
 import { STARTER_OUTFIT, heldWeapon, heldShield, heldFocus, upperArm, forearm, gauntlet, armorBoot, armorSegment, kneeArmor, drawGearShapes, chestArmor, shoulderArmor, headArmor } from './equipment-art.ts';
-import { hash, polygon, line, taper, type Color, type Point } from './art-primitives.ts';
+import { hash, polygon, line, taper, mixColor, type Color, type Point } from './art-primitives.ts';
 import { WOW_RACES } from './wow-races.ts';
 import { appearancePalette, HAIR_PALETTES, SKIN_PALETTES } from './appearance-content.ts';
+import { drawQuadruped, drawBrute, type QuadArt, type BruteArt } from './ally-art.ts';
+import { drawGlow } from './lighting.ts';
+import type { ShapeshiftForm } from './wow-types.ts';
+
+/** Per-form silhouette recipe: quadruped proportions or a biped brute, plus the aura accent. */
+const FORM_ART: Readonly<Record<Exclude<ShapeshiftForm, 'shadow'>, {
+  shape: 'quadruped' | 'brute' | 'moonkin'; tint: string; accent: string; scale: number;
+  quad?: QuadArt; brute?: BruteArt; spectral?: boolean;
+}>> = Object.freeze({
+  bear:      { shape: 'quadruped', tint: '#6b4f38', accent: '#e8c07a', scale: 1.5, quad: { leg: .85, bulk: 1.4, tail: 1.5, ear: 1.4, snout: .85, head: .5 } },
+  cat:       { shape: 'quadruped', tint: '#5a4a3e', accent: '#a8e07a', scale: 1.15, quad: { leg: 1.05, bulk: .75, tail: 7, ear: 2.8, snout: .8 } },
+  ghostWolf: { shape: 'quadruped', tint: '#7a8a9a', accent: '#8ee7ff', scale: 1.2, spectral: true },
+  travel:    { shape: 'quadruped', tint: '#7a5c40', accent: '#d8c88a', scale: 1.3, quad: { leg: 1.15, bulk: .85, tail: 2, ear: 3.4, snout: 1.15, head: 1.5 } },
+  moonkin:   { shape: 'moonkin',   tint: '#6a5a7c', accent: '#c9a8ff', scale: 1.35 },
+  metamorph: { shape: 'brute',     tint: '#4a3a5c', accent: '#a06ad8', scale: 1.55, brute: { horns: true, wings: true } },
+});
+
+/** Broad avian moonkin: feathered bulk, wing-arms, antlered head. Local space, facing `angle`. */
+function drawMoonkin(c: CanvasRenderingContext2D, angle: number, gait: number, moving: number,
+  time: number, tint: string, dark: string, accent: string, lunge: number): void {
+  const forward = [Math.cos(angle), Math.sin(angle) * .55] as const;
+  const across = [-Math.sin(angle), Math.cos(angle) * .55] as const;
+  const at = (px: number, py: number, z: number): Point =>
+    [forward[0] * px + across[0] * py, forward[1] * px + across[1] * py - z];
+  const poly = (points: readonly (readonly [number, number, number])[], fill: string) =>
+    polygon(c, points.map(q => at(...q)), fill);
+  const bob = Math.sin(time * 2.2) * .8, sway = Math.sin(gait * .5) * moving * 1.4;
+  for (const side of [-1, 1])
+    taper(c, at(side * 2.6, 0, 8), at(side * 3.4 + Math.sin(gait + side * Math.PI) * moving * 2, 0, .5), 3, 2, dark);
+  // Wing-arms: broad feathered slabs that lift with the lunge.
+  for (const side of [-1, 1]) {
+    poly([[side * 4 + sway, side * 1.5, 17 + bob], [side * (11 + lunge * 3) + sway, side * 5, 13 + bob + lunge * 2],
+      [side * (13 + lunge * 3) + sway, side * 6, 8 + bob], [side * 5 + sway, side * 3, 9]], dark);
+    poly([[side * 5 + sway, side * 2, 16 + bob], [side * (9 + lunge * 2) + sway, side * 4, 12 + bob],
+      [side * (10 + lunge * 2) + sway, side * 5, 9 + bob]], tint);
+  }
+  // Barrel torso and feathered breast.
+  poly([[-6 + sway, -3, 20 + bob], [6 + sway, -3, 20 + bob], [8 + sway, 0, 8], [-8 + sway, 0, 8]], tint);
+  poly([[-4 + sway, -2, 19 + bob], [4 + sway, -2, 19 + bob], [5 + sway, 0, 10], [-5 + sway, 0, 10]], dark);
+  // Head with small antler branches and glowing eyes.
+  poly([[-3.4 + sway, -2, 26 + bob], [3.4 + sway, -2, 26 + bob], [4 + sway, 0, 20 + bob], [-4 + sway, 0, 20 + bob]], tint);
+  for (const side of [-1, 1]) {
+    taper(c, at(side * 2 + sway, -1, 26 + bob), at(side * 4.5 + sway, -1.5, 30 + bob), 1, .6, dark);
+    taper(c, at(side * 3.4 + sway, -1.3, 28.4 + bob), at(side * 5.4 + sway, -1.6, 29.6 + bob), .8, .4, dark);
+  }
+  const beak = at(4.6 + sway, 0, 23.4 + bob);
+  polygon(c, [[beak[0], beak[1] - 1], [beak[0] + 2.6, beak[1]], [beak[0], beak[1] + 1]], accent);
+  c.fillStyle = accent;
+  const e1 = at(1.6 + sway, -1.4, 24 + bob), e2 = at(1.6 + sway, 1.4, 24 + bob);
+  c.fillRect(e1[0] - .8, e1[1] - .8, 1.6, 1.6); c.fillRect(e2[0] - .8, e2[1] - .8, 1.6, 1.6);
+}
+
+/** Form identity under the feet: class-colored ring plus two slow orbiting motes. */
+function drawFormAura(c: CanvasRenderingContext2D, accent: string, time: number): void {
+  c.save();
+  c.globalAlpha = .3; c.strokeStyle = accent; c.lineWidth = 1.2;
+  c.beginPath(); c.ellipse(0, 2, 15, 6, 0, 0, Math.PI * 2); c.stroke();
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 2; i++) {
+    const a = time * 1.4 + i * Math.PI;
+    const x = Math.cos(a) * 15, y = 2 + Math.sin(a) * 6;
+    c.globalAlpha = .55; c.fillStyle = accent;
+    c.beginPath(); c.arc(x, y, 1.6, 0, Math.PI * 2); c.fill();
+  }
+  drawGlow(c, 0, -8, 26, accent, .18);
+  c.restore();
+}
+
+/** Shapeshifted players draw a creature silhouette instead of the humanoid rig. */
+function drawFormSilhouette(ctx: CanvasRenderingContext2D, pose: StatusPose, color: Color, form: Exclude<ShapeshiftForm, 'shadow'>): void {
+  const art = FORM_ART[form];
+  const gait = pose.gaitPhase ?? pose.time * 8;
+  const moving = pose.dead ? 0 : Math.min(1, pose.moving);
+  const lunge = Math.min(1, Math.max(0, pose.attack)) * .9;
+  const t = pose.effectTime ?? pose.time;
+  const tint = color(art.tint), dark = color(mixColor(art.tint, '#0a0d12', .55)), accent = color(art.accent);
+  ctx.save();
+  if (art.spectral) ctx.globalAlpha *= .78;
+  ctx.scale(art.scale, art.scale);
+  if (art.shape === 'quadruped') drawQuadruped(ctx, pose.angle, gait, moving, t, tint, dark, accent, art.quad, Math.sin(t * 3) * 1.2, lunge);
+  else if (art.shape === 'brute') drawBrute(ctx, gait, moving, t, tint, dark, accent, art.brute, lunge);
+  else drawMoonkin(ctx, pose.angle, gait, moving, t, tint, dark, accent, lunge);
+  ctx.restore();
+  drawFormAura(ctx, accent, t);
+}
 
 export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: Color): void {
   // Stealth renders the whole rig translucent; the save/restore keeps the alpha scoped.
   if (pose.stealthed) { ctx.save(); ctx.globalAlpha *= .55; }
+  // Shapeshift forms replace the rig with a creature silhouette; shadow form
+  // keeps the humanoid rig but darkens and translucifies it.
+  if (pose.form && pose.form !== 'shadow') {
+    drawFormSilhouette(ctx, pose, color, pose.form);
+    if (pose.stealthed) ctx.restore();
+    return;
+  }
+  if (pose.form === 'shadow') {
+    ctx.save(); ctx.globalAlpha *= .72;
+    const shadowed = color; color = (value: string) => mixColor(shadowed(value), '#241a38', .62);
+    drawFormAura(ctx, '#a06ad8', pose.effectTime ?? pose.time);
+  }
   const outfit: CharacterOutfit = { ...STARTER_OUTFIT, ...pose.outfit };
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
     weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
@@ -109,7 +206,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
       gauntlet(ctx, hand, outfit.hands, color, -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]), pose.attack > 0);
       return;
     }
-    heldWeapon(ctx, weaponOrigin, weaponAngle, color, pose.weapon, rangedDraw, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? 0 : weaponCharge, weaponScale);
+    heldWeapon(ctx, weaponOrigin, weaponAngle, color, pose.weapon, rangedDraw, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? 0 : weaponCharge, weaponScale, pose.imbueElement);
     gauntlet(ctx, hand, outfit.hands, color, weaponAngle);
     if (supportHolding) gauntlet(ctx, projectArmPoint(offArm.hand), outfit.hands, color, weaponAngle);
     // Fingers cross the grip, keeping the weapon seated in the animated gauntlet.
@@ -131,7 +228,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     }
     if (pose.offHand?.kind === 'shield') heldShield(ctx, offHand, pose.angle, pose.offHand.visual, color, pose.guard);
     if (pose.offHand?.kind === 'weapon') {
-      heldWeapon(ctx, offWeaponOrigin, offWeaponAngle, color, pose.offHand.visual, 0, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? weaponCharge : 0, offWeaponScale);
+      heldWeapon(ctx, offWeaponOrigin, offWeaponAngle, color, pose.offHand.visual, 0, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? weaponCharge : 0, offWeaponScale, pose.imbueElement);
       gauntlet(ctx, offHand, outfit.hands, color, offWeaponAngle);
     }
   };
@@ -190,5 +287,6 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     ctx.restore();
   }
   ctx.restore();
+  if (pose.form === 'shadow') ctx.restore();
   if (pose.stealthed) ctx.restore();
 }

@@ -4,7 +4,7 @@ import { bootProjection } from './boot-projection.ts';
 import { gearMaterialStops, gearMaterialMarks, gearCanvasLight } from './gear-material.ts';
 import { focusGlowColor, isRadiantGrimoire } from './radiant-content.ts';
 import { drawRadiantSeal } from './radiant-art.ts';
-import { drawWeaponEnchantment, drawEquipmentGlow } from './weapon-enchantment-art.ts';
+import { drawWeaponEnchantment, drawEquipmentGlow, type ImbueElement } from './weapon-enchantment-art.ts';
 import { focusShapes, focusGlowCenter } from './focus-shapes.ts';
 import { appearanceHeadShapes } from './appearance-shapes.ts';
 import { appearancePalette, DEFAULT_APPEARANCE, SKIN_PALETTES, type CharacterAppearance } from './appearance-content.ts';
@@ -67,10 +67,10 @@ export function drawGearShapes(ctx: CanvasRenderingContext2D, shapes: readonly G
 }
 
 export function heldWeapon(ctx: CanvasRenderingContext2D, hand: Point, angle: number, color: Color,
-  visual = STARTING_SWORD.visual, draw = 0, time = 0, charge = 0, lengthScale = 1): void {
+  visual = STARTING_SWORD.visual, draw = 0, time = 0, charge = 0, lengthScale = 1, imbue?: ImbueElement): void {
   ctx.save(); ctx.translate(hand[0], hand[1]); ctx.rotate(angle); ctx.scale(lengthScale, 1);
   drawGearShapes(ctx, weaponShapes(visual, draw), color);
-  drawWeaponEnchantment(ctx, visual, time, charge);
+  drawWeaponEnchantment(ctx, visual, time, charge, imbue);
   ctx.restore();
 }
 

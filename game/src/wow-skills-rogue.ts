@@ -138,7 +138,7 @@ export const ROGUE_SKILLS: readonly WowSkill[] = Object.freeze([
     execution: { kind: 'comboStrike', spend: true } },
   { id: 'hungerForBlood', name: 'Hunger for Blood', classId: 'rogue', requirement: 'any', domain: 'Cunning', tier: 'ultimate',
     manaCost: 15, cooldown: 0, damageMultiplier: 0, color: R, targetMode: 'enemy',
-    description: 'The scent of blood enrages you: increase all damage dealt by 15% for 60 seconds. Requires a bleeding target.',
+    description: 'The scent of blood enrages you: increase all damage dealt by 15% for 60 seconds.',
     execution: { kind: 'buff', buff: { duration: 60, stats: { damagePercent: 15 } } } },
   { id: 'exposeArmor', name: 'Expose Armor', classId: 'rogue', requirement: 'melee', domain: 'Cunning', tier: 'advanced',
     manaCost: 25, cooldown: 0, damageMultiplier: 0.3, color: R, targetMode: 'enemy', combo: 'spend',
