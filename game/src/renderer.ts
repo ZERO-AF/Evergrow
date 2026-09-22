@@ -69,6 +69,7 @@ import { BiomeLife } from './biome-life.ts';
 import { BiomeLifeArt } from './biome-life-art.ts';
 import { biomeWind } from './biome-wind.ts';
 import { AtmosphereArt } from './atmosphere-art.ts';
+import { WeatherArt } from './weather-art.ts';
 import { GroundDressing } from './ground-art.ts';
 import { drawGroundLoot, drawLootLabels, drawResourcePickups } from './loot-art.ts';
 import { ArtLibrary, drawHumanoid, getPlayerSwordTip, PLAYER_ART_SCALE } from './art.ts';
@@ -250,6 +251,7 @@ export class Renderer {
   private npcTime = 0;
   private environmentArt = new EnvironmentArt();
   private atmosphere = new AtmosphereArt();
+  private weather = new WeatherArt();
   private riftAtmosphere = new RiftAtmosphereArt();
   private sceneShadows = new SceneShadows();
   private propSurfaceLight = new PropSurfaceLight();
@@ -712,6 +714,7 @@ export class Renderer {
     this.biomeArt.drawAir(c, this.biomeLife, this.visualTime, settings.reducedMotion);
     this.atmosphere.drawLayer(c, world, this.view, this.visualTime, settings.reducedMotion,
       px, py, true, !!this.cryptFloor, this.indoorBlend, this.sky);
+    if (!this.cryptFloor) this.weather.draw(c, biome.weights, this.view, this.visualTime, settings.reducedMotion, this.indoorBlend);
     if (dungeonDetail) {
       const start = this.profiler?.start() ?? 0; this.dungeonLightEffects.draw(c, this.view, true); this.profiler?.end('lighting', start);
     }

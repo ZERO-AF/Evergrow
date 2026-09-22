@@ -67,6 +67,7 @@
     "src/enemy-buffs.ts", "src/raid-lockout.ts", "src/raid-loot-content.ts",
     "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts",
     "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts", "src/calendar-state.ts",
-    "src/trainer-content.ts", "src/trainer-state.ts", "src/trainer-command.ts", "src/trainer-npc.ts"
+    "src/trainer-content.ts", "src/trainer-state.ts", "src/trainer-command.ts", "src/trainer-npc.ts",
+    "src/weather-content.ts"
   ]
 }
