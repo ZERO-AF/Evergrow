@@ -24,6 +24,7 @@ import { LEGENDARY_PROCS, PROC_TRIGGER_LABELS, procTrigger } from './legendary-c
 import { consumableFor, CONSUMABLE_CATEGORY_LABELS } from './consumable-content.ts';
 import { GEM_COLOR_HEX, gemDefinition, isGemItem, socketBonusActive, socketBonusStats } from './gem-content.ts';
 import { enchantDefinition } from './enchant-content.ts';
+import { FACTION_BY_ID } from './reputation-content.ts';
 
 const greaterMark = '<span class="ui-greater-affix" role="img" aria-label="Greater affix · top 10% roll" title="Greater affix · top 10% roll"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0 10 6 16 8 10 10 8 16 6 10 0 8 6 6Z"/></svg></span>';
 const TIER_RANK: Record<Exclude<ItemTier, 'unique'>, number> = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
@@ -183,6 +184,9 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   // Permanent enchants (enchant-content.ts) render as WoW's green enchant line.
   const enchantDef = enchantDefinition(item.enchant);
   const enchantBlock = enchantDef ? `<p class="ui-item-description" style="color:#4da34d">Enchanted: ${escapeUI(enchantDef.name)}</p>` : '';
+  // Championing tabards (tabard-content.ts) render WoW's "Champions the X" line.
+  const champion = item.tabardFaction !== undefined ? FACTION_BY_ID[item.tabardFaction] : undefined;
+  const championBlock = champion ? `<p class="ui-item-description" style="color:${champion.color}">Champions the ${escapeUI(champion.name)}</p>` : '';
   const setModel = GAME_FEATURES.itemSets ? setTooltipModel(item, view.sheet.equipped) : null;
   const setBlock = setModel ? `<div class="ui-item-set"><p class="ui-item-set-name">${escapeUI(setModel.set.name)} (${setModel.count}/${setModel.set.pieces.length})</p>
     <ul class="ui-item-set-pieces">${setModel.pieces.map(({ def, have }) => `<li class="${have ? 'is-owned' : ''}">${escapeUI(def.name)}</li>`).join('')}</ul>
@@ -201,7 +205,7 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span><span>${escapeUI(item.baseName)}</span>${view.equipped && view.compactComparison ? `<span class="ui-item-equipped-inline" title="${escapeUI(view.equippedLabel ?? '')}">Equipped</span>` : ''}</span><h4>${hasGreaterAffix(item) ? escapeUI(itemDisplayName(item).slice(0, -(GREATER_AFFIX_SYMBOL.length + 1))) + ' ' + greaterMark : escapeUI(itemDisplayName(item))}</h4></div></div>
     <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${classMeta}${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}${view.durability !== undefined ? durabilityMetaMarkup(view.durability) : ''}</div>
     ${item.recipe.enhancement && !view.hideEnhancementDetails ? `<div class="ui-item-upgrade">Enhancement +${item.recipe.enhancement} / 10 · +${item.recipe.enhancement * 5}% scalable item stats</div>` : ''}
-    ${weapon}${properties}${socketBlock}${enchantBlock}
+    ${weapon}${properties}${socketBlock}${enchantBlock}${championBlock}
     ${uniqueDefinition(item)?uniquePowerMarkup(uniqueDefinition(item)!):''}${legendaryProcMarkup(item)}
     ${item.flavor ? `<p class="ui-item-description">${escapeUI(item.flavor)}</p>` : ''}
     ${itemModifiers(item).spellweavePercent ? `<p class="ui-item-description">Enables ${effectTerm('spellweave', 'Spellweave')} · melee ↔ magic · ${AFFIX_COMBAT_RULES.weaveDuration}s.</p>` : ''}${item.affixes.length ? `<div class="ui-item-affixes">${item.affixes.map(a => escapeUI(a.name)).join(' · ')}</div>` : ''}

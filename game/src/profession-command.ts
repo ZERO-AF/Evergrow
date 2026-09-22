@@ -8,6 +8,8 @@ import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
 import { generateItem, randomSource } from './items.ts';
 import { createGem, isGemId } from './gem-content.ts';
+import { createGlyphItem, isGlyphId } from './glyph-content.ts';
+import { createBagItem, isBagId } from './bag-content.ts';
 import { pushChatMessage } from './chat-log.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
@@ -64,12 +66,16 @@ const hashText = (value: string): number => {
 export const attemptRoll = (seedText: string, attempt: number): number =>
   randomSource((hashText(seedText) ^ Math.imul(attempt + 1, 0x9E3779B9)) >>> 0)();
 
-/** Build a recipe's gear result. Jewelcrafting cuts carry a gem id as
- * item.profileId — those are gem tokens (gem-content.ts), not generateItem gear. */
+/** Build a recipe's item result. `item.profileId` doubles as the token id for the
+ * dedicated builders: gem cuts (gem-content), glyphs (glyph-content) and bags
+ * (bag-content); everything else is generated gear — `item.material` pins the
+ * construction (cloth armor, leather armor). */
 function craftResultItem(recipe: RecipeDef, seed: number): Item {
   const spec = recipe.item!;
   if (isGemId(spec.profileId)) return createGem(spec.profileId, seed, spec.itemLevel);
-  const item = generateItem(seed, spec.itemLevel, spec.kind, spec.profileId, spec.tier);
+  if (isGlyphId(spec.profileId)) return createGlyphItem(spec.profileId, seed);
+  if (spec.profileId && isBagId(spec.profileId)) return createBagItem(spec.profileId, seed);
+  const item = generateItem(seed, spec.itemLevel, spec.kind, spec.profileId, spec.tier, spec.material);
   item.name = recipe.name; item.baseName = recipe.name;
   return item;
 }

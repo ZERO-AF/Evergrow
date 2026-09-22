@@ -42,7 +42,7 @@ function openPanel() {
   Object.assign(doc, { createElement: () => { const el = new Surface(); el.ownerDocument = doc; return el; }, activeElement: null, defaultView: null });
   const original = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', { value: doc, configurable: true });
-  const panel = new StatsPanel(new Surface() as unknown as HTMLElement, { close() {} });
+  const panel = new StatsPanel(new Surface() as unknown as HTMLElement, { close() {}, setTitle() {} });
   return { panel, restore: () => { panel.dispose(); if (original) Object.defineProperty(globalThis, 'document', original); } };
 }
 

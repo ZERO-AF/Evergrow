@@ -20,6 +20,7 @@ import {
   STANDING_BY_TIER, STANDING_DISCOUNT,
   type FactionDef, type FactionId, type FactionReward, type StandingDef, type StandingTier,
 } from './reputation-content.ts';
+import { championedFaction, type TabardCarrier } from './tabard-state.ts';
 
 export type ReputationLedger = Record<string, number>;
 /** Anything carrying the ledger: the live player or a staged checkpoint. */
@@ -131,9 +132,12 @@ export function applyReputation(carrier: ReputationCarrier, id: FactionId, amoun
 
 /** Apply a kill's reputation (rank-scaled; bosses pay `KILL_REP.boss`); returns
  * undefined when no faction claims the kill or its kill cap is reached. */
-export function applyKillReputation(carrier: ReputationCarrier, enemy: Pick<Enemy, 'kind' | 'biome' | 'rank'> & { dungeonTheme?: DungeonThemeId }, factor = 1): RepGain | undefined {
-  const faction = factionForKill(enemy);
-  if (!faction) return undefined;
+export function applyKillReputation(carrier: ReputationCarrier & TabardCarrier, enemy: Pick<Enemy, 'kind' | 'biome' | 'rank'> & { dungeonTheme?: DungeonThemeId }, factor = 1): RepGain | undefined {
+  const natural = factionForKill(enemy);
+  if (!natural) return undefined;
+  // WotLK championing: a worn tabard redirects the gain to its faction, which
+  // then pays against its own kill cap.
+  const faction = FACTION_BY_ID[championedFaction(carrier) ?? natural.id];
   const capMin = STANDING_BY_TIER[faction.killCap ?? 'revered'].min;
   if (reputationPoints(carrier, faction.id) >= capMin) return undefined;
   const amount = isBossKind(enemy.kind) ? KILL_REP.boss : KILL_REP[enemy.rank];

@@ -9,6 +9,8 @@
 .stats-identity { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:0 4px 12px; color:#a3b4bc; font-size:13px; }
 .stats-identity b { font-weight:500; }
 .stats-power { color:#8fa1a8; font-size:11.5px; letter-spacing:.04em; font-variant-numeric:tabular-nums; }
+.stats-title-row { display:flex; align-items:center; gap:10px; padding:0 4px 12px; color:#8fa1a8; font-size:12.5px; }
+.stats-title-row select { flex:1; min-width:0; padding:5px 8px; border:1px solid #8ba5ae33; border-radius:3px; background:#0b151e; color:#e3ddc4; font:inherit; }
 .stats-groups { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr)); gap:10px; overflow:auto; padding:2px 4px 6px; }
 .stats-group { padding:10px 12px 11px; border:1px solid #8ba5ae1e; border-radius:3px; background:#0b151e66; }
 .stats-group h3 { margin:0 0 7px; font-size:10.5px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:#d8c894; }

@@ -32,6 +32,7 @@ import { WOW_COMBAT } from './wow-types.ts';
 import type { RuneKind, WowClassDef } from './wow-types.ts';
 import { isWowClassId, isWowRaceId } from './wow-types.ts';
 import { ALLY_TEMPLATES } from './wow-allies.ts';
+import { displayName } from './title-state.ts';
 
 // Preserve the public entrypoint for the shell and existing UI consumers.
 export { HUD_MENU_SHORTCUTS, getHUDLayout, isHUDPoint } from './hud-layout.ts';
@@ -400,7 +401,7 @@ function drawPlayerFrame(c: CanvasRenderingContext2D, p: Player, topInset: numbe
   c.strokeStyle = '#5a707c'; c.lineWidth = .7; c.stroke();
   c.fillStyle = classColor; c.fillRect(barX + 1, y + 1, 2, 10);
   c.fillStyle = `${classColor}55`; c.fillRect(barX + 1, y + 11, barWidth - 2, .8);
-  const name = p.name ?? 'Wayfarer';
+  const name = displayName(p);
   text(c, name, barX + 6, y + 2.6, Math.min(.95, (barWidth - 12) / Math.max(1, textWidth(name, .95))),
     p.dead ? UI.faint : classColor);
   frameBar(c, barX, y + 14, barWidth, 9, p.hp / Math.max(1, p.maxHp), healthColor(p.hp / Math.max(1, p.maxHp)));

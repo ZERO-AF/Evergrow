@@ -5,6 +5,7 @@ import { ENEMY_DEFINITIONS } from './combat-content.ts';
 import { scaledEnemyStats } from './zone-progression.ts';
 import { xpForNextLevel } from './progression.ts';
 import { MAX_CONTENT_LEVEL, normalizeLevel } from './progression-content.ts';
+import { petTalentBonuses } from './pet-talent-state.ts';
 
 /**
  * Hunter pets and warlock demons (docs/wow-transformation.md lineage).
@@ -43,6 +44,8 @@ export interface PetRecord {
   skills: string[];
   /** 0–100; feeding and kills raise it, death and neglect lower it. */
   loyalty: number;
+  /** Pet talent allocations: talent id → rank (pet-talent-state.ts). Absent = unspent. */
+  talents?: Record<string, number>;
 }
 
 /** The hunter's stable: one active companion plus up to PET_RULES.stableSlots stabled. */
@@ -286,12 +289,15 @@ export function petLevelForXp(totalXp: number): number {
   return level;
 }
 
-/** Combat stats for a pet record: the source beast scaled to pet level, biased by family. */
-export function petStatsFor(record: Pick<PetRecord, 'sourceKind' | 'family' | 'level'>): { maxHp: number; damage: number } {
+/** Combat stats for a pet record: the source beast scaled to pet level, biased by
+ * family, then raised by allocated pet talents (pet-talent-state.ts). */
+export function petStatsFor(record: Pick<PetRecord, 'sourceKind' | 'family' | 'level' | 'talents'>): { maxHp: number; damage: number } {
   const scaled = scaledEnemyStats(record.sourceKind, record.level, 'normal');
   const bias = PET_FAMILIES[record.family].statBias;
-  return { maxHp: Math.max(1, Math.round(scaled.maxHp * bias.hp)),
-    damage: Math.max(1, Math.round(scaled.damage * bias.damage)) };
+  const mods = petTalentBonuses(record).stats;
+  const maxHp = scaled.maxHp * bias.hp * (1 + (mods.maxHpPercent ?? 0) / 100) + (mods.maxHp ?? 0);
+  const damage = scaled.damage * bias.damage * (1 + (mods.damagePercent ?? 0) / 100);
+  return { maxHp: Math.max(1, Math.round(maxHp)), damage: Math.max(1, Math.round(damage)) };
 }
 
 /** Skills a family knows at a level, in learn order. */

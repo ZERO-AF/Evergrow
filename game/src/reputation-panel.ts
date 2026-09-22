@@ -90,6 +90,7 @@ export class ReputationPanel {
     const problem = rewardProblem(player, faction, reward);
     const gate = STANDING_BY_TIER[reward.standing];
     const detail = reward.kind === 'gear' ? `${reward.slot} · ${reward.tier}`
+      : reward.kind === 'tabard' ? 'tabard · cloak'
       : reward.kind === 'gold' ? formatWalletCompact(reward.copper)
       : `${reward.count}× material`;
     const action = claimed ? '<span class="reputation-reward-claimed">Claimed</span>'

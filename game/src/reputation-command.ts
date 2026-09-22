@@ -28,6 +28,8 @@ import {
   reputationEnabled, rewardProblem, stageClaim,
   type RepGain, type ReputationCarrier,
 } from './reputation-state.ts';
+import { championedFaction } from './tabard-state.ts';
+import { tabardForFaction, tabardItem } from './tabard-content.ts';
 import { guildReputationFactor } from './guild-state.ts';
 
 export type ReputationResult = ActionResult;
@@ -75,9 +77,11 @@ export function repOnQuestTurnIn(sim: Simulation, def: QuestDef): RepGain | unde
  * `expeditions.cleared`. */
 export function repOnDungeonClear(sim: Simulation, entrance: { id: string; theme?: DungeonThemeId }): RepGain | undefined {
   if (!reputationEnabled()) return undefined;
-  const faction = factionForDungeon(entrance);
-  if (!faction) return undefined;
-  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, faction.clearRep, EXALTED_CAP, guildReputationFactor(sim.player));
+  const natural = factionForDungeon(entrance);
+  if (!natural) return undefined;
+  // A worn championing tabard redirects the clear's reputation to its faction.
+  const faction = FACTION_BY_ID[championedFaction(sim.player) ?? natural.id];
+  const gain = applyReputation(sim.player as Simulation['player'] & ReputationCarrier, faction.id, natural.clearRep, EXALTED_CAP, guildReputationFactor(sim.player));
   reportGain(sim, gain);
   return gain;
 }
@@ -104,8 +108,11 @@ export async function repClaimReward(sim: Simulation, factionId: FactionId, rewa
   const checkpoint = sim.captureCheckpoint() as CheckpointWithReputation;
   checkpoint.reputation = cloneData(p.reputation) as CheckpointWithReputation['reputation'];
   if (reward.kind === 'material') checkpoint.professions = cloneData(p.professions) as CheckpointWithReputation['professions'];
+  const tabard = reward.kind === 'tabard' ? tabardForFaction(reward.tabardFaction) : undefined;
+  if (reward.kind === 'tabard' && !tabard) return { ok: false, message: 'Unknown tabard.' };
   const item = reward.kind === 'gear'
     ? generateRewardItem(hashService(`rep:${faction.id}:${reward.id}`), p.level, reward.slot, undefined, reward.tier)
+    : reward.kind === 'tabard' ? tabardItem(tabard!.id, hashService(`rep:${faction.id}:${reward.id}`))
     : null;
   if (item) {
     item.name = reward.name;

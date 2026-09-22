@@ -23,6 +23,8 @@ import { STAT_LABELS } from './items.ts';
 import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import type { Player, WeaponDefinition } from './model.ts';
 import type { Attribute } from './character-types.ts';
+import { displayName, earnedTitles } from './title-state.ts';
+import type { TitleDef } from './title-content.ts';
 import './stats-panel.css';
 
 const e = escapeUI;
@@ -175,9 +177,9 @@ export class StatsPanel {
   private player: Player | null = null;
   private simTime: number | undefined;
   private signature = '';
-  private hooks: { close(): void };
+  private hooks: { close(): void; setTitle(id: string | null): void };
 
-  constructor(mount: HTMLElement, hooks: { close(): void }) {
+  constructor(mount: HTMLElement, hooks: { close(): void; setTitle(id: string | null): void }) {
     this.hooks = hooks;
     this.element = document.createElement('section');
     this.element.className = 'stats-panel';
@@ -187,6 +189,10 @@ export class StatsPanel {
     this.element.addEventListener('click', event => {
       const b = (event.target as HTMLElement).closest<HTMLButtonElement>('button');
       if (b?.dataset.close !== undefined) this.hooks.close();
+    }, { signal: this.abort.signal });
+    this.element.addEventListener('change', event => {
+      const select = (event.target as HTMLElement).closest<HTMLSelectElement>('select[data-title]');
+      if (select) this.hooks.setTitle(select.value || null);
     }, { signal: this.abort.signal });
   }
 
@@ -198,8 +204,9 @@ export class StatsPanel {
     this.simTime = simTime;
     if (this.element.hidden) return;
     const model = statsModel(player, simTime);
-    const signature = JSON.stringify([player.name, player.level, specIdentity(player.character), model]);
-    if (signature !== this.signature) { this.signature = signature; this.render(model); }
+    const titles = earnedTitles(player);
+    const signature = JSON.stringify([player.name, player.character.title, player.level, specIdentity(player.character), model, titles.map(t => t.id)]);
+    if (signature !== this.signature) { this.signature = signature; this.render(model, titles); }
   }
 
   open(): void {
@@ -224,7 +231,7 @@ export class StatsPanel {
       <dd class="stats-value">${pips}${e(row.value)}</dd></div>`;
   }
 
-  private render(model: { groups: StatGroup[] }): void {
+  private render(model: { groups: StatGroup[] }, titles: readonly TitleDef[]): void {
     const player = this.player;
     if (!player) return;
     const cls = wowClassOf(player.character);
@@ -233,9 +240,14 @@ export class StatsPanel {
     const identity = cls && race
       ? `Level ${player.level} ${e(race.name)} <b style="color:${cls.color}">${e(specIdentity(player.character) || cls.name)}</b>`
       : `Level ${player.level}`;
+    const titleOptions: { id: string; name: string; description?: string }[] = [{ id: '', name: 'No title' },
+      ...titles.map(t => ({ id: t.id, name: t.name.replace('%s', player.name || 'Wayfarer'), description: t.description }))];
+    const titleRow = `<label class="stats-title-row">Title <select data-title aria-label="Player title">${titleOptions.map(t =>
+      `<option value="${t.id}"${t.id === (player.character.title ?? '') ? ' selected' : ''}${t.description ? ` title="${e(t.description)}"` : ''}>${e(t.name)}</option>`).join('')}</select></label>`;
     this.element.innerHTML = `<section class="ui-window stats-window" role="dialog" aria-modal="true" aria-labelledby="stats-title">
-      <header class="ui-window-header"><span class="stats-heading-icon">${uiIcon('character')}</span><h2 class="ui-title" id="stats-title">${e(player.name || 'Character')}</h2><button class="ui-button ui-button--icon" data-close aria-label="Close character stats">×</button></header>
+      <header class="ui-window-header"><span class="stats-heading-icon">${uiIcon('character')}</span><h2 class="ui-title" id="stats-title">${e(displayName(player))}</h2><button class="ui-button ui-button--icon" data-close aria-label="Close character stats">×</button></header>
       <div class="stats-identity"><span>${identity}</span><span class="stats-power" title="Comparative equipment and build estimate">Power ${n(power.power, 0)} · ${n(power.dps, 1)} dps</span></div>
+      ${titleRow}
       <div class="stats-groups ui-scroll-area">${model.groups.map(group => `<section class="stats-group" aria-label="${e(group.title)}">
         <h3>${e(group.title)}</h3><dl>${group.rows.map(row => this.row(row)).join('')}</dl></section>`).join('')}</div>
       <footer class="ui-window-footer"><span></span><span>Esc <span>Close</span></span></footer></section>`;

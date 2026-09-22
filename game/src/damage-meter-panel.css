@@ -1,0 +1,111 @@
+/* Recount-style damage meter overlay: compact draggable window over the HUD.
+ * Shares ui-kit window chrome; these rules only size the frame and draw the
+ * ranked % bars and per-skill detail. */
+.damage-meter-window {
+  position: fixed;
+  top: 96px;
+  right: 18px;
+  z-index: 60;
+  width: 300px;
+  max-height: min(420px, 70dvh);
+}
+.damage-meter-window .meter-header {
+  padding: 6px 10px;
+  gap: 8px;
+  cursor: move;
+}
+.damage-meter-window .meter-title {
+  font-size: 14px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.damage-meter-window .meter-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.damage-meter-window .meter-mode,
+.damage-meter-window .meter-window-toggle {
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: .05em;
+  min-height: 0;
+  height: 24px;
+}
+.damage-meter-window .meter-body {
+  padding: 4px 0;
+}
+.damage-meter-window .meter-empty {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 12px;
+}
+.meter-row-wrap { position: relative; }
+.meter-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 10px;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.meter-row:hover, .meter-row:focus-visible { background: #a7bcb914; outline: none; }
+.meter-row .meter-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #8c2f1f66, #b8472f55);
+  border-right: 1px solid #d06a4a88;
+  pointer-events: none;
+}
+.meter-row-wrap:nth-child(odd) .meter-row { background-color: #ffffff05; }
+.meter-row .meter-rank { position: relative; color: var(--ui-muted); flex: none; min-width: 18px; }
+.meter-row .meter-name {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meter-row .meter-numbers { position: relative; flex: none; font-variant-numeric: tabular-nums; }
+.meter-row .meter-numbers em { font-style: normal; color: var(--ui-muted); font-size: 11px; }
+.meter-skills {
+  margin: 0;
+  padding: 1px 10px 5px 34px;
+  list-style: none;
+  background: #060d131f;
+}
+.meter-skill {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--ui-muted);
+}
+.meter-skill-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ui-text);
+}
+.meter-skill-stats { flex: none; font-variant-numeric: tabular-nums; }
+/* Healing mode tints the bars green, WoW meter-style. */
+.damage-meter-window:has(.meter-mode[data-mode="damage"]) .meter-row .meter-bar {
+  background: linear-gradient(90deg, #1f6e3c66, #2f8c4a55);
+  border-right-color: #4ad06a88;
+}
+@media (prefers-reduced-motion: reduce) {
+  .meter-row { transition: none; }
+}

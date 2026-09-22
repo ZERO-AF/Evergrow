@@ -74,6 +74,7 @@ import { executePvpBuy, focusedPvpVendor, pvpVendorsNear, type PvpVendor } from 
 import { BadgeVendorPanel } from './badge-vendor-panel.ts';
 import { executeBadgeBuy, focusedBadgeVendor, badgeVendorsNear, type BadgeVendor } from './badge-vendor.ts';
 import { activateStabledPet, stableActivePet, releasePet, freshPetStable, PET_RULES, type PetStable } from './pet-content.ts';
+import { executePetTalentLearn, executePetTalentReset } from './pet-talent-command.ts';
 import { ChroniclePanel } from './chronicle-panel.ts';
 import { metric } from './chronicle.ts';
 import { trackCommerce } from './chronicle-tracking.ts';
@@ -186,6 +187,10 @@ import { HolidayPanel } from './holiday-panel.ts';
 import { playActivity, buyPrize } from './holiday-command.ts';
 import { faireActive, faireBooths, faireSite, faireVendor, type FaireBooth, type FaireNPC, type FaireSite } from './holiday-content.ts';
 import { focusedFaireVendor } from './holiday-state.ts';
+import { CalendarPanel } from './calendar-panel.ts';
+import { DamageMeter } from './damage-meter.ts';
+import { DamageMeterPanel } from './damage-meter-panel.ts';
+import { ALLY_TEMPLATES } from './wow-allies.ts';
 
 /** Coordinates browser lifecycle, simulation and presentation; system rules live in their owners. */
 export class Game {
@@ -295,9 +300,12 @@ export class Game {
   private chatFrame = new ChatFrame();
   private actionBarPanel!: ActionBarPanel;
   private dungeonFinderPanel!: DungeonFinderPanel;
-  private auctionPanel!: AuctionHousePanel;
   private mailPanel!: MailPanel;
   private holidayPanel!: HolidayPanel;
+  private calendarPanel!: CalendarPanel;
+  private damageMeter!: DamageMeter;
+  private damageMeterPanel!: DamageMeterPanel;
+  private auctionPanel!: AuctionHousePanel;
   private activeFaireVendor: FaireNPC | null = null;
   private activeFaireSite: FaireSite | null = null;
   private activeFaireBooths: readonly FaireBooth[] = [];
@@ -534,7 +542,10 @@ export class Game {
         close: () => this.resume(),
         atlas: skill => { this.openCharacterPanel('skills'); this.skillPanel.inspectNode(`wow-${this.sim.player.character.classId}-${skill}`, true); this.skillPanel.setDetailsVisible(true); },
       }));
-      this.statsPanel = this.lifetime.own(new StatsPanel(this.shell.panelMount, { close: () => this.resume() }));
+      this.statsPanel = this.lifetime.own(new StatsPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        setTitle: id => this.characterAction({ type: 'equipTitle', id }),
+      }));
       this.reputationPanel = this.lifetime.own(new ReputationPanel(this.shell.panelMount, {
         close: () => this.resume(),
         claim: (faction, reward) => { void this.durable(async () => {
@@ -607,6 +618,23 @@ export class Game {
           return buyPrize(this.sim, vendor, stockId, c => this.persistTravel(c));
         }, { ok: false, message: 'Saving…' }),
       }));
+      // Wave-10 WoW modules: the calendar is a read-only modal panel; the damage
+      // meter is a non-modal overlay fed from the combat-event stream.
+      this.calendarPanel = this.lifetime.own(new CalendarPanel(this.shell.panelMount,
+        () => ({ sheet: this.sim.player.character, worldEvents: this.sim.worldEvents, simTime: this.sim.time }),
+        () => this.resume()));
+      this.damageMeter = new DamageMeter({
+        sourceName: source => {
+          if (source === 'player') return undefined;
+          const id = Number(source.slice(5));
+          const ally = this.sim.player.allies?.find(a => a.id === id);
+          if (!ally) return undefined;
+          const stable = this.sim.player.character.pets;
+          const rec = ally.petId !== undefined ? [stable?.active, ...(stable?.stabled ?? [])].find(p => p?.id === ally.petId) : undefined;
+          return rec?.name ?? ALLY_TEMPLATES[ally.kind]?.name;
+        },
+      });
+      this.damageMeterPanel = this.lifetime.own(new DamageMeterPanel(this.shell.panelMount, this.damageMeter));
       this.buffFrame = this.lifetime.own(new BuffFrame());
       this.buffFrame.mount(this.canvas.parentElement!);
       this.buffFrame.onCancel = key => { const r = cancelBuff(this.sim.player, key); if (!r.ok) this.notify(r.message ?? ''); };
@@ -649,6 +677,7 @@ export class Game {
         spellbook: { open: () => { this.spellbookPanel.open(); this.shell.setStatus('Spellbook open. Game paused.'); }, close: () => this.spellbookPanel.close() },
         stats: { open: () => { this.statsPanel.open(); this.shell.setStatus('Character stats open. Game paused.'); }, close: () => this.statsPanel.close() },
         reputation: { open: () => { this.reputationPanel.open(); this.shell.setStatus('Reputation open. Game paused.'); }, close: () => this.reputationPanel.close() },
+        calendar: { open: () => { this.calendarPanel.open(); this.shell.setStatus('Calendar open. Game paused.'); }, close: () => this.calendarPanel.close() },
         dungeonFinder: { open: () => { this.dungeonFinderPanel.open(this.sim.player); this.shell.setStatus('Dungeon Finder open. Game paused.'); }, close: () => this.dungeonFinderPanel.close() },
         auctionHouse: { open: () => { this.auctionPanel.open(this.sim.player); this.shell.setStatus('Auction House open. Game paused.'); }, close: () => this.auctionPanel.close() },
         guild: { open: () => { this.guildPanel.open(); this.guildPanel.update(this.sim.player); this.shell.setStatus('Guild open. Game paused.'); }, close: () => this.guildPanel.close() },
@@ -942,6 +971,9 @@ export class Game {
     if (action === 'dungeonFinder' && GAME_FEATURES.dungeonFinder && (this.panels.canOpen('dungeonFinder') || this.phase === 'dungeonFinder')) { if (!repeat) this.panels.toggle('dungeonFinder'); return true; }
     if (action === 'auctionHouse' && GAME_FEATURES.auctionHouse && (this.panels.canOpen('auctionHouse') || this.phase === 'auctionHouse')) { if (!repeat) this.panels.toggle('auctionHouse'); return true; }
     if (action === 'guild' && GAME_FEATURES.guilds && (this.panels.canOpen('guild') || this.phase === 'guild')) { if (!repeat) this.panels.toggle('guild'); return true; }
+    if (action === 'calendar' && (this.panels.canOpen('calendar') || this.phase === 'calendar')) { if (!repeat) this.panels.toggle('calendar'); return true; }
+    // The damage meter is a non-modal overlay: it toggles without pausing the sim.
+    if (action === 'damageMeter') { if (!repeat) this.damageMeterPanel.toggle(); return true; }
     if (action === 'nameplates') { if (!repeat) this.notify(`Enemy nameplates: ${cycleNameplateMode()}`); return true; }
     if (action === 'editLayout') { if (!repeat) this.uiLayoutPanel.toggle(); return true; }
 
@@ -1741,6 +1773,14 @@ export class Game {
         if (!pet) return { ok: false, stable, message: 'That pet is no longer here.' };
         return { ok: true, stable: releasePet(stable, petId), message: `${pet.name} released.` };
       }),
+      learnPetTalent: talentId => this.durable(async () => {
+        const result = await executePetTalentLearn(this.sim, talentId, c => this.persistTravel(c));
+        return { ok: result.ok, message: result.message ?? '' };
+      }, { ok: false, message: 'A save is already in progress.' }),
+      resetPetTalents: () => this.durable(async () => {
+        const result = await executePetTalentReset(this.sim, c => this.persistTravel(c));
+        return { ok: result.ok, message: result.message ?? '' };
+      }, { ok: false, message: 'A save is already in progress.' }),
       mounts: () => MOUNT_IDS.map(id => ({
         id, unlocked: mountUnlocked(this.sim.player, id), selected: preferredMount(this.sim.player) === id,
       })),
@@ -2038,6 +2078,8 @@ export class Game {
       const events = this.sim.drainEvents();
       this.renderer.handleEvents(events, this.reducedMotion);
       logCombatEvents(this.sim.player, events, this.sim.time);
+      this.damageMeter.pushAll(events, this.sim.time * 1000);
+      if (this.damageMeterPanel.isOpen) this.damageMeterPanel.update();
       for (const event of events) this.trackAchievement(event);
       for (const event of events) {
         if (event.type === 'loot') this.shell.notifications.push({ kind: 'loot', item: event.item });
@@ -2201,6 +2243,7 @@ export class Game {
     this.questPanel.update(this.sim.player, this.phase === 'playing' || this.phase === 'questLog', this.renderer.width, this.renderer.height);
     this.spellbookPanel.update(this.sim.player);
     this.statsPanel.update(this.sim.player, this.sim.time);
+    if (this.phase === 'calendar') this.calendarPanel.update();
     this.partyFrame.render(this.sim);
     this.reputationPanel.update(this.sim.player);
     this.buffFrame.render(this.sim.player);

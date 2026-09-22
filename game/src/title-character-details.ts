@@ -7,6 +7,7 @@ import { escapeUI, uiIcon } from './ui-components.ts';
 import { emptySlotIcon } from './equipment-slot-art.ts';
 import { itemSlotMarkup } from './item-ui.ts';
 import { TIER_COLORS } from './items.ts';
+import { displayName } from './title-state.ts';
 
 export const TITLE_GEAR: ReadonlyArray<readonly [EquipmentSlot, string]> = [
   ['weapon', 'Main hand'], ['offhand', 'Off hand'], ['head', 'Head'], ['chest', 'Chest'],
@@ -30,7 +31,7 @@ export function titleCharacterDetails(record: CharacterSave, derived: DerivedCha
   const sheet = record.checkpoint.character, location = titleLocation(record);
   const twoHanded = sheet.equipped.weapon?.weapon?.hands === 2;
   const attributes = Object.entries(derived.attributes), maximum = Math.max(1, ...attributes.map(([, n]) => n));
-  return `<div class="title-selection-heading"><h3>${escapeUI(record.name)}</h3><div class="title-character-actions">${canEditAppearance ? `<button class="ui-button ui-button--quiet ui-button--icon" data-action="appearance" aria-label="Edit appearance" data-tooltip="Edit appearance" data-tooltip-align="end" data-tooltip-placement="below">${uiIcon('palette')}</button>` : ''}<button class="ui-button ui-button--quiet ui-button--icon" data-action="delete" aria-label="Delete character" data-tooltip="Delete character" data-tooltip-align="end" data-tooltip-placement="below">${uiIcon('trash')}</button></div></div>
+  return `<div class="title-selection-heading"><h3>${escapeUI(displayName({ name: record.name, character: sheet }))}</h3><div class="title-character-actions">${canEditAppearance ? `<button class="ui-button ui-button--quiet ui-button--icon" data-action="appearance" aria-label="Edit appearance" data-tooltip="Edit appearance" data-tooltip-align="end" data-tooltip-placement="below">${uiIcon('palette')}</button>` : ''}<button class="ui-button ui-button--quiet ui-button--icon" data-action="delete" aria-label="Delete character" data-tooltip="Delete character" data-tooltip-align="end" data-tooltip-placement="below">${uiIcon('trash')}</button></div></div>
     <div class="title-location" aria-label="Current location">${uiIcon('map')}<div><strong>${escapeUI(location.name)}</strong><span>${escapeUI(location.detail)}</span></div></div>
     <div class="title-summary-band"><div class="title-build-stats"><div><span>Level</span><strong>${number(record.checkpoint.level)}</strong></div><div data-tooltip="Average equipped item power. Two-handed weapons count for both hands."><span>Gear power</span><strong>${number(equippedGearPower(sheet))}</strong></div></div><div class="title-gold">${uiIcon('gold')}<div><span>Gold</span><strong>${number(goldBalance(sheet))}</strong></div></div></div>
     <div class="title-detail-tabs" role="tablist" aria-label="Character details"><button role="tab" id="title-tab-gear" aria-controls="title-gear" data-detail-tab="gear" aria-selected="${tab === 'gear'}" tabindex="${tab === 'gear' ? 0 : -1}">Gear</button><button role="tab" id="title-tab-attributes" aria-controls="title-attributes" data-detail-tab="attributes" aria-selected="${tab === 'attributes'}" tabindex="${tab === 'attributes' ? 0 : -1}">Attributes</button><span class="title-detail-pad">X · Switch</span></div>

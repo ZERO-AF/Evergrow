@@ -47,6 +47,8 @@ import { GUILD_RULES, GUILD_VAULT_CAPACITY } from './guild-content.ts';
 import type { GuildMembership } from './guild-state.ts';
 import { validDungeonFinder } from './dungeon-finder-state.ts';
 import { validRaidLockouts } from './raid-lockout.ts';
+import { isTitleId } from './title-content.ts';
+import { PET_FAMILY_TREE, PET_TALENTS } from './pet-talent-content.ts';
 
 export const CHARACTER_SLOT_COUNT = 8;
 export const CHARACTER_SAVE_VERSION = 7;
@@ -104,6 +106,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (object(v) && v.stash !== undefined && (!Array.isArray(v.stash) || v.stash.length < STASH_CAPACITY || v.stash.length > STASH_CAPACITY * MAX_STORAGE_TABS || v.stash.length % STASH_CAPACITY !== 0 || !v.stash.every(i=>i===null||validItem(i)))) return false;
   if (object(v) && v.guild !== undefined && !validGuild(v.guild)) return false;
   if (object(v) && v.guildVault !== undefined && (!object(v.guild) || !Array.isArray(v.guildVault) || v.guildVault.length !== GUILD_VAULT_CAPACITY || !v.guildVault.every(i => i === null || validItem(i)))) return false;
+  if (object(v) && v.title !== undefined && !isTitleId(v.title)) return false;
   if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || (v.emblems !== undefined && !validEmblems(v.emblems)) || (v.darkmoonTickets !== undefined && !validDarkmoonTickets(v.darkmoonTickets)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
     || v.attributeResetUsed !== undefined && v.attributeResetUsed !== true
     || !integer(v.statPoints, 0, 5e6) || !integer(v.skillPoints, 0, MAX_CONTENT_LEVEL)
@@ -144,7 +147,12 @@ function validPetRecord(v: unknown): boolean {
     || v.allyKind !== PET_FAMILIES[v.family as keyof typeof PET_FAMILIES].allyKind) return false;
   return text(v.name, 24) && integer(v.level, 1, MAX_CONTENT_LEVEL) && integer(v.xp, 0, petXpForLevel(MAX_CONTENT_LEVEL))
     && Array.isArray(v.skills) && v.skills.length <= 8 && v.skills.every(id => text(id, 60))
-    && new Set(v.skills).size === v.skills.length && integer(v.loyalty, 0, PET_RULES.maxLoyalty);
+    && new Set(v.skills).size === v.skills.length && integer(v.loyalty, 0, PET_RULES.maxLoyalty)
+    && (v.talents === undefined || (object(v.talents) && Object.keys(v.talents).length <= 32
+      && Object.entries(v.talents).every(([id, rank]) => {
+        const talent = PET_TALENTS[id];
+        return talent !== undefined && talent.tree === PET_FAMILY_TREE[v.family as keyof typeof PET_FAMILIES] && integer(rank, 1, 3);
+      })));
 }
 
 /** The hunter's stable: one active pet plus bounded stable slots; ids are unique across both. */

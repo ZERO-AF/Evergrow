@@ -114,6 +114,8 @@ import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-ar
 import { VfxPack, drawCastTargetDecal, drawChannelBeam } from './vfx-pack.ts';
 import { BossWarnings } from './boss-warnings.ts';
 import { drawBossWarnings } from './boss-warning-art.ts';
+import { ProcAlertTracker } from './proc-alert.ts';
+import { drawProcAlerts } from './proc-alert-art.ts';
 import { lootBeamAnchors, lootBeamLights, type LootBeamAnchor } from './loot-beam.ts';
 import type { LootFilterMode } from './loot.ts';
 import { drawLootBeams } from './loot-beam-art.ts';
@@ -187,9 +189,9 @@ export class Renderer {
   performanceUIBounds: UIRect | null = null;
   extraUIBounds: {x:number;y:number;width:number;height:number}|null = null;
   private outdoorLightEffects = new OutdoorLightEffects();
-  /** WoW combat VFX pack (docs/wow-deepening.md §4); game.ts fires quest/mount/gather triggers. */
-  readonly vfx = new VfxPack();
   private bossWarnings = new BossWarnings();
+  private procAlerts = new ProcAlertTracker();
+  readonly vfx = new VfxPack();
   private lootBeams: LootBeamAnchor[] = [];
   /** Vanity companion follower; presentation-only, reset when the pick changes. */
   private companionFollower: CompanionFollower | null = null;
@@ -923,7 +925,7 @@ export class Renderer {
         text(c, `Summoning ${mount.name}...`, this.width / 2, this.height * .68, 1, '#d6d7b3', 'center');
       }
     }
-    c.restore();
+    drawProcAlerts(c, this.procAlerts.update(sim.player, sim.time), { width: this.width, height: this.height, reducedMotion: settings.reducedMotion }, this.visualTime);
     if (GAME_FEATURES.bossWarnings) drawBossWarnings(c, this.bossWarnings, this.width, this.height, this.visualTime, settings.reducedMotion);
     if (settings.phase === 'playing') {
       const run=currentDungeon(sim.expeditions),f=sim.dungeonFloor;

@@ -66,6 +66,8 @@ export interface Item {
   /** Permanent enchant id (enchant-content.ts); stats fold into implicit via deriveItem. */
   enchant?: EnchantId;
   appearance: { surface?: GearMaterial; base: string; shadow: string; edge: string; trim: string; style: 'plate' | 'leather' | 'cloth' };
+  /** Championing tabard: while equipped, kill/dungeon reputation redirects to this faction (reputation-content.ts). */
+  tabardFaction?: import('./reputation-content.ts').FactionId;
 }
 export type WowSkillId =
   // Warrior
@@ -197,6 +199,8 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   activeSpec?: number;
   /** Hunter pet stable: the active companion plus stabled pets (pet-content.ts). */
   pets?: PetStable;
+  /** Earned player title id (title-content.ts); shown on the nameplate/character sheet. */
+  title?: string;
   /** Preferred mount for the X summon toggle; set at the stable master (mount-state.ts). */
   mount?: import('./mount-content.ts').MountId;
   /** Dungeon Finder queue marker: the queued catalog id and when (dungeon-finder-state.ts). */

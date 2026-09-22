@@ -6,7 +6,7 @@ import { ENEMY_LOOT_YIELD } from './loot-content.ts';
 import { dropGold, rollEnemyGold, type GroundGold } from './gold.ts';
 import type { CombatEvent, Enemy, Pickup, Player } from './model.ts';
 import type { GroundItem } from './character-types.ts';
-import { ELITE_AFFIX_RULES, KILL_STREAK, TREASURE_GOBLIN, streakBonusFraction } from './combat-content.ts';
+import { ELITE_AFFIX_RULES, KILL_STREAK, TREASURE_GOBLIN, creatureFamily, streakBonusFraction } from './combat-content.ts';
 import { LOOT_RULES, PLAYER_ABILITIES } from './combat-content.ts';
 import { treasureLanding } from './treasure-flight.ts';
 import { awardCharacterExperience } from './character.ts';
@@ -19,6 +19,8 @@ import { rollGlyphDrop } from './glyph-content.ts';
 import { rollBagDrop } from './bag-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { PET_RULES, adjustPetLoyalty, awardPetXp, petStatsFor } from './pet-content.ts';
+import { PROFESSION_MATERIALS, rollClothDrop } from './profession-content.ts';
+import { grantMaterial } from './profession-state.ts';
 
 export interface KillRewardContext {
   suppressDrops?: boolean;
@@ -143,6 +145,12 @@ export function awardKillRewards(enemy: Enemy, kills: number, recharge: number, 
         addGroundItem(context.groundItems, { id: context.nextId(), x: arc?.landing.x ?? enemy.x, y: arc?.landing.y ?? enemy.y,
           item: bag, ...(arc ? { flight: arc.flight } : {}) });
       }
+    }
+    // Humanoids drop cloth (WoW): granted straight into the tailoring material bag.
+    if (GAME_FEATURES.professions && creatureFamily(enemy.kind) === 'humanoid') {
+      const cloth = rollClothDrop(enemy.lootSeed ^ 0x4d595df4, enemy.level);
+      if (cloth && grantMaterial(player, cloth.id, cloth.count))
+        context.emit({ type: 'notice', x: enemy.x, y: enemy.y, message: `${PROFESSION_MATERIALS[cloth.id]!.name} ×${cloth.count}` });
     }
   }
   recharge++;

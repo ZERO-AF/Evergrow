@@ -32,6 +32,7 @@ import { specIdentity } from './skill-progression.ts';
 import { WOW_RACES, raceAllowsClass } from './wow-races.ts';
 import { WOW_CLASS_IDS, WOW_RACE_IDS, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { parseWorldSeed } from './world-seed.ts';
+import { displayName } from './title-state.ts';
 import './game-wordmark.css';
 import './home-screen.css';
 import './title-screen.css';
@@ -371,7 +372,7 @@ export class TitleScreen {
       this.renderSelection(); return;
     }
     this.element.querySelector('.title-slot-grid')!.innerHTML = this.slots.map(slot => {
-      const r = slot.record, summary = r ? { name: r.name, level: r.checkpoint.level, gearPower: equippedGearPower(r.checkpoint.character), classId: r.checkpoint.character.classId, raceId: r.checkpoint.character.raceId } : slot.summary;
+      const r = slot.record, summary = r ? { name: displayName({ name: r.name, character: r.checkpoint.character }), level: r.checkpoint.level, gearPower: equippedGearPower(r.checkpoint.character), classId: r.checkpoint.character.classId, raceId: r.checkpoint.character.raceId } : slot.summary;
       const cls = summary?.classId ? WOW_CLASSES[summary.classId] : undefined, race = summary?.raceId ? WOW_RACES[summary.raceId] : undefined;
       const detail = cls && race ? `Lv ${summary!.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${cls.name}</b>`
         : summary ? `Lv ${summary.level} ${summary.gearPower!==undefined?`<i>·</i> ${format(summary.gearPower)} GP`:''}` : '';

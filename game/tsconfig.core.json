@@ -30,7 +30,7 @@
     "src/focus-content.ts", "src/equipment.ts", "src/elemental-weapon.ts", "src/weapon-content.ts", "src/projectile-combat.ts", "src/ranged-aim.ts", "src/enemy-body.ts", "src/touch-layout.ts", "src/touch-input.ts", "src/touch-gesture.ts", "src/touch-targeting.ts", "src/skill-target-point.ts", "src/game-input.ts", "src/gamepad-input.ts", "src/panel-coordinator.ts", "src/lifetime.ts",
     "src/travel.ts", "src/travel-command.ts", "src/commerce-command.ts", "src/commerce.ts", "src/npcs.ts", "src/item-improvement.ts", "src/character-session.ts", "src/character-summary.ts", "src/title-character-summary.ts", "src/leaderboard.ts", "src/character-save.ts", "src/character-storage.ts", "src/character-commands.ts", "src/character.ts", "src/character-stats.ts", "src/items.ts", "src/inventory.ts", "src/inventory-grid.ts", "src/inventory-tools.ts", "src/equipment-preview.ts",
     "src/death-presentation.ts", "src/loot-label-layout.ts", "src/notification-queue.ts", "src/skill-tree-routes.ts", "src/skill-combat.ts", "src/skill-content.ts", "src/skill-tree.ts",
-    "src/wow-types.ts", "src/wow-classes.ts", "src/wow-races.ts", "src/wow-allies.ts", "src/wow-skills.ts", "src/item-naming.ts", "src/pet-content.ts", "src/spell-school.ts", "src/legendary-content.ts", "src/legendary-combat.ts", "src/consumable-content.ts", "src/consumable-command.ts", "src/death-content.ts",
+    "src/wow-types.ts", "src/wow-classes.ts", "src/wow-races.ts", "src/wow-allies.ts", "src/wow-skills.ts", "src/item-naming.ts", "src/pet-content.ts", "src/pet-talent-content.ts", "src/pet-talent-state.ts", "src/pet-talent-command.ts", "src/spell-school.ts", "src/legendary-content.ts", "src/legendary-combat.ts", "src/consumable-content.ts", "src/consumable-command.ts", "src/death-content.ts", "src/proc-alert.ts",
     "src/wow-skills-warrior.ts", "src/wow-skills-paladin.ts", "src/wow-skills-hunter.ts", "src/wow-skills-rogue.ts", "src/wow-skills-priest.ts",
     "src/wow-skills-deathknight.ts", "src/wow-skills-shaman.ts", "src/wow-skills-mage.ts", "src/wow-skills-warlock.ts", "src/wow-skills-druid.ts", "src/wow-skills-racial.ts",
     "src/hydrology.ts", "src/water-simulation.ts", "src/water-presentation.ts", "src/world-geography.ts", "src/biomes.ts", "src/biome-props.ts", "src/settlements.ts", "src/settlement-residents.ts", "src/road-shape.ts", "src/world-query.ts",
@@ -40,13 +40,15 @@
     "src/companion-content.ts", "src/companion-state.ts",
     "src/profession-content.ts", "src/profession-state.ts", "src/profession-command.ts", "src/gather-node.ts",
     "src/loot-beam.ts", "src/loot-beam-content.ts", "src/hearthstone.ts", "src/rested.ts",
-    "src/currency.ts", "src/combat-log.ts",
+    "src/currency.ts", "src/combat-log.ts", "src/damage-meter.ts",
     "src/boss-warnings.ts", "src/achievement-content.ts", "src/achievement-state.ts", "src/chat-log.ts", "src/durability-state.ts", "src/projectile-colors.ts", "src/light-types.ts", "src/durability.ts", "src/hud-layout.ts", "src/vendor-identity.ts", "src/storage-content.ts", "src/item-protection.ts",
     "src/durability-command.ts", "src/fishing.ts", "src/glyph-content.ts", "src/glyph-state.ts", "src/glyph-command.ts",
     "src/item-set-content.ts", "src/item-set-state.ts", "src/item-set-bonus.ts",
     "src/raid-boss-content.ts", "src/raid-boss.ts", "src/raid2-boss-content.ts", "src/raid2-boss.ts", "src/raid3-boss-content.ts", "src/raid3-boss.ts", "src/raid4-boss-content.ts", "src/raid4-boss.ts", "src/raid5-boss-content.ts", "src/raid5-boss.ts", "src/raid6-boss-content.ts", "src/raid6-boss.ts", "src/raid7-boss-content.ts", "src/raid7-boss.ts", "src/raid8-boss-content.ts", "src/raid8-boss.ts", "src/raid9-boss-content.ts", "src/raid9-boss.ts", "src/dungeon2-content.ts", "src/quest-content.ts", "src/cast-bar.ts",
     "src/transmog-state.ts", "src/dual-spec-state.ts", "src/dual-spec-command.ts", "src/world-event-state.ts", "src/world-event-content.ts", "src/world-event-command.ts", "src/item-validation.ts",
     "src/reputation-content.ts", "src/reputation-state.ts", "src/reputation-command.ts",
+    "src/tabard-content.ts", "src/tabard-state.ts",
+    "src/title-content.ts", "src/title-state.ts",
     "src/pack-grid.ts", "src/random-source.ts", "src/bag-content.ts", "src/bag-state.ts",
     "src/gem-content.ts", "src/gem-command.ts", "src/enchant-content.ts", "src/enchant-command.ts",
     "src/quest-state.ts", "src/quest-command.ts",
@@ -62,6 +64,6 @@
     "src/heroic-content.ts", "src/emblem-state.ts", "src/emblem-content.ts", "src/badge-vendor.ts",
     "src/enemy-buffs.ts", "src/raid-lockout.ts", "src/raid-loot-content.ts",
     "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts",
-    "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts"
+    "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts", "src/calendar-state.ts"
   ]
 }

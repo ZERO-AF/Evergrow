@@ -30,7 +30,8 @@ export interface ProfessionPanelHooks {
 
 const KIND_LABELS: Record<string, string> = {
   herb: 'Herbs', ore: 'Ore', stone: 'Stone', bar: 'Bars', leather: 'Leather & hides',
-  meat: 'Meat', fish: 'Fish', essence: 'Enchanting', gem: 'Gems', part: 'Parts', product: 'Crafted',
+  cloth: 'Cloth', meat: 'Meat', fish: 'Fish', essence: 'Enchanting', gem: 'Gems',
+  part: 'Parts', pigment: 'Pigments & inks', product: 'Crafted',
 };
 
 

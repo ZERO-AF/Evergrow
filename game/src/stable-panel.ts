@@ -6,6 +6,8 @@
  * the pet-content stable helpers. */
 import { attachPanelFrame } from './panel-frames.ts';
 import { PET_FAMILIES, DEMON_FAMILIES, PET_SKILLS, PET_RULES, petXpForLevel, type PetRecord } from './pet-content.ts';
+import { PET_FAMILY_TREE, PET_TALENTS, PET_TALENT_TREES, petTalentTreeTalents } from './pet-talent-content.ts';
+import { petTalentPoints, petTalentProblem, petTalentSpent } from './pet-talent-state.ts';
 import { MOUNTS, type MountId } from './mount-content.ts';
 import { COMPANIONS, type CompanionId } from './companion-content.ts';
 import { NPC_NAMES, NPC_COLORS, type StableMaster } from './npcs.ts';
@@ -32,6 +34,10 @@ export interface StableActions {
   renamePet(petId: number, name: string): Promise<{ ok: boolean; message: string }>;
   /** Release a pet entirely — clears the active slot or removes it from the stable. */
   dismissPet(petId: number): Promise<{ ok: boolean; message: string }>;
+  /** Spend one point on a talent for the active pet (pet-talent-command.ts). */
+  learnPetTalent(talentId: string): Promise<{ ok: boolean; message: string }>;
+  /** Refund every talent point on the active pet. */
+  resetPetTalents(): Promise<{ ok: boolean; message: string }>;
   /** Every mount with its lock state and whether the X toggle prefers it. */
   mounts(): readonly StableMount[];
   /** Pick a mount as the X-toggle preference and ride out (summons when possible). */
@@ -130,7 +136,7 @@ export class StablePanel {
   }
 
   private click(event: MouseEvent): void {
-    const control = (event.target as HTMLElement).closest<HTMLElement>('[data-close],[data-swap],[data-stable-active],[data-rename],[data-rename-cancel],[data-dismiss],[data-mount],[data-companion]');
+    const control = (event.target as HTMLElement).closest<HTMLElement>('[data-close],[data-swap],[data-stable-active],[data-rename],[data-rename-cancel],[data-dismiss],[data-mount],[data-companion],[data-pet-talent],[data-pet-talent-reset]');
     if (!control) return;
 
     if (control.dataset.close !== undefined) { this.actions.close(); return; }
@@ -143,6 +149,8 @@ export class StablePanel {
       void this.run(this.actions.summonCompanion(id === 'dismiss' ? null : id as CompanionId));
       return;
     }
+    if (control.dataset.petTalent !== undefined) { void this.run(this.actions.learnPetTalent(control.dataset.petTalent)); return; }
+    if (control.dataset.petTalentReset !== undefined) { void this.run(this.actions.resetPetTalents()); return; }
     if (control.dataset.rename !== undefined) { this.renaming = Number(control.dataset.rename); this.message = ''; this.render(); return; }
     if (control.dataset.renameCancel !== undefined) { this.renaming = null; this.render(); }
   }
@@ -162,6 +170,25 @@ export class StablePanel {
     }
     return chips.length ? `<div class="stable-skills">${chips.join('')}</div>` : '';
   }
+  /** Compact talent list for the active pet: rank pips plus a + button per row. */
+  private petTalents(pet: PetRecord): string {
+    const tree = PET_FAMILY_TREE[pet.family];
+    if (!tree) return '';
+    const earned = petTalentPoints(pet), spent = petTalentSpent(pet);
+    const rows = petTalentTreeTalents(tree).map(talent => {
+      const rank = pet.talents?.[talent.id] ?? 0;
+      const problem = petTalentProblem(pet, talent.id);
+      const pips = Array.from({ length: talent.maxRanks }, (_, i) => `<i class="${i < rank ? 'is-filled' : ''}"></i>`).join('');
+      const need = talent.requires ? ` Requires ${PET_TALENTS[talent.requires.id]?.name ?? ''} rank ${talent.requires.points}.` : '';
+      return `<li class="stable-talent${problem ? ' is-locked' : ''}" title="${e(talent.description)}${e(need)}${problem ? ` — ${e(problem)}` : ''}">
+        <span class="stable-talent-name">${e(talent.name)}</span>
+        <span class="stable-talent-pips">${pips}</span>
+        ${rank < talent.maxRanks ? `<button class="ui-button ui-button--quiet stable-talent-add" data-pet-talent="${e(talent.id)}" ${problem ? 'disabled' : ''} aria-label="Learn ${e(talent.name)}">+</button>` : ''}
+      </li>`;
+    });
+    return `<div class="stable-talents"><div class="stable-talents-head"><span>${e(PET_TALENT_TREES[tree].name)} talents</span><span>${spent} / ${earned} points${spent ? ' <button class="ui-button ui-button--quiet stable-talent-reset" data-pet-talent-reset>Reset</button>' : ''}</span></div><ul>${rows.join('')}</ul></div>`;
+  }
+
 
   private petCard(pet: PetRecord, active: boolean, index: number): string {
     const family = familyDef(pet);
@@ -170,7 +197,6 @@ export class StablePanel {
     const loyaltyPct = Math.max(0, Math.min(100, pet.loyalty / PET_RULES.maxLoyalty * 100));
     const renaming = this.renaming === pet.id;
     return `<article class="stable-pet${active ? ' is-active' : ''}" style="--pet-color:${family.color ?? NPC_COLORS.stable}">
-      <header class="stable-pet-head"><span class="stable-pet-family">${e(family.name)}</span><span class="stable-pet-level">Lv ${pet.level}</span></header>
       ${renaming
         ? `<form class="stable-rename" data-rename-form="${pet.id}"><input name="pet-name" type="text" value="${e(pet.name)}" maxlength="24" autocomplete="off" aria-label="Pet name"><button class="ui-button ui-button--quiet" type="submit">Save</button><button class="ui-button ui-button--quiet" type="button" data-rename-cancel>Cancel</button></form>`
         : `<h3 class="stable-pet-name">${e(pet.name)}</h3>`}
@@ -179,6 +205,7 @@ export class StablePanel {
         <div class="stable-bar" title="Loyalty ${pet.loyalty} / ${PET_RULES.maxLoyalty}"><span>Loyalty</span><div class="stable-bar-track is-loyalty"><i style="width:${loyaltyPct}%"></i></div></div>
       </div>
       ${this.skillChips(pet)}
+      ${active ? this.petTalents(pet) : ''}
       <footer class="stable-pet-actions">
         ${active
           ? `<button class="ui-button ui-button--quiet" data-stable-active ${this.actions.stabledPets().length >= this.actions.stableCapacity() ? 'disabled' : ''}>Stable</button>`

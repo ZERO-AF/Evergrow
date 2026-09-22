@@ -47,6 +47,7 @@ export const HATED_FLOOR = STANDINGS[0].min;
  * character through the reputation panel (repClaimReward in reputation-command). */
 export type FactionReward =
   | { readonly id: string; readonly name: string; readonly standing: StandingTier; readonly kind: 'gear'; readonly slot: ItemKind; readonly tier: ItemTier }
+  | { readonly id: string; readonly name: string; readonly standing: StandingTier; readonly kind: 'tabard'; readonly tabardFaction: FactionId }
   | { readonly id: string; readonly name: string; readonly standing: StandingTier; readonly kind: 'gold'; readonly copper: number }
   | { readonly id: string; readonly name: string; readonly standing: StandingTier; readonly kind: 'material'; readonly material: string; readonly count: number };
 
@@ -90,6 +91,8 @@ const bounty = (id: string, name: string, standing: StandingTier, gold: number):
   Object.freeze({ id, name, standing, kind: 'gold', copper: toCopper(gold) });
 const supplies = (id: string, name: string, standing: StandingTier, material: string, count: number): FactionReward =>
   Object.freeze({ id, name, standing, kind: 'material', material, count });
+const tabard = (id: string, name: string, standing: StandingTier, faction: FactionId): FactionReward =>
+  Object.freeze({ id, name, standing, kind: 'tabard', tabardFaction: faction });
 
 const f = (def: FactionDef): Readonly<FactionDef> => Object.freeze(def);
 
@@ -103,7 +106,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     questZones: ['Elwynn Forest', 'Westfall', 'Redridge Mountains', 'Duskwood'],
     clearRep: 250, questRep: 150,
     rewards: [
-      gear('stormwind-tabard', 'Tabard of Stormwind', 'honored', 'cloak', 'rare'),
+      tabard('stormwind-tabard', 'Tabard of Stormwind', 'honored', 'stormwind'),
       gear('stormwind-signet', 'Stormwind Signet', 'revered', 'ring', 'epic'),
       gear('stormwind-greatsword', 'Stormwind Greatsword', 'exalted', 'weapon', 'epic'),
     ] }),
@@ -115,6 +118,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     quests: ['defending-wyrmrest-temple', 'troll-patrol', 'intelligence-gathering', 'threat-from-above', 'slaves-to-saronite'],
     clearRep: 300, questRep: 200,
     rewards: [
+      tabard('argent-tabard', 'Tabard of the Argent Crusade', 'friendly', 'argentCrusade'),
       gear('argent-commission', 'Argent Dawn Commission', 'honored', 'amulet', 'rare'),
       gear('argent-avenger', 'Argent Avenger', 'revered', 'weapon', 'epic'),
       gear('dawn-gambit', 'Dawn’s Gambit', 'exalted', 'amulet', 'epic'),
@@ -125,6 +129,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     dungeonThemes: ['astral'],
     clearRep: 250, questRep: 150,
     rewards: [
+      tabard('kirin-tor-tabard', 'Tabard of the Kirin Tor', 'friendly', 'kirinTor'),
       gear('stag-helm', 'Helm of the Majestic Stag', 'honored', 'head', 'rare'),
       gear('flameheart-scroll', 'Flameheart Spell Scalpel', 'revered', 'weapon', 'epic'),
       gear('kirin-tor-ring', 'Ring of the Kirin Tor', 'exalted', 'ring', 'epic'),
@@ -136,6 +141,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     dungeonThemes: ['rootbound'],
     clearRep: 250, questRep: 150,
     rewards: [
+      tabard('timbermaw-tabard', 'Tabard of Timbermaw Hold', 'friendly', 'timbermawHold'),
       gear('fur-and-claw', 'Stave of Fur and Claw', 'honored', 'orb', 'rare'),
       gear('timbermaw-boots', 'Timbermaw Boots', 'revered', 'boots', 'rare'),
       gear('defender-timbermaw', 'Defender of the Timbermaw', 'exalted', 'amulet', 'epic'),
@@ -146,6 +152,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     clearRep: 250, questRep: 150,
     rewards: [
       supplies('cenarion-herb-bag', 'Cenarion Herb Bag', 'honored', 'sungrass', 20),
+      tabard('cenarion-tabard', 'Tabard of the Cenarion Circle', 'friendly', 'cenarionCircle'),
       gear('sylvan-crown', 'Sylvan Crown', 'honored', 'head', 'rare'),
       gear('reservist-legs', 'Cenarion Reservist’s Leggings', 'revered', 'legs', 'rare'),
       gear('wrath-of-cenarius', 'Wrath of Cenarius', 'exalted', 'ring', 'epic'),
@@ -157,6 +164,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     clearRep: 350, questRep: 150,
     rewards: [
       gear('dark-iron-bracers', 'Dark Iron Bracers', 'honored', 'gloves', 'rare'),
+      tabard('thorium-tabard', 'Tabard of the Thorium Brotherhood', 'friendly', 'thoriumBrotherhood'),
       gear('dark-iron-helm', 'Dark Iron Helm', 'revered', 'head', 'epic'),
       gear('dark-iron-destroyer', 'Dark Iron Destroyer', 'exalted', 'weapon', 'epic'),
     ] }),
@@ -168,6 +176,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     quests: ['pushed-too-far', 'hot-and-cold'],
     clearRep: 250, questRep: 150,
     rewards: [
+      tabard('hodir-tabard', 'Tabard of the Sons of Hodir', 'friendly', 'sonsOfHodir'),
       gear('giant-friend-kilt', 'Giant-Friend Kilt', 'honored', 'legs', 'rare'),
       gear('broken-stalactite', 'Broken Stalactite', 'revered', 'weapon', 'epic'),
       gear('diamond-cane', 'Diamond-tipped Cane', 'exalted', 'weapon', 'epic'),
@@ -178,6 +187,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     dungeonThemes: ['drowned'],
     clearRep: 250, questRep: 150,
     rewards: [
+      tabard('cartel-tabard', 'Steamwheedle Cartel Tabard', 'friendly', 'steamwheedleCartel'),
       gear('rocket-boots', 'Goblin Rocket Boots', 'honored', 'boots', 'rare'),
       bounty('cartel-voucher', 'Cartel Trade Voucher', 'revered', 250),
       gear('rocket-helmet', 'Goblin Rocket Helmet', 'exalted', 'head', 'epic'),
@@ -187,7 +197,7 @@ export const FACTIONS: readonly FactionDef[] = Object.freeze([
     description: 'The Outriders answer only to battle. Arena and battleground victories are the coin they respect.',
     clearRep: 0, questRep: 0,
     rewards: [
-      gear('outrider-tabard', 'Outrider’s Tabard', 'honored', 'cloak', 'rare'),
+      tabard('outrider-tabard', 'Outrider’s Tabard', 'honored', 'warsong'),
       gear('warsong-blade', 'Warsong Blade', 'revered', 'weapon', 'epic'),
       gear('outrider-medallion', 'Medallion of the Outriders', 'exalted', 'amulet', 'epic'),
     ] }),

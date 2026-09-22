@@ -10,6 +10,7 @@ import { assignSkill, refreshCharacter } from './character.ts';
 import { refreshBuffStats } from './player-skill-effects.ts';
 import { equipBest, sortInventory, sortStorage, type InventorySort, type EquipBestChoice } from './inventory-tools.ts';
 import { socketGem, unsocketGem, type SocketTarget } from './gem-command.ts';
+import { equipTitle } from './title-state.ts';
 
 export type CharacterCommand =
   | { type: 'chooseDoctrine'; id: string }
@@ -27,7 +28,8 @@ export type CharacterCommand =
   | { type: 'allocateNode'; id: string }
   | { type: 'socketGem'; gemIndex: number; target: SocketTarget; socketIndex: number }
   | { type: 'unsocketGem'; target: SocketTarget; socketIndex: number }
-  | { type: 'assignSkill'; slot: number; skill: SkillId | null };
+  | { type: 'assignSkill'; slot: number; skill: SkillId | null }
+  | { type: 'equipTitle'; id: string | null };
 
 /** The runtime mutation boundary owns validation, commit and projection refresh.
  * Underlying sheet operations plan failures before changing state. Failed commands
@@ -53,6 +55,7 @@ export function executeCharacterCommand(player: Player, command: CharacterComman
     case 'socketGem': result = socketGem(player.character, command.gemIndex, command.target, command.socketIndex); break;
     case 'unsocketGem': result = unsocketGem(player.character, command.target, command.socketIndex); break;
     case 'assignSkill': result = assignSkill(player, command.slot, command.skill); break;
+    case 'equipTitle': result = equipTitle(player, command.id); break;
     default: {
       const unhandled: never = command;
       throw new Error(`Unknown character command: ${unhandled}`);
