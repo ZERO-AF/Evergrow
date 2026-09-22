@@ -27,7 +27,7 @@ export function mountPowerAudit(root: HTMLElement, signal: AbortSignal) {
   function render() {
     const level = Math.floor(val('level',1,1e6)), hp = val('health',.25,5), damage = val('damage',.25,5), recovery = val('recovery',.25,2);
     const report = buildPowerAudit(sample);
-    const rows = (['stalker','brute','caster'] as const).flatMap(kind => (['normal','veteran','elite'] as const).map(rank => {
+    const rows = (['stalker','brute','caster'] as const).flatMap(kind => (['normal','veteran','elite','rare'] as const).map(rank => {
       const base = ENEMY_DEFINITIONS[kind], stats = enemyAudit(level,kind,rank);
       const proposed = enemyAudit(level,kind,rank,recovery);
       return `<tr><th>${e(base.name)} · ${rank}</th><td>${fmt(stats.maxHp)} → ${fmt(stats.maxHp*hp)}</td><td>${fmt(stats.damage)} → ${fmt(stats.damage*damage)}</td><td>${fmt(stats.idealAttacksPerSecond)} → ${fmt(proposed.idealAttacksPerSecond)}</td><td>${fmt(stats.rawIdealDps)} → ${fmt(proposed.rawIdealDps*damage)}</td></tr>`;

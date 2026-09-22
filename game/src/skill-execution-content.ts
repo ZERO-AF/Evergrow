@@ -20,6 +20,8 @@ export interface WowSkillPayload {
   readonly taunt?: number;
   /** Flat resource granted to the player on cast (rage/energy/mana/runic). */
   readonly resourceGain?: number;
+  /** Offensive dispel: strips this many beneficial buffs from each struck enemy. */
+  readonly dispel?: number;
 }
 
 export type SkillExecution = (
@@ -43,6 +45,8 @@ export type SkillExecution = (
       slow?: { duration: number; factor: number }; stun?: number; silence?: number; healFrac?: number;
       cc?: { readonly kind: CcKind; readonly duration: number; readonly factor?: number };
       sunder?: number; bonusVsDot?: number; bonusVsFrozen?: number; bonusBehind?: number; bonusVsRooted?: number;
+      /** Offensive dispel: strips this many beneficial buffs from the target (Purge). */
+      dispel?: number;
       consumeDot?: { school: DotSchool; multiplier: number } }
   | { kind: 'dot'; dot: DotSpec; direct?: number }
   | { kind: 'heal'; amount: number; maxHpFrac?: number; hot?: HotSpec; consumeHot?: number;
@@ -71,7 +75,13 @@ export type SkillExecution = (
       healFrac?: number; diseaseBonus?: number }
   | { kind: 'cleanse'; heal?: number; removeCc?: boolean; resourceGain?: number; buff?: BuffSpec;
       /** Fraction of maxHp paid as cost (Life Tap). */ hpCost?: number;
-      /** resourceGain as fraction of maxMana instead of flat. */ resourceGainFrac?: number });
+      /** resourceGain as fraction of maxMana instead of flat. */ resourceGainFrac?: number;
+      /** Offensive dispel: strips this many beneficial buffs from the resolved enemy target. */
+      dispel?: number;
+      /** AoE offensive dispel centered on the target (or the aimed point) at this radius (Mass Dispel). */
+      dispelRadius?: number;
+      /** Spellsteal: the first stripped buff transfers to the caster for its remaining duration. */
+      steal?: boolean });
 
 /** Authored WoW skill entry: definition fields plus its execution recipe. */
 export interface WowSkill extends Omit<SkillDefinition, 'id'> {

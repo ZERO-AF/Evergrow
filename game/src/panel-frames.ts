@@ -48,6 +48,7 @@ const PANEL_FRAMES: readonly UiFrameSpec[] = [
   { id: 'transmog', label: 'Transmogrify' },
   { id: 'arena', label: 'Arena & Battlegrounds' },
   { id: 'pvpVendor', label: 'PvP Quartermaster' },
+  { id: 'badgeVendor', label: 'Badge Vendor' },
   { id: 'dungeonFinder', label: 'Dungeon Finder' },
   { id: 'guild', label: 'Guild' },
   { id: 'auction', label: 'Auction House' },

@@ -110,7 +110,7 @@ export function collectNameplates(sim: Simulation, view: CameraView,
     plates.push({
       id: e.id, x: head.x, y: head.y, worldX: wx, worldY: wy,
       name: nameplateName(e), level: e.level, hp: Math.max(0, e.hp), maxHp: Math.max(1, e.maxHp),
-      rank: e.rank, crest: isBossKind(e.kind) ? 'boss' : e.rank === 'elite' ? 'elite' : e.rank === 'veteran' ? 'rare' : 'none', boss: isBossKind(e.kind),
+      rank: e.rank, crest: isBossKind(e.kind) ? 'boss' : e.rank === 'elite' ? 'elite' : e.rank === 'rare' || e.rank === 'veteran' ? 'rare' : 'none', boss: isBossKind(e.kind),
       casting: enemyCast(e), targeted, engaged, hitFlash: e.hitFlash,
       affix: e.affix, affixColor: e.affix ? ELITE_AFFIXES[e.affix].color : undefined,
     });

@@ -55,6 +55,8 @@
     "src/guild-content.ts", "src/guild-state.ts", "src/guild-command.ts",
     "src/dungeon-finder-content.ts", "src/dungeon-finder-state.ts", "src/dungeon-finder-command.ts",
     "src/auction-content.ts", "src/auction-state.ts", "src/auction-command.ts",
+    "src/heroic-content.ts", "src/emblem-state.ts", "src/emblem-content.ts", "src/badge-vendor.ts",
+    "src/enemy-buffs.ts", "src/raid-lockout.ts", "src/raid-loot-content.ts",
     "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts"
   ]
 }

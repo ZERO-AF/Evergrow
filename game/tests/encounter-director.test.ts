@@ -19,16 +19,17 @@ test('each biome selects its authored population mix', () => {
 
 });
 
-test('veterans and elites unlock by area level and are not blocked by existing ranks', () => {
-  assert.deepEqual(encounterRankChances(1), { normal: 1, veteran: 0, elite: 0 });
+test('veterans, elites and rares unlock by area level and are not blocked by existing ranks', () => {
+  assert.deepEqual(encounterRankChances(1), { normal: 1, veteran: 0, elite: 0, rare: 0 });
   assert.equal(chooseEncounterRank(1, 0), 'normal');
   assert.equal(encounterRankChances(2).veteran, .12);
   assert.equal(encounterRankChances(3).elite, .04);
   const deep = encounterRankChances(100000);
-  assert.equal(deep.veteran, .2); assert.equal(deep.elite, .08);
+  assert.equal(deep.veteran, .2); assert.equal(deep.elite, .08); assert.equal(deep.rare, .02);
   assert.equal(chooseEncounterRank(3, .01), 'elite');
   assert.equal(chooseEncounterRank(3, .04), 'veteran');
-  assert.equal(chooseEncounterRank(10, 0), 'elite');
+  assert.equal(chooseEncounterRank(10, 0), 'rare');
+  assert.equal(chooseEncounterRank(10, .02), 'elite');
   assert.equal(chooseEncounterRank(10, .1), 'veteran');
   assert.equal(chooseEncounterRank(10, .99), 'normal');
 });

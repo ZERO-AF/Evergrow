@@ -111,7 +111,7 @@ export function getZoneAt(x: number, y: number, seed = 7319): ZoneProgression {
 export function scaledEnemyStats(kind: EnemyKind, level: number, rank: EnemyRank) {
   const base = ENEMY_DEFINITIONS[kind], quality = ENEMY_RANKS[rank];
   return {
-    maxHp: Math.max(1, Math.round(base.hp * monsterHealthScale(level) * quality.healthMultiplier * (rank === 'elite' && !isBossKind(kind) ? eliteDurabilityMultiplier(level) : 1))),
+    maxHp: Math.max(1, Math.round(base.hp * monsterHealthScale(level) * quality.healthMultiplier * ((rank === 'elite' || rank === 'rare') && !isBossKind(kind) ? eliteDurabilityMultiplier(level) : 1))),
     damage: Math.max(1, Math.round(base.damage * monsterDamageScale(level) * quality.damageMultiplier * enemyThreat({kind,rank}).damage)),
     xpReward: Math.max(1, Math.round(base.xpReward * monsterExperienceScale(level) * quality.xpMultiplier)),
   };

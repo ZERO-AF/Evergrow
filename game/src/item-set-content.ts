@@ -246,7 +246,7 @@ export const CLASS_ARMOR: Readonly<Record<WowClassId, SetArmor>> = Object.freeze
 
 /** Drop chances by encounter/rank — set pieces are chase loot, rarer than glyphs. */
 export const SET_PIECE_DROP = Object.freeze({
-  base: .004, veteran: .012, elite: .03,
+  base: .004, veteran: .012, elite: .03, rare: .05,
   event: .05, chest: .06, boss: .15, bossChest: .22,
 });
 /** Below this enemy/site level set pieces never drop (Naxxramas is endgame gear). */
@@ -266,6 +266,7 @@ export function setPiecesFor(itemKind: ItemKind, seed: number, source: MaterialS
   if (source.level !== undefined && source.level < SET_PIECE_MIN_LEVEL) return null;
   const chance = source.encounter ? SET_PIECE_DROP[source.encounter]
     : source.rank === 'elite' ? SET_PIECE_DROP.elite
+    : source.rank === 'rare' ? SET_PIECE_DROP.rare
     : source.rank === 'veteran' ? SET_PIECE_DROP.veteran : SET_PIECE_DROP.base;
   const random = randomSource((seed ^ SET_PIECE_SEED_SALT) >>> 0);
   if (random() >= chance) return null;

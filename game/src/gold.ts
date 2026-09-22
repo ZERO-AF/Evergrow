@@ -8,7 +8,7 @@ export interface GroundGold { flight?: import('./treasure-flight.ts').TreasureFl
 export const GOLD_RULES = { maxPiles: 128, magnetRadius: 100, collectRadius: 15, settleTime: .3 } as const;
 const TABLE: Record<EnemyRank, { chance: number; min: number; max: number }> = {
   normal: { chance: .55, min: 4, max: 10 }, veteran: { chance: .85, min: 12, max: 25 },
-  elite: { chance: 1, min: 35, max: 65 },
+  elite: { chance: 1, min: 35, max: 65 }, rare: { chance: 1, min: 55, max: 95 },
 };
 /** Independent seed stream: currency tuning cannot change equipment rolls or encounter RNG. */
 export function rollEnemyGold(seed: number, level: number, rank: EnemyRank): number {

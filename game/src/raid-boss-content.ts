@@ -33,6 +33,8 @@ export const raidBossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string 
 
 /** Fight rules. Phase bits match updateDungeon's warden auto-bits (65% / 30%). */
 export const ONYXIA_RULES = Object.freeze({
+  /** Boss chest loot table (raid-loot-content.ts): Tier-2 helms + Onyxia epics. */
+  lootTable: 'onyxia' as const,
   phaseTwo: .65, phaseThree: .3,
   leash: 1500, awareness: 640,
   sweepReach: 165, sweepArc: Math.PI * 1.25,          // Tail Sweep

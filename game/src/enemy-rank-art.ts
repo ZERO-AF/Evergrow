@@ -5,6 +5,8 @@ export const RANK_METALS = Object.freeze({
   normal: { edge: '#65726f', light: '#b8c4bd', shade: '#242e30', gem: '#a8b9ae' },
   veteran: { edge: '#668aa7', light: '#c2e1ee', shade: '#233b52', gem: '#81ccef' },
   elite: { edge: '#aa8954', light: '#f0d7a0', shade: '#4a3529', gem: '#f4af70' },
+  /** Silver dragon heraldry for named rares — WoW's silver-wing portrait plate. */
+  rare: { edge: '#7d95a8', light: '#dcebf5', shade: '#2c3d4c', gem: '#a8d8f0' },
 });
 
 /** Deep ember-bronze heraldry reserved for boss kinds; elites keep the gold rank metal. */
@@ -59,6 +61,15 @@ export function drawRankCrest(c: CanvasRenderingContext2D, rank: EnemyRank, x: n
     c.beginPath(); c.moveTo(-6, -5); c.lineTo(-8, -12); c.lineTo(-3, -9);
     c.lineTo(0, -15); c.lineTo(3, -9); c.lineTo(8, -12); c.lineTo(6, -5); c.closePath();
     c.fillStyle = metal.shade; c.fill(); c.strokeStyle = metal.light; c.lineWidth = .75; c.stroke();
+  }
+  // Rare: swept dragon wings arc over the shield — the silver-dragon silhouette.
+  if (rank === 'rare') for (const side of [-1, 1]) {
+    c.save(); c.scale(side, 1);
+    c.beginPath(); c.moveTo(2, -6); c.quadraticCurveTo(9, -15, 17, -13);
+    c.quadraticCurveTo(12, -9, 13, -4); c.quadraticCurveTo(9, -7, 5, -3); c.closePath();
+    c.fillStyle = metal.shade; c.fill(); c.strokeStyle = metal.edge; c.lineWidth = .8; c.stroke();
+    c.strokeStyle = metal.light; c.lineWidth = .6;
+    c.beginPath(); c.moveTo(5, -7); c.quadraticCurveTo(10, -11, 14, -11); c.stroke(); c.restore();
   }
   const fill = c.createLinearGradient(-6, -7, 6, 9);
   fill.addColorStop(0, metal.light); fill.addColorStop(.18, metal.edge);

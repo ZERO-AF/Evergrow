@@ -57,3 +57,24 @@ export function spendArenaPoints(wallet: ArenaPointsWallet, amount: number): boo
   wallet.arenaPoints = arenaPointsBalance(wallet) - amount;
   return true;
 }
+
+/** Emblems of Heroism (WotLK heroic dungeons): a plain integer balance on the
+ * character sheet, parallel to honor/arena points, spent at the badge vendor. */
+export interface EmblemWallet { emblems?: number; }
+export const validEmblems = validHonor;
+export const emblemBalance = (wallet: EmblemWallet): number => wallet.emblems ?? 0;
+export function canAffordEmblems(wallet: EmblemWallet, amount: number): boolean {
+  return validEmblems(amount) && validEmblems(emblemBalance(wallet)) && emblemBalance(wallet) >= amount;
+}
+/** Atomic operations shared by heroic boss awards and the badge vendor. Failure never changes the wallet. */
+export function creditEmblems(wallet: EmblemWallet, amount: number): boolean {
+  const balance = emblemBalance(wallet);
+  if (!validEmblems(amount) || !validEmblems(balance) || !validEmblems(balance + amount)) return false;
+  wallet.emblems = balance + amount;
+  return true;
+}
+export function spendEmblems(wallet: EmblemWallet, amount: number): boolean {
+  if (!canAffordEmblems(wallet, amount)) return false;
+  wallet.emblems = emblemBalance(wallet) - amount;
+  return true;
+}

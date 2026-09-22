@@ -18,7 +18,7 @@ import type { EventState } from './poi-content.ts';
 import { validSkillProgression } from './skill-progression.ts';
 import { validTravel, type TravelState } from './travel.ts';
 import { GOLD_RULES, type GroundGold } from './gold.ts';
-import { validArenaPoints, validGold, validHonor } from './wallet.ts';
+import { validArenaPoints, validEmblems, validGold, validHonor } from './wallet.ts';
 import type { CharacterSheet, GroundItem, Item, SkillId } from './character-types.ts';
 import { BAR_TOTAL, ensureBarSlots } from './action-bar.ts';
 import { isWowClassId, isWowRaceId, WOW_COMBAT, type WowClassId, type WowRaceId } from './wow-types.ts';
@@ -43,6 +43,7 @@ import { PET_FAMILIES, PET_RULES, petXpForLevel } from './pet-content.ts';
 import { GUILD_RULES, GUILD_VAULT_CAPACITY } from './guild-content.ts';
 import type { GuildMembership } from './guild-state.ts';
 import { validDungeonFinder } from './dungeon-finder-state.ts';
+import { validRaidLockouts } from './raid-lockout.ts';
 
 export const CHARACTER_SLOT_COUNT = 8;
 export const CHARACTER_SAVE_VERSION = 7;
@@ -98,7 +99,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (object(v) && v.stash !== undefined && (!Array.isArray(v.stash) || v.stash.length < STASH_CAPACITY || v.stash.length > STASH_CAPACITY * MAX_STORAGE_TABS || v.stash.length % STASH_CAPACITY !== 0 || !v.stash.every(i=>i===null||validItem(i)))) return false;
   if (object(v) && v.guild !== undefined && !validGuild(v.guild)) return false;
   if (object(v) && v.guildVault !== undefined && (!object(v.guild) || !Array.isArray(v.guildVault) || v.guildVault.length !== GUILD_VAULT_CAPACITY || !v.guildVault.every(i => i === null || validItem(i)))) return false;
-  if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
+  if (!object(v) || !isWowClassId(v.classId) || !isWowRaceId(v.raceId) || !validCharacterLook(v.look) || !validBlessing(v.blessing) || !validCommerce(v.commerce, level) || (v.gold !== undefined && !validGold(v.gold)) || (v.honor !== undefined && !validHonor(v.honor)) || (v.arenaPoints !== undefined && !validArenaPoints(v.arenaPoints)) || (v.emblems !== undefined && !validEmblems(v.emblems)) || !object(v.attributes) || !['strength', 'dexterity', 'intelligence', 'vitality'].every(k => integer((v.attributes as ObjectValue)[k], 10, 5e6 + 10))
     || v.attributeResetUsed !== undefined && v.attributeResetUsed !== true
     || !integer(v.statPoints, 0, 5e6) || !integer(v.skillPoints, 0, MAX_CONTENT_LEVEL)
     || !Array.isArray(v.inventory) || !(v.inventory.length === 64 || v.inventory.length === 72 || v.inventory.length === bagGridLayout(v as unknown as { bags?: Array<Item | null> }).totalCells) || !v.inventory.every(i => i === null || validItem(i))
@@ -111,6 +112,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (v.pets !== undefined && !validPetStable(v.pets)) return false;
   if (v.mount !== undefined && !isMountId(v.mount)) return false;
   if (v.dungeonFinder !== undefined && !validDungeonFinder(v.dungeonFinder)) return false;
+  if (v.raidLockouts !== undefined && !validRaidLockouts(v.raidLockouts)) return false;
   if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
   const sheet = v as unknown as CharacterSheet;
   if (sheet.treeVersion!==SKILL_TREE_VERSION || sheet.treeRefunded!==undefined&&sheet.treeRefunded!==true || sheet.allocatedNodes.some(id=>{const node=SKILL_NODES.get(id)!;return doctrineConflict(sheet.allocatedNodes,node)||node.classId!==undefined&&node.classId!==sheet.classId;}) || !validSkillProgression(sheet) || sheet.inventory.length > bagGridLayout(sheet).totalCells || !validPackLayout(sheet.inventory, sheet.inventoryLayout, bagGridLayout(sheet)) || !validSpecs(sheet.specs, sheet.activeSpec, sheet.classId, sheet.raceId, level)) return false;

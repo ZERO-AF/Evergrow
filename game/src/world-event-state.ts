@@ -419,7 +419,7 @@ export function worldEventChestAt(state: WorldEventState, player: Pick<Player, '
 
 // ── Checkpoint validation ────────────────────────────────────────────────────
 
-const RANKS = ['normal', 'veteran', 'elite'];
+const RANKS = ['normal', 'veteran', 'elite', 'rare'];
 const PHASES: readonly InvasionPhase[] = ['active', 'won', 'claimed', 'expired'];
 
 function validGuardian(v: unknown, event: InvasionEvent): boolean {

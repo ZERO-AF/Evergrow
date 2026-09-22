@@ -6,6 +6,7 @@ import { advanceDungeonEvents } from './dungeon-events.ts';
 import type { CombatEvent } from './model.ts';
 import type { Simulation } from './simulation.ts';
 import { currentDungeon, syncDungeon, dungeonMemberLevel } from './dungeon-state.ts';
+import { dungeonMemberRank } from './heroic-content.ts';
 import { generateDungeon, dungeonRoomAt, type DungeonFloor, type DungeonMember } from './dungeon.ts';
 import { isSpawnHidden, isEnemyInactive, type SpawnExclusion } from './spawn-visibility.ts';
 import { ENEMY_DEFINITIONS } from './combat-content.ts';
@@ -69,11 +70,13 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
             }
             // PvP combatants are placed at fixed spawn pads, not streamed in off-screen.
             if ((!run.entrance.pvp && !isSpawnHidden(s.x, s.y, view, radius)) || sim.world.blocked(s.x, s.y, radius)) continue;
-            const e = sim.spawnEnemy(m.kind, s.x, s.y, m.rank, { campId: run.entrance.id, memberId: m.id, lootSeed: m.seed, level: dungeonMemberLevel(run.entrance, m) });
+            const e = sim.spawnEnemy(m.kind, s.x, s.y, dungeonMemberRank(run.entrance, m), { campId: run.entrance.id, memberId: m.id, lootSeed: m.seed, level: dungeonMemberLevel(run.entrance, m) });
             if (!e)
                 throw new Error('Validated dungeon spawn failed');
             present.add(m.id);
-            e.hp = s.hp;
+            // First admission takes the spawn's full (heroic-scaled) health; the
+            // state row was seeded from the authored rank before promotion.
+            e.hp = s.admitted ? s.hp : e.maxHp;
             e.homeX = event?.x ?? m.x;
             e.homeY = event?.y ?? m.y;
             e.bossPhases = s.bossPhases ?? 0;

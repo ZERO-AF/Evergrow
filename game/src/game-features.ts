@@ -79,4 +79,6 @@ export const GAME_FEATURES = {
   dailyQuests: true,
   // WotLK Auction House: local seeded market, escrow listings, 5% deposit/cut.
   auctionHouse: true,
+  // WotLK Heroic dungeon mode: RDF heroic toggle, Emblems of Heroism, badge vendor.
+  heroicDungeons: true,
 };

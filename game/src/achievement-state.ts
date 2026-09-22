@@ -12,6 +12,7 @@
  * unlocked by this call so the caller can toast them. */
 import { ACHIEVEMENTS, type AchievementDef } from './achievement-content.ts';
 import { isBossKind } from './wilderness-boss-content.ts';
+import { enemyDisplayName } from './zone-roster.ts';
 import type { CombatEvent, Enemy, Player } from './model.ts';
 import type { POIKind } from './world-pois.ts';
 import type { ProfessionId } from './profession-content.ts';
@@ -83,6 +84,7 @@ export function achievementProgress(a: AchievementDef, player: Player): { value:
     case 'mounts': return { value: markerCount(record, 'seen:mount:'), target: a.count };
     case 'distinctDungeons': return { value: markerCount(record, 'seen:dungeon:'), target: a.count };
     case 'pvpMaps': return { value: markerCount(record, `seen:pvpmap:${c.prefix ?? ''}`), target: a.count };
+    case 'distinctRares': return { value: markerCount(record, 'seen:rare:'), target: a.count };
     case 'pvpStreak': return { value: Math.min(record?.['pvp:streak'] ?? 0, a.count), target: a.count };
     case 'meta': return { value: achievementEarnedCount(record), target: a.count };
     default: {
@@ -106,6 +108,7 @@ export function achievementTrack(player: Player, event: AchievementEvent, enemie
     case 'kill': {
       const enemy = enemies.find(e => e.id === event.targetId);
       const riftWarden = enemy?.campMemberId === 'warden' && !!enemy.campId?.startsWith('dungeon:rift:');
+      if (enemy?.rank === 'rare') mark(`seen:rare:${enemyDisplayName(enemy)}`);
       for (const a of ACHIEVEMENTS) {
         const c = a.criterion;
         if (c.kind === 'kills'

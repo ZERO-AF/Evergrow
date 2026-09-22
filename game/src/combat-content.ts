@@ -1,6 +1,7 @@
 import { MANA_RULES } from './mana-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { LAIR_RULES, isBossKind } from './wilderness-boss-content.ts';
+import { enemySpawnBuffs } from './enemy-buffs.ts';
 import type { Enemy, EnemyKind, Projectile, ProjectileStyle } from './model.ts';
 import type { PetFamily } from './pet-content.ts';
 
@@ -296,6 +297,7 @@ export function applySpawnTraits(enemy: Enemy): void {
   enemy.affix = GAME_FEATURES.eliteAffixes ? eliteAffix(enemy) : undefined;
   enemy.treasure = GAME_FEATURES.treasureGoblins && treasureGoblinSeed(enemy)
     ? { fleeing: 0, goldClock: 0, drops: 0 } : undefined;
+  enemySpawnBuffs(enemy);
 }
 
 /** Diablo massacre streaks: kills inside the window chain; thresholds announce. */

@@ -35,6 +35,8 @@ export const raid2BossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string
 
 /** Fight rules. Phase bits match updateDungeon's warden auto-bits (65% / 30%). */
 export const RAGNAROS_RULES = Object.freeze({
+  /** Boss chest loot table (raid-loot-content.ts): Tier-2 legs + weapons. */
+  lootTable: 'ragnaros' as const,
   phaseTwo: .65, phaseThree: .3,
   leash: 1600, awareness: 700,
   smashReach: 200, smashArc: Math.PI * 1.1,           // Sulfuras Smash (frontal melee arc)

@@ -6,7 +6,7 @@ export interface RiftProgress { elapsed:number; points:number; phase:'hunt'|'bos
 export interface RiftRecord { level:number; seconds:number; keyTier:number }
 export interface RiftLedger { attempts:number; clears:number; highest:number; best:RiftRecord[] }
 export const freshRiftLedger=():RiftLedger=>({attempts:0,clears:0,highest:0,best:[]});
-export const riftPoints=(rank:EnemyRank)=>rank==='elite'?8:rank==='veteran'?4:1;
+export const riftPoints=(rank:EnemyRank)=>rank==='elite'?8:rank==='rare'?6:rank==='veteran'?4:1;
 export function riftRandom(seed:number) { let n=seed>>>0; return ()=>{ n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296; }; }
 export const RIFT_HAZARDS = [
   {id:'vital',name:'Unyielding',label:'Monster life',unit:'%',base:20,step:12},

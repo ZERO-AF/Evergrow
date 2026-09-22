@@ -27,18 +27,18 @@ export type DungeonFinderResult = DungeonResult;
  * The caller completes the transition like LocationController.dungeon —
  * restoreWorld(result.checkpoint), sim.restoreCheckpoint, relocate, arrived.
  */
-export async function queueForDungeon(sim: Simulation, dungeonId: string, surface: WorldQuery, persist: PersistDungeon): Promise<DungeonFinderResult> {
+export async function queueForDungeon(sim: Simulation, dungeonId: string, surface: WorldQuery, persist: PersistDungeon, heroic = false): Promise<DungeonFinderResult> {
   const p = sim.player;
   if (!dungeonFinderEnabled()) return { ok: false, message: 'The Dungeon Finder is not available.' };
   const entry = dungeonFinderDungeon(dungeonId);
   if (!entry) return { ok: false, message: 'That dungeon is not in the Dungeon Finder.' };
-  const problem = dungeonFinderProblem(entry, p);
+  const problem = dungeonFinderProblem(entry, p, heroic);
   if (problem) return { ok: false, message: problem };
   if (sim.dungeonFloor || sim.expeditions.location) return { ok: false, message: 'Already in a dungeon.' };
 
   // Stage the queue marker before the entry travel persist: a failed entry
   // leaves the character queued so the panel can retry or leave cleanly.
-  const marker = { queued: entry.id, queuedAt: Date.now() };
+  const marker = { queued: entry.id, queuedAt: Date.now(), ...(heroic ? { heroic: true } : {}) };
   const staged = sim.captureCheckpoint();
   (staged.character as DungeonFinderSheet).dungeonFinder = marker;
   const queued = await persist(staged);
@@ -48,7 +48,7 @@ export async function queueForDungeon(sim: Simulation, dungeonId: string, surfac
   // The entry consumes the queue; clearing it on the live sheet lands in the
   // travel checkpoint. A failed entry restores the marker to match the save.
   delete (p.character as DungeonFinderSheet).dungeonFinder;
-  const result = await planDungeonTravel(sim, { kind: 'enter', entrance: dungeonFinderEntrance(entry, p, surface.seed ?? 0) }, surface, persist);
+  const result = await planDungeonTravel(sim, { kind: 'enter', entrance: dungeonFinderEntrance(entry, p, surface.seed ?? 0, heroic) }, surface, persist);
   if (!result.ok) (p.character as DungeonFinderSheet).dungeonFinder = { ...marker };
   return result;
 }

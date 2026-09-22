@@ -28,7 +28,7 @@ import { UI_THEME } from './ui-theme.ts';
 import { getZoneAt, type ZoneProgression } from './zone-progression.ts';
 
 export interface MapPlayer { x: number; y: number; angle: number; }
-export interface MinimapEnemy { x: number; y: number; kind?: string; rank?:'normal'|'veteran'|'elite'; }
+export interface MinimapEnemy { x: number; y: number; kind?: string; rank?:'normal'|'veteran'|'elite'|'rare'; }
 export interface MapWorld extends ExplorationWorld {
   mapColor(x: number, y: number, sampleSize?: number): string;
   atlasColor?(x: number, y: number): string;

@@ -1,6 +1,7 @@
 import { riftMechanic, RIFT_TACTICS as RT } from './rift-encounters.ts';
 import { riftWardActive } from './rift-tactics.ts';
 import { enemyModifiers } from './enemy-modifiers.ts';
+import { ENEMY_BUFFS } from './enemy-buffs.ts';
 import type { Enemy, Player } from './model.ts';
 import type { ActiveBuff } from './active-buffs.ts';
 import { UNIQUE_RULES } from './unique-content.ts';
@@ -107,6 +108,8 @@ export function enemyTraitBuffs(enemy:Pick<Enemy,'kind'|'rank'|'lootSeed'|'hp'> 
  if(enemy.hp<=0)return [];
  const icons={swift:'lunge',relentless:'whirlwind',savage:'cleave',resolute:'bulwark'} as const;
  const buffs:EnemyDebuff[]=enemyModifiers(enemy).map(trait=>({id:`trait:${trait.id}`,name:trait.name,label:trait.name,icon:icons[trait.id],color:trait.color,remaining:1,duration:1,persistent:true,summary:trait.description}));
+ for(const buff of enemy.buffs??[])if('kind' in buff&&buff.remaining>0){const spec=ENEMY_BUFFS[buff.kind];
+   buffs.push({id:`buff:${buff.kind}`,name:spec.name,label:spec.name,icon:spec.icon,color:spec.color,remaining:buff.remaining,duration:buff.duration,summary:spec.summary});}
  const role=riftMechanic(enemy),ward=!!enemy.riftWardSource&&riftWardActive(enemy as Enemy);
  if(role||ward)buffs.push({id:'rift-special',name:role==='ritual'?'Ritual Ward':role==='storm'?'Stormbound':role==='fire'?'Cinder Sweep':'Ritual Protection',label:role==='ritual'?'Ritual Ward':role==='storm'?'Stormbound':role==='fire'?'Cinder Sweep':'Ritual Protection',icon:role==='fire'?'cleave':role==='storm'?'arcLightning':'bulwark',color:role==='fire'?'#ff935f':role==='storm'?'#cca3ff':'#9ae0c7',remaining:1,duration:1,persistent:true,summary:role==='ritual'?`Nearby allies take ${RT.wardReduction*100}% less damage. Kill or interrupt this cantor to break the ward.`:role==='storm'?'Calls a delayed lightning strike at your position. Move outside the warning.':role==='fire'?'Releases a delayed fire sweep. Move behind it or interrupt.':'Takes 30% less damage while the nearby Rift Cantor channels.'});
  return buffs;

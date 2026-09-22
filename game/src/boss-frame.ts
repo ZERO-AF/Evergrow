@@ -39,9 +39,9 @@ const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) 
 const compactNumber = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 const compact = (value: number) => value >= 10_000 ? compactNumber.format(value) : `${Math.ceil(value)}`;
 
-/** Boss kinds and elite ranks qualify for the encounter frame; normals keep the small plate. */
+/** Boss kinds and elite-or-rarer ranks qualify for the encounter frame; normals keep the small plate. */
 export function bossFrameEligible(enemy: Pick<Enemy, 'kind' | 'rank'>): boolean {
-  return isBossKind(enemy.kind) || enemy.rank === 'elite';
+  return isBossKind(enemy.kind) || enemy.rank === 'elite' || enemy.rank === 'rare';
 }
 
 /**

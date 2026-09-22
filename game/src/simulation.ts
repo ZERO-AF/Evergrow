@@ -62,6 +62,7 @@ import { deriveCharacterStats } from './character-stats.ts';
 import { tryProc, tryTriggerProc, tryDefensiveProc, type ProcContext } from './legendary-combat.ts';
 import { awardKillRewards } from './combat-rewards.ts';
 import { advanceEnemyStatuses, applyDot as applyDotStatus, applyCc as applyCcStatus, applySunder as applySunderStatus, applyStun, applySlow } from './combat-status.ts';
+import { recordHealThreat } from './enemy-threat.ts';
 import type { HitSnapshot } from './model.ts';
 import { scheduleGroundEffect, advanceGroundEffects, type ActiveGroundEffect } from './ground-effects.ts';
 import { activateSkill, schoolProjectileStyle, type SkillContext } from './skill-combat.ts';
@@ -69,6 +70,7 @@ import { advanceProjectiles, MAX_PROJECTILES } from './projectile-combat.ts';
 import type { GroundItem, SkillId } from './character-types.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { encounterScaleAt, encounterMemberLevel, isBossKind, type EncounterScale } from './encounter-scaling.ts';
+import { awardHeroicBossEmblems } from './heroic-content.ts';
 import { enemyLootSeed, scaledEnemyStats } from './zone-progression.ts';
 import { CampPopulation, CAMP_POPULATION_RULES, type CampSpawnSource, type CampState } from './camp-population.ts';
 import { sampleBiome } from './biomes.ts';
@@ -383,7 +385,7 @@ export class Simulation {
     this.camps.restoreScales(saved.encounterScales);
     for (const actor of saved.actors ?? []) {
       const enemy=this.spawnEnemy(actor.kind,actor.x,actor.y,actor.rank, actor.campId ? {campId:actor.campId,memberId:actor.memberId!,lootSeed:actor.seed,...(actor.faction?{faction:actor.faction}:{})} : undefined);
-      if(enemy){Object.assign(enemy,applyEnemyModifiers(scaledEnemyStats(actor.kind,actor.level,actor.rank),{kind:actor.kind,rank:actor.rank,lootSeed:actor.seed,rift:actor.rift}),{rift:actor.rift,faction:actor.faction,level:actor.level,biome:actor.biome,lootSeed:actor.seed,hp:actor.hp,homeX:actor.homeX,homeY:actor.homeY,bossPhases:actor.bossPhases,state:'idle',stateDuration:1});
+      if(enemy){Object.assign(enemy,applyEnemyModifiers(scaledEnemyStats(actor.kind,actor.level,actor.rank),{kind:actor.kind,rank:actor.rank,lootSeed:actor.seed,rift:actor.rift,heroic:this.expeditions.runs.find(r=>r.entrance.id===actor.campId)?.entrance.scaling?.heroic===true}),{rift:actor.rift,faction:actor.faction,level:actor.level,biome:actor.biome,lootSeed:actor.seed,hp:actor.hp,homeX:actor.homeX,homeY:actor.homeY,bossPhases:actor.bossPhases,state:'idle',stateDuration:1});
         if(actor.dots?.length)enemy.dots=actor.dots;if(actor.cc?.length)enemy.cc=actor.cc;if(actor.sundered)enemy.sundered=actor.sundered;if(actor.taunted)enemy.taunted=actor.taunted;
         applySpawnTraits(enemy);}
     }
@@ -910,6 +912,8 @@ export class Simulation {
     const healed = p.hp - before;
     if (healed > 0) this.emit({ type: 'heal', x: p.x, y: p.y, value: healed, ...(color ? { color } : {}) });
     if (healed > 0) tryTriggerProc(p, 'onHeal', this.procContext());
+    // Healing generates threat on every engaged enemy (WoW healer-aggro rule).
+    if (healed > 0) recordHealThreat(this.enemies, healed);
   }
 
   /** Minimal context for self-targeted proc triggers (cast/heal): buffs, events, rolls. */
@@ -1042,8 +1046,9 @@ export class Simulation {
     if (this.world.blocked(x, y, stats.radius)) return null;
     const lootSeed = source?.lootSeed ?? enemyLootSeed(this.options.seed!, ++this.spawnOrdinal, x, y);
     const level = source?.level ?? this.world.dungeonLevel ?? encounterMemberLevel(scaling ?? encounterScaleAt(x, y, this.world.seed ?? this.options.seed!, this.player.level), rank, lootSeed, isBossKind(kind));
-    const rift=currentDungeon(this.expeditions)?.entrance.rift;
-    const scaled = applyEnemyModifiers(scaledEnemyStats(kind, level, rank),{kind,rank,lootSeed,rift});
+    const run=currentDungeon(this.expeditions);
+    const rift=run?.entrance.rift;
+    const scaled = applyEnemyModifiers(scaledEnemyStats(kind, level, rank),{kind,rank,lootSeed,rift,heroic:run?.entrance.scaling?.heroic===true});
     const biome = this.world.dungeonBiome ?? (this.world.sampleBiome?.(x, y) ?? sampleBiome(x, y)).id;
     const enemy: Enemy = {
       id: this.nextId++, level, rank, biome, lootSeed, ...(rift?{rift}:{}), ...(source?.faction?{faction:source.faction}:{}), ...scaled, dungeonTheme:this.world.dungeonTheme,
@@ -1518,6 +1523,8 @@ export class Simulation {
         questOnKill(this, actor.kind, () => this.random());
         repOnKill(this, { kind: actor.kind, biome: actor.biome, rank: actor.rank, dungeonTheme: this.dungeonFloor?.theme });
         worldEventOnKill(this, actor);
+        const emblems = awardHeroicBossEmblems(this.expeditions, actor, this.player.character);
+        if (emblems) this.emit({ type: 'notice', x: actor.x, y: actor.y, message: `+${emblems} Emblem${emblems > 1 ? 's' : ''} of Heroism` });
         if (actor.campMemberId === 'warden' && this.expeditions.location)
           repOnDungeonClear(this, { id: this.expeditions.location, theme: this.dungeonFloor?.theme });
         if (wowClassOf(attacker.character)?.id === 'warlock')

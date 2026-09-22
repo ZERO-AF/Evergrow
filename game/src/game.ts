@@ -71,6 +71,8 @@ import { PvpScoreboardPanel, PVP_SCOREBOARD_SECONDS } from './pvp-scoreboard-pan
 import type { PvpAnnouncement } from './pvp-announce.ts';
 import { PvpVendorPanel } from './pvp-vendor-panel.ts';
 import { executePvpBuy, focusedPvpVendor, pvpVendorsNear, type PvpVendor } from './pvp-vendor.ts';
+import { BadgeVendorPanel } from './badge-vendor-panel.ts';
+import { executeBadgeBuy, focusedBadgeVendor, badgeVendorsNear, type BadgeVendor } from './badge-vendor.ts';
 import { activateStabledPet, stableActivePet, releasePet, freshPetStable, PET_RULES, type PetStable } from './pet-content.ts';
 import { ChroniclePanel } from './chronicle-panel.ts';
 import { metric } from './chronicle.ts';
@@ -211,7 +213,9 @@ export class Game {
   private pvpPanel!: PvpPanel;
   private activeBattlemaster: Battlemaster | null = null;
   private pvpVendorPanel!: PvpVendorPanel;
+  private badgeVendorPanel!: BadgeVendorPanel;
   private activePvpVendor: PvpVendor | null = null;
+  private activeBadgeVendor: BadgeVendor | null = null;
   private pvpScorePanel!: PvpScoreboardPanel;
   /** Settled match awaiting the scoreboard countdown/Leave before teardown. */
   private pendingPvpEnd: PvpMatchEnd | null = null;
@@ -428,6 +432,16 @@ export class Game {
           return result;
         }, { ok: false, message: 'Saving the previous action…' }),
       }));
+      this.badgeVendorPanel = this.lifetime.own(new BadgeVendorPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        buy: stockId => this.durable(async () => {
+          const vendor = this.activeBadgeVendor;
+          if (!vendor) return { ok: false, message: 'The emblem quartermaster is no longer here.' };
+          const result = await executeBadgeBuy(this.sim, vendor, stockId, c => this.persistTravel(c));
+          if (result.message) this.notify(result.message);
+          return result;
+        }, { ok: false, message: 'Saving the previous action…' }),
+      }));
       this.riftPanel=this.lifetime.own(new RiftPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
       this.expeditionPanel=this.lifetime.own(new ExpeditionPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
       this.dungeonMap = this.lifetime.own(new DungeonMap(this.shell.mapMount,()=>this.closeMap(),()=>this.worldMap.open({x:this.sim.expeditions.surfaceX,y:this.sim.expeditions.surfaceY,angle:0}), this.mapIcons));
@@ -504,8 +518,8 @@ export class Game {
       // Wave-2 WoW panels: RDF, Auction House, Guild. Each rides the shared
       // persist-before-commit wrapper; the sheet persist builds a checkpoint.
       this.dungeonFinderPanel = this.lifetime.own(new DungeonFinderPanel(this.shell.panelMount, {
-        queue: id => this.durable(async () => {
-          const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c));
+        queue: (id, heroic) => this.durable(async () => {
+          const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c), heroic);
           if (!r.ok) { this.notify(r.message ?? 'Could not queue.'); return false; }
           // Complete the travel transition like LocationController.dungeon.
           this.setLocationWorld(r.checkpoint);
@@ -561,6 +575,7 @@ export class Game {
         stable: { open: () => { this.stablePanel.open(this.activeStableMaster); this.shell.setStatus('Pet stable open. Game paused.'); }, close: () => { this.stablePanel.close(); this.activeStableMaster = null; } },
         arena: { open: () => { this.pvpPanel.open(this.activeBattlemaster); this.shell.setStatus('Arena & Battlegrounds open. Game paused.'); }, close: () => { this.pvpPanel.close(); this.activeBattlemaster = null; } },
         pvpVendor: { open: () => { if (this.activePvpVendor) this.pvpVendorPanel.open(this.sim.player, this.activePvpVendor); this.shell.setStatus('PvP quartermaster open. Game paused.'); }, close: () => { this.pvpVendorPanel.close(); this.activePvpVendor = null; } },
+        badgeVendor: { open: () => { if (this.activeBadgeVendor) this.badgeVendorPanel.open(this.sim.player, this.activeBadgeVendor); this.shell.setStatus('Emblem quartermaster open. Game paused.'); }, close: () => { this.badgeVendorPanel.close(); this.activeBadgeVendor = null; } },
         map: { open: () => { const run=currentDungeon(this.sim.expeditions), glance=this.panels.mapHeld, focus=this.mapFocus; this.mapFocus=null; if(run) this.dungeonMap.open(this.sim.dungeonFloor!,run,this.sim.player,glance,this.sim.enemies); else this.worldMap.open(focus?{...focus,angle:0}:this.sim.player,glance); this.shell.setStatus(glance?'Exploration map open. Movement continues.':'World map open. Game paused.'); }, close: () => { this.worldMap.close(); this.dungeonMap.close(); this.mapFocus = null; } },
         character: { open: () => { this.inventoryPanel.open(this.sim.player); this.shell.setStatus('Character and inventory open. Game paused.'); }, close: () => this.inventoryPanel.close() },
         skills: { open: () => { this.skillPanel.open(this.sim.player); this.shell.setStatus('Skill tree open. Game paused.'); }, close: () => this.skillPanel.close() },
@@ -1375,6 +1390,12 @@ export class Game {
           if (pvpVendor) {
               this.activePvpVendor = pvpVendor;
               this.panels.open('pvpVendor');
+              return true;
+          }
+          const badgeVendor = focusedBadgeVendor(badgeVendorsNear(this.world, p.x - 160, p.y - 160, 320, 320).map(v => this.liveNPC(v)), p, this.world, pointer);
+          if (badgeVendor) {
+              this.activeBadgeVendor = badgeVendor;
+              this.panels.open('badgeVendor');
               return true;
           }
       }

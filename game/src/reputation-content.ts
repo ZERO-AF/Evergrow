@@ -211,4 +211,4 @@ export const STANDING_DISCOUNT: Readonly<Record<StandingTier, number>> = Object.
 });
 
 /** Reputation granted per kill by enemy rank; bosses use `bossRep`. */
-export const KILL_REP = Object.freeze({ normal: 5, veteran: 10, elite: 20, boss: 150 });
+export const KILL_REP = Object.freeze({ normal: 5, veteran: 10, elite: 20, rare: 30, boss: 150 });

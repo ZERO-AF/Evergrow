@@ -69,7 +69,7 @@ export interface MaterialSource { readonly merchantBonus?:number; readonly level
 export function sourceMaterialPool(kind:ItemKind,family?:WeaponFamily,source:MaterialSource={}):readonly MaterialRoll[] {
   const level=Math.max(1,Math.min(1e6,Number.isFinite(source.level)?source.level!:1));
   const zone=1+2.5*(1-Math.exp(-(level-1)/35));
-  const rank=source.rank==='elite'?1.75:source.rank==='veteran'?1.25:1;
+  const rank=source.rank==='elite'?1.75:source.rank==='rare'?1.5:source.rank==='veteran'?1.25:1;
   const encounter=source.encounter==='bossChest'?2.5:source.encounter==='boss'?2.25:source.encounter==='chest'?1.5:source.encounter==='event'?1.3:1;
   const advantage=Math.min(7,zone*rank*encounter*Math.max(1,Math.min(3,source.merchantBonus??1)));
   const weighted=itemMaterialPool(kind,family).map(m=>({...m,weight:m.weight*(['silver','gold','crystal','astralite','velvet','starweave'].includes(m.id)?advantage:['steel','runewood','quartz','silk'].includes(m.id)?Math.sqrt(advantage):1)}));

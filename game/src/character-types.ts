@@ -1,7 +1,7 @@
 import type { Element, ResistanceStat } from './resistance-content.ts';
 import type { ItemMaterialId } from './item-materials.ts';
 import type { GearMaterial } from './gear-material-content.ts';
-import type { ArenaPointsWallet, GoldWallet, HonorWallet } from './wallet.ts';
+import type { ArenaPointsWallet, EmblemWallet, GoldWallet, HonorWallet } from './wallet.ts';
 import type { WeaponDefinition, FocusDefinition, ShieldDefinition } from './model.ts';
 import type { WowClassId, WowRaceId } from './wow-types.ts';
 import type { PetStable } from './pet-content.ts';
@@ -150,7 +150,7 @@ export type WowSkillId =
 export type SkillId = import('./aura-content.ts').AuraId | WowSkillId | 'repulse' | 'ironCitadel' | 'smokeVeil' | 'nightReaping' | 'sidestep' | 'brace' | 'runicWard' | 'vaultingShot' | 'rallyOfIron' | 'ghostHunt' | 'cleave' | 'lunge' | 'whirlwind' | 'earthshatter' | 'shieldBash' | 'bulwark'
   | 'volley' | 'piercingShot' | 'ricochet' | 'rainOfArrows' | 'backstab'
   | 'cataclysm' | 'tempest' | 'absoluteZero' | 'fireball' | 'arcLightning' | 'iceNova' | 'frostLance' | 'meteor' | 'siphon';
-export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWallet {
+export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWallet, EmblemWallet {
   /** Personal arena rating; updated by arena match results (pvp-rewards.ts). */
   arenaRating?: number;
   /** WotLK class identity; gates class skill kits and starter gear. */
@@ -197,6 +197,8 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   mount?: import('./mount-content.ts').MountId;
   /** Dungeon Finder queue marker: the queued catalog id and when (dungeon-finder-state.ts). */
   dungeonFinder?: DungeonFinderState;
+  /** Weekly raid lockouts: raid entrance id → epoch-second of the reset that frees it (raid-lockout.ts). */
+  raidLockouts?: Record<string, number>;
   /** Auction House ledger: posted listings, sale receipts, pending proceeds (auction-state.ts). */
   auctionHouse?: AuctionHouseState;
 }

@@ -44,13 +44,16 @@ export function encounterRankChances(level: number): Readonly<Record<EnemyRank, 
   level = normalizeLevel(level);
   const veteran = level === 1 ? 0 : Math.min(.20, .12 + (level - 2) * .01);
   const elite = level < 3 ? 0 : Math.min(.08, .04 + (level - 3) * .005);
-  return { normal: 1 - veteran - elite, veteran, elite };
+  /** Named rares stay sparse at every level — a sighting, not a farm. */
+  const rare = level < 5 ? 0 : Math.min(.02, .008 + (level - 5) * .001);
+  return { normal: 1 - veteran - elite - rare, veteran, elite, rare };
 }
 
 /** Geographic rank odds are independent of the current population. */
 export function chooseEncounterRank(level: number, roll: number): EnemyRank {
   const chances = encounterRankChances(level);
-  if (roll < chances.elite) return 'elite';
-  if (roll >= chances.elite && roll < chances.elite + chances.veteran) return 'veteran';
+  if (roll < chances.rare) return 'rare';
+  if (roll >= chances.rare && roll < chances.rare + chances.elite) return 'elite';
+  if (roll >= chances.rare + chances.elite && roll < chances.rare + chances.elite + chances.veteran) return 'veteran';
   return 'normal';
 }

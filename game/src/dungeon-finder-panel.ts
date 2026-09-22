@@ -16,6 +16,7 @@ import {
   dungeonFinderWaitSeconds, type DungeonFinderEntry,
 } from './dungeon-finder-content.ts';
 import { dungeonFinderOf, queuedDungeon } from './dungeon-finder-state.ts';
+import { HEROIC_RULES, heroicDungeonsEnabled } from './heroic-content.ts';
 import './dungeon-finder-panel.css';
 
 const e = escapeUI;
@@ -25,7 +26,7 @@ const e = escapeUI;
  * refused/failed durable action — the panel then shows the status line. */
 export interface DungeonFinderActions {
   close(): void;
-  queue(dungeonId: string): Promise<boolean>;
+  queue(dungeonId: string, heroic: boolean): Promise<boolean>;
   leave(): Promise<boolean>;
 }
 
@@ -34,7 +35,8 @@ export class DungeonFinderPanel {
   private focus: { dispose(): void } | null = null;
   private timer = 0;
   private player?: Player;
-  private pending: { id: string; endsAt: number } | null = null;
+  private pending: { id: string; heroic: boolean; endsAt: number } | null = null;
+  private heroic = false;
   private busy = false;
   private status = '';
   private readonly actions: DungeonFinderActions;
@@ -93,12 +95,18 @@ export class DungeonFinderPanel {
     if (queueId !== undefined) {
       const entry = dungeonFinderDungeon(queueId);
       if (!entry || !this.player) return;
-      this.beginWait(entry);
+      this.beginWait(entry, this.heroic);
+      return;
+    }
+    if (button.hasAttribute('data-heroic')) {
+      this.heroic = !this.heroic;
+      this.render();
       return;
     }
     if (button.hasAttribute('data-enter-now')) {
       const queued = this.player ? queuedDungeon(this.player.character) : undefined;
-      if (queued) void this.enter(queued);
+      const heroic = this.player ? dungeonFinderOf(this.player.character)?.heroic === true : false;
+      if (queued) void this.enter(queued, heroic);
       return;
     }
     if (button.hasAttribute('data-leave')) {
@@ -109,8 +117,8 @@ export class DungeonFinderPanel {
   }
 
   /** The cosmetic "party is assembling" wait; the durable queue happens on entry. */
-  private beginWait(entry: DungeonFinderEntry): void {
-    this.pending = { id: entry.id, endsAt: performance.now() + dungeonFinderWaitSeconds(entry.id) * 1000 };
+  private beginWait(entry: DungeonFinderEntry, heroic: boolean): void {
+    this.pending = { id: entry.id, heroic, endsAt: performance.now() + dungeonFinderWaitSeconds(entry.id) * 1000 };
     this.status = '';
     this.render();
     this.tick();
@@ -122,8 +130,9 @@ export class DungeonFinderPanel {
     const left = this.pending.endsAt - performance.now();
     if (left <= 0) {
       const entry = dungeonFinderDungeon(this.pending.id);
+      const heroic = this.pending.heroic;
       this.pending = null;
-      if (entry) void this.enter(entry);
+      if (entry) void this.enter(entry, heroic);
       return;
     }
     const label = this.element.querySelector<HTMLElement>('[data-wait]');
@@ -131,11 +140,11 @@ export class DungeonFinderPanel {
     this.timer = window.setTimeout(this.tick, 200);
   };
 
-  private async enter(entry: DungeonFinderEntry): Promise<void> {
+  private async enter(entry: DungeonFinderEntry, heroic: boolean): Promise<void> {
     this.busy = true;
     this.render();
     try {
-      if (await this.actions.queue(entry.id)) return; // host swaps the world and closes us
+      if (await this.actions.queue(entry.id, heroic)) return; // host swaps the world and closes us
       this.status = 'Could not enter the dungeon. Check your level and try again.';
     } catch {
       this.status = 'Could not save the queue. Please try again.';
@@ -164,22 +173,24 @@ export class DungeonFinderPanel {
     if (this.timer) window.clearTimeout(this.timer);
     this.timer = 0;
   }
-
   render(): void {
     this.stopTimer();
     const player = this.player;
     const queued = player ? queuedDungeon(player.character) : undefined;
-    const queuedAt = player ? dungeonFinderOf(player.character)?.queuedAt : undefined;
+    const marker = player ? dungeonFinderOf(player.character) : undefined;
+    const queuedAt = marker?.queuedAt;
+    const queuedHeroic = marker?.heroic === true;
     const pendingEntry = this.pending ? dungeonFinderDungeon(this.pending.id) : undefined;
+    const heroic = this.heroic && heroicDungeonsEnabled();
     const rows = RDF_DUNGEONS.map(entry => {
-      const problem = player ? dungeonFinderProblem(entry, player) : 'No character loaded.';
+      const problem = player ? dungeonFinderProblem(entry, player, heroic) : 'No character loaded.';
       const isQueued = queued?.id === entry.id || pendingEntry?.id === entry.id;
       return `<li class="rdf-row${problem ? ' locked' : ''}${isQueued ? ' queued' : ''}">
         <div class="rdf-info">
-          <span class="rdf-name">${e(entry.name)}</span>
+          <span class="rdf-name">${e(entry.name)}${heroic ? ' <span class="ui-badge rdf-heroic-badge">Heroic</span>' : ''}</span>
           <span class="rdf-zone">${e(entry.zone)}</span>
         </div>
-        <span class="rdf-level">Lv ${entry.levelMin}–${entry.levelMax}</span>
+        <span class="rdf-level">${heroic ? `Lv ${HEROIC_RULES.level}` : `Lv ${entry.levelMin}–${entry.levelMax}`}</span>
         ${isQueued
           ? '<span class="ui-badge rdf-badge">Queued</span>'
           : `<button class="ui-button ui-button--quiet rdf-queue" data-queue="${e(entry.id)}"${problem || this.busy || this.pending ? ' disabled' : ''}
@@ -193,13 +204,18 @@ export class DungeonFinderPanel {
         <button class="ui-button ui-button--icon" data-close aria-label="Close dungeon finder">${uiIcon('close')}</button>
       </header>
       <div class="ui-window-body rdf-body">
+        ${heroicDungeonsEnabled() ? `<div class="rdf-difficulty" role="group" aria-label="Dungeon difficulty">
+          <button class="ui-button ui-button--quiet${heroic ? '' : ' active'}" data-heroic${this.busy || this.pending ? ' disabled' : ''}>Normal</button>
+          <button class="ui-button ui-button--quiet${heroic ? ' active' : ''}" data-heroic${this.busy || this.pending ? ' disabled' : ''}
+            data-tooltip="Heroic: level ${HEROIC_RULES.level} floors, promoted enemies, Emblems of Heroism">Heroic</button>
+        </div>` : ''}
         ${pendingEntry ? `<div class="rdf-status-card" role="status">
-            <strong>${e(pendingEntry.name)}</strong>
+            <strong>${e(pendingEntry.name)}${this.pending?.heroic ? ' <span class="ui-badge rdf-heroic-badge">Heroic</span>' : ''}</strong>
             <span>Your party is assembling… estimated wait <b data-wait>${dungeonFinderWaitSeconds(pendingEntry.id)}s</b></span>
             <button class="ui-button ui-button--danger" data-leave${this.busy ? ' disabled' : ''}>Leave Queue</button>
           </div>` : ''}
         ${!pendingEntry && queued ? `<div class="rdf-status-card" role="status">
-            <strong>${e(queued.name)}</strong>
+            <strong>${e(queued.name)}${queuedHeroic ? ' <span class="ui-badge rdf-heroic-badge">Heroic</span>' : ''}</strong>
             <span>Queued since ${new Date(queuedAt ?? 0).toLocaleTimeString()}</span>
             <span class="rdf-actions">
               <button class="ui-button ui-button--primary" data-enter-now${this.busy ? ' disabled' : ''}>Enter now</button>

@@ -11,7 +11,11 @@ import { treasureLanding } from './treasure-flight.ts';
 import { stageJourneyCompletion } from './journey-rewards.ts';
 import type { Simulation } from './simulation.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
-import type { DungeonEntrance } from './dungeon.ts';
+import { dungeonRandom, type DungeonEntrance } from './dungeon.ts';
+import { isRaidEntranceAny, raidLockedOut, raidLockoutMessage, recordRaidLockout, resetRaidRun } from './raid-lockout.ts';
+import { raidBossLoot } from './raid-loot-content.ts';
+import { MOUNT_RULES } from './mount-state.ts';
+import { MOUNTS } from './mount-content.ts';
 import { currentDungeon, createDungeonRun, compactExpeditions, type LocationContents } from './dungeon-state.ts';
 import type { PvpMatch } from './pvp-instance.ts';
 import { portalLanding, portalDepartureProblem, type PortalAnchor } from './travel.ts';
@@ -50,6 +54,8 @@ export type DungeonResult = {
     checkpoint: CharacterCheckpoint;
     message: string;
 };
+/** Checkpoint extension carrying the achievement ledger (raid mount unlock flag). */
+type RaidCheckpoint = CharacterCheckpoint & { achievements?: Record<string, number> };
 export type PersistDungeon = (checkpoint: CharacterCheckpoint) => { ok: boolean; message: string } | Promise<{ ok: boolean; message: string }>;
 /** Reach the near edge of the solid table, from any side, without tracing through it. */
 export function expeditionTableProblem(table: Building | undefined, player: {x:number;y:number;dead?:boolean}, world: WorldQuery): string | null {
@@ -129,6 +135,11 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
         const target = action.kind === 'return' ? action.anchor : expeditionPoint??entrance;
         if (action.kind !== 'expedition' && action.kind!=='rift' && action.kind!=='pvp' && (Math.hypot(p.x - target.x, p.y - target.y) > 75 || !hasLineOfSight(surface, p.x, p.y, target.x, target.y)))
             return { ok: false, message: 'Move closer to the entrance.' };
+        if (isRaidEntranceAny(entrance.id)) {
+            if (raidLockedOut(p.character, entrance.id))
+                return { ok: false, message: raidLockoutMessage(p.character, entrance.id, entrance.name) };
+            resetRaidRun(state, p.character, entrance.id);
+        }
         if (state.cleared?.includes(entrance.id)) return { ok: false, message: 'This dungeon has been cleared.' };
         let next = state.runs.find(r => r.entrance.id === entrance.id);
         if (!next) {
@@ -214,7 +225,8 @@ export async function claimDungeonChest(sim: Simulation, index: number, persist:
     const floor = sim.dungeonFloor!, chest = dungeonRunChest(floor,run,index);
     const rewardLevel = run.entrance.scaling ? encounterRewardLevel(run.entrance.scaling, index === 2 ? 3 : 1) : run.entrance.level;
     const ranks = index === 2 ? ['normal', 'veteran', 'elite'] as const : ['veteran'] as const;
-    const items = run.entrance.rift ? riftRewardItems(run.entrance,sim.player.level,run.rift?.elapsed) : index===2 && run.entrance.expedition ? expeditionRewardItems(run.entrance,sim.player.level) : ranks.map((rank, i) => rollEnemyLoot({ playerLevel:sim.player.level, seed: (run.entrance.seed + index * 1777 + i * 97) >>> 0, level: rewardLevel, biome: run.entrance.biome, kind: 'stalker', rank, firstKill: true, tierWeights: index === 2 ? BOSS_CHEST_LOOT_TABLES.dungeon[i] : undefined, encounter:index===2?'bossChest':'chest' })[0]);
+    const raidLoot = index === 2 ? raidBossLoot(run.entrance.id, dungeonRandom(run.entrance.seed), rewardLevel, sim.player.character.classId) : undefined;
+    const items = raidLoot?.items ?? (run.entrance.rift ? riftRewardItems(run.entrance,sim.player.level,run.rift?.elapsed) : index===2 && run.entrance.expedition ? expeditionRewardItems(run.entrance,sim.player.level) : ranks.map((rank, i) => rollEnemyLoot({ playerLevel:sim.player.level, seed: (run.entrance.seed + index * 1777 + i * 97) >>> 0, level: rewardLevel, biome: run.entrance.biome, kind: 'stalker', rank, firstKill: true, tierWeights: index === 2 ? BOSS_CHEST_LOOT_TABLES.dungeon[i] : undefined, encounter:index===2?'bossChest':'chest' })[0]));
     const gold = Math.round((run.entrance.rift ? RIFT_RULES.goldMultiplier*(1+riftBonus(run.entrance.rift,'gold')/100) : 1)*(index === 2 ? 45 + run.entrance.seed % 26 : 18) * (1 + .1 * (rewardLevel - 1)));
     const goldBit=run.entrance.rift ? 1 << items.length : index===2 && run.entrance.expedition?.stage===9 ? 64 : 8;
     const firstClaim=run.chestMasks[index]===0;
@@ -235,14 +247,23 @@ export async function claimDungeonChest(sim: Simulation, index: number, persist:
     if(run.rift)run.rift.claimed=mask===dungeonChestMask(run,index);
     if(index===2)completeExpeditionStage(checkpoint.expeditions!,run);
     const completion=index===2&&!run.entrance.expedition&&!run.entrance.rift&&mask===15?stageJourneyCompletion(checkpoint,{...run.entrance,level:rewardLevel,kind:'dungeon',region:run.entrance.name},sim.player,sim.time):null;
+    // Weekly raid lockout: claiming the boss chest writes the receipt; a mount
+    // bonus drop lands on the achievement ledger (the pvp-vendor drake pattern).
+    if (raidLoot) {
+        recordRaidLockout(checkpoint.character, run.entrance.id);
+        if (raidLoot.mount === 'drake' && (sim.player.achievements?.[MOUNT_RULES.drakeAchievement] ?? 0) <= 0)
+            (checkpoint as RaidCheckpoint).achievements = { ...sim.player.achievements, [MOUNT_RULES.drakeAchievement]: 1 };
+    }
     const result = await persist(checkpoint);
     if (!result.ok)
         return result;
+    if (raidLoot) sim.player.character.raidLockouts = checkpoint.character.raidLockouts;
     sim.expeditions = checkpoint.expeditions!;
     sim.groundItems = checkpoint.groundItems;
     sim.groundGold = checkpoint.groundGold!;
     sim.reserveIdentity(next);
+    if ((checkpoint as RaidCheckpoint).achievements) sim.player.achievements = (checkpoint as RaidCheckpoint).achievements;
     if(completion)sim.commitJourneyCheckpoint(checkpoint,completion);
-    return { ok: true, message: run.rift ? 'Crimson Rift Conquered' : 'Dungeon treasure',
+    return { ok: true, message: (run.rift ? 'Crimson Rift Conquered' : 'Dungeon treasure') + (raidLoot?.mount ? ` — ${MOUNTS[raidLoot.mount].name} joins your stable` : ''),
         ...(run.rift&&firstClaim ? {celebration:{type:'blast' as const,x:chest.x,y:chest.y,radius:110,duration:.7,color:'#ef739d'}} : {}) };
 }

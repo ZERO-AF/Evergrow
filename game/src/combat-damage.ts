@@ -7,10 +7,10 @@ import { mitigateSkillHit } from './player-skill-effects.ts';
 import { projectileDamageType } from './resistance-content.ts';
 import { metric } from './chronicle.ts';
 import { primeSpellweave, primeAfterguard, effectiveArmor } from './affix-combat.ts';
-import { applyElementalContact, applyStun, breakCcOnDamage, STATUS_RULES } from './combat-status.ts';
+import { applyElementalContact, applyStun, breakCcOnDamage, absorbEnemyHit, applyEnemyBuff, enemyBuffDamageMultiplier, ENEMY_COMBAT_BUFFS, STATUS_RULES } from './combat-status.ts';
 import { resolveElementalReaction, ELEMENTAL_REACTION_RULES } from './elemental-reaction.ts';
 import { schoolProjectileStyle } from './spell-school.ts';
-import { enemyThreat } from './enemy-threat.ts';
+import { enemyThreat, recordThreat } from './enemy-threat.ts';
 import type { HitSnapshot, CombatEvent, Enemy, EnemyKind, Player, Projectile, ProjectileEffects, ProjectileStyle, WorldQuery, DamageType } from './model.ts';
 import type { ProjectileDefinition } from './combat-content.ts';
 import type { BuffSpec } from './wow-types.ts';
@@ -191,9 +191,23 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   const elementFraction=style && projectileDamageType(style)==='arcane'?1:Math.min(1,Math.max(0,statusDamage/Math.max(1,damage)));
   const critical = !periodic && !glancing && hitStats.critChance > 0 && context.random() < hitStats.critChance;
   damage = Math.max(1, Math.round(damage * (critical ? hitStats.critMultiplier : 1) * (periodic ? 1 : hitStats.directDamageMultiplier ?? 1)));
+  // Dispellable shield buffs soak damage before health (Purge/Dispel strip them).
+  if (enemy.buffs?.length) {
+    const absorbed = damage - absorbEnemyHit(enemy, damage);
+    if (absorbed > 0) {
+      damage -= absorbed;
+      context.emit({ type: 'block', x: enemy.x, y: enemy.y, angle, value: absorbed, color: '#9ed6d5', blocked: 'absorb', enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy) });
+    }
+  }
   const actualValue = Math.min(enemy.hp, damage);
   enemy.hp = Math.max(0, enemy.hp - damage);
   breakCcOnDamage(enemy);
+  // Reactive ward: warded kinds shield up the first time a hit lands. The hit
+  // itself is never absorbed, and a killing blow never feeds the ward.
+  if (!enemy.buffCast && enemy.hp > 0 && ENEMY_COMBAT_BUFFS[enemy.kind]) {
+    enemy.buffCast = true;
+    for (const kind of ENEMY_COMBAT_BUFFS[enemy.kind]!) applyEnemyBuff(enemy, kind);
+  }
   const resource = resourceModelOf(context.player);
   if (!periodic && !offense?.skill && !offense?.ally && resource && resource.gainOnDeal > 0) context.player.mana = Math.min(context.player.maxMana, context.player.mana + resource.gainOnDeal);
   // Pet hits neither grant the player rage nor break stealth (WoW pet semantics).
@@ -211,6 +225,9 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   }
   context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(offense?.allyId !== undefined ? { allyId: offense.allyId } : {}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), ...(glancing ? { glancing: true } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
     targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), heavy: critical || !!reaction });
+  // Feed the live threat table: damage (and periodic ticks) accrue threat so the
+  // AI holds aggro on the highest-threat combatant, not merely the nearest.
+  recordThreat(enemy, offense?.allyId !== undefined ? `ally:${offense.allyId}` : 'player', actualValue, periodic);
   // Legendary weapon procs roll on direct player hits only — never on periodic
   // ticks, ally strikes or proc-sourced damage (offense.proc guards recursion).
   if (!periodic && !offense?.ally && !offense?.proc) context.proc?.(context.player, enemy, context);
@@ -246,6 +263,8 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
     context.emit({ type: 'block', x: p.x, y: p.y, angle, value: 0, blocked: 'immune', incoming: true });
     return false;
   }
+  // Enraged enemies (dispellable buff) deal increased damage on every hit type.
+  if (context.attacker && 'kind' in context.attacker) amount *= enemyBuffDamageMultiplier(context.attacker);
   // The same attack table guards the player: a facing combatant can dodge or
   // parry a melee blow, and a lower-level attacker's hits glance off.
   let glancingHit = false;

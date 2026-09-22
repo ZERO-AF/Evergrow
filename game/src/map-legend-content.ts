@@ -1,7 +1,7 @@
 import { POI_DEFINITIONS, type POIKind, type WorldPOI } from './world-pois.ts';
 import type { DungeonMapIcon } from './dungeon-map-icon-art.ts';
 
-export type MapIconId = POIKind | `dungeon:${DungeonMapIcon}` | 'player' | 'journey:destination' | 'journey:search' | 'enemy:normal' | 'enemy:brute' | 'enemy:caster' | 'enemy:veteran' | 'enemy:elite' | 'loot';
+export type MapIconId = POIKind | `dungeon:${DungeonMapIcon}` | 'player' | 'journey:destination' | 'journey:search' | 'enemy:normal' | 'enemy:brute' | 'enemy:caster' | 'enemy:veteran' | 'enemy:elite' | 'enemy:rare' | 'loot';
 export type MapServiceKind = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash';
 export const MAP_SERVICES: readonly MapServiceKind[] = ['blacksmith', 'jeweler', 'enchanter', 'gambler', 'stash'];
 export interface MapLegendEntry { id: MapIconId; label: string; description: string; service?: MapServiceKind }
@@ -36,6 +36,7 @@ export const MAP_LEGEND_GROUPS: readonly MapLegendGroup[] = [
     { id: 'enemy:caster', label: 'Caster', description: 'Minimap and dungeon · gold dot' },
     { id: 'enemy:veteran', label: 'Veteran', description: 'Minimap and dungeon · blue ranked enemy' },
     { id: 'enemy:elite', label: 'Elite', description: 'Minimap and dungeon · gold ranked enemy' },
+    { id: 'enemy:rare', label: 'Rare', description: 'Minimap and dungeon · silver named rare' },
   ] },
 ];
 
@@ -53,7 +54,7 @@ export class MapIconVisibility {
 }
 export function mapIconVisible(visibility: MapIconVisibility | undefined, id: MapIconId) { return visibility?.isVisible(id) ?? true; }
 export function enemyMapIconId(enemy: { kind?: string; rank?: string }): MapIconId {
-  return enemy.rank === 'elite' ? 'enemy:elite' : enemy.rank === 'veteran' ? 'enemy:veteran' : enemy.kind === 'brute' ? 'enemy:brute' : enemy.kind === 'caster' ? 'enemy:caster' : 'enemy:normal';
+  return enemy.rank === 'elite' ? 'enemy:elite' : enemy.rank === 'rare' ? 'enemy:rare' : enemy.rank === 'veteran' ? 'enemy:veteran' : enemy.kind === 'brute' ? 'enemy:brute' : enemy.kind === 'caster' ? 'enemy:caster' : 'enemy:normal';
 }
 /** Only supplied discovered services qualify. Camera position and visibility filters do not affect distance. */
 export function nearestMapService(pois: readonly WorldPOI[], kind: MapServiceKind, player: { x: number; y: number }): WorldPOI | null {

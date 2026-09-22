@@ -384,6 +384,21 @@ export interface EnemyCc {
   readonly factor?: number;
 }
 
+/** Dispellable beneficial effect on an enemy (enemy-buffs.ts owns the catalog).
+ * enrage multiplies outgoing damage, shield holds an absorb pool, haste speeds
+ * windup/recovery. Purge/Dispel Magic strip these; Spellsteal transfers one. */
+export type EnemyBuffKind = 'enrage' | 'shield' | 'haste';
+export interface EnemyBuff {
+  readonly kind: EnemyBuffKind;
+  /** Effect strength: damage multiplier bonus (enrage), speed bonus (haste),
+   * or the maxHp fraction the shield absorbed at application (shield). */
+  power: number;
+  remaining: number;
+  readonly duration: number;
+  /** Live absorb pool in hit points (shield only). */
+  absorbRemaining?: number;
+}
+
 export type EnemyKind = 'thornReaver' | 'mireSpitter' | 'frostRevenant' | 'emberAcolyte' | 'duneScuttler' | 'stormSentinel' | 'stalker' | 'brute' | 'caster' | 'hound' | 'archer' | 'wisp' | 'goblin' | 'goblinChief' | 'warden' | 'briarMatriarch' | 'ashColossus' | 'graveMarshal';
 export type EnemyState = 'idle' | 'patrol' | 'return' | 'chase' | 'windup' | 'attack' | 'recover' | 'dead';
 export interface Enemy {
@@ -490,6 +505,13 @@ export interface Enemy {
   sundered?: { fraction: number; remaining: number };
   /** Taunted: forced to attack the player — or the pet ally that growled (allyId). */
   taunted?: { remaining: number; allyId?: number };
+  /** Dispellable beneficial effects (enrage/shield/haste); stripped by purge skills.
+   * Unioned with WowBuff so PvP Combatants (Player & Enemy) keep one buffs field. */
+  buffs?: (EnemyBuff | WowBuff)[];
+  /** Elite low-health enrage is a one-time trigger; purging it stays permanent. */
+  enrageUsed?: boolean;
+  /** Engagement self-cast (ENEMY_COMBAT_BUFFS) fired once; purging stays permanent. */
+  buffCast?: boolean;
 }
 
 /** Frozen launch pose connecting visible arrows to the bow grip and bolts to the emitting tip. */

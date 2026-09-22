@@ -3,6 +3,13 @@ import { enemyThreat } from './enemy-threat.ts';
 import type { Enemy, ProjectileStyle } from './model.ts';
 import { interruptStaggeredEnemy } from './enemy-state.ts';
 import type { CcKind, DotSchool, DotSpec } from './wow-types.ts';
+import { applyEnemyBuff } from './enemy-buffs.ts';
+
+export { applyEnemyBuff, dispelEnemyBuffs, enemyBuffDamageMultiplier, enemyHasteFactor,
+  absorbEnemyHit, enemySpawnBuffs, stolenBuffSpec, ENEMY_BUFFS, ENEMY_SPAWN_BUFFS, ENEMY_COMBAT_BUFFS } from './enemy-buffs.ts';
+
+/** Elites enrage once when wounded below this fraction (WoW enrage). */
+export const ENRAGE_RULES = Object.freeze({ threshold: .35 });
 
 export interface SlowEffect { readonly duration: number; readonly factor: number }
 export interface BurnEffect { readonly duration: number; readonly dps: number }
@@ -179,6 +186,17 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
   if (enemy.taunted) {
     enemy.taunted.remaining = Math.max(0, enemy.taunted.remaining - dt);
     if (enemy.taunted.remaining <= 0) delete enemy.taunted;
+  }
+  if (enemy.buffs) {
+    for (const buff of enemy.buffs) buff.remaining = Math.max(0, buff.remaining - dt);
+    enemy.buffs = enemy.buffs.filter(buff => buff.remaining > 0);
+    if (!enemy.buffs.length) delete enemy.buffs;
+  }
+  // WoW enrage: wounded elites flare once; a purge removes it for good.
+  if (!enemy.enrageUsed && (enemy.rank === 'elite' || enemy.rank === 'rare') && !isBossKind(enemy.kind)
+    && enemy.hp > 0 && enemy.hp <= enemy.maxHp * ENRAGE_RULES.threshold) {
+    enemy.enrageUsed = true;
+    applyEnemyBuff(enemy, 'enrage');
   }
   if (enemy.cc?.some(effect => effect.kind === 'incapacitate' || effect.kind === 'polymorph' || effect.kind === 'stun' || effect.kind === 'freeze')) {
     // Can't-act control suppresses this tick's AI entirely.

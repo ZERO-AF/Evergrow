@@ -8,6 +8,7 @@ const IDENTITIES={
  stable:{color:'#a8d8a0',cloth:'#4a6b42',dark:'#2d4228',paths:['M-8 -2 L-3 -8 L3 -8 L8 -2 L8 7 L-8 7 Z','M-4 7 L-4 2 L4 2 L4 7 M-6 -2 L6 -2']},
  battlemaster:{color:'#e8c15a',cloth:'#7a3b3b',dark:'#4a2626',paths:['M-7 8 L5 -8 M-7 -8 L7 8 M-9 3 L-4 5 M4 -5 L9 -3']},
  pvpVendor:{color:'#d8a04a',cloth:'#6b4a2e',dark:'#3f2c1c',paths:['M-6 -8 L6 -8 L6 2 L0 8 L-6 2 Z','M-6 -4 L6 -4 M0 -8 L0 8']},
+ badgeVendor:{color:'#7ec8e3',cloth:'#2e4a6b',dark:'#1c2f3f',paths:['M0 -8 L7 -4 L7 4 L0 8 L-7 4 L-7 -4 Z','M0 -8 L0 8 M-7 -4 L7 4 M7 -4 L-7 4']},
 };
 export function vendorIdentity(kind:string){return IDENTITIES[(kind==='merchant'?'jeweler':kind==='chapel'?'enchanter':kind) as keyof typeof IDENTITIES]??null;}
 export function vendorEmblem(kind:string):string{const identity=vendorIdentity(kind);return identity?`<svg viewBox="-12 -12 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${identity.paths.map(d=>`<path d="${d}"/>`).join('')}</svg>`:'';}

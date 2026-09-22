@@ -20,6 +20,7 @@ import { deriveAttackStats } from './equipment.ts';
 import { BASIC_ATTACK_PHASES, creatureFamily, type ProjectileDefinition } from './combat-content.ts';
 import { SKILL_TARGETING, type SkillExecution } from './skill-execution-content.ts';
 import { applySlow, applyStun } from './combat-status.ts';
+import { dispelEnemyBuffs, stolenBuffSpec, ENEMY_BUFFS } from './enemy-buffs.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { racialSkillId } from './character.ts';
@@ -193,7 +194,22 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     if (r.cc) context.sim.applyCc(t, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
     if (r.slow) applySlow(t, r.slow);
     if (r.sunder) sunder(t, r.sunder);
+    if (r.dispel) stripBuffs(r, t);
     if (r.taunt) { t.taunted = { remaining: r.taunt }; t.awareness = Math.max(t.awareness, 1); }
+  };
+  /** Offensive dispel: strips recipe.dispel buffs; recipe.steal grants the first to the caster. */
+  const stripBuffs = (r: { dispel?: number; steal?: boolean }, t: Enemy) => {
+    const stripped = dispelEnemyBuffs(t, r.dispel ?? 0);
+    if (!stripped.length) return;
+    if (r.steal) {
+      const stolen = stripped[0]!;
+      context.sim.addBuff(ENEMY_BUFFS[stolen.kind].name, ENEMY_BUFFS[stolen.kind].color, stolenBuffSpec(stolen, p.maxHp), `${id}:steal`);
+      context.emit({ type: 'notice', x: t.x, y: t.y, message: `Stole ${ENEMY_BUFFS[stolen.kind].name}` });
+      if (stripped.length > 1) context.emit({ type: 'notice', x: t.x, y: t.y, message: `Dispelled ${stripped.slice(1).map(b => ENEMY_BUFFS[b.kind].name).join(', ')}` });
+    } else {
+      context.emit({ type: 'notice', x: t.x, y: t.y, message: `Dispelled ${stripped.map(b => ENEMY_BUFFS[b.kind].name).join(', ')}` });
+    }
+    blastAt(t.x, t.y, 40, hitStyle);
   };
   const applySelfPayload = (r: WowSkillPayload) => {
     if (r.heal) context.sim.playerHeal(r.heal * p.maxHp, color);
@@ -201,7 +217,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     if (r.resourceGain) p.mana = Math.min(p.maxMana, p.mana + r.resourceGain);
   };
   const strikeWhiff = () => context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: p.angle, range: costs.range ?? attack.range, arc: Math.PI / 2, rear: false });
-  const strikeExtras = (r: { dot?: DotSpec; slow?: { duration: number; factor: number }; stun?: number; silence?: number; healFrac?: number; sunder?: number; cc?: { kind: CcKind; duration: number; factor?: number } }, t: Enemy, dealt: number) => {
+  const strikeExtras = (r: { dot?: DotSpec; slow?: { duration: number; factor: number }; stun?: number; silence?: number; healFrac?: number; sunder?: number; dispel?: number; cc?: { kind: CcKind; duration: number; factor?: number } }, t: Enemy, dealt: number) => {
     if (r.dot) context.sim.applyDot(t, r.dot, dealt, id);
     if (r.slow) applySlow(t, r.slow);
     if (r.stun) applyStun(t, r.stun);
@@ -209,6 +225,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     if (r.cc) context.sim.applyCc(t, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
     if (r.healFrac) context.sim.playerHeal(dealt * r.healFrac, color);
     if (r.sunder) sunder(t, r.sunder);
+    if (r.dispel) stripBuffs(r, t);
   };
   const channelTick = (r: Extract<SkillExecution, { kind: 'channel' }>) => {
     if (r.manaPerTick) { const restored = r.manaPerTick * p.maxMana; p.mana = Math.min(p.maxMana, p.mana + restored); metric(p.chronicle, 'manaRestored', restored); }
@@ -652,6 +669,14 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
       if (recipe.resourceGainFrac) p.mana = Math.min(p.maxMana, p.mana + p.maxMana * recipe.resourceGainFrac);
       else if (recipe.resourceGain) p.mana = Math.min(p.maxMana, p.mana + recipe.resourceGain);
       if (recipe.buff) context.sim.addBuff(definition.name, color, recipe.buff);
+      // Offensive dispel: the resolved enemy target loses buffs; dispelRadius
+      // widens it to an area centered on the target (or the aimed point).
+      if (recipe.dispelRadius) {
+        const center = target ?? aimedPoint();
+        radialAround(center.x, center.y, recipe.dispelRadius, enemy => stripBuffs(recipe, enemy));
+      } else if (target) stripBuffs(recipe, target);
+      if (recipe.steal && !p.buffs?.some(b => b.id === `${id}:steal`))
+        context.emit({ type: 'notice', x: p.x, y: p.y, message: 'Nothing to steal.' });
       p.castTime = .18;
       break;
     }

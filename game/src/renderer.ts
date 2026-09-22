@@ -54,6 +54,7 @@ import { fitPortalWorldLabel, type PortalDestination } from './portal-destinatio
 import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } from './travel.ts';
 import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, positionedNPC, NPC_NAMES, NPC_COLORS, type TownNPC } from './npcs.ts';
 import { pvpVendorFor, pvpVendorsNear, focusedPvpVendor } from './pvp-vendor.ts';
+import { badgeVendorFor, badgeVendorsNear, focusedBadgeVendor } from './badge-vendor.ts';
 import type { Settlement } from './settlements.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
@@ -628,6 +629,8 @@ export class Renderer {
       if (battlemaster) this.drawNPCShadow(battlemaster.x, battlemaster.y, npcArtScale(battlemaster));
       const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) this.drawNPCShadow(pvpVendor.x, pvpVendor.y, npcArtScale(pvpVendor));
+      const badgeVendor = this.positioned(badgeVendorFor(building));
+      if (badgeVendor) this.drawNPCShadow(badgeVendor.x, badgeVendor.y, npcArtScale(badgeVendor));
     }
     this.enemyFocusMark(alpha);
     drawResourcePickups(c, sim.pickups, this.visualTime, settings.reducedMotion);
@@ -852,6 +855,11 @@ export class Renderer {
         const point = worldToScreen(view, pvpVendor.x, pvpVendor.y - 78);
         text(c, `${pvpVendor.name} - PvP Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
+      const badgeVendor = focusedBadgeVendor(badgeVendorsNear(world, p.x - 100, p.y - 100, 200, 200).map(v => this.positioned(v)!), p, world);
+      if (badgeVendor) {
+        const point = worldToScreen(view, badgeVendor.x, badgeVendor.y - 78);
+        text(c, `${badgeVendor.name} - Badge Vendor  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
       if (this.focusedGatherNode) {
         const point = worldToScreen(view, this.focusedGatherNode.x, this.focusedGatherNode.y - 46);
         text(c, gatherNodeLabel(p, this.focusedGatherNode, gatherChannelOf(sim) !== null), point.x, point.y, 1, '#d6d7b3', 'center');
@@ -1045,6 +1053,8 @@ export class Renderer {
       if (battlemaster) entries.push({ y: battlemaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(battlemaster.x,battlemaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, battlemaster, this.visualTime, settings.reducedMotion)) });
       const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
+      const badgeVendor = this.positioned(badgeVendorFor(building));
+      if (badgeVendor) entries.push({ y: badgeVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(badgeVendor.x,badgeVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, badgeVendor, this.visualTime, settings.reducedMotion)) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
         entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
       }
@@ -1075,7 +1085,7 @@ export class Renderer {
           : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
         attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
         cc: enemy.cc, dots: enemy.dots, tint: skin?.tint, tintAmount: skin?.tintAmount,
-        impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },scale,riftMechanic(enemy)==='ritual'?'#9ae0c7':riftWardActive(enemy)?'#80c9b8':scale>1?(enemy.rank==='elite'?'#e9bb70':'#85c9ee'):undefined); } });
+        impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },scale,riftMechanic(enemy)==='ritual'?'#9ae0c7':riftWardActive(enemy)?'#80c9b8':scale>1?(enemy.rank==='elite'?'#e9bb70':enemy.rank==='rare'?'#b9d2e2':'#85c9ee'):undefined); } });
     }
     for(const [kind,spirit] of [['decoy',p.skillEffects?.decoy],['archer',p.skillEffects?.archer]] as const){
       if(!spirit||p.dead||settings.phase==='ready')continue;
@@ -1182,6 +1192,8 @@ export class Renderer {
       if (battlemaster) environmentLights.push({ x: battlemaster.x, y: battlemaster.y - 20, radius: 60, color: NPC_COLORS.battlemaster, power: .3 });
       const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
+      const badgeVendor = this.positioned(badgeVendorFor(building));
+      if (badgeVendor) environmentLights.push({ x: badgeVendor.x, y: badgeVendor.y - 20, radius: 60, color: NPC_COLORS.badgeVendor, power: .3 });
     }
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
       .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
@@ -1286,7 +1298,7 @@ export class Renderer {
       c.fillStyle = '#482a29'; c.fillRect(x - width / 2, y, width, 3);
       const trail = Math.min(enemy.maxHp, this.damageTrails.get(enemy.id)?.value ?? enemy.hp);
       c.fillStyle = '#edc582'; c.fillRect(x - width / 2, y, width * trail / enemy.maxHp, 3);
-      c.fillStyle = enemy.rank==='elite'?'#edb666':enemy.rank==='veteran'?'#79bfee':enemy.kind === 'caster' ? '#7bb59c' : '#c45f54';
+      c.fillStyle = enemy.rank==='elite'?'#edb666':enemy.rank==='rare'?'#b9d2e2':enemy.rank==='veteran'?'#79bfee':enemy.kind === 'caster' ? '#7bb59c' : '#c45f54';
       c.fillRect(x - width / 2, y, width * enemy.hp / enemy.maxHp, 3);
     }
   }

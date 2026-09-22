@@ -18,6 +18,7 @@ import { hash } from './world-landscape.ts';
 import { DUNGEON_THEME_IDS, type DungeonThemeId } from './dungeon-content.ts';
 import type { DungeonEntrance } from './dungeon.ts';
 import type { EncounterScale } from './encounter-scaling.ts';
+import { HEROIC_RULES, heroicProblem } from './heroic-content.ts';
 import type { Player } from './model.ts';
 import './zone-content-kalimdor.ts';
 import './zone-content-eastern-kingdoms.ts';
@@ -78,11 +79,13 @@ export const RDF_DUNGEONS: readonly DungeonFinderEntry[] = Object.freeze(
 export const dungeonFinderDungeon = (id: string | undefined): DungeonFinderEntry | undefined =>
   id === undefined ? undefined : RDF_DUNGEONS.find(d => d.id === id);
 
-/** Why this player cannot queue for the dungeon, or null when eligible. */
-export function dungeonFinderProblem(entry: DungeonFinderEntry, player: Pick<Player, 'level' | 'dead'>): string | null {
+/** Why this player cannot queue for the dungeon, or null when eligible. Heroic
+ * queues ignore the normal level band — the floor pins its own level-80 scale. */
+export function dungeonFinderProblem(entry: DungeonFinderEntry, player: Pick<Player, 'level' | 'dead'>, heroic = false): string | null {
   if (player.dead) return 'Recover in town first.';
   if (player.level < DUNGEON_FINDER_RULES.minimumLevel)
     return `The Dungeon Finder unlocks at level ${DUNGEON_FINDER_RULES.minimumLevel}.`;
+  if (heroic) return heroicProblem(entry, player);
   if (player.level < entry.levelMin) return `Requires level ${entry.levelMin}.`;
   if (player.level > entry.levelMax) return `Requires level ${entry.levelMax} or lower.`;
   return null;
@@ -103,13 +106,15 @@ export function dungeonFinderWaitSeconds(id: string): number {
  * `scaling` pins the floor to the dungeon's authored band instead of the
  * zone the player happens to be standing in.
  */
-export function dungeonFinderEntrance(entry: DungeonFinderEntry, player: Pick<Player, 'x' | 'y' | 'level'>, worldSeed: number): DungeonEntrance {
+export function dungeonFinderEntrance(entry: DungeonFinderEntry, player: Pick<Player, 'x' | 'y' | 'level'>, worldSeed: number, heroic = false): DungeonEntrance {
   const seed = hash(ZONE_INDEX[entry.zoneId] ?? 0, entry.index, worldSeed, 0xd0e7) >>> 0;
-  const base = Math.max(entry.levelMin, Math.min(entry.levelMax, Math.floor(player.level)));
-  const scaling: EncounterScale = { base, min: entry.levelMin, max: entry.levelMax };
+  const base = heroic ? HEROIC_RULES.level : Math.max(entry.levelMin, Math.min(entry.levelMax, Math.floor(player.level)));
+  const scaling: EncounterScale = heroic
+    ? { base, min: HEROIC_RULES.level, max: HEROIC_RULES.level + 2, heroic: true }
+    : { base, min: entry.levelMin, max: entry.levelMax };
   return {
     id: entry.entranceId,
-    name: entry.name,
+    name: heroic ? `${entry.name} (Heroic)` : entry.name,
     seed,
     level: base,
     biome: entry.biome,

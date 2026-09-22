@@ -1,6 +1,6 @@
 import { enemyVisualScale } from './enemy-modifiers.ts';
-import type { Enemy } from './model.ts';
-import type { EnemyKind } from './model.ts';
+import type { Enemy, EnemyKind } from './model.ts';
+import type { EnemyRank } from './progression-content.ts';
 
 /** Speech clears authored heads/crowns, rather than the larger aiming envelope.
  * Brute helmet reaches -39; hexer antlers -44; chief banner -54. */
@@ -31,5 +31,6 @@ export const ENEMY_BODY_BOUNDS: Record<EnemyKind, { radiusX: number; top: number
 };
 
 /** Rank-aware visible bounds keep focus, aiming and captions aligned without per-frame allocation. */
-const rankedBounds=new Map(Object.entries(ENEMY_BODY_BOUNDS).map(([kind,base])=>[kind,Object.fromEntries((['normal','veteran','elite'] as const).map(rank=>{const scale=enemyVisualScale({kind:kind as EnemyKind,rank});return [rank,Object.freeze({radiusX:base.radiusX*scale,top:base.top*scale,bottom:base.bottom*scale,...(base.headTop===undefined?{}:{headTop:base.headTop*scale})})];}))]));
-export function enemyBodyBounds(enemy:Pick<Enemy,'kind'> & Partial<Pick<Enemy,'rank'>>){return rankedBounds.get(enemy.kind)![enemy.rank??'normal'];}
+const rankedBounds: Record<EnemyKind, Record<EnemyRank, { radiusX: number; top: number; bottom: number; headTop?: number }>> =
+  Object.fromEntries(Object.entries(ENEMY_BODY_BOUNDS).map(([kind, base]) => [kind, Object.fromEntries((['normal', 'veteran', 'elite', 'rare'] as const).map(rank => { const scale = enemyVisualScale({ kind: kind as EnemyKind, rank }); return [rank, Object.freeze({ radiusX: base.radiusX * scale, top: base.top * scale, bottom: base.bottom * scale, ...(base.headTop === undefined ? {} : { headTop: base.headTop * scale }) })]; }))])) as Record<EnemyKind, Record<EnemyRank, { radiusX: number; top: number; bottom: number; headTop?: number }>>;
+export function enemyBodyBounds(enemy: Pick<Enemy, 'kind'> & Partial<Pick<Enemy, 'rank'>>) { return rankedBounds[enemy.kind][enemy.rank ?? 'normal']; }

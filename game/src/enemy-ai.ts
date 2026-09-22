@@ -1,6 +1,6 @@
 import { enemyMovementMultiplier } from './enemy-modifiers.ts';
 import { decoyTarget } from './unique-combat.ts';
-import { enemyRecoveryDuration, enemyWindupDuration } from './enemy-threat.ts';
+import { enemyRecoveryDuration, enemyWindupDuration, resolveThreatHolder, threatTable, tickThreat } from './enemy-threat.ts';
 import { projectileDamageType } from './resistance-content.ts';
 import type { Ally, DamageType } from './model.ts';
 import { hasWalkableSegment } from './world-navigation.ts';
@@ -60,6 +60,21 @@ function nearestHostile(enemy: Enemy, context: EnemyAIContext): Player | Ally {
     if (d < bestD) { best = ally; bestD = d; }
   }
   return best;
+}
+
+/** Threat-driven target: once a combatant holds threat, the enemy stays on it
+ * until a challenger beats the holder by the WoW pull threshold (110% melee,
+ * 130% ranged). Without a table the nearest hostile keeps its old behavior. */
+function threatHostile(enemy: Enemy, context: EnemyAIContext): Player | Ally {
+  const p = context.player;
+  const allies = context.hurtAlly ? (context.allies ?? p.allies ?? []) : [];
+  const holder = threatTable(enemy) ? resolveThreatHolder(enemy, p, allies) : undefined;
+  if (holder === 'player') return p;
+  if (holder !== undefined) {
+    const ally = allies.find(a => `ally:${a.id}` === holder);
+    if (ally) return ally;
+  }
+  return nearestHostile(enemy, context);
 }
 
 
@@ -333,12 +348,14 @@ function updateTreasureGoblin(enemy: Enemy, dt: number, context: EnemyAIContext)
 
 /** Tick only a living, unstaggered actor; status/damage integration remains simulation-owned. */
 export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext): void {
+  // Threat table maintenance: taunt snapshots, out-of-combat decay, leash wipes.
+  tickThreat(enemy, dt, context.player, context.allies ?? context.player.allies ?? []);
   const taunted=(enemy.taunted?.remaining??0)>0;
   if(taunted)delete enemy.decoyTarget;
   const target=taunted&&enemy.taunted?.allyId===undefined?context.player:taunted?undefined:decoyTarget(enemy,context.player,context.world,context.visible);
   const original=context;if(target!==context.player)context={...context,target,hurt:(amount,angle,actor,type)=>{if(actor.decoyTarget)original.hurtDecoy?.(actor.decoyTarget.id,amount);else original.hurt(amount,angle,actor,type);}};
   if (enemy.state === 'chase') enemy.attackVariant = enemyAttackVariant(enemy);
-  const hostile=context.target??nearestHostile(enemy,context);
+  const hostile=context.target??threatHostile(enemy,context);
   if('kind' in hostile&&context.hurtAlly){
     const ally=hostile;
     context={...context,target:{x:ally.x,y:ally.y,radius:ally.radius,dead:ally.hp<=0},

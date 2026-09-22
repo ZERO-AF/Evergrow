@@ -50,7 +50,7 @@ export function powerGrowth(maxLevel = 100) {
       monsterHit: monsterDamageScale(level) / monsterDamageScale(1),
       // Isolates one attribute budget; not a reconstruction of any character.
       casterHit: itemPowerScale(level) * (1 + .03 * 3 * (level - 1)),
-      enemyCadence: 1, veteranPercent: ranks.veteran * 100, elitePercent: ranks.elite * 100 };
+      enemyCadence: 1, veteranPercent: ranks.veteran * 100, elitePercent: ranks.elite * 100, rarePercent: ranks.rare * 100 };
   });
 }
 export function enemyAudit(level: number, kind: EnemyKind = 'stalker', rank: EnemyRank = 'normal', recoveryMultiplier = 1) {
@@ -104,8 +104,8 @@ export function exactBuildAudit(record: CharacterSave) {
         .filter(source=>Object.keys(source.modifiers).length),
       units:'manaRegen modifiers are mana per 5 seconds; derived regeneration is mana per second. Intelligence grants 2 mana per point above 10.',
     },
-    foes: (['normal', 'veteran', 'elite'] as const).map(rank => {
-      const enemy = enemyAudit(p.level + (rank === 'elite' ? 2 : rank === 'veteran' ? 1 : 0), 'stalker', rank);
+    foes: (['normal', 'veteran', 'elite', 'rare'] as const).map(rank => {
+      const enemy = enemyAudit(p.level + (rank === 'elite' || rank === 'rare' ? 2 : rank === 'veteran' ? 1 : 0), 'stalker', rank);
       return { ...enemy, basicDamageBudgetSeconds: enemy.maxHp / dps };
     }) };
 }

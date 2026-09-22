@@ -40,6 +40,8 @@ export const raid3BossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string
 
 /** Fight rules. Phase bits 1/2 match the 65% / 30% Guardian thresholds; bits 4/8/16 are the Chains packs. */
 export const KELTHUZAD_RULES = Object.freeze({
+  /** Boss chest loot table (raid-loot-content.ts): Tier-3 armor + weapon. */
+  lootTable: 'kelthuzad' as const,
   phaseTwo: .65, phaseThree: .3,
   leash: 1600, awareness: 720,
   blastReach: 210, blastArc: Math.PI * 1.05,           // Frost Blast (frontal freeze cone)

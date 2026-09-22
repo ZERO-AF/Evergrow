@@ -22,6 +22,10 @@ export const ENEMY_LOOT_TABLES: Readonly<Record<EnemyRank, EnemyLootTable>> = Ob
     tierWeights: Object.freeze(withUniqueChance({ common: 59.9, magic: 32, rare: 7, epic: .95, legendary: .15 })) }),
   elite: Object.freeze({ guaranteedItems: 1, bonusItemChance: .25, itemLevelBonus: 2,
     tierWeights: Object.freeze(withUniqueChance({ common: 39.6, magic: 45, rare: 13, epic: 1.9, legendary: .5 })) }),
+  /** Named rares always yield one Rare+ drop and one level above elites; the
+   * unique share is the named-drop chance (withUniqueChance preserves it). */
+  rare: Object.freeze({ guaranteedItems: 1, bonusItemChance: .5, itemLevelBonus: 3,
+    tierWeights: Object.freeze(withUniqueChance({ common: 0, magic: 0, rare: 82, epic: 14, legendary: 4 })) }),
 });
 
 type TierWeights = Readonly<Record<ItemTier, number>>;

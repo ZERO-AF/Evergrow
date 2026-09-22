@@ -23,7 +23,7 @@ export function roamingPackBand(level:number) {
 export function roamingMemberRank(level:number, index:number, roll:number):EnemyRank {
   if(index<6)return chooseEncounterRank(level,roll);
   const odds=encounterRankChances(level);
-  return roll<odds.elite*.25?'elite':roll<odds.elite*.25+odds.veteran*.5?'veteran':'normal';
+  return roll<odds.rare*.5?'rare':roll<odds.rare*.5+odds.elite*.25?'elite':roll<odds.rare*.5+odds.elite*.25+odds.veteran*.5?'veteran':'normal';
 }
 export function roamingFormationRadius(size:number):number {
   return (size>8?ROAMING_RULES.outerRadius:ROAMING_RULES.groupRadius)+ROAMING_RULES.placementNudge;

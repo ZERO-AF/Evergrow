@@ -357,6 +357,104 @@ const OUTLAND_ROSTERS: Readonly<Record<string, ZoneRoster>> = Object.freeze({
 export const ZONE_ROSTERS: Readonly<Record<string, Readonly<Partial<Record<EnemyKind, RosterSkin>>>>> =
   normalize({ ...KALIMDOR_ROSTERS, ...EASTERN_KINGDOMS_ROSTERS, ...NORTHREND_ROSTERS, ...OUTLAND_ROSTERS });
 
+/** Named rares: a unique name per spawn, drawn from the zone's pool (then the
+ * biome's). Rare rank only — ordinary members keep the family name. Pools are
+ * small on purpose: a rare is a sighting, and the same name recurring in one
+ * zone reads as the same named mob. */
+export const ZONE_RARE_NAMES: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  // Kalimdor
+  'teldrassil': Object.freeze(['Grimmaw', 'Uruson', 'Threggil']),
+  'durotar': Object.freeze(['Death Flayer', 'Sarkoth', 'Geolord Mottle']),
+  'mulgore': Object.freeze(['Mazzranache', 'The Rake', 'Sister Hatelash']),
+  'barrens-north': Object.freeze(['Humar the Pridelord', 'Echeyakee', 'Snort the Heckler']),
+  'barrens-south': Object.freeze(['Silithid Harvester', 'Heggin Stonewhisker', 'Aean Swiftriver']),
+  'ashenvale': Object.freeze(['Ursol\'lok', 'Lady Vespia', 'Eck\'alom']),
+  'stonetalon': Object.freeze(['Sister Riven', 'Nal\'taszar', 'Vengeful Ancient']),
+  'darkshore': Object.freeze(['Shadowclaw', 'Strider Clutchmother', 'Lady Moongazer']),
+  'felwood': Object.freeze(['Death Howl', 'Alshirr Banebreath', 'Dessecus']),
+  'winterspring': Object.freeze(['Rak\'shiri', 'General Colbatann', 'Mezzir the Howler']),
+  'azshara': Object.freeze(['Antilos', 'General Fangferror', 'Lady Sesspira']),
+  'dustwallow': Object.freeze(['Brimgore', 'Dart', 'Ripscale']),
+  'desolace': Object.freeze(['Accursed Slitherblade', 'Crusty', 'Prince Kellen']),
+  'thousand-needles': Object.freeze(['Harb Foulmountain', 'Achellios the Banished', 'Gibblesnik']),
+  'feralas': Object.freeze(['Old Grizzlegut', 'Lady Szallah', 'Diamond Head']),
+  'tanaris': Object.freeze(['Warleader Krazzilak', 'Jin\'Zallah the Sandbringer', 'Omgorn the Lost']),
+  'ungoro': Object.freeze(['Uhk\'loc', 'King Mosh', 'Ravasaur Matriarch']),
+  'silithus': Object.freeze(['Rex Ashil', 'Zora Captain', 'Setis']),
+  'moonglade': Object.freeze(['Lyragar Moonshadow', 'Old Whitebark']),
+  'bloodmyst': Object.freeze(['Fenissa the Assassin', 'Morgroron']),
+  'azuremyst': Object.freeze(['Deathclaw', 'The Duke of Fathoms']),
+  // Eastern Kingdoms
+  'eversong': Object.freeze(['Eldinarcus', 'Tregla', 'Skitterflame']),
+  'quel-danas': Object.freeze(['Kregga', 'Sunblade Dawnhawk']),
+  'ghostlands': Object.freeze(['Dr. Whitherlimb', 'Krethis Shadowspinner']),
+  'tirisfal': Object.freeze(['Ressan the Needler', 'Farmer Solliden', 'Lost Soul']),
+  'western-plaguelands': Object.freeze(['Foreman Jerris', 'The Husk', 'Scarlet Interrogator']),
+  'eastern-plaguelands': Object.freeze(['Duggan Wildhammer', 'Hed\'mush the Rotting', 'Gish the Unmoving']),
+  'silverpine': Object.freeze(['Old Vicejaw', 'Gorefang', 'Berard the Moon-Crazed']),
+  'hillsbrad': Object.freeze(['Big Samras', 'Creepthess', 'Lady Zephris']),
+  'hinterlands': Object.freeze(['Old Cliff Jumper', 'The Reak', 'Ironback']),
+  'alterac': Object.freeze(['Narillasanz', 'Stone Fury', 'Lo\'Grosh']),
+  'arathi': Object.freeze(['Nimar the Slayer', 'Foulbelly', 'Kovork']),
+  'wetlands': Object.freeze(['Ma\'ruk Wyrmscale', 'Garneg Charskull', 'Razormaw Matriarch']),
+  'dun-morogh': Object.freeze(['Bjarn', 'Timber', 'Edan the Howler']),
+  'loch-modan': Object.freeze(['Boss Galgosh', 'Emogg the Crusher', 'Lord Condar']),
+  'searing-gorge': Object.freeze(['Faulty War Golem', 'Shleipnarr', 'Slave Master Blackheart']),
+  'badlands': Object.freeze(['Anathemus', 'Zaricotl', '7:XT']),
+  'burning-steppes': Object.freeze(['Hematos', 'Deathmaw', 'Terrorspark']),
+  'elwynn': Object.freeze(['Hogger', 'Grizzled Ben', 'Thuros Lightfingers']),
+  'westfall': Object.freeze(['Vultros', 'Brack', 'Slark']),
+  'redridge': Object.freeze(['Boulderheart', 'Kazon', 'Ribchaser']),
+  'swamp-of-sorrows': Object.freeze(['Fingat', 'Gilmorian', 'Lost One Chieftain']),
+  'duskwood': Object.freeze(['Nefaru', 'Lupos', 'The Unknown Soldier']),
+  'deadwind': Object.freeze(['Arachna', 'The Darkstalker']),
+  'blasted-lands': Object.freeze(['Clack the Reaver', 'Deatheye', 'Grunter']),
+  'stranglethorn': Object.freeze(['King Bangalash', 'Sin\'Dall', 'Rippa']),
+  // Northrend
+  'borean-tundra': Object.freeze(['Fumblub Gearwind', 'Icehorn', 'Old Crystalbark']),
+  'howling-fjord': Object.freeze(['King Ping', 'Perobas the Bloodthirster', 'Vigdis the War Maiden']),
+  'dragonblight': Object.freeze(['Scarlet Highlord Daion', 'Tukemuth', 'Crazed Indu\'le Survivor']),
+  'grizzly-hills': Object.freeze(['Arcturis', 'Grocklar', 'Seething Hate']),
+  'zuldrak': Object.freeze(['Gondria', 'Terror Spinner', 'Zul\'drak Sentinel']),
+  'sholazar': Object.freeze(['Loque\'nahak', 'Aotona', 'King Krush']),
+  'crystalsong': Object.freeze(['Time-Lost Crystal Drake', 'Shandaral Elder']),
+  'storm-peaks': Object.freeze(['Skoll', 'Time-Lost Proto-Drake', 'Dirkee']),
+  'icecrown': Object.freeze(['Hildana Deathstealer', 'High Thane Jorfus', 'Putridus the Ancient']),
+  'wintergrasp': Object.freeze(['Glacier Lord', 'Wintergrasp Sentinel']),
+  // Outland
+  'hellfire': Object.freeze(['Fulgorge', 'Mekthorg the Wild', 'Vorakem Doomspeaker']),
+  'zangarmarsh': Object.freeze(['Bog Lurker', 'Coilfang Emissary', 'Marticar']),
+  'terokkar': Object.freeze(['Crippler', 'Dooby', 'Okrek']),
+  'nagrand': Object.freeze(['Bro\'Gaz the Clanless', 'Goretooth', 'Voidhunter Yar']),
+  'blades-edge': Object.freeze(['Hemathion', 'Morcrush', 'Speaker Mar\'grom']),
+  'netherstorm': Object.freeze(['Chief Engineer Lorthander', 'Ever-Core the Punisher', 'Nuramoc']),
+  'shadowmoon': Object.freeze(['Ambassador Jerrikar', 'Collidus the Warp-Watcher', 'Kraator']),
+});
+
+/** Biome fallback names for zones without an authored rare pool. */
+export const BIOME_RARE_NAMES: Readonly<Record<BiomeId, readonly string[]>> = Object.freeze({
+  deadwood: Object.freeze(['Morgrimm the Pale', 'Widow of the Hollow', 'Ashfang']),
+  verdant: Object.freeze(['Thornmantle', 'The Verdant Stalker', 'Old Mosshide']),
+  swamp: Object.freeze(['Bogmother', 'Mirelurk the Patient', 'Fenstalker']),
+  frostpine: Object.freeze(['Rimejaw', 'The White Stalker', 'Frostmaw']),
+  emberfall: Object.freeze(['Cindermaw', 'The Ash Reaver', 'Pyreclaw']),
+  autumn: Object.freeze(['The Amber Warden', 'Rustfang', 'Gilded Matriarch']),
+  highlands: Object.freeze(['Stormcrest', 'Craglord the Unmoved', 'Windhowl']),
+  steppe: Object.freeze(['The Long Strider', 'Dustmane', 'Palehoof the Wanderer']),
+  sunscar: Object.freeze(['Sunbleached Terror', 'The Dune King', 'Sandskipper']),
+});
+
+/** The unique name for a rare spawn, or null when the enemy is not a rare. */
+export function rareEnemyName(
+  enemy: Pick<Enemy, 'kind'> & Partial<Pick<Enemy, 'rank' | 'biome' | 'lootSeed' | 'homeX' | 'homeY' | 'dungeonTheme'>>,
+): string | null {
+  if (enemy.rank !== 'rare' || enemy.dungeonTheme) return null;
+  const zone = enemy.homeX !== undefined && enemy.homeY !== undefined ? zoneAt(enemy.homeX, enemy.homeY) : null;
+  const pool = (zone ? ZONE_RARE_NAMES[zone.id] : undefined) ?? (enemy.biome ? BIOME_RARE_NAMES[enemy.biome] : undefined);
+  if (!pool?.length) return null;
+  return pool[(enemy.lootSeed ?? 0) % pool.length];
+}
+
 /** Biome fallback families for unlisted zones and kinds the zone table skips.
  * Generic-but-local names; zone rosters always win. */
 export const BIOME_ROSTERS: Readonly<Record<BiomeId, Readonly<Partial<Record<EnemyKind, RosterSkin>>>>> =
@@ -419,10 +517,13 @@ export function enemyRosterSkin(
     ?? null;
 }
 
-/** Display name: zone family name rotated by lootSeed, else the archetype. */
+/** Display name: rares take their unique name, else the zone family name
+ * rotated by lootSeed, else the archetype. */
 export function enemyDisplayName(
-  enemy: Pick<Enemy, 'kind'> & Partial<Pick<Enemy, 'biome' | 'lootSeed' | 'homeX' | 'homeY' | 'dungeonTheme'>>,
+  enemy: Pick<Enemy, 'kind'> & Partial<Pick<Enemy, 'rank' | 'biome' | 'lootSeed' | 'homeX' | 'homeY' | 'dungeonTheme'>>,
 ): string {
+  const rare = rareEnemyName(enemy);
+  if (rare) return rare;
   const skin = enemyRosterSkin(enemy);
   if (!skin || !skin.names.length) return ENEMY_DEFINITIONS[enemy.kind].name;
   return skin.names[(enemy.lootSeed ?? 0) % skin.names.length];

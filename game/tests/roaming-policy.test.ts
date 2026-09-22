@@ -97,10 +97,11 @@ test('full-size formations stay separated and hidden across camera shapes and he
   }
 });
 
-test('extra members favor ordinary enemies without excluding veterans or elites',()=>{
-  const counts={normal:0,veteran:0,elite:0};
+test('extra members favor ordinary enemies without excluding veterans, elites or rares',()=>{
+  const counts={normal:0,veteran:0,elite:0,rare:0};
   for(let i=0;i<1000;i++)counts[roamingMemberRank(80,12,(i+.5)/1000)]++;
-  assert.deepEqual(counts,{normal:880,veteran:100,elite:20});
+  // Rare is a named-spawn tier carved from the ordinary slice; veterans/elites unchanged.
+  assert.deepEqual(counts,{normal:870,veteran:100,elite:20,rare:10});
 });
 
 test('runtime spawns large regional packs safely but keeps an overlevelled home small',()=>{

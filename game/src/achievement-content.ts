@@ -65,7 +65,9 @@ export type AchievementCriterion =
   /** Consecutive PvP match wins (resets on a loss). */
   | { readonly kind: 'pvpStreak' }
   /** Total achievements earned (meta). */
-  | { readonly kind: 'meta' };
+  | { readonly kind: 'meta' }
+  /** Distinct named rare elites slain (rare rank, unique name per spawn). */
+  | { readonly kind: 'distinctRares' };
 
 export interface AchievementDef {
   readonly id: string;
@@ -87,6 +89,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('pest-control', 'Pest Control', 'Combat', 'Slay 100 pests — Kobold Tunnelers, Murlocs, Gnolls and their ilk.', 'sword', { kind: 'kills' }, 100),
   def('medium-rare', 'Medium Rare', 'Combat', 'Defeat an elite enemy.', 'skull', { kind: 'kills', rank: 'elite' }, 1),
   def('northern-exposure', 'Northern Exposure', 'Combat', 'Defeat 25 elite enemies.', 'skull', { kind: 'kills', rank: 'elite' }, 25),
+  def('bloody-rare', 'Bloody Rare', 'Combat', 'Defeat 10 different named rare enemies.', 'skull', { kind: 'distinctRares' }, 10),
   def('the-fall-of-naxxramas', 'The Fall of Naxxramas', 'Combat', 'Defeat 10 dungeon and wilderness bosses.', 'skull', { kind: 'kills', boss: true }, 10),
   def('briar-matriarch', 'Briar Matriarch', 'Combat', 'Defeat the Briar Matriarch in her lair.', 'leaf', { kind: 'kills', enemyKind: 'briarMatriarch' }, 1),
   def('ashbound-colossus', 'Ashbound Colossus', 'Combat', 'Defeat the Ashbound Colossus.', 'skull', { kind: 'kills', enemyKind: 'ashColossus' }, 1),

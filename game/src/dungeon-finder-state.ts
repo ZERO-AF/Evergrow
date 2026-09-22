@@ -15,6 +15,10 @@ export interface DungeonFinderState {
   queued?: string;
   /** Wall-clock ms when the queue was taken; display/flavor only. */
   queuedAt?: number;
+  /** WotLK Heroic mode (heroic-content.ts): the queued run promotes trash one
+   * rank tier and doubles boss health. Persisted so a resumed queue re-enters
+   * the same difficulty. */
+  heroic?: boolean;
 }
 
 /** CharacterSheet carrying the queue marker until the field lands on the interface. */
@@ -39,6 +43,6 @@ export function queuedDungeon(sheet: CharacterSheet): DungeonFinderEntry | undef
 export function validDungeonFinder(v: unknown): v is DungeonFinderState {
   if (!object(v)) return false;
   const s = v as ObjectValue;
-  if (s.queued === undefined && s.queuedAt === undefined) return true;
-  return text(s.queued, 64) && integer(s.queuedAt, 0);
+  if (s.queued === undefined && s.queuedAt === undefined && s.heroic === undefined) return true;
+  return text(s.queued, 64) && integer(s.queuedAt, 0) && (s.heroic === undefined || s.heroic === true);
 }

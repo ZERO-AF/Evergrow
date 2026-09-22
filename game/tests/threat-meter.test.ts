@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
-import { damageEnemy } from '../src/combat-damage.ts';
 import { ThreatMeter, pullThreshold, threatColor, drawThreatRows, drawThreatList, THREAT_RULES } from '../src/threat-meter.ts';
+import { recordThreat } from '../src/enemy-threat.ts';
 import { combatTextForEvent } from '../src/combat-text.ts';
 import { PROJECTILE_COLORS } from '../src/projectile-colors.ts';
 import type { Ally, CombatEvent, Enemy } from '../src/model.ts';
@@ -23,14 +23,12 @@ function ghoul(s: Simulation, id = 900): Ally {
   return ally;
 }
 
-const hit = (enemy: Enemy, value: number, extra: Partial<Extract<CombatEvent, { type: 'hit' }>> = {}): CombatEvent =>
-  ({ type: 'hit', x: enemy.x, y: enemy.y, angle: 0, value, targetId: enemy.id,
-    remainingHp: Math.max(0, enemy.hp - value), enemyKind: enemy.kind, heavy: false, ...extra });
+
 
 test('threat accumulates on damage and the player holds aggro', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
-  meter.handleEvents([hit(enemy, 40), hit(enemy, 60)]);
-  meter.update(s.enemies);
+  recordThreat(enemy, 'player', 40); recordThreat(enemy, 'player', 60);
+  meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].source, 'player');
@@ -42,19 +40,20 @@ test('threat accumulates on damage and the player holds aggro', () => {
 
 test('overkill counts only the damage actually dealt', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
-  meter.handleEvents([hit(enemy, 500, { actualValue: 120 })]);
-  meter.update(s.enemies);
+  // The damage site feeds actualValue (post-mitigation), not the raw swing.
+  recordThreat(enemy, 'player', 120);
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player)[0].threat, 120);
 });
 
 test('taunt spikes the taunter to the top of the table', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
   const pet = ghoul(s);
-  meter.handleEvents([hit(enemy, 100)]);
-  meter.update(s.enemies);
+  recordThreat(enemy, 'player', 100);
+  meter.update(s.enemies, s.player);
   // Pet growl: taunted with allyId pins the enemy to the pet.
   enemy.taunted = { remaining: 4, allyId: pet.id };
-  meter.update(s.enemies);
+  meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   assert.equal(rows.length, 2);
   // Taunt pegs the pet at the holder's threat and marks it tanking.
@@ -64,8 +63,8 @@ test('taunt spikes the taunter to the top of the table', () => {
   assert.equal(tank.label, 'Ghoul');
   assert.equal(rows.find(r => r.you)!.percent, 1, 'player is tied at 100% after the taunt');
   // Pet keeps attacking: it pulls ahead and the player's share drops.
-  meter.handleEvents([hit(enemy, 50, { allyId: pet.id })]);
-  meter.update(s.enemies);
+  recordThreat(enemy, `ally:${pet.id}`, 50);
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player)[0].threat, 150);
   assert.ok(Math.abs(meter.playerPercent(enemy) - 100 / 150) < 1e-9);
 });
@@ -73,11 +72,11 @@ test('taunt spikes the taunter to the top of the table', () => {
 test('player taunt pegs the player above a tanking pet', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
   const pet = ghoul(s);
-  meter.handleEvents([hit(enemy, 80, { allyId: pet.id }), hit(enemy, 20)]);
-  meter.update(s.enemies);
+  recordThreat(enemy, `ally:${pet.id}`, 80); recordThreat(enemy, 'player', 20);
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player)[0].source, `ally:${pet.id}`);
   enemy.taunted = { remaining: 3 };
-  meter.update(s.enemies);
+  meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   const tank = rows.find(r => r.tanking)!;
   assert.equal(tank.source, 'player');
@@ -85,17 +84,12 @@ test('player taunt pegs the player above a tanking pet', () => {
   assert.equal(tank.tanking, true);
 });
 
-test('pet damage splits threat into its own bucket through the real damage path', () => {
+test('pet damage splits threat into its own bucket', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
   const pet = ghoul(s);
-  const events: CombatEvent[] = [];
-  const context = { player: s.player, enemies: s.enemies, random: () => .9,
-    visible: () => true, emit: (e: CombatEvent) => events.push(e), killed: () => {} };
-  damageEnemy(enemy, 30, 0, true, context, false, undefined, undefined,
-    { critChance: 0, critMultiplier: 1, lifeOnHit: 0, ally: true, allyId: pet.id });
-  damageEnemy(enemy, 70, 0, true, context);
-  meter.handleEvents(events);
-  meter.update(s.enemies);
+  recordThreat(enemy, `ally:${pet.id}`, 30);
+  recordThreat(enemy, 'player', 70);
+  meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   assert.equal(rows.length, 2);
   assert.equal(rows[0].source, 'player');
@@ -111,8 +105,8 @@ test('periodic ticks split across live dots by ownership', () => {
     { id: 'shadow', school: 'shadow', dps: 10, remaining: 5, tick: 0, interval: 1, source: 'player' },
     { id: 'bite', school: 'physical' as never, dps: 30, remaining: 5, tick: 0, interval: 1, source: 'ally', allyId: pet.id },
   ];
-  meter.handleEvents([hit(enemy, 40, { periodic: true })]);
-  meter.update(s.enemies);
+  recordThreat(enemy, 'player', 40, true);
+  meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   assert.equal(rows.find(r => r.source === 'player')!.threat, 10);
   assert.equal(rows.find(r => r.source === `ally:${pet.id}`)!.threat, 30);
@@ -120,17 +114,18 @@ test('periodic ticks split across live dots by ownership', () => {
 
 test('kills and leash resets drop the table', () => {
   const s = sim(), enemy = target(s), meter = new ThreatMeter();
-  meter.handleEvents([hit(enemy, 50)]);
-  meter.update(s.enemies);
+  recordThreat(enemy, 'player', 50);
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player).length, 1);
-  meter.handleEvents([{ type: 'kill', x: enemy.x, y: enemy.y, angle: 0, facing: 0,
-    targetId: enemy.id, remainingHp: 0, enemyKind: enemy.kind }]);
+  enemy.state = 'dead'; enemy.hp = 0;
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player).length, 0);
   // A returning, unaware enemy evades: its table resets like WoW leashing.
-  meter.handleEvents([hit(enemy, 25)]);
-  meter.update(s.enemies);
+  enemy.state = 'idle'; enemy.hp = enemy.maxHp;
+  recordThreat(enemy, 'player', 25);
+  meter.update(s.enemies, s.player);
   enemy.state = 'return'; enemy.awareness = 0;
-  meter.update(s.enemies);
+  meter.update(s.enemies, s.player);
   assert.equal(meter.rows(enemy, s.player).length, 0);
 });
 
@@ -139,9 +134,10 @@ test('the side list ranks engaged enemies by player share', () => {
   const a = target(s), b = s.spawnEnemy('hound', 60, 0)!;
   b.hp = b.maxHp = 10000;
   const pet = ghoul(s);
-  meter.handleEvents([hit(a, 100), hit(b, 40), hit(b, 60, { allyId: pet.id })]);
-  meter.update(s.enemies);
-  const list = meter.list(s.enemies);
+  recordThreat(a, 'player', 100);
+  recordThreat(b, 'player', 40); recordThreat(b, `ally:${pet.id}`, 60);
+  meter.update(s.enemies, s.player);
+  const list = meter.list(s.enemies, s.player);
   assert.equal(list.length, 2);
   assert.equal(list[0].enemy.id, a.id);
   assert.equal(list[0].percent, 1);
@@ -199,8 +195,9 @@ test('threat rows and the side list draw without a DOM', () => {
   const s = sim(), meter = new ThreatMeter();
   const a = target(s), b = s.spawnEnemy('hound', 60, 0)!;
   const pet = ghoul(s);
-  meter.handleEvents([hit(a, 100), hit(b, 40), hit(b, 60, { allyId: pet.id })]);
-  meter.update(s.enemies);
+  recordThreat(a, 'player', 100);
+  recordThreat(b, 'player', 40); recordThreat(b, `ally:${pet.id}`, 60);
+  meter.update(s.enemies, s.player);
   const drawn: string[] = [];
   const ctx = {
     globalAlpha: 1, fillStyle: '', font: '', textAlign: 'left', textBaseline: 'alphabetic',

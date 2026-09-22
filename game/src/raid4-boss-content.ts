@@ -42,6 +42,8 @@ export const raid4BossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string
 
 /** Fight rules. Phase bits 1/2 match the 70% / 40% transition thresholds; bits 4/8/16 are the Vile Spirit packs. */
 export const LICHKING_RULES = Object.freeze({
+  /** Boss chest loot table (raid-loot-content.ts): Tier-10 armor + mount chance. */
+  lootTable: 'lichking' as const,
   phaseTwo: .7, phaseThree: .4,
   leash: 1600, awareness: 720,
   reaperReach: 215, reaperArc: Math.PI * 1.05,         // Soul Reaper (frontal Frostmourne cleave)

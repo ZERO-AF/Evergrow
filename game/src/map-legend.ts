@@ -79,7 +79,7 @@ export class MapLegend {
       c.setTransform(ratio, 0, 0, ratio, 14 * ratio, 14 * ratio); const id = canvas.dataset.icon!;
       if (id === 'player') drawMapPlayerIcon(c, 0, 0, -Math.PI / 2, false);
       else if (id.startsWith('dungeon:')) drawDungeonMapIcon(c, id.slice(8) as DungeonMapIcon, 0, 0);
-      else if (id.startsWith('enemy:')) { c.scale(2.8, 2.8); const kind = id.slice(6); drawMapEnemyIcon(c, 0, 0, kind, kind === 'elite' || kind === 'veteran' ? kind : undefined); }
+      else if (id.startsWith('enemy:')) { c.scale(2.8, 2.8); const kind = id.slice(6); drawMapEnemyIcon(c, 0, 0, kind, kind === 'elite' || kind === 'veteran' || kind === 'rare' ? kind : undefined); }
       else if (id.startsWith('journey:')) drawMapSymbol(c, id === 'journey:search' ? 'search' : 'destination', 9, '#ead7a1', '#101b22');
       else if (id === 'loot') drawLootMapMarker(c, 0, 0, 'legendary', 8);
       else if (Object.hasOwn(POI_DEFINITIONS, id)) drawMapPOIIcon(c, id as POIKind, 0, 0, 9);
