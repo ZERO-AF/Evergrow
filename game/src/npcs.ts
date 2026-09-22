@@ -1,17 +1,21 @@
 import { vendorIdentity } from './vendor-identity.ts';
 import type { SettlementTier } from './settlement-services.ts';
-import type { Building } from './settlements.ts';
+import type { Building, Settlement } from './settlements.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import type { WorldQuery } from './model.ts';
 import { factionAt, factionHostility, raceFaction, type FactionTag } from './factions.ts';
 import type { WowRaceId } from './wow-types.ts';
+import { WORLD_TIME } from './world-time.ts';
 import { GAME_FEATURES } from './game-features.ts';
 
 export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable' | 'battlemaster' | 'pvpVendor';
 export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string;
   /** Faction the NPC serves (factions.ts); opposing-faction players can't use its services. */
-  faction?: FactionTag; }
+  faction?: FactionTag;
+  /** Daily-routine pose (npcs.ts routines): facing angle and gait while strolling.
+   * Undefined means the NPC stands at its building anchor facing south. */
+  angle?: number; moving?: number; }
 export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master', battlemaster: 'Battlemaster', pvpVendor: 'PvP Quartermaster' };
 export const NPC_COLORS=Object.fromEntries(Object.keys(NPC_NAMES).map(role=>[role,vendorIdentity(role)!.color])) as Record<NPCRole,string>;
 export function hashService(value: string): number {
@@ -88,4 +92,89 @@ export function focusedBattlemaster(masters: readonly Battlemaster[], player: { 
   pointer?: { x: number; y: number }): Battlemaster | null {
   return masters.filter(master => canInteractNPC(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
     .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+}
+
+// ── Daily routines (wayfinder world-t10) ─────────────────────────────────────
+// Presentation-only strolling: a pure function of (npc id, town, world time).
+// No combat, save, or collision state is touched — the same inputs always give
+// the same pose, so routines are deterministic per NPC id and bounded to the
+// town's own fixtures.
+
+/** Routine waypoints derived from the NPC's settlement: home is the service
+ * anchor, work/wander/hearth are seeded picks among the town's fixtures. */
+export interface NPCRoutine {
+  readonly home: { readonly x: number; readonly y: number };
+  readonly stops: readonly { readonly x: number; readonly y: number }[];
+}
+
+/** Daily schedule as fractions of the world day (WORLD_TIME.daySeconds):
+ * work → midday wander → evening at the hearth → home for the night. */
+const ROUTINE_SLOTS = Object.freeze([
+  { start: 0 / 24, stop: 0 },   // 00:00–07:00 home
+  { start: 7 / 24, stop: 1 },   // 07:00–12:00 work spot
+  { start: 12 / 24, stop: 2 },  // 12:00–17:00 wander
+  { start: 17 / 24, stop: 3 },  // 17:00–21:00 hearth
+  { start: 21 / 24, stop: 0 },  // 21:00–24:00 home
+] as const);
+const ROUTINE_SPEED = 12; // world units per second — a visible stroll, not a sprint
+
+const routineSpot = (town: Settlement, kinds: readonly string[], seed: number, salt: number) => {
+  const spots = town.buildings.filter(b => kinds.includes(b.kind)).map(b => b.door);
+  return spots.length ? spots[(seed + salt * 7) % spots.length] : null;
+};
+
+/** Deterministic waypoints for one NPC inside its settlement. */
+export function npcRoutine(npc: TownNPC, town: Settlement): NPCRoutine {
+  const home = { x: npc.x, y: npc.y };
+  const seed = npc.seed;
+  const work = routineSpot(town, ['supplies', 'cart', 'rack', 'well'], seed, 1) ?? home;
+  const wander = routineSpot(town, ['well', 'cart', 'supplies', 'rack'], seed, 2) ?? home;
+  const hearth = routineSpot(town, ['firepit', 'notice', 'lantern'], seed, 3) ?? home;
+  // Small seeded jitter keeps neighbours from stacking on the same fixture door;
+  // biased outward (+y) so waypoints stay clear of building faces.
+  const jitter = (p: { x: number; y: number }, salt: number) => ({
+    x: p.x + ((seed >>> (salt * 3)) % 13) - 6,
+    y: p.y + 2 + ((seed >>> (salt * 3 + 2)) % 9),
+  });
+  return { home, stops: [home, jitter(work, 1), jitter(wander, 2), jitter(hearth, 3)] };
+}
+
+/** Position/pose of `npc` at `time` (sim seconds) following its daily routine.
+ * Travel between stops is linear at ROUTINE_SPEED; leftover slot time is dwell. */
+export function npcRoutinePosition(npc: TownNPC, town: Settlement, time: number): { x: number; y: number; angle: number; moving: number } {
+  const { stops } = npcRoutine(npc, town);
+  const day = WORLD_TIME.daySeconds;
+  // Per-NPC phase (±45 min) staggers schedules inside one town.
+  const phase = ((npc.seed % 91) - 45) * 60;
+  const t = ((time + phase) % day + day) % day;
+  const frac = t / day;
+  let slot = ROUTINE_SLOTS.length - 1;
+  for (let i = 0; i < ROUTINE_SLOTS.length; i++)
+    if (frac >= ROUTINE_SLOTS[i].start) slot = i;
+  const here = stops[ROUTINE_SLOTS[slot].stop];
+  const nextStart = slot === ROUTINE_SLOTS.length - 1 ? 1 : ROUTINE_SLOTS[slot + 1].start;
+  const slotLen = (nextStart - ROUTINE_SLOTS[slot].start) * day;
+  const dest = stops[ROUTINE_SLOTS[(slot + 1) % ROUTINE_SLOTS.length].stop];
+  const travel = Math.hypot(dest.x - here.x, dest.y - here.y) / ROUTINE_SPEED;
+  const dwell = Math.max(0, slotLen - travel);
+  const into = frac * day - ROUTINE_SLOTS[slot].start * day;
+  if (into < dwell || travel <= 0)
+    return { x: here.x, y: here.y, angle: Math.atan2(town.y - here.y, town.x - here.x), moving: 0 };
+  const u = Math.min(1, (into - dwell) / travel);
+  return { x: here.x + (dest.x - here.x) * u, y: here.y + (dest.y - here.y) * u,
+    angle: Math.atan2(dest.y - here.y, dest.x - here.x), moving: .3 };
+}
+
+/** The NPC's settlement: the town whose building list contains its anchor. */
+export function npcTown(world: WorldQuery & { getSettlements?(x: number, y: number, w: number, h: number): readonly Settlement[] }, npc: TownNPC): Settlement | undefined {
+  return (world.getSettlements?.(npc.x - 1400, npc.y - 1400, 2800, 2800) ?? [])
+    .find(town => town.buildings.some(b => b.id === npc.buildingId));
+}
+
+/** `npc` moved to its routine position at `time`; unchanged when the town is
+ * unknown or `time` is undefined (map views, tests, static contexts). */
+export function positionedNPC<T extends TownNPC>(npc: T, town: Settlement | undefined, time: number | undefined): T {
+  if (town === undefined || time === undefined || npc.role === 'stash') return npc;
+  const pose = npcRoutinePosition(npc, town, time);
+  return { ...npc, x: pose.x, y: pose.y, angle: pose.angle, moving: pose.moving };
 }

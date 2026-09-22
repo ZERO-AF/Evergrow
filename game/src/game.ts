@@ -53,7 +53,7 @@ import { townPortalAnchor, withinPortalReach, portalMapMarkers, type PortalAncho
 import { portalActionMode, portalDestinations } from './portal-destination.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import { ServicePanel } from './service-panel.ts';
-import { buildingNPC, focusNPC, canInteractNPC, focusedStableMaster, stableMastersNear, battlemastersNear, focusedBattlemaster, type TownNPC, type StableMaster, type Battlemaster } from './npcs.ts';
+import { buildingNPC, focusNPC, canInteractNPC, focusedStableMaster, stableMastersNear, battlemastersNear, focusedBattlemaster, positionedNPC, npcTown, type TownNPC, type StableMaster, type Battlemaster } from './npcs.ts';
 import type { ServiceQuote } from './commerce.ts';
 import { StablePanel, type StableActions } from './stable-panel.ts';
 import { PvpPanel, type PvpPanelActions } from './pvp-panel.ts';
@@ -369,20 +369,20 @@ export class Game {
         close: () => this.resume(), trade: quote => this.trade(quote),
         sort: (target, tab) => this.characterAction(target === 'storage' ? { type: 'sortStorage', tab } : { type: 'sortInventory', mode: 'compact' }),
         repair: () => this.durable(async () => {
-          const npc = this.activeNPC;
+          const npc = this.activeNPC ? this.liveNPC(this.activeNPC) : null;
           if (!npc) return { ok: false, message: 'This service is no longer in reach.' };
           const result = await repairInteract(this.sim, npc, c => this.persistTravel(c));
           if (result.ok) this.servicePanel.open(this.sim.player, npc);
           return { ok: result.ok, message: result.message ?? '' };
         }, { ok: false, message: 'Saving the previous action…' }),
         buyGlyph: glyphId => this.durable(async () => {
-          const npc = this.activeNPC;
+          const npc = this.activeNPC ? this.liveNPC(this.activeNPC) : null;
           if (!npc) return { ok: false, message: 'This service is no longer in reach.' };
           const result = await executeGlyphBuy(this.sim, npc, glyphId, c => this.persistTravel(c));
           return { ok: result.ok, message: result.message ?? '' };
         }, { ok: false, message: 'Saving the previous action…' }),
         buyBag: bagId => this.durable(async () => {
-          const npc = this.activeNPC, p = this.sim.player;
+          const npc = this.activeNPC ? this.liveNPC(this.activeNPC) : null, p = this.sim.player;
           if (!npc || !canInteractNPC(npc, p, this.world)) return { ok: false, message: 'This service is no longer in reach.' };
           const checkpoint = this.sim.captureCheckpoint();
           const result = buyBag(checkpoint.character, npc, bagId);
@@ -1166,6 +1166,11 @@ export class Game {
     if (this.phase === 'character' || this.phase === 'skills') this.resume();
   }
 
+  /** A town NPC at its current daily-routine position (world-t10). */
+  private liveNPC<T extends TownNPC>(npc: T): T {
+    return positionedNPC(npc, npcTown(this.world, npc), this.sim.time);
+  }
+
   private interact(pointer?: {
       x: number;
       y: number;
@@ -1289,26 +1294,26 @@ export class Game {
               }, undefined);
               return true;
           }
-          const stableMaster = focusedStableMaster(stableMastersNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer);
+          const stableMaster = focusedStableMaster(stableMastersNear(this.world, p.x - 160, p.y - 160, 320, 320).map(m => this.liveNPC(m)), p, this.world, pointer);
           if (stableMaster) {
               this.activeStableMaster = stableMaster;
               this.panels.open('stable');
               return true;
           }
-          const battlemaster = focusedBattlemaster(battlemastersNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer);
+          const battlemaster = focusedBattlemaster(battlemastersNear(this.world, p.x - 160, p.y - 160, 320, 320).map(m => this.liveNPC(m)), p, this.world, pointer);
           if (battlemaster) {
               this.activeBattlemaster = battlemaster;
               this.panels.open('arena');
               return true;
           }
-          const pvpVendor = focusedPvpVendor(pvpVendorsNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer);
+          const pvpVendor = focusedPvpVendor(pvpVendorsNear(this.world, p.x - 160, p.y - 160, 320, 320).map(v => this.liveNPC(v)), p, this.world, pointer);
           if (pvpVendor) {
               this.activePvpVendor = pvpVendor;
               this.panels.open('pvpVendor');
               return true;
           }
       }
-      const npcs = this.world.getBuildings(p.x - 220, p.y - 220, 440, 440).map(buildingNPC).filter((npc): npc is TownNPC => npc !== null);
+      const npcs = this.world.getBuildings(p.x - 220, p.y - 220, 440, 440).map(buildingNPC).filter((npc): npc is TownNPC => npc !== null).map(npc => this.liveNPC(npc));
       const npc = focusNPC(npcs, p, this.world, pointer);
       if (!npc) {
           const site = focusEvent(eventInteractionSites(this.world.getEventSites(p.x - 100, p.y - 100, 200, 200), this.sim.eventState), p, this.world, pointer);
@@ -1476,7 +1481,8 @@ export class Game {
 
   private async trade(quote: ServiceQuote): Promise<{ ok: boolean; message: string }> {
     return this.durable(async () => {
-    const npc = this.activeNPC, p = this.sim.player;
+    const stored = this.activeNPC, p = this.sim.player;
+    const npc = stored ? this.liveNPC(stored) : null;
     if (this.phase !== 'service' || !npc || !this.session.active || !canInteractNPC(npc, p, this.world))
       return { ok: false, message: 'This service is no longer in reach.' };
     let progress=p.chronicle;

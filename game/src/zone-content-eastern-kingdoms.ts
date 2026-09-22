@@ -32,9 +32,9 @@ defineZoneContent({
   roads: [
     // Thalassian Way: Silvermoon → Falconwing → Fairbreeze → Ghostlands gate.
     { id: 'thalassian-way', main: true, width: 40, points: [
-      [1226000, 10000], [1214000, 22000], [1210400, 28800], [1208000, 40000]] },
+      [1286000,55000], [1274000,73000], [1270400,83200], [1268000,100000]] },
     // Sunsail Anchorage spur west.
-    { id: 'sunsail-spur', width: 26, points: [[1214000, 22000], [1184000, 24000]] },
+    { id: 'sunsail-spur', width: 26, points: [[1274000,73000], [1244000,76000]] },
   ],
   towns: [
     { name: 'Silvermoon City', nx: .55, ny: .25, faction: 'horde', tier: 'capital' },
@@ -68,6 +68,49 @@ defineZoneContent({
 });
 
 defineZoneContent({
+  id: 'quel-danas',
+  palette: 'sunlit elven isle',
+  props: [
+    { kind: 'autumnTree', weight: 30 }, { kind: 'flowers', weight: 20 },
+    { kind: 'fern', weight: 14 }, { kind: 'rock', weight: 12 },
+    { kind: 'mushrooms', weight: 10 }, { kind: 'leafPile', weight: 8 }, { kind: 'stump', weight: 6 },
+  ],
+  water: [
+    // The isle is ringed by the North Sea.
+    { kind: 'lake', nx: .5, ny: .02, nrx: .6, nry: .06, depth: .9 },
+    { kind: 'lake', nx: .5, ny: .98, nrx: .6, nry: .06, depth: .9 },
+  ],
+  roads: [
+    // Sun's Reach → Magisters' Terrace → Sunwell Plateau approach.
+    { id: 'dawnstar-road', main: true, width: 40, points: [
+      [1280000, 18000], [1282000, 12000], [1284800, 7200]] },
+    // South shore road down to the Eversong crossing.
+    { id: 'quel-danas-south', width: 30, points: [[1280000, 18000], [1280000, 40000]] },
+  ],
+  towns: [
+    { name: 'Sun\'s Reach', nx: .5, ny: .45, faction: 'neutral', tier: 'town' },
+  ],
+  camps: [
+    { kind: 'camp', name: 'Dawnblade Encampment', nx: .3, ny: .55, members: ['caster', 'archer', 'brute'] },
+    { kind: 'corruptedGrove', name: 'The Dead Scar (north)', nx: .42, ny: .7, members: ['emberAcolyte', 'wisp'] },
+  ],
+  spawns: [
+    { kind: 'caster', weight: 28 }, { kind: 'archer', weight: 24 }, { kind: 'wisp', weight: 18 },
+    { kind: 'brute', weight: 16 }, { kind: 'emberAcolyte', weight: 14 },
+  ],
+  pois: [
+    { name: 'Sun\'s Reach Harbor', kind: 'landmark', nx: .5, ny: .8, description: 'Shattered Sun staging harbor on the south shore.' },
+    { name: 'Magisters\' Terrace', kind: 'watchtower', nx: .55, ny: .3, description: 'Kael\'thas\'s reclaimed sanctum.' },
+    { name: 'Sunwell Plateau', kind: 'landmark', nx: .62, ny: .18, description: 'The restored Sunwell, heart of Quel\'Danas.' },
+    { name: 'Dawning Square', kind: 'crossing', nx: .45, ny: .6, description: 'Contested square south of Sun\'s Reach.' },
+  ],
+  entrances: [
+    { name: 'Magisters\' Terrace', nx: .55, ny: .3, levelMin: 70, levelMax: 70, kind: 'dungeon', theme: 'astral' },
+    { name: 'Sunwell Plateau', nx: .62, ny: .18, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'astral' },
+  ],
+});
+
+defineZoneContent({
   id: 'ghostlands',
   palette: 'dead haunted forest',
   props: [
@@ -80,8 +123,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'ghostlands-road', main: true, width: 36, points: [
-      [1208000, 40000], [1214000, 47000], [1218000, 54000], [1218000, 60000]] },
-    { id: 'zulaman-spur', width: 26, points: [[1218000, 54000], [1238000, 55000]] },
+      [1268000,100000], [1274000,121000], [1278000,142000], [1267667,160000]] },
+    { id: 'zulaman-spur', width: 26, points: [[1278000,142000], [1298000,145000]] },
   ],
   towns: [
     { name: 'Tranquillien', nx: .45, ny: .35, faction: 'horde', tier: 'town' },
@@ -110,7 +153,7 @@ defineZoneContent({
     { name: 'Bleeding Ziggurat', kind: 'necropolis', nx: .34, ny: .48, description: 'Scourge ziggurat near the Dead Scar.' },
   ],
   entrances: [
-    { name: 'Zul\'Aman', nx: .65, ny: .75, levelMin: 10, levelMax: 20, kind: 'raid', theme: 'rootbound' },
+    { name: 'Zul\'Aman', nx: .65, ny: .75, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'rootbound' },
   ],
 });
 
@@ -128,9 +171,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'tirisfal-road', main: true, width: 38, points: [
-      [1000000, 93000], [1020000, 94000], [1044000, 93000], [1068000, 96000], [1080000, 96000]] },
-    { id: 'undercity-spur', width: 30, points: [[1044000, 93000], [1044000, 81000]] },
-    { id: 'monastery-road', width: 26, points: [[1044000, 81000], [1056000, 79000], [1064000, 75000]] },
+      [1000000,193000], [1020000,194000], [1044000,193000], [1068000,196000], [1080000,196000]] },
+    { id: 'undercity-spur', width: 30, points: [[1044000,193000], [1044000,181000]] },
+    { id: 'monastery-road', width: 26, points: [[1044000,181000], [1056000,179000], [1064000,175000]] },
   ],
   towns: [
     { name: 'Undercity', nx: .55, ny: .35, faction: 'horde', tier: 'capital' },
@@ -162,7 +205,7 @@ defineZoneContent({
     { name: 'The Bulwark Crossing', kind: 'crossing', nx: .88, ny: .6, description: 'Fortified pass into the Western Plaguelands.' },
   ],
   entrances: [
-    { name: 'Scarlet Monastery', nx: .8, ny: .25, levelMin: 1, levelMax: 10, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Scarlet Monastery', nx: .8, ny: .25, levelMin: 26, levelMax: 45, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -179,9 +222,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'plaguelands-road', main: true, width: 36, points: [
-      [1080000, 96000], [1092000, 96000], [1116000, 90000], [1140000, 90000], [1160000, 90000]] },
-    { id: 'chillwind-spur', width: 26, points: [[1116000, 90000], [1116000, 111000], [1116000, 120000]] },
-    { id: 'caer-darrow-causeway', width: 22, points: [[1130000, 96000], [1136000, 105000]] },
+      [1080000,196000], [1098000,196000], [1134000,190000], [1170000,190000], [1200000,190000]] },
+    { id: 'chillwind-spur', width: 26, points: [[1134000,190000], [1134000,211000], [1140000,300000]] },
+    { id: 'caer-darrow-causeway', width: 22, points: [[1155000,196000], [1164000,205000]] },
   ],
   towns: [
     { name: 'Chillwind Camp', nx: .45, ny: .85, faction: 'alliance', tier: 'outpost' },
@@ -211,7 +254,7 @@ defineZoneContent({
     { name: 'Ruins of Andorhal', kind: 'landmark', nx: .42, ny: .7, description: 'Broken clock tower and scorched streets.' },
   ],
   entrances: [
-    { name: 'Scholomance', nx: .7, ny: .75, levelMin: 51, levelMax: 58, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Scholomance', nx: .7, ny: .75, levelMin: 55, levelMax: 60, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -229,8 +272,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'plague-road', main: true, width: 36, points: [
-      [1160000, 90000], [1180000, 88000], [1196000, 72000], [1210000, 85000], [1250000, 93000]] },
-    { id: 'northpass-spur', width: 26, points: [[1210000, 85000], [1220000, 60000]] },
+      [1200000,190000], [1223333,188000], [1242000,172000], [1258333,185000], [1305000,193000]] },
+    { id: 'northpass-spur', width: 26, points: [[1258333,185000], [1270000,160000]] },
   ],
   towns: [
     { name: 'Light\'s Hope Chapel', nx: .75, ny: .55, faction: 'neutral', tier: 'town' },
@@ -261,7 +304,7 @@ defineZoneContent({
     { name: 'Thondroril Crossing', kind: 'crossing', nx: .05, ny: .5, description: 'Western river crossing.' },
   ],
   entrances: [
-    { name: 'Stratholme', nx: .3, ny: .2, levelMin: 53, levelMax: 60, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Stratholme', nx: .3, ny: .2, levelMin: 55, levelMax: 60, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -281,8 +324,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'silverpine-road', main: true, width: 34, points: [
-      [1030000, 120000], [1027000, 147000], [1021000, 165000], [1035000, 180000]] },
-    { id: 'pyrewood-spur', width: 24, points: [[1021000, 165000], [1014000, 172000]] },
+      [1040000,220000], [1036000,256000], [1028000,280000], [1046667,300000]] },
+    { id: 'pyrewood-spur', width: 24, points: [[1028000,280000], [1018667,289333]] },
   ],
   towns: [
     { name: 'The Sepulcher', nx: .45, ny: .45, faction: 'horde', tier: 'town' },
@@ -312,7 +355,7 @@ defineZoneContent({
     { name: 'Beren\'s Peril', kind: 'beastDen', nx: .6, ny: .72, description: 'Worgen cave in the southern hills.' },
   ],
   entrances: [
-    { name: 'Shadowfang Keep', nx: .35, ny: .75, levelMin: 10, levelMax: 20, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Shadowfang Keep', nx: .35, ny: .75, levelMin: 18, levelMax: 25, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -338,9 +381,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'hillsbrad-road', main: true, width: 36, points: [
-      [1060000, 150000], [1080000, 145000], [1108000, 141000], [1120000, 148000], [1140000, 150000]] },
-    { id: 'southshore-road', width: 28, points: [[1108000, 141000], [1100000, 168000], [1100000, 172800]] },
-    { id: 'alterac-pass', width: 26, points: [[1095000, 141000], [1092000, 180000]] },
+      [1000000,320000], [1050000,316667], [1120000,314000], [1150000,318667], [1200000,320000]] },
+    { id: 'southshore-road', width: 28, points: [[1120000,314000], [1100000,332000], [1100000,335200]] },
+    { id: 'alterac-pass', width: 26, points: [[1087500,314000], [1104000,300000]] },
   ],
   towns: [
     { name: 'Southshore', nx: .5, ny: .8, faction: 'alliance', tier: 'town' },
@@ -400,8 +443,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'hinterlands-road', main: true, width: 34, points: [
-      [1178000, 150000], [1200000, 152000], [1220000, 155000], [1240000, 162000], [1256000, 168000]] },
-    { id: 'hinterlands-south', width: 26, points: [[1200000, 152000], [1190000, 180000]] },
+      [1169000,260000], [1180000,262667], [1190000,266667], [1200000,276000], [1208000,284000]] },
+    { id: 'hinterlands-south', width: 26, points: [[1180000,262667], [1250000,300000]] },
   ],
   towns: [
     { name: 'Aerie Peak', nx: .15, ny: .5, faction: 'alliance', tier: 'town' },
@@ -459,8 +502,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'alterac-road', main: true, width: 32, points: [
-      [1092000, 180000], [1092000, 198000], [1100000, 210000], [1105000, 220000]] },
-    { id: 'strahnbrad-spur', width: 24, points: [[1092000, 198000], [1115000, 190000]] },
+      [1104000,220000], [1104000,256000], [1110000,280000], [1226667,360000]] },
+    { id: 'strahnbrad-spur', width: 24, points: [[1104000,256000], [1121250,240000]] },
   ],
   towns: [
     { name: 'Alterac Ruins', nx: .4, ny: .45, faction: 'neutral', tier: 'village' },
@@ -510,8 +553,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'arathi-road', main: true, width: 34, points: [
-      [1140000, 196000], [1176000, 196000], [1197600, 194000], [1220000, 196000]] },
-    { id: 'thandol-approach', width: 28, points: [[1176000, 196000], [1170000, 220000]] },
+      [1200000,324000], [1236000,324000], [1257600,321000], [1280000,324000]] },
+    { id: 'thandol-approach', width: 28, points: [[1236000,324000], [1230000,360000]] },
   ],
   towns: [
     { name: 'Refuge Pointe', nx: .45, ny: .4, faction: 'alliance', tier: 'outpost' },
@@ -561,8 +604,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'wetlands-road', main: true, width: 32, points: [
-      [1130000, 220000], [1120000, 240000], [1109000, 242000], [1106000, 242000]] },
-    { id: 'loch-road', width: 28, points: [[1120000, 240000], [1120000, 260000]] },
+      [1260000,360000], [1246667,390000], [1232000,393000], [1228000,393000]] },
+    { id: 'loch-road', width: 28, points: [[1246667,390000], [1233333,420000]] },
   ],
   towns: [
     { name: 'Menethil Harbor', nx: .15, ny: .55, faction: 'alliance', tier: 'town' },
@@ -620,9 +663,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'dun-morogh-road', main: true, width: 36, points: [
-      [1073000, 238000], [1067000, 253000], [1080000, 258000], [1100000, 256000]] },
-    { id: 'gnomeregan-spur', width: 24, points: [[1067000, 253000], [1055000, 244000]] },
-    { id: 'searing-pass', width: 26, points: [[1075000, 260000], [1070000, 280000]] },
+      [1146000,418000], [1134000,433000], [1160000,438000], [1220000,414000]] },
+    { id: 'gnomeregan-spur', width: 24, points: [[1134000,433000], [1110000,424000]] },
+    { id: 'searing-pass', width: 26, points: [[1150000,440000], [1155000,460000]] },
   ],
   towns: [
     { name: 'Ironforge', nx: .55, ny: .3, faction: 'alliance', tier: 'capital' },
@@ -655,7 +698,7 @@ defineZoneContent({
     { name: 'The Tundrid Hills', kind: 'landmark', nx: .65, ny: .6, description: 'Snowy hills east of Kharanos.' },
   ],
   entrances: [
-    { name: 'Gnomeregan', nx: .25, ny: .4, levelMin: 1, levelMax: 10, kind: 'dungeon', theme: 'foundry' },
+    { name: 'Gnomeregan', nx: .25, ny: .4, levelMin: 24, levelMax: 35, kind: 'dungeon', theme: 'foundry' },
   ],
 });
 
@@ -680,8 +723,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'loch-road', main: true, width: 32, points: [
-      [1100000, 276000], [1121000, 280000], [1130000, 290000], [1130000, 300000]] },
-    { id: 'wetlands-pass', width: 26, points: [[1121000, 280000], [1120000, 260000]] },
+      [1200000,436000], [1235000,440000], [1250000,450000], [1213333,460000]] },
+    { id: 'wetlands-pass', width: 26, points: [[1235000,440000], [1233333,420000]] },
   ],
   towns: [
     { name: 'Thelsamar', nx: .35, ny: .5, faction: 'alliance', tier: 'town' },
@@ -730,8 +773,8 @@ defineZoneContent({
   },
   roads: [
     { id: 'gorge-road', main: true, width: 30, points: [
-      [1070000, 280000], [1074000, 292000], [1078000, 305000], [1080000, 320000]] },
-    { id: 'badlands-cut', width: 24, points: [[1078000, 305000], [1100000, 300000]] },
+      [1155000,460000], [1161000,478000], [1167000,497500], [1160000,520000]] },
+    { id: 'badlands-cut', width: 24, points: [[1167000,497500], [1200000,460000]] },
   ],
   towns: [
     { name: 'Thorium Point', nx: .35, ny: .3, faction: 'neutral', tier: 'outpost' },
@@ -777,10 +820,10 @@ defineZoneContent({
   },
   roads: [
     { id: 'badlands-road', main: true, width: 30, points: [
-      [1126000, 318000], [1140000, 320000], [1150000, 315000], [1160000, 310000]] },
-    { id: 'uldaman-spur', width: 24, points: [[1140000, 320000], [1147000, 310000]] },
-    { id: 'loch-pass', width: 26, points: [[1140000, 320000], [1130000, 300000]] },
-    { id: 'gorge-cut', width: 24, points: [[1126000, 318000], [1120000, 305000]] },
+      [1208000,487000], [1226667,490000], [1240000,482500], [1253333,475000]] },
+    { id: 'uldaman-spur', width: 24, points: [[1226667,490000], [1236000,475000]] },
+    { id: 'loch-pass', width: 26, points: [[1226667,490000], [1213333,460000]] },
+    { id: 'gorge-cut', width: 24, points: [[1208000,487000], [1200000,467500]] },
   ],
   towns: [
     { name: 'Kargath', nx: .1, ny: .45, faction: 'horde', tier: 'outpost' },
@@ -809,7 +852,7 @@ defineZoneContent({
     { name: 'Crypt of the Ancients', kind: 'graveyard', nx: .55, ny: .5, description: 'Trogg-infested barrow.' },
   ],
   entrances: [
-    { name: 'Uldaman', nx: .45, ny: .25, levelMin: 35, levelMax: 45, kind: 'dungeon', theme: 'astral' },
+    { name: 'Uldaman', nx: .45, ny: .25, levelMin: 36, levelMax: 44, kind: 'dungeon', theme: 'astral' },
   ],
 });
 
@@ -834,8 +877,8 @@ defineZoneContent({
   },
   roads: [
     { id: 'steppes-road', main: true, width: 32, points: [
-      [1080000, 320000], [1096000, 332000], [1090000, 340000], [1108000, 348000], [1090000, 360000]] },
-    { id: 'blackrock-approach', width: 26, points: [[1090000, 340000], [1078000, 336000]] },
+      [1160000,520000], [1176000,532000], [1170000,540000], [1188000,548000], [1180000,560000]] },
+    { id: 'blackrock-approach', width: 26, points: [[1170000,540000], [1158000,536000]] },
   ],
   towns: [
     { name: 'Morgan\'s Vigil', nx: .8, ny: .7, faction: 'alliance', tier: 'outpost' },
@@ -862,11 +905,11 @@ defineZoneContent({
     { name: 'Blackrock Pass', kind: 'crossing', nx: .65, ny: .85, description: 'Southern pass toward Redridge.' },
   ],
   entrances: [
-    { name: 'Blackrock Depths', nx: .3, ny: .4, levelMin: 50, levelMax: 58, kind: 'dungeon', theme: 'blackrock' },
-    { name: 'Lower Blackrock Spire', nx: .3, ny: .42, levelMin: 50, levelMax: 58, kind: 'dungeon', theme: 'blackrock' },
-    { name: 'Upper Blackrock Spire', nx: .3, ny: .44, levelMin: 50, levelMax: 58, kind: 'raid', theme: 'blackrock' },
-    { name: 'Molten Core', nx: .28, ny: .4, levelMin: 50, levelMax: 58, kind: 'raid', theme: 'blackrock' },
-    { name: 'Blackwing Lair', nx: .32, ny: .42, levelMin: 50, levelMax: 58, kind: 'raid', theme: 'blackrock' },
+    { name: 'Blackrock Depths', nx: .3, ny: .4, levelMin: 48, levelMax: 60, kind: 'dungeon', theme: 'blackrock' },
+    { name: 'Lower Blackrock Spire', nx: .3, ny: .42, levelMin: 55, levelMax: 60, kind: 'dungeon', theme: 'blackrock' },
+    { name: 'Upper Blackrock Spire', nx: .3, ny: .44, levelMin: 58, levelMax: 60, kind: 'raid', theme: 'blackrock' },
+    { name: 'Molten Core', nx: .28, ny: .4, levelMin: 60, levelMax: 60, kind: 'raid', theme: 'blackrock' },
+    { name: 'Blackwing Lair', nx: .32, ny: .42, levelMin: 60, levelMax: 60, kind: 'raid', theme: 'blackrock' },
   ],
 });
 
@@ -888,10 +931,10 @@ defineZoneContent({
   ],
   roads: [
     { id: 'elwynn-road', main: true, width: 40, points: [
-      [1021000, 289000], [1024000, 300000], [1027000, 316000], [1040000, 318000], [1060000, 320000]] },
-    { id: 'westfall-road', width: 28, points: [[1027000, 316000], [1010000, 325000], [1000000, 330000]] },
-    { id: 'duskwood-road', width: 28, points: [[1027000, 316000], [1025000, 340000]] },
-    { id: 'northshire-spur', width: 24, points: [[1024000, 300000], [1035000, 295000]] },
+      [1075000,569000], [1080000,580000], [1085000,596000], [1106667,598000], [1140000,590000]] },
+    { id: 'westfall-road', width: 28, points: [[1085000,596000], [1056667,605000], [1040000,610000]] },
+    { id: 'duskwood-road', width: 28, points: [[1085000,596000], [1016667,560000]] },
+    { id: 'northshire-spur', width: 24, points: [[1080000,580000], [1098333,575000]] },
   ],
   towns: [
     { name: 'Stormwind City', nx: .35, ny: .15, faction: 'alliance', tier: 'capital' },
@@ -927,7 +970,7 @@ defineZoneContent({
     { name: 'Stonefield Farm', kind: 'hamlet', nx: .35, ny: .78, description: 'Farm on the western river.' },
   ],
   entrances: [
-    { name: 'The Stockade', nx: .38, ny: .18, levelMin: 1, levelMax: 10, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'The Stockade', nx: .38, ny: .18, levelMin: 22, levelMax: 30, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -945,9 +988,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'westfall-road', main: true, width: 34, points: [
-      [1000000, 330000], [1015000, 350000], [1033000, 367000], [1030000, 385000], [1030000, 400000]] },
-    { id: 'moonbrook-spur', width: 26, points: [[1033000, 367000], [1024000, 385000]] },
-    { id: 'redridge-road', width: 26, points: [[1033000, 367000], [1060000, 375000]] },
+      [1040000,610000], [1010000,570000], [1022000,587000], [1020000,605000], [1080000,620000]] },
+    { id: 'moonbrook-spur', width: 26, points: [[1022000,587000], [1016000,605000]] },
+    { id: 'redridge-road', width: 26, points: [[1022000,587000], [1040000,590000]] },
   ],
   towns: [
     { name: 'Sentinel Hill', nx: .55, ny: .45, faction: 'alliance', tier: 'outpost' },
@@ -978,7 +1021,7 @@ defineZoneContent({
     { name: 'Longshore', kind: 'landmark', nx: .28, ny: .6, description: 'Murloc-infested coastline.' },
   ],
   entrances: [
-    { name: 'The Deadmines', nx: .4, ny: .75, levelMin: 10, levelMax: 20, kind: 'dungeon', theme: 'foundry' },
+    { name: 'The Deadmines', nx: .4, ny: .75, levelMin: 15, levelMax: 21, kind: 'dungeon', theme: 'foundry' },
   ],
 });
 
@@ -1004,9 +1047,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'redridge-road', main: true, width: 34, points: [
-      [1060000, 375000], [1078000, 382000], [1100000, 384000], [1120000, 385000]] },
-    { id: 'lakeshire-crossing', width: 26, points: [[1078000, 382000], [1080000, 400000]] },
-    { id: 'burning-pass', width: 26, points: [[1090000, 375000], [1090000, 360000]] },
+      [1140000,582500], [1164000,593000], [1193333,596000], [1240000,657500]] },
+    { id: 'lakeshire-crossing', width: 26, points: [[1164000,593000], [1186667,620000]] },
+    { id: 'burning-pass', width: 26, points: [[1180000,582500], [1180000,560000]] },
   ],
   towns: [
     { name: 'Lakeshire', nx: .3, ny: .55, faction: 'alliance', tier: 'town' },
@@ -1051,8 +1094,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'sorrows-road', main: true, width: 32, points: [
-      [1120000, 385000], [1147000, 382000], [1150000, 395000], [1150000, 400000]] },
-    { id: 'temple-causeway', width: 24, points: [[1147000, 382000], [1162000, 382000]] },
+      [1240000,657500], [1285000,653000], [1290000,672500], [1270000,680000]] },
+    { id: 'temple-causeway', width: 24, points: [[1285000,653000], [1310000,653000]] },
   ],
   towns: [
     { name: 'Stonard', nx: .45, ny: .55, faction: 'horde', tier: 'town' },
@@ -1080,7 +1123,7 @@ defineZoneContent({
     { name: 'The Bloodmire', kind: 'corruptedGrove', nx: .5, ny: .3, description: 'Fel-tainted bog.' },
   ],
   entrances: [
-    { name: 'Temple of Atal\'Hakkar', nx: .7, ny: .55, levelMin: 35, levelMax: 45, kind: 'dungeon', theme: 'drowned' },
+    { name: 'Temple of Atal\'Hakkar', nx: .7, ny: .55, levelMin: 50, levelMax: 60, kind: 'dungeon', theme: 'drowned' },
   ],
 });
 
@@ -1097,9 +1140,9 @@ defineZoneContent({
   ],
   roads: [
     { id: 'duskwood-road', main: true, width: 34, points: [
-      [1025000, 400000], [1035000, 415000], [1045000, 427000], [1055000, 430000], [1060000, 430000]] },
-    { id: 'raven-hill-road', width: 28, points: [[1045000, 427000], [1030000, 432000], [1012000, 433000], [1000000, 435000]] },
-    { id: 'stranglethorn-road', width: 28, points: [[1030000, 432000], [1030000, 460000]] },
+      [1066667,620000], [1093333,635000], [1120000,647000], [1146667,650000], [1160000,665000]] },
+    { id: 'raven-hill-road', width: 28, points: [[1120000,647000], [1080000,652000], [1032000,653000], [1000000,655000]] },
+    { id: 'stranglethorn-road', width: 28, points: [[1080000,652000], [1042000,680000]] },
   ],
   towns: [
     { name: 'Darkshire', nx: .75, ny: .45, faction: 'alliance', tier: 'town' },
@@ -1155,7 +1198,7 @@ defineZoneContent({
   },
   roads: [
     { id: 'deadwind-pass', main: true, width: 30, points: [
-      [1060000, 430000], [1080000, 425000], [1087000, 430000], [1090000, 440000]] },
+      [1160000,665000], [1186667,657500], [1196000,665000], [1240000,660000]] },
   ],
   towns: [],
   camps: [
@@ -1178,7 +1221,7 @@ defineZoneContent({
     { name: 'Sleeping Gorge', kind: 'landmark', nx: .6, ny: .45, description: 'Narrow eastern gorge.' },
   ],
   entrances: [
-    { name: 'Karazhan', nx: .45, ny: .75, levelMin: 55, levelMax: 60, kind: 'raid', theme: 'astral' },
+    { name: 'Karazhan', nx: .45, ny: .75, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'astral' },
   ],
 });
 
@@ -1203,7 +1246,7 @@ defineZoneContent({
   ],
   roads: [
     { id: 'blasted-road', main: true, width: 34, points: [
-      [1150000, 400000], [1165000, 408000], [1180000, 412000], [1175000, 435000], [1175000, 451000]] },
+      [1270000,680000], [1285000,688000], [1300000,692000], [1295000,715000], [1295000,731000]] },
   ],
   towns: [
     { name: 'Nethergarde Keep', nx: .6, ny: .2, faction: 'alliance', tier: 'town' },
@@ -1247,8 +1290,8 @@ defineZoneContent({
   ],
   roads: [
     { id: 'stranglethorn-road', main: true, width: 34, points: [
-      [1030000, 460000], [1040000, 464000], [1035000, 472000], [1032000, 485000], [1030000, 494000]] },
-    { id: 'zulgurub-spur', width: 26, points: [[1035000, 472000], [1050000, 473000], [1065000, 474000]] },
+      [1042000,680000], [1056000,690000], [1049000,710000], [1044800,742500], [1042000,765000]] },
+    { id: 'zulgurub-spur', width: 26, points: [[1049000,710000], [1070000,712500], [1091000,715000]] },
   ],
   towns: [
     { name: 'Booty Bay', nx: .3, ny: .85, faction: 'neutral', tier: 'town' },
@@ -1290,6 +1333,6 @@ defineZoneContent({
     { name: 'Spirit Den', kind: 'corruptedGrove', nx: .52, ny: .7, description: 'Haunted troll shrine.' },
   ],
   entrances: [
-    { name: 'Zul\'Gurub', nx: .65, ny: .35, levelMin: 30, levelMax: 45, kind: 'raid', theme: 'rootbound' },
+    { name: 'Zul\'Gurub', nx: .65, ny: .35, levelMin: 60, levelMax: 60, kind: 'raid', theme: 'rootbound' },
   ],
 });

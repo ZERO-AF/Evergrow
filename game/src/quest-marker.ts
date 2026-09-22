@@ -54,7 +54,7 @@ function anchorLabel(anchor: QuestGiverAnchor, spec: QuestGiver): string {
 /** Every giver anchor in view carrying a marker. Call once per frame from the
  * renderer; bounds should cover the visible world plus a small margin. */
 export function questMarkers(world: QuestWorld, player: Player,
-  x: number, y: number, width: number, height: number): QuestMark[] {
+  x: number, y: number, width: number, height: number, time?: number): QuestMark[] {
   if (!GAME_FEATURES.quests) return [];
   const specs: QuestGiver[] = [];
   for (const def of Object.values(QUEST_BY_ID)) {
@@ -66,7 +66,7 @@ export function questMarkers(world: QuestWorld, player: Player,
   for (const spec of specs) {
     const result = markFor(player, spec);
     if (!result) continue;
-    for (const anchor of questGiverAnchors(world, spec, x, y, width, height))
+    for (const anchor of questGiverAnchors(world, spec, x, y, width, height, time))
       marks.push({ x: anchor.x, y: anchor.y, mark: result.mark, quests: result.quests, label: anchorLabel(anchor, spec) });
   }
   return marks;

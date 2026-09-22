@@ -191,3 +191,7 @@
   transport('flightpath-shadowmoon-shadowmoon-wildhammerstronghold-sanctumofthestars','flightpath','shadowmoon','Wildhammer Stronghold','shadowmoon','Sanctum of the Stars',60,'contested'),
   transport('flightpath-shadowmoon-shadowmoon-shadowmoonvillage-altarofshatar','flightpath','shadowmoon','Shadowmoon Village','shadowmoon','Altar of Sha\'tar',60,'contested'),
   transport('flightpath-shadowmoon-shadowmoon-sanctumofthestars-altarofshatar','flightpath','shadowmoon','Sanctum of the Stars','shadowmoon','Altar of Sha\'tar',50,'contested'),
+  transport('zeppelin-durotar-stranglethorn-orgrimmarzeppelintower-gromgolzeppelintower','zeppelin','durotar','Orgrimmar Zeppelin Tower','stranglethorn','Grom\'gol Zeppelin Tower',180,'contested'),
+  transport('portal-crystalsong-terokkar-dalaran-shattrathcity','portal','crystalsong','Dalaran','terokkar','Shattrath City',5,'contested'),
+  transport('flightpath-eversong-quel-danas-silvermooncity-sunsreach','flightpath','eversong','Silvermoon City','quel-danas','Sun\'s Reach',50,'contested'),
+  transport('portal-terokkar-quel-danas-shattrathcity-sunsreach','portal','terokkar','Shattrath City','quel-danas','Sun\'s Reach',5,'contested'),

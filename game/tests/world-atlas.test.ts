@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   ZONES, TRANSPORTS, CONTINENTS, CONTINENT_BOUNDS, ATLAS_SCALE,
   zoneAt, zoneRect, zoneLevel, continentAt, zonePoint,
-  type ContinentId,
+  type ContinentId, type AtlasRect,
 } from '../src/world-atlas.ts';
 
 const ids = Object.keys(ZONES);
@@ -16,7 +16,7 @@ test('every WotLK continent has zones and derived bounds', () => {
     const b = CONTINENT_BOUNDS[cid];
     assert.ok(b.w > 0 && b.h > 0, `${cid} bounds`);
   }
-  assert.equal(ids.length, 62);
+  assert.equal(ids.length, 63);
 });
 
 test('no two zones on a continent overlap', () => {
@@ -26,6 +26,93 @@ test('no two zones on a continent overlap', () => {
     const A = rect(a.id), B = rect(b.id);
     const overlap = A.x < B.x + B.w && B.x < A.x + A.w && A.y < B.y + B.h && B.y < A.y + A.h;
     assert.ok(!overlap, `${a.id} overlaps ${b.id}`);
+  }
+});
+
+test('every declared border is geometrically adjacent on the correct side', () => {
+  const EPS = 0.5;
+  const abuts = (a: AtlasRect, b: AtlasRect, side: string) => {
+    const hOverlap = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > EPS;
+    const vOverlap = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > EPS;
+    switch (side) {
+      case 'north': return Math.abs(a.y - (b.y + b.h)) < EPS && hOverlap;
+      case 'south': return Math.abs(a.y + a.h - b.y) < EPS && hOverlap;
+      case 'east': return Math.abs(a.x + a.w - b.x) < EPS && vOverlap;
+      case 'west': return Math.abs(a.x - (b.x + b.w)) < EPS && vOverlap;
+    }
+    return false;
+  };
+  for (const id of ids) {
+    const z = ZONES[id], A = rect(id);
+    for (const side of ['north', 'south', 'east', 'west'] as const) {
+      const n = z.borders[side];
+      if (!n) continue;
+      const nz = ZONES[n];
+      assert.ok(nz, `${id}.${side} → ${n} exists`);
+      assert.equal(nz.continent, z.continent, `${id}.${side} → ${n} same continent`);
+      assert.ok(abuts(A, rect(n), side), `${id}.${side}=${n} must share an edge on the ${side} side`);
+    }
+  }
+});
+
+test('no undeclared rect adjacencies (adjacency graph == declared borders)', () => {
+  const EPS = 0.5;
+  const declared = new Set<string>();
+  for (const id of ids) for (const side of ['north', 'south', 'east', 'west'] as const) {
+    const n = ZONES[id].borders[side];
+    if (n) declared.add([id, n].sort().join('|'));
+  }
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+    const a = ZONES[ids[i]], b = ZONES[ids[j]];
+    if (a.continent !== b.continent) continue;
+    const A = rect(a.id), B = rect(b.id);
+    const hOverlap = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x) > EPS;
+    const vOverlap = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y) > EPS;
+    const adjacent =
+      (Math.abs(A.y - (B.y + B.h)) < EPS || Math.abs(A.y + A.h - B.y) < EPS) && hOverlap ||
+      (Math.abs(A.x - (B.x + B.w)) < EPS || Math.abs(A.x + A.w - B.x) < EPS) && vOverlap;
+    if (adjacent) assert.ok(declared.has([a.id, b.id].sort().join('|')), `${a.id}|${b.id} adjacent but undeclared`);
+  }
+});
+
+test('declared border crossings are walkable (zoneAt non-null along the shared edge)', () => {
+  for (const id of ids) {
+    const z = ZONES[id], A = rect(id);
+    for (const side of ['north', 'south', 'east', 'west'] as const) {
+      const n = z.borders[side];
+      if (!n) continue;
+      const B = rect(n);
+      // Sample the shared edge segment at 9 points, stepping just across the seam.
+      if (side === 'north' || side === 'south') {
+        const y = side === 'north' ? A.y : A.y + A.h;
+        const lo = Math.max(A.x, B.x), hi = Math.min(A.x + A.w, B.x + B.w);
+        for (let k = 0; k < 9; k++) {
+          const x = lo + (hi - lo) * (k + 0.5) / 9;
+          const inA = zoneAt(x, side === 'north' ? y + 1 : y - 1);
+          const inB = zoneAt(x, side === 'north' ? y - 1 : y + 1);
+          assert.equal(inA?.id, id, `${id}.${side}=${n}: inside ${id} at x=${x}`);
+          assert.equal(inB?.id, n, `${id}.${side}=${n}: inside ${n} at x=${x}`);
+        }
+      } else {
+        const x = side === 'west' ? A.x : A.x + A.w;
+        const lo = Math.max(A.y, B.y), hi = Math.min(A.y + A.h, B.y + B.h);
+        for (let k = 0; k < 9; k++) {
+          const y = lo + (hi - lo) * (k + 0.5) / 9;
+          const inA = zoneAt(side === 'west' ? x + 1 : x - 1, y);
+          const inB = zoneAt(side === 'west' ? x - 1 : x + 1, y);
+          assert.equal(inA?.id, id, `${id}.${side}=${n}: inside ${id} at y=${y}`);
+          assert.equal(inB?.id, n, `${id}.${side}=${n}: inside ${n} at y=${y}`);
+        }
+      }
+    }
+  }
+});
+
+test('every zone rect stays inside its continent bounds', () => {
+  for (const id of ids) {
+    const z = ZONES[id], r = rect(id), b = CONTINENT_BOUNDS[z.continent];
+    assert.ok(r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w && r.y + r.h <= b.y + b.h,
+      `${id} inside ${z.continent} bounds`);
   }
 });
 

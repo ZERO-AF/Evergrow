@@ -51,8 +51,9 @@ import { EventProgressPresentation } from './event-progress-presentation.ts';
 import { drawPortal, drawTownAnchor } from './travel-art.ts';
 import { fitPortalWorldLabel, type PortalDestination } from './portal-destination.ts';
 import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } from './travel.ts';
-import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
+import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, positionedNPC, NPC_NAMES, NPC_COLORS, type TownNPC } from './npcs.ts';
 import { pvpVendorFor, pvpVendorsNear, focusedPvpVendor } from './pvp-vendor.ts';
+import type { Settlement } from './settlements.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
 import { drawGroundGold, drawRewardFlights, drawGoldBalance, drawLevelCelebration, drawLevelAnnouncement, drawJourneyAnnouncement } from './reward-art.ts';
@@ -202,6 +203,9 @@ export class Renderer {
   private residents:Resident[]=[];
   private residentSpeech:{id:string;age:number;line:string}|null=null;
   private residentCooldown=0;
+  /** Daily-routine context: building id → owning settlement, plus sim time. */
+  private npcTowns = new Map<string, Settlement>();
+  private npcTime = 0;
   private environmentArt = new EnvironmentArt();
   private atmosphere = new AtmosphereArt();
   private riftAtmosphere = new RiftAtmosphereArt();
@@ -218,6 +222,10 @@ export class Renderer {
   private visibility = new SceneVisibility();
   private siteAftermath: ReadonlyMap<string, SiteAftermath> = new Map();
   private get cachedBuildings() { return this.visibility.buildings; }
+  /** TownNPC moved to its daily-routine spot for this frame (world-t10). */
+  private positioned<T extends TownNPC>(npc: T | null): T | null {
+    return npc ? positionedNPC(npc, this.npcTowns.get(npc.buildingId), this.npcTime) : npc;
+  }
   private indoorBlend = 0;
   private lighting = new Lighting();
   private materialLights: readonly PointLight[] = [];
@@ -453,7 +461,11 @@ export class Renderer {
           this.pointerActive && !this.pointerOverHUD() ? screenToWorld(this.view, this.pointerX, this.pointerY) : undefined)
       : null;
     this.siteAftermath = projectSiteAftermath(this.visibility.sites, sim.eventState, id => sim.getCampState(id));
-    this.residents=this.cryptFloor?[]:world.getSettlements(left,top,worldWidth,worldHeight).flatMap(t=>settlementResidents(t,sim.time)).filter(n=>n.x>=left-90&&n.x<=left+worldWidth+90&&n.y>=top-90&&n.y<=top+worldHeight+90);
+    const towns = this.cryptFloor ? [] : world.getSettlements(left, top, worldWidth, worldHeight);
+    this.residents = towns.flatMap(t=>settlementResidents(t,sim.time)).filter(n=>n.x>=left-90&&n.x<=left+worldWidth+90&&n.y>=top-90&&n.y<=top+worldHeight+90);
+    this.npcTime = sim.time;
+    this.npcTowns.clear();
+    for (const town of towns) for (const b of town.buildings) this.npcTowns.set(b.id, town);
     if(active){
       this.residentCooldown=Math.max(0,this.residentCooldown-step);
       if(this.residentSpeech){this.residentSpeech.age+=step;if(this.residentSpeech.age>4)this.residentSpeech=null;}
@@ -577,13 +589,13 @@ export class Renderer {
     // Civilians share the character's contact and directional shadows, beneath all scenery.
     for (const resident of this.residents) this.drawNPCShadow(resident.x, resident.y, npcArtScale(resident));
     for (const building of this.cachedBuildings) {
-      const npc = buildingNPC(building);
+      const npc = this.positioned(buildingNPC(building));
       if (npc && npc.role !== 'stash') this.drawNPCShadow(npc.x, npc.y, npcArtScale(npc));
-      const master = stableMasterFor(building);
+      const master = this.positioned(stableMasterFor(building));
       if (master) this.drawNPCShadow(master.x, master.y, npcArtScale(master));
-      const battlemaster = battlemasterFor(building);
+      const battlemaster = this.positioned(battlemasterFor(building));
       if (battlemaster) this.drawNPCShadow(battlemaster.x, battlemaster.y, npcArtScale(battlemaster));
-      const pvpVendor = pvpVendorFor(building);
+      const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) this.drawNPCShadow(pvpVendor.x, pvpVendor.y, npcArtScale(pvpVendor));
     }
     this.enemyFocusMark(alpha);
@@ -734,7 +746,6 @@ export class Renderer {
       name: target === boss ? (raidBossName(target) ?? raid2BossName(target) ?? raid3BossName(target) ?? raid4BossName(target) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
       time: this.visualTime, reducedMotion: settings.reducedMotion,
       opacity: target === boss ? 1 : this.plateOpacity,
-      healthTrail: this.damageTrails.get(target.id)?.value ?? target.hp,
       hitPulse: settings.reducedMotion ? 0 : Math.min(1, target.hitFlash / COMBAT_TIMING.hitFlashDuration),
       comboPoints: p.comboPoints,
     });
@@ -745,7 +756,7 @@ export class Renderer {
     }
     if (settings.phase === 'playing' && !this.cryptFloor) {
       const view = this.view;
-      for (const marker of questMarkers(world, p, view.left, view.top, view.width, view.height)) {
+      for (const marker of questMarkers(world, p, view.left, view.top, view.width, view.height, sim.time)) {
         const point = worldToScreen(view, marker.x, marker.y - 60);
         drawQuestMarker(c, point.x, point.y, marker.mark, this.visualTime);
       }
@@ -754,17 +765,17 @@ export class Renderer {
         const point = worldToScreen(view, innkeeper.x, innkeeper.y - 78);
         text(c, `${innkeeper.name} - Innkeeper  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const stableMaster = focusedStableMaster(stableMastersNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      const stableMaster = focusedStableMaster(stableMastersNear(world, p.x - 100, p.y - 100, 200, 200).map(m => this.positioned(m)!), p, world);
       if (stableMaster) {
         const point = worldToScreen(view, stableMaster.x, stableMaster.y - 78);
         text(c, `${stableMaster.name} - Stable Master  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const battlemaster = focusedBattlemaster(battlemastersNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      const battlemaster = focusedBattlemaster(battlemastersNear(world, p.x - 100, p.y - 100, 200, 200).map(m => this.positioned(m)!), p, world);
       if (battlemaster) {
         const point = worldToScreen(view, battlemaster.x, battlemaster.y - 78);
         text(c, `${battlemaster.name} - Battlemaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const pvpVendor = focusedPvpVendor(pvpVendorsNear(world, p.x - 100, p.y - 100, 200, 200), p, world);
+      const pvpVendor = focusedPvpVendor(pvpVendorsNear(world, p.x - 100, p.y - 100, 200, 200).map(v => this.positioned(v)!), p, world);
       if (pvpVendor) {
         const point = worldToScreen(view, pvpVendor.x, pvpVendor.y - 78);
         text(c, `${pvpVendor.name} - PvP Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
@@ -812,7 +823,7 @@ export class Renderer {
       this.drawPortalHints(c, sim, world);
       drawEventUI(c, sim, world, (x,y) => worldToScreen(this.view,x,y), this.gamepadActive, this.eventSites, this.eventProgressPresentation.view);
       drawWorldEventCard(c, this.worldEventCard.view);
-      const npcs = this.cachedBuildings.flatMap(b => { const npc = buildingNPC(b); return npc ? [npc] : []; });
+      const npcs = this.cachedBuildings.flatMap(b => { const npc = this.positioned(buildingNPC(b)); return npc ? [npc] : []; });
       const npc = focusNPC(npcs, p, world);
       if (npc) {
         const point = worldToScreen(this.view, npc.x, npc.y - 65);
@@ -930,13 +941,13 @@ export class Renderer {
     for (const bird of this.biomeLife.birds) entries.push({ y: bird.y + (bird.state === 'perched' ? 1 : 130),
       draw: () => this.biomeArt.drawBird(c, bird, this.visualTime, settings.reducedMotion) });
     for (const building of this.cachedBuildings) {
-      const npc = buildingNPC(building);
+      const npc = this.positioned(buildingNPC(building));
       if (npc) entries.push({ y: npc.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(npc.x,npc.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, npc, this.visualTime, settings.reducedMotion)) });
-      const master = stableMasterFor(building);
+      const master = this.positioned(stableMasterFor(building));
       if (master) entries.push({ y: master.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(master.x,master.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, master, this.visualTime, settings.reducedMotion)) });
-      const battlemaster = battlemasterFor(building);
+      const battlemaster = this.positioned(battlemasterFor(building));
       if (battlemaster) entries.push({ y: battlemaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(battlemaster.x,battlemaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, battlemaster, this.visualTime, settings.reducedMotion)) });
-      const pvpVendor = pvpVendorFor(building);
+      const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
         entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
@@ -1065,13 +1076,13 @@ export class Renderer {
     for (const anchor of this.portalAnchors) if (sim.travel.returnTo?.town === anchor.band)
       environmentLights.push({ x: anchor.x, y: anchor.y - 30, radius: 130, color: '#b5a0ee', power: .6 });
     for (const building of this.cachedBuildings) {
-      const npc = buildingNPC(building);
+      const npc = this.positioned(buildingNPC(building));
       if (npc) environmentLights.push({ x: npc.x, y: npc.y - 20, radius: 60, color: NPC_COLORS[npc.role], power: .3 });
-      const master = stableMasterFor(building);
+      const master = this.positioned(stableMasterFor(building));
       if (master) environmentLights.push({ x: master.x, y: master.y - 20, radius: 60, color: NPC_COLORS.stable, power: .3 });
-      const battlemaster = battlemasterFor(building);
+      const battlemaster = this.positioned(battlemasterFor(building));
       if (battlemaster) environmentLights.push({ x: battlemaster.x, y: battlemaster.y - 20, radius: 60, color: NPC_COLORS.battlemaster, power: .3 });
-      const pvpVendor = pvpVendorFor(building);
+      const pvpVendor = this.positioned(pvpVendorFor(building));
       if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
     }
     const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)

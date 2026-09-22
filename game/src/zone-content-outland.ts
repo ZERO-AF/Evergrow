@@ -99,10 +99,10 @@ defineZoneContent({
     { name: 'Den of Haal\'esh', kind: 'beastDen', nx: .26, ny: .72, description: 'Arakkoa nesting grounds.' },
   ],
   entrances: [
-    { name: 'Hellfire Ramparts', nx: .48, ny: .52, levelMin: 58, levelMax: 63, kind: 'dungeon', theme: 'foundry' },
-    { name: 'Blood Furnace', nx: .46, ny: .52, levelMin: 58, levelMax: 63, kind: 'dungeon', theme: 'foundry' },
-    { name: 'Shattered Halls', nx: .48, ny: .50, levelMin: 58, levelMax: 63, kind: 'dungeon', theme: 'blackrock' },
-    { name: 'Magtheridon\'s Lair', nx: .46, ny: .50, levelMin: 58, levelMax: 63, kind: 'raid', theme: 'blackrock' },
+    { name: 'Hellfire Ramparts', nx: .48, ny: .52, levelMin: 59, levelMax: 62, kind: 'dungeon', theme: 'foundry' },
+    { name: 'Blood Furnace', nx: .46, ny: .52, levelMin: 60, levelMax: 63, kind: 'dungeon', theme: 'foundry' },
+    { name: 'Shattered Halls', nx: .48, ny: .50, levelMin: 69, levelMax: 70, kind: 'dungeon', theme: 'blackrock' },
+    { name: 'Magtheridon\'s Lair', nx: .46, ny: .50, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'blackrock' },
   ],
 });
 
@@ -146,7 +146,7 @@ defineZoneContent({
   ],
   roads: [
     { id: 'marsh-causeway', main: true, width: 80, points: [
-      pt('zangarmarsh', 0, .55), pt('zangarmarsh', .30, .50), pt('zangarmarsh', .50, .52),
+      pt('zangarmarsh', .05, 1), pt('zangarmarsh', .30, .50), pt('zangarmarsh', .50, .52),
       pt('zangarmarsh', .68, .50), pt('zangarmarsh', .85, .55), pt('zangarmarsh', 1, .52),
     ] },
     { id: 'orebor-road', width: 55, points: [pt('zangarmarsh', .30, .50), pt('zangarmarsh', .42, .30)] },
@@ -186,10 +186,10 @@ defineZoneContent({
     { name: 'Twin Spire Ruins', kind: 'standingStones', nx: .50, ny: .55, description: 'Contested beacons on the causeway.' },
   ],
   entrances: [
-    { name: 'The Slave Pens', nx: .50, ny: .40, levelMin: 60, levelMax: 64, kind: 'dungeon', theme: 'drowned' },
-    { name: 'The Underbog', nx: .50, ny: .38, levelMin: 60, levelMax: 64, kind: 'dungeon', theme: 'rootbound' },
-    { name: 'The Steamvault', nx: .50, ny: .36, levelMin: 60, levelMax: 64, kind: 'dungeon', theme: 'drowned' },
-    { name: 'Serpentshrine Cavern', nx: .50, ny: .34, levelMin: 60, levelMax: 64, kind: 'raid', theme: 'drowned' },
+    { name: 'The Slave Pens', nx: .50, ny: .40, levelMin: 61, levelMax: 64, kind: 'dungeon', theme: 'drowned' },
+    { name: 'The Underbog', nx: .50, ny: .38, levelMin: 62, levelMax: 65, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'The Steamvault', nx: .50, ny: .36, levelMin: 68, levelMax: 70, kind: 'dungeon', theme: 'drowned' },
+    { name: 'Serpentshrine Cavern', nx: .50, ny: .34, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'drowned' },
   ],
 });
 
@@ -271,10 +271,10 @@ defineZoneContent({
     { name: 'Tuurem', kind: 'hamlet', nx: .52, ny: .30, description: 'Lost draenei city overrun by scavengers.' },
   ],
   entrances: [
-    { name: 'Mana-Tombs', nx: .40, ny: .60, levelMin: 62, levelMax: 65, kind: 'dungeon', theme: 'astral' },
-    { name: 'Auchenai Crypts', nx: .38, ny: .62, levelMin: 62, levelMax: 65, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Sethekk Halls', nx: .36, ny: .62, levelMin: 62, levelMax: 65, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Shadow Labyrinth', nx: .38, ny: .65, levelMin: 62, levelMax: 65, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Mana-Tombs', nx: .40, ny: .60, levelMin: 62, levelMax: 66, kind: 'dungeon', theme: 'astral' },
+    { name: 'Auchenai Crypts', nx: .38, ny: .62, levelMin: 64, levelMax: 67, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Sethekk Halls', nx: .36, ny: .62, levelMin: 66, levelMax: 69, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Shadow Labyrinth', nx: .38, ny: .65, levelMin: 69, levelMax: 70, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -435,7 +435,7 @@ defineZoneContent({
     { name: 'Bash\'ir Landing', kind: 'camp', nx: .52, ny: .15, description: 'Ethereal smuggler dock on the north rim.' },
   ],
   entrances: [
-    { name: 'Gruul\'s Lair', nx: .68, ny: .25, levelMin: 65, levelMax: 68, kind: 'raid', theme: 'blackrock' },
+    { name: 'Gruul\'s Lair', nx: .68, ny: .25, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'blackrock' },
   ],
 });
 
@@ -473,7 +473,7 @@ defineZoneContent({
   water: [],
   roads: [
     { id: 'stormspire-road', main: true, width: 75, points: [
-      pt('netherstorm', .60, 1), pt('netherstorm', .50, .80), pt('netherstorm', .33, .65),
+      pt('netherstorm', .40, 1), pt('netherstorm', .50, .80), pt('netherstorm', .33, .65),
       pt('netherstorm', .45, .45), pt('netherstorm', .45, .35),
     ] },
     { id: 'cosmowrench-road', width: 55, points: [pt('netherstorm', .45, .45), pt('netherstorm', .65, .65)] },
@@ -509,10 +509,10 @@ defineZoneContent({
     { name: 'Celestial Ridge', kind: 'landmark', nx: .72, ny: .40, description: 'Nether dragon roost.' },
   ],
   entrances: [
-    { name: 'The Mechanar', nx: .72, ny: .55, levelMin: 67, levelMax: 70, kind: 'dungeon', theme: 'astral' },
-    { name: 'The Botanica', nx: .74, ny: .55, levelMin: 67, levelMax: 70, kind: 'dungeon', theme: 'rootbound' },
-    { name: 'The Arcatraz', nx: .76, ny: .55, levelMin: 67, levelMax: 70, kind: 'dungeon', theme: 'astral' },
-    { name: 'The Eye', nx: .74, ny: .52, levelMin: 67, levelMax: 70, kind: 'raid', theme: 'astral' },
+    { name: 'The Mechanar', nx: .72, ny: .55, levelMin: 69, levelMax: 70, kind: 'dungeon', theme: 'astral' },
+    { name: 'The Botanica', nx: .74, ny: .55, levelMin: 69, levelMax: 70, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'The Arcatraz', nx: .76, ny: .55, levelMin: 69, levelMax: 70, kind: 'dungeon', theme: 'astral' },
+    { name: 'The Eye', nx: .74, ny: .52, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'astral' },
   ],
 });
 
@@ -559,7 +559,7 @@ defineZoneContent({
   ],
   roads: [
     { id: 'shadowmoon-road', main: true, width: 80, points: [
-      pt('shadowmoon', .45, 0), pt('shadowmoon', .40, .20), pt('shadowmoon', .30, .30),
+      pt('shadowmoon', .30, 0), pt('shadowmoon', .40, .20), pt('shadowmoon', .30, .30),
       pt('shadowmoon', .40, .45), pt('shadowmoon', .35, .55), pt('shadowmoon', .55, .60),
       pt('shadowmoon', .60, .45), pt('shadowmoon', .70, .45),
     ] },
@@ -596,6 +596,6 @@ defineZoneContent({
     { name: 'The Deathforge', kind: 'quarry', nx: .40, ny: .40, description: 'Infernal manufactory beneath the volcano.' },
   ],
   entrances: [
-    { name: 'Black Temple', nx: .70, ny: .45, levelMin: 67, levelMax: 70, kind: 'raid', theme: 'blackrock' },
+    { name: 'Black Temple', nx: .70, ny: .45, levelMin: 70, levelMax: 70, kind: 'raid', theme: 'blackrock' },
   ],
 });

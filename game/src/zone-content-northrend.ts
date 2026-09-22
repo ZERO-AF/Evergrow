@@ -5,7 +5,7 @@
  *
  * Northrend layout (world y grows southward): Icecrown/Storm Peaks/Zul'Drak on
  * the top row, Sholazar/Crystalsong/Grizzly Hills mid, Borean/Dragonblight/
- * Howling Fjord bottom, Wintergrasp tucked under Dragonblight. Roads are
+ * Howling Fjord bottom, Wintergrasp between Sholazar and Crystalsong. Roads are
  * authored in normalized zone space and projected to world space at load so
  * border crossings line up exactly with the neighboring zone's stub. */
 import { zoneRect } from './world-atlas.ts';
@@ -95,9 +95,9 @@ defineZoneContent({
     { name: 'Unu\'pe Turtle Dock', kind: 'landmark', nx: .80, ny: .57, description: 'Tuskarr turtle-boat landing.' },
   ],
   entrances: [
-    { name: 'The Nexus', nx: .28, ny: .30, levelMin: 68, levelMax: 72, kind: 'dungeon', theme: 'astral' },
-    { name: 'The Oculus', nx: .28, ny: .28, levelMin: 68, levelMax: 72, kind: 'dungeon', theme: 'astral' },
-    { name: 'Eye of Eternity', nx: .28, ny: .26, levelMin: 68, levelMax: 72, kind: 'raid', theme: 'astral' },
+    { name: 'The Nexus', nx: .28, ny: .30, levelMin: 69, levelMax: 73, kind: 'dungeon', theme: 'astral' },
+    { name: 'The Oculus', nx: .28, ny: .28, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'astral' },
+    { name: 'Eye of Eternity', nx: .28, ny: .26, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'astral' },
   ],
 });
 
@@ -178,7 +178,7 @@ defineZoneContent({
   ],
   entrances: [
     { name: 'Utgarde Keep', nx: .55, ny: .50, levelMin: 68, levelMax: 72, kind: 'dungeon', theme: 'rime' },
-    { name: 'Utgarde Pinnacle', nx: .55, ny: .48, levelMin: 68, levelMax: 72, kind: 'dungeon', theme: 'rime' },
+    { name: 'Utgarde Pinnacle', nx: .55, ny: .48, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'rime' },
   ],
 });
 
@@ -219,9 +219,9 @@ defineZoneContent({
     road('dragonblight', 'wyrmrest-road', [[0, .80], [.28, .55], [.38, .45], [.58, .50], [.78, .35], [1.0, .50]], { main: true, width: 34 }),
     road('dragonblight', 'naxxramas-spur', [[.78, .35], [.85, .30]]),
     road('dragonblight', 'moaki-road', [[.58, .50], [.48, .78]]),
-    // North to the Wrathgate pass (Crystalsong crossing) and south to Wintergrasp.
+    // North to the Wrathgate pass (Crystalsong/Wintergrasp crossings).
     road('dragonblight', 'wrathgate-road', [[.38, .45], [.38, .08], [.38, 0]]),
-    road('dragonblight', 'wintergrasp-road', [[.48, .78], [.45, 1.0]]),
+    road('dragonblight', 'wintergrasp-road', [[.48, .78], [.30, .40], [.30, 0]]),
     road('dragonblight', 'venomspite-road', [[.78, .35], [.75, .60]]),
   ],
   towns: [
@@ -255,11 +255,11 @@ defineZoneContent({
     { name: 'Moa\'ki Harbor Turtle Dock', kind: 'landmark', nx: .48, ny: .82, description: 'Tuskarr turtle-boat landing.' },
   ],
   entrances: [
-    { name: 'Azjol-Nerub', nx: .25, ny: .50, levelMin: 71, levelMax: 74, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Ahn\'kahet: The Old Kingdom', nx: .25, ny: .52, levelMin: 71, levelMax: 74, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Naxxramas', nx: .85, ny: .30, levelMin: 71, levelMax: 74, kind: 'raid', theme: 'ossuary' },
-    { name: 'Obsidian Sanctum', nx: .58, ny: .55, levelMin: 71, levelMax: 74, kind: 'raid', theme: 'blackrock' },
-    { name: 'Ruby Sanctum', nx: .58, ny: .57, levelMin: 71, levelMax: 74, kind: 'raid', theme: 'foundry' },
+    { name: 'Azjol-Nerub', nx: .25, ny: .50, levelMin: 72, levelMax: 74, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Ahn\'kahet: The Old Kingdom', nx: .25, ny: .52, levelMin: 73, levelMax: 75, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Naxxramas', nx: .85, ny: .30, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'ossuary' },
+    { name: 'Obsidian Sanctum', nx: .58, ny: .55, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'blackrock' },
+    { name: 'Ruby Sanctum', nx: .58, ny: .57, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'foundry' },
   ],
 });
 
@@ -325,7 +325,7 @@ defineZoneContent({
     { name: 'Ursoc\'s Den', kind: 'beastDen', nx: .52, ny: .28, description: 'Shrine of the fallen bear god.' },
   ],
   entrances: [
-    { name: 'Drak\'Tharon Keep', nx: .15, ny: .25, levelMin: 73, levelMax: 75, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Drak\'Tharon Keep', nx: .15, ny: .25, levelMin: 74, levelMax: 76, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -365,7 +365,7 @@ defineZoneContent({
     road('zuldrak', 'argent-road', [[.60, 1.0], [.40, .65], [.60, .55], [.70, .40], [.80, .25]], { main: true, width: 34 }),
     road('zuldrak', 'ebon-road', [[.40, .65], [.30, .75], [.15, .75]]),
     // West to the Storm Peaks crossing.
-    road('zuldrak', 'storm-road', [[.40, .65], [.20, .55], [0, .50]]),
+    road('zuldrak', 'storm-road', [[.40, .65], [.45, .40], [.50, 0]]),
   ],
   towns: [
     { name: 'The Argent Stand', nx: .40, ny: .65, faction: 'neutral', tier: 'town' },
@@ -394,7 +394,7 @@ defineZoneContent({
     { name: 'Zim\'Abwa', kind: 'shrine', nx: .38, ny: .72, description: 'Shrine of the Drakkari god of commerce.' },
   ],
   entrances: [
-    { name: 'Gundrak', nx: .80, ny: .25, levelMin: 74, levelMax: 77, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'Gundrak', nx: .80, ny: .25, levelMin: 76, levelMax: 78, kind: 'dungeon', theme: 'rootbound' },
   ],
 });
 
@@ -532,7 +532,7 @@ defineZoneContent({
     { name: 'The Azure Front', kind: 'camp', nx: .28, ny: .62, description: 'Blue dragonflight siege line.' },
   ],
   entrances: [
-    { name: 'The Violet Hold', nx: .30, ny: .48, levelMin: 74, levelMax: 80, kind: 'dungeon', theme: 'astral' },
+    { name: 'The Violet Hold', nx: .30, ny: .48, levelMin: 75, levelMax: 77, kind: 'dungeon', theme: 'astral' },
   ],
 });
 
@@ -575,7 +575,7 @@ defineZoneContent({
     road('storm-peaks', 'frosthold-spur', [[.35, .50], [.30, .70]]),
     road('storm-peaks', 'niffelem-road', [[.35, .50], [.60, .60]]),
     // East to the Zul'Drak crossing.
-    road('storm-peaks', 'zuldrak-road', [[.60, .60], [.80, .55], [1.0, .50]]),
+    road('storm-peaks', 'zuldrak-road', [[.60, .60], [.55, .80], [.50, 1.0]]),
   ],
   towns: [
     { name: 'K3', nx: .40, ny: .85, faction: 'neutral', tier: 'town' },
@@ -607,9 +607,9 @@ defineZoneContent({
     { name: 'Temple of Winter', kind: 'shrine', nx: .52, ny: .60, description: 'Hodir\'s frozen shrine.' },
   ],
   entrances: [
-    { name: 'Halls of Stone', nx: .42, ny: .28, levelMin: 76, levelMax: 80, kind: 'dungeon', theme: 'foundry' },
-    { name: 'Halls of Lightning', nx: .45, ny: .28, levelMin: 76, levelMax: 80, kind: 'dungeon', theme: 'astral' },
-    { name: 'Ulduar', nx: .40, ny: .25, levelMin: 76, levelMax: 80, kind: 'raid', theme: 'astral' },
+    { name: 'Halls of Stone', nx: .42, ny: .28, levelMin: 77, levelMax: 79, kind: 'dungeon', theme: 'foundry' },
+    { name: 'Halls of Lightning', nx: .45, ny: .28, levelMin: 79, levelMax: 80, kind: 'dungeon', theme: 'astral' },
+    { name: 'Ulduar', nx: .40, ny: .25, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'astral' },
   ],
 });
 
@@ -687,12 +687,12 @@ defineZoneContent({
     { name: 'The Underhalls', kind: 'dungeon', nx: .34, ny: .32, description: 'Mustering tunnels beneath the ice.' },
   ],
   entrances: [
-    { name: 'Trial of the Champion', nx: .72, ny: .20, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'rime' },
-    { name: 'Trial of the Crusader', nx: .72, ny: .22, levelMin: 77, levelMax: 80, kind: 'raid', theme: 'rime' },
-    { name: 'Forge of Souls', nx: .55, ny: .80, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'rime' },
-    { name: 'Pit of Saron', nx: .55, ny: .82, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Halls of Reflection', nx: .55, ny: .84, levelMin: 77, levelMax: 80, kind: 'dungeon', theme: 'rime' },
-    { name: 'Icecrown Citadel', nx: .55, ny: .86, levelMin: 77, levelMax: 80, kind: 'raid', theme: 'rime' },
+    { name: 'Trial of the Champion', nx: .72, ny: .20, levelMin: 80, levelMax: 80, kind: 'dungeon', theme: 'rime' },
+    { name: 'Trial of the Crusader', nx: .72, ny: .22, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'rime' },
+    { name: 'Forge of Souls', nx: .55, ny: .80, levelMin: 80, levelMax: 80, kind: 'dungeon', theme: 'rime' },
+    { name: 'Pit of Saron', nx: .55, ny: .82, levelMin: 80, levelMax: 80, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Halls of Reflection', nx: .55, ny: .84, levelMin: 80, levelMax: 80, kind: 'dungeon', theme: 'rime' },
+    { name: 'Icecrown Citadel', nx: .55, ny: .86, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'rime' },
   ],
 });
 
@@ -754,6 +754,6 @@ defineZoneContent({
     { name: 'The Steppe of Life', kind: 'landmark', nx: .68, ny: .80, description: 'A green pocket defying the ice.' },
   ],
   entrances: [
-    { name: 'Vault of Archavon', nx: .50, ny: .22, levelMin: 77, levelMax: 80, kind: 'raid', theme: 'foundry' },
+    { name: 'Vault of Archavon', nx: .50, ny: .22, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'foundry' },
   ],
 });

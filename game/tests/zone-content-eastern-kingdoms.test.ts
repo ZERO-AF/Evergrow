@@ -10,8 +10,8 @@ const inUnit = (v: number) => v >= 0 && v <= 1;
 const checkNormalized = (zoneId: string, label: string, nx: number, ny: number) =>
   assert.ok(inUnit(nx) && inUnit(ny), `${zoneId} ${label} (${nx},${ny}) in [0,1]`);
 
-test('all 24 Eastern Kingdoms zones register authored content', () => {
-  assert.equal(EK_IDS.length, 24);
+test('all 25 Eastern Kingdoms zones register authored content', () => {
+  assert.equal(EK_IDS.length, 25);
   for (const id of EK_IDS) {
     const content = ZONE_CONTENT[id];
     assert.ok(content, `${id} has a defineZoneContent entry`);

@@ -29,7 +29,12 @@ routines and zone quests. Travel must feel WoW-scale — a 40-minute journey sta
 
 ## Decisions so far
 
-- [T01 World atlas contract + WoW zone data](world-t01-atlas.md) — `world-atlas.ts`: 62 zones at fixed rects (validated non-overlapping), 193 transports, 154 cities, 70 dungeons, 137 flightpaths; ATLAS_SCALE=24 u/yd matches WoW travel times; `wow-zones.json` is the content source.
+- [T01 World atlas contract + WoW zone data](world-t01-atlas.md) — `world-atlas.ts`: 63 zones at fixed rects (validated non-overlapping, declared-border adjacency enforced by merge-atlas.mjs), 197 transports, 155 cities, 72 dungeons, 138 flightpaths; ATLAS_SCALE=24 u/yd matches WoW travel times; `wow-zones.json` is the content source.
+- T02 Authored-world provider — `authored-world.ts` `AuthoredWorld extends World` serves the atlas; `zone-content.ts` ZONE_CONTENT registry + `defaultZoneContent` fallback; `createWorld(seed)` factory; free functions route through it.
+- T03 Elevation + occlusion — `elevation.ts` (cliffs/ramps/valleys, step-tier collision, ramp corridors), `occlusion.ts` (generalized occluder→alpha for props/buildings/overhangs), `elevation-art.ts` shading.
+- T04 Transport — `transport.ts`/`transport-content.ts`: all 193 routes rideable (ships/zeppelins/turtle/tram/portals/flightpaths), durable checkpoint→persist→commit, vehicle entities, BFS flight network, faction gating.
+- T05 Factions — `factions.ts`: race→faction→startZone, hostility matrix in AI/spawn/damage/NPC-interaction, reputation axis, `GAME_FEATURES.factions`.
+- T06–T09 Zone content — `zone-content-{kalimdor,eastern-kingdoms,northrend,outland}.ts`: all 62 zones authored (palette/props/elevation/water/roads/towns/camps/spawns/pois/entrances), WoW-faithful.
 
 ## Not yet specified
 

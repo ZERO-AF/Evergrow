@@ -23,7 +23,7 @@ defineZoneContent({
   roads: [
     // Darnassus → Dolanaar → Rut'theran Village + dock.
     { id: 'teldrassil-road', main: true, width: 90, points: [
-      [21000, 31200], [27000, 34000], [33000, 42000], [33000, 50000], [33000, 56800], [33000, 58400]] },
+      [21000,31200], [27000,34000], [33000,42000], [33000,50000], [33000,56800], [33000,58400]] },
   ],
   towns: [
     { name: 'Darnassus', nx: .35, ny: .28, faction: 'alliance', tier: 'capital' },
@@ -69,7 +69,7 @@ defineZoneContent({
   roads: [
     // Vindicator's Rest → Blood Watch → south border into Azuremyst (y=140000).
     { id: 'bloodmyst-road', main: true, width: 80, points: [
-      [18000, 122000], [24000, 118000], [30000, 120000], [30000, 128000], [30000, 140000]] },
+      [18000,122000], [24000,118000], [30000,120000], [30000,128000], [30000,140000]] },
   ],
   towns: [
     { name: 'Blood Watch', nx: .5, ny: .5, faction: 'alliance', tier: 'town' },
@@ -112,9 +112,9 @@ defineZoneContent({
   roads: [
     // The Exodar → Azure Watch → north border into Bloodmyst (y=140000).
     { id: 'azuremyst-road', main: true, width: 80, points: [
-      [18000, 164000], [24000, 168000], [30000, 173000], [30000, 156000], [30000, 140000]] },
+      [18000,164000], [24000,168000], [30000,173000], [30000,156000], [30000,140000]] },
     // Azure Watch → Valaar's Berth dock.
-    { id: 'azuremyst-dock-spur', width: 60, points: [[30000, 173000], [22000, 176000], [13200, 173000]] },
+    { id: 'azuremyst-dock-spur', width: 60, points: [[30000,173000], [22000,176000], [13200,173000]] },
   ],
   towns: [
     { name: 'The Exodar', nx: .3, ny: .4, faction: 'alliance', tier: 'capital' },
@@ -155,12 +155,12 @@ defineZoneContent({
     { kind: 'lake', nx: .62, ny: .55, nrx: .2, nry: .22, depth: .85 },  // Lake Elune'ara
   ],
   roads: [
-    // Nighthaven → east border into Winterspring (x=200000).
+    // Nighthaven → east border into Winterspring (x=220000).
     { id: 'moonglade-east', main: true, width: 80, points: [
-      [170000, 16000], [182000, 18000], [200000, 22000]] },
+      [190000,16000], [202000,18000], [220000,14667]] },
     // Nighthaven → south edge toward the Timbermaw tunnel to Felwood.
     { id: 'moonglade-south', width: 70, points: [
-      [170000, 16000], [172000, 28000], [174000, 40000]] },
+      [190000,16000], [192000,28000], [194000,40000]] },
   ],
   towns: [
     { name: 'Nighthaven', nx: .5, ny: .4, faction: 'neutral', tier: 'town' },
@@ -205,11 +205,11 @@ defineZoneContent({
     { kind: 'lake', nx: .38, ny: .55, nrx: .08, nry: .07, depth: .8 },  // Lake Kel'Theril (frozen)
   ],
   roads: [
-    // West border (Moonglade x=200000) → Starfall Village → Everlook →
+    // West border (Moonglade x=220000) → Starfall Village → Everlook →
     // south-west corner (Timbermaw tunnel exit into Felwood at 212000,60000).
     { id: 'winterspring-road', main: true, width: 90, points: [
-      [200000, 22000], [212000, 16000], [230000, 18000], [254000, 18000], [272000, 24000],
-      [260000, 40000], [240000, 52000], [212000, 60000]] },
+      [220000,14667], [230000,10667], [245000,12000], [265000,12000], [280000,16000],
+      [270000,26667], [253333,34667], [230000,40000]] },
   ],
   towns: [
     { name: 'Everlook', nx: .6, ny: .4, faction: 'neutral', tier: 'town' },
@@ -253,10 +253,10 @@ defineZoneContent({
   roads: [
     // North coast → Auberdine → Grove of the Ancients → south border into Ashenvale.
     { id: 'darkshore-road', main: true, width: 90, points: [
-      [104000, 6000], [104000, 30000], [104000, 42000], [108000, 60000],
-      [110000, 90000], [110000, 114000], [110000, 120000]] },
+      [104000, 6000], [104000,30000], [104000,42000], [108000,60000],
+      [110000,90000], [110000,114000], [114286,120000]] },
     // Auberdine → docks.
-    { id: 'darkshore-dock-spur', width: 60, points: [[104000, 42000], [100400, 43200]] },
+    { id: 'darkshore-dock-spur', width: 60, points: [[104000,42000], [100400,43200]] },
   ],
   towns: [
     { name: 'Auberdine', nx: .4, ny: .35, faction: 'alliance', tier: 'town' },
@@ -301,8 +301,8 @@ defineZoneContent({
     // North edge (Timbermaw tunnel from Moonglade/Winterspring) → Talonbranch →
     // Bloodvenom → Emerald Sanctuary → south border into Ashenvale (y=120000).
     { id: 'felwood-road', main: true, width: 90, points: [
-      [174000, 60000], [180000, 72000], [184000, 78000], [176000, 90000],
-      [172000, 93000], [180000, 105000], [180000, 120000]] },
+      [182500,40000], [190000,56000], [195000,64000], [185000,80000],
+      [180000,84000], [190000,100000], [194286,120000]] },
   ],
   towns: [
     { name: 'Bloodvenom Post', nx: .4, ny: .55, faction: 'horde', tier: 'outpost' },
@@ -357,13 +357,13 @@ defineZoneContent({
     { kind: 'lake', nx: .5, ny: .55, nrx: .05, nry: .04, depth: .7 },   // Lake Mennar basin
   ],
   roads: [
-    // West border (Ashenvale x=220000) → Talrendis Point → Valormok →
+    // West border (Ashenvale x=240000) → Talrendis Point → Valormok →
     // south edge into Durotar (y=140000 at x=284000).
     { id: 'azshara-road', main: true, width: 90, points: [
-      [220000, 96000], [235000, 108000], [250000, 100000], [262000, 108000],
-      [272000, 122000], [284000, 140000]] },
+      [240000,85000], [255000,100000], [270000,90000], [282000,100000],
+      [292000,117500], [344000,140000]] },
     // Valormok → east coast ruins.
-    { id: 'azshara-coast-spur', width: 60, points: [[250000, 100000], [280000, 92000], [300000, 96000]] },
+    { id: 'azshara-coast-spur', width: 60, points: [[270000,90000], [300000,80000], [320000,85000]] },
   ],
   towns: [
     { name: 'Valormok', nx: .3, ny: .5, faction: 'horde', tier: 'outpost' },
@@ -389,7 +389,7 @@ defineZoneContent({
   entrances: [],
 });
 
-// ── Ashenvale (80000,120000 140000×80000, contested 18-30) ────────────────────
+// ── Ashenvale (80000,120000 160000×80000, contested 18-30) ────────────────────
 // Dark ancient forest: the great east–west road, Warsong Gulch frontier, satyr ruins.
 defineZoneContent({
   id: 'ashenvale',
@@ -407,14 +407,14 @@ defineZoneContent({
   roads: [
     // North border (Darkshore y=120000) → Astranaar.
     { id: 'ashenvale-north', width: 80, points: [
-      [110000, 120000], [118000, 140000], [136000, 164000]] },
-    // Zoram'gar → Astranaar → Splintertree → Forest Song → east border (Azshara x=220000).
+      [114286,120000], [123429,140000], [144000,164000]] },
+    // Zoram'gar → Astranaar → Splintertree → Forest Song → east border (Azshara x=240000).
     { id: 'ashenvale-road', main: true, width: 100, points: [
-      [91200, 156000], [110000, 160000], [136000, 164000], [160000, 160000],
-      [180800, 160000], [199000, 152000], [220000, 150000]] },
+      [92800,156000], [114286,160000], [144000,164000], [171429,160000],
+      [195200,160000], [216000,152000], [240000,130000]] },
     // Splintertree → south border into the Barrens (y=200000 at Mor'shan).
     { id: 'ashenvale-south', width: 80, points: [
-      [180800, 160000], [190000, 180000], [196000, 200000]] },
+      [195200,160000], [205714,180000], [229600,200000]] },
   ],
   towns: [
     { name: 'Astranaar', nx: .4, ny: .55, faction: 'alliance', tier: 'town' },
@@ -444,11 +444,11 @@ defineZoneContent({
     { name: 'Bough Shadow', kind: 'landmark', nx: .93, ny: .38, description: 'One of the Great Trees guarding the Emerald Dream portals.' },
   ],
   entrances: [
-    { name: 'Blackfathom Deeps', nx: .12, ny: .2, levelMin: 18, levelMax: 30, kind: 'dungeon', theme: 'drowned' },
+    { name: 'Blackfathom Deeps', nx: .12, ny: .2, levelMin: 20, levelMax: 28, kind: 'dungeon', theme: 'drowned' },
   ],
 });
 
-// ── Durotar (240000,140000 80000×100000, horde 1-10) ──────────────────────────
+// ── Durotar (300000,140000 80000×100000, horde 1-10) ──────────────────────────
 // Arid red canyon: Orgrimmar on the north mesa, Southfury river on the west edge.
 defineZoneContent({
   id: 'durotar',
@@ -477,11 +477,11 @@ defineZoneContent({
   roads: [
     // Orgrimmar (+zeppelin tower) → Razor Hill → Sen'jin Village on the south coast.
     { id: 'durotar-road', main: true, width: 100, points: [
-      [276000, 150000], [274000, 154000], [280000, 170000], [281600, 195000],
-      [284000, 222000], [284000, 240000]] },
-    // Razor Hill → west border into the Barrens (x=240000 at y=200000).
+      [336000,150000], [334000,154000], [340000,170000], [341600,195000],
+      [344000,222000], [344000,260000]] },
+    // Razor Hill → west border into the Barrens (x=300000).
     { id: 'durotar-west', width: 80, points: [
-      [281600, 195000], [260000, 198000], [240000, 200000]] },
+      [341600,195000], [320000,198000], [300000,200000]] },
   ],
   towns: [
     { name: 'Orgrimmar', nx: .45, ny: .1, faction: 'horde', tier: 'capital' },
@@ -508,7 +508,7 @@ defineZoneContent({
     { name: 'Tiragarde Keep', kind: 'ruinedChapel', nx: .58, ny: .58 },
   ],
   entrances: [
-    { name: 'Ragefire Chasm', nx: .45, ny: .12, levelMin: 1, levelMax: 10, kind: 'dungeon', theme: 'foundry' },
+    { name: 'Ragefire Chasm', nx: .45, ny: .12, levelMin: 13, levelMax: 18, kind: 'dungeon', theme: 'foundry' },
   ],
 });
 
@@ -543,11 +543,11 @@ defineZoneContent({
     // North border (Ashenvale y=200000) → Stonetalon Peak → Sun Rock Retreat →
     // south border into Desolace (y=260000).
     { id: 'stonetalon-road', main: true, width: 80, points: [
-      [110000, 200000], [104000, 212000], [98000, 209000], [104000, 228000],
-      [113000, 236000], [110000, 252000], [110000, 260000]] },
+      [110000,200000], [104000,212000], [98000,209000], [104000,228000],
+      [113000,236000], [110000,252000], [110000,260000]] },
     // Sun Rock Retreat → east border into the Barrens (x=140000).
     { id: 'stonetalon-east', width: 70, points: [
-      [113000, 236000], [126000, 234000], [140000, 230000]] },
+      [113000,236000], [126000,234000], [140000,230000]] },
   ],
   towns: [
     { name: 'Stonetalon Peak', nx: .3, ny: .15, faction: 'alliance', tier: 'outpost' },
@@ -592,20 +592,20 @@ defineZoneContent({
   roads: [
     // West border (Stonetalon x=140000) → The Crossroads → Ratchet + dock.
     { id: 'barrens-gold-road', main: true, width: 100, points: [
-      [140000, 230000], [160000, 232000], [190000, 233000], [210000, 233000],
-      [225000, 233000], [228000, 233600]] },
+      [140000,230000], [172000,232000], [220000,233000], [252000,233000],
+      [276000,233000], [280800,233600]] },
     // The Crossroads → north border into Ashenvale (y=200000 at Mor'shan Rampart).
     { id: 'barrens-north-spur', width: 80, points: [
-      [190000, 233000], [194000, 218000], [196000, 200000]] },
+      [220000,233000], [226400,218000], [229600,200000]] },
     // The Crossroads → south border into the Southern Barrens (y=260000).
     { id: 'barrens-south-spur', width: 80, points: [
-      [190000, 233000], [192000, 246000], [193000, 260000]] },
-    // The Crossroads → east border into Durotar (x=240000 at y=200000).
+      [220000,233000], [223200,246000], [271800,260000]] },
+    // The Crossroads → east border into Durotar (x=300000).
     { id: 'barrens-east-spur', width: 80, points: [
-      [210000, 233000], [228000, 216000], [240000, 200000]] },
+      [252000,233000], [280800,216000], [300000,200000]] },
     // The Crossroads → Wailing Caverns.
     { id: 'barrens-wailing-spur', width: 60, points: [
-      [190000, 233000], [182000, 230000], [175000, 227000]] },
+      [220000,233000], [207200,230000], [196000,227000]] },
   ],
   towns: [
     { name: 'The Crossroads', nx: .5, ny: .55, faction: 'horde', tier: 'town' },
@@ -632,11 +632,11 @@ defineZoneContent({
     { name: 'Thorn Hill', kind: 'camp', nx: .6, ny: .3 },
   ],
   entrances: [
-    { name: 'Wailing Caverns', nx: .35, ny: .45, levelMin: 10, levelMax: 20, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'Wailing Caverns', nx: .35, ny: .45, levelMin: 15, levelMax: 25, kind: 'dungeon', theme: 'rootbound' },
   ],
 });
 
-// ── The Barrens, South (140000,260000 100000×40000, horde 20-35) ──────────────
+// ── The Barrens, South (240000,260000 60000×80000, horde 20-35) ──────────────
 // Dry savanna and razorfen brambles: quilboar territory, Bael Modan, the Great Lift.
 defineZoneContent({
   id: 'barrens-south',
@@ -650,18 +650,18 @@ defineZoneContent({
   ],
   roads: [
     // North border (y=260000) → Camp Taurajo → south border toward the Great Lift
-    // into Thousand Needles (y=300000 at x=200000).
+    // into Thousand Needles (y=340000).
     { id: 'barrens-south-road', main: true, width: 90, points: [
-      [193000, 260000], [186000, 272000], [180000, 284000], [186000, 292000],
-      [190000, 298000], [200000, 300000]] },
-    // Camp Taurajo → west border into Mulgore (x=140000 at y=280000).
+      [271800,260000], [267600,284000], [264000,308000], [267600,324000],
+      [270000,336000], [270000,340000]] },
+    // Camp Taurajo → west border into Mulgore (x=240000).
     { id: 'barrens-mulgore-spur', width: 80, points: [
-      [180000, 284000], [160000, 282000], [140000, 280000]] },
-    // Camp Taurajo → east border into Dustwallow (x=240000 at y=280000).
+      [264000,308000], [252000,304000], [240000,300000]] },
+    // Camp Taurajo → east border into Dustwallow (x=300000).
     { id: 'barrens-dustwallow-spur', width: 80, points: [
-      [180000, 284000], [210000, 282000], [240000, 280000]] },
+      [264000,308000], [282000,304000], [300000,313333]] },
     // Razorfen Kraul spur off the south road.
-    { id: 'barrens-kraul-spur', width: 60, points: [[186000, 292000], [174000, 292000], [168000, 294000]] },
+    { id: 'barrens-kraul-spur', width: 60, points: [[267600,324000], [260400,324000], [256800,328000]] },
   ],
   towns: [
     { name: 'Camp Taurajo', nx: .4, ny: .6, faction: 'horde', tier: 'town' },
@@ -684,8 +684,8 @@ defineZoneContent({
     { name: 'Field of Giants', kind: 'landmark', nx: .48, ny: .7 },
   ],
   entrances: [
-    { name: 'Razorfen Kraul', nx: .28, ny: .85, levelMin: 20, levelMax: 35, kind: 'dungeon', theme: 'rootbound' },
-    { name: 'Razorfen Downs', nx: .5, ny: .95, levelMin: 20, levelMax: 35, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Razorfen Kraul', nx: .28, ny: .85, levelMin: 24, levelMax: 32, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'Razorfen Downs', nx: .5, ny: .95, levelMin: 34, levelMax: 42, kind: 'dungeon', theme: 'ossuary' },
   ],
 });
 
@@ -706,14 +706,14 @@ defineZoneContent({
     { kind: 'river', nx: 0.275, ny: 0.443, points: [[.05, .3], [.2, .42], [.35, .5], [.5, .55]], width: 110, depth: .6 },
   ],
   roads: [
-    // West border (Barrens x=240000 at y=280000) → Brackenwall → Mudsprocket →
+    // West border (Barrens x=300000) → Brackenwall → Mudsprocket →
     // Theramore Isle + dock.
     { id: 'dustwallow-road', main: true, width: 90, points: [
-      [240000, 280000], [252000, 270000], [268000, 258000], [280000, 270000],
-      [290000, 280000], [300000, 273000], [302400, 273600]] },
-    // Mudsprocket → south border into Tanaris (y=300000 at x=280000).
+      [300000,313333], [312000,300000], [328000,284000], [340000,300000],
+      [350000,313333], [360000,304000], [362400,304800]] },
+    // Mudsprocket → south border into Thousand Needles (y=340000).
     { id: 'dustwallow-south', width: 70, points: [
-      [280000, 270000], [280000, 288000], [280000, 300000]] },
+      [340000,300000], [340000,324000], [290000,400000]] },
   ],
   towns: [
     { name: 'Theramore Isle', nx: .75, ny: .55, faction: 'alliance', tier: 'town' },
@@ -741,7 +741,7 @@ defineZoneContent({
     { name: 'Alcaz Island', kind: 'landmark', nx: .78, ny: .18 },
   ],
   entrances: [
-    { name: 'Onyxia\'s Lair', nx: .5, ny: .7, levelMin: 35, levelMax: 45, kind: 'raid', theme: 'ossuary' },
+    { name: 'Onyxia\'s Lair', nx: .5, ny: .7, levelMin: 80, levelMax: 80, kind: 'raid', theme: 'ossuary' },
   ],
 });
 
@@ -758,10 +758,10 @@ defineZoneContent({
     // North border (Stonetalon y=260000) → Nijel's Point → Shadowprey →
     // south border into Feralas (y=320000).
     { id: 'desolace-road', main: true, width: 90, points: [
-      [110000, 260000], [114000, 264000], [116000, 266000], [104000, 280000],
-      [95000, 302000], [100000, 314000], [104000, 320000]] },
+      [110000,260000], [114000,264000], [116000,266000], [104000,280000],
+      [95000,302000], [100000,314000], [112000,320000]] },
     // Shadowprey → Maraudon spur.
-    { id: 'desolace-maraudon-spur', width: 60, points: [[95000, 302000], [100000, 296000], [101000, 293000]] },
+    { id: 'desolace-maraudon-spur', width: 60, points: [[95000,302000], [100000,296000], [101000,293000]] },
   ],
   towns: [
     { name: 'Nijel\'s Point', nx: .6, ny: .1, faction: 'alliance', tier: 'outpost' },
@@ -788,7 +788,7 @@ defineZoneContent({
     { name: 'Ethel Rethor', kind: 'ruinedChapel', nx: .38, ny: .28 },
   ],
   entrances: [
-    { name: 'Maraudon', nx: .35, ny: .55, levelMin: 30, levelMax: 40, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'Maraudon', nx: .35, ny: .55, levelMin: 40, levelMax: 52, kind: 'dungeon', theme: 'rootbound' },
   ],
 });
 
@@ -818,11 +818,11 @@ defineZoneContent({
     { kind: 'river', nx: 0.52, ny: 0.777, points: [[.45, .58], [.5, .7], [.55, .85], [.58, .98]], width: 80, depth: .5 },
   ],
   roads: [
-    // Thunder Bluff → Bloodhoof Village → east border into the Barrens (x=200000 at y=280000).
+    // Thunder Bluff → Bloodhoof Village → east border into the Barrens (x=240000).
     { id: 'mulgore-road', main: true, width: 90, points: [
-      [167000, 321000], [170000, 330000], [170000, 337200], [182000, 320000], [200000, 280000]] },
+      [196000,287500], [200000,295000], [200000,301000], [216000,286667], [276000,300000]] },
     // Bloodhoof → Camp Narache (south).
-    { id: 'mulgore-narache-spur', width: 60, points: [[170000, 337200], [166000, 348000], [163200, 354000]] },
+    { id: 'mulgore-narache-spur', width: 60, points: [[200000,301000], [194667,310000], [190933,315000]] },
   ],
   towns: [
     { name: 'Thunder Bluff', nx: .45, ny: .35, faction: 'horde', tier: 'capital' },
@@ -875,13 +875,13 @@ defineZoneContent({
   },
   water: [],
   roads: [
-    // North border (the Great Lift from Barrens y=300000) → Freewind Post →
-    // Mirage Raceway → south border toward Un'Goro (y=360000).
+    // North border (the Great Lift from Barrens y=340000) → Freewind Post →
+    // Mirage Raceway → south border toward Un'Goro (y=400000).
     { id: 'needles-road', main: true, width: 80, points: [
-      [200000, 300000], [208000, 312000], [218000, 327000], [226000, 336000],
-      [230000, 336000], [224000, 348000], [220000, 360000]] },
-    // Freewind → east border toward Tanaris (x=240000 at y=330000).
-    { id: 'needles-east', width: 70, points: [[230000, 336000], [236000, 332000], [240000, 330000]] },
+      [270000,340000], [250000,352000], [241000,367000], [277000,376000],
+      [295000,376000], [268000,388000], [200000,400000]] },
+    // Freewind → south border toward Tanaris (y=400000).
+    { id: 'needles-east', width: 70, points: [[295000,376000], [322000,372000], [240000,418000]] },
   ],
   towns: [
     { name: 'Freewind Post', nx: .45, ny: .45, faction: 'horde', tier: 'outpost' },
@@ -930,13 +930,13 @@ defineZoneContent({
   ],
   roads: [
     // North border (Desolace y=320000) → Camp Mojache → Thalanaar →
-    // east border toward Mulgore (x=140000 at y=340000).
+    // east border into Thousand Needles (x=160000).
     { id: 'feralas-road', main: true, width: 90, points: [
-      [104000, 320000], [112000, 330000], [125000, 338000], [134000, 334000], [140000, 340000]] },
+      [112000,320000], [122667,335000], [140000,347000], [152000,341000], [160000,360000]] },
     // Camp Mojache → Feathermoon Stronghold spur (west).
-    { id: 'feralas-west', width: 70, points: [[125000, 338000], [105000, 340000], [89000, 342000]] },
+    { id: 'feralas-west', width: 70, points: [[140000,347000], [113333,350000], [92000,353000]] },
     // Dire Maul spur.
-    { id: 'feralas-diremaul-spur', width: 60, points: [[125000, 338000], [118000, 336000], [113000, 336000]] },
+    { id: 'feralas-diremaul-spur', width: 60, points: [[140000,347000], [130667,344000], [124000,344000]] },
   ],
   towns: [
     { name: 'Feathermoon Stronghold', nx: .15, ny: .55, faction: 'alliance', tier: 'town' },
@@ -962,7 +962,7 @@ defineZoneContent({
     { name: 'The Forgotten Coast', kind: 'landmark', nx: .45, ny: .92 },
   ],
   entrances: [
-    { name: 'Dire Maul', nx: .55, ny: .4, levelMin: 40, levelMax: 50, kind: 'dungeon', theme: 'rootbound' },
+    { name: 'Dire Maul', nx: .55, ny: .4, levelMin: 55, levelMax: 60, kind: 'dungeon', theme: 'rootbound' },
   ],
 });
 
@@ -978,15 +978,15 @@ defineZoneContent({
   elevation: { noise: 14 },                                              // rolling dunes
   water: [],
   roads: [
-    // North border (Dustwallow y=300000 at x=280000) → Gadgetzan → Steamwheedle Port.
+    // North border (Thousand Needles y=400000) → Gadgetzan → Steamwheedle Port.
     { id: 'tanaris-road', main: true, width: 90, points: [
-      [280000, 300000], [280000, 318000], [284000, 330000], [292000, 318000], [296000, 312000]] },
+      [290000,400000], [290000,410800], [295000,418000], [305000,410800], [310000,407200]] },
     // Gadgetzan → Zul'Farrak spur (west).
-    { id: 'tanaris-zulfarrak-spur', width: 70, points: [[284000, 330000], [268000, 334000], [256000, 335000]] },
+    { id: 'tanaris-zulfarrak-spur', width: 70, points: [[295000,418000], [275000,420400], [260000,421000]] },
     // Gadgetzan → Caverns of Time (south-east).
-    { id: 'tanaris-caverns-spur', width: 70, points: [[284000, 330000], [288000, 356000], [292000, 375000]] },
-    // Gadgetzan → west border into Un'Goro (x=240000 at y=380000).
-    { id: 'tanaris-ungoro-spur', width: 70, points: [[284000, 330000], [262000, 356000], [240000, 380000]] },
+    { id: 'tanaris-caverns-spur', width: 70, points: [[295000,418000], [300000,433600], [305000,445000]] },
+    // Gadgetzan → west border into Un'Goro (x=240000).
+    { id: 'tanaris-ungoro-spur', width: 70, points: [[295000,418000], [267500,433600], [240000,448000]] },
   ],
   towns: [
     { name: 'Gadgetzan', nx: .55, ny: .3, faction: 'neutral', tier: 'town' },
@@ -1012,8 +1012,8 @@ defineZoneContent({
     { name: 'Valley of the Watchers', kind: 'standingStones', nx: .38, ny: .78 },
   ],
   entrances: [
-    { name: 'Zul\'Farrak', nx: .2, ny: .35, levelMin: 40, levelMax: 50, kind: 'dungeon', theme: 'ossuary' },
-    { name: 'Caverns of Time', nx: .65, ny: .75, levelMin: 40, levelMax: 50, kind: 'dungeon', theme: 'astral' },
+    { name: 'Zul\'Farrak', nx: .2, ny: .35, levelMin: 42, levelMax: 50, kind: 'dungeon', theme: 'ossuary' },
+    { name: 'Caverns of Time', nx: .65, ny: .75, levelMin: 66, levelMax: 70, kind: 'dungeon', theme: 'astral' },
   ],
 });
 
@@ -1047,12 +1047,12 @@ defineZoneContent({
     { kind: 'river', nx: 0.432, ny: 0.5, points: [[.5, .2], [.45, .4], [.4, .6], [.38, .8]], width: 80, depth: .5 },
   ],
   roads: [
-    // Marshal's Refuge → east pass into Tanaris (x=240000 at y=380000).
+    // Marshal's Refuge → east pass into Tanaris (x=240000).
     { id: 'ungoro-east', main: true, width: 80, points: [
-      [220000, 366000], [226000, 374000], [232000, 380000], [240000, 380000]] },
-    // Marshal's Refuge → west pass into Silithus (x=200000 at y=380000).
+      [200000,409000], [212000,421000], [224000,430000], [240000,448000]] },
+    // Marshal's Refuge → west pass into Silithus (x=160000).
     { id: 'ungoro-west', width: 80, points: [
-      [220000, 366000], [212000, 374000], [206000, 380000], [200000, 380000]] },
+      [200000,409000], [184000,421000], [172000,430000], [160000,430000]] },
   ],
   towns: [
     { name: 'Marshal\'s Refuge', nx: .5, ny: .15, faction: 'neutral', tier: 'outpost' },
@@ -1091,11 +1091,11 @@ defineZoneContent({
     { kind: 'lake', nx: .5, ny: .42, nrx: .03, nry: .05, depth: .6 },   // Cenarion Hold oasis pool
   ],
   roads: [
-    // East border (Un'Goro x=200000 at y=380000) → Cenarion Hold →
+    // East border (Un'Goro x=160000) → Cenarion Hold →
     // south to the Scarab Wall / Ahn'Qiraj gates.
     { id: 'silithus-road', main: true, width: 90, points: [
-      [200000, 380000], [170000, 376000], [140000, 374000], [142000, 384000],
-      [146000, 392000], [152000, 397200]] },
+      [160000,430000], [140000,424000], [120000,421000], [121333,436000],
+      [124000,448000], [128000,455800]] },
   ],
   towns: [
     { name: 'Cenarion Hold', nx: .5, ny: .35, faction: 'neutral', tier: 'town' },
@@ -1120,7 +1120,7 @@ defineZoneContent({
     { name: 'The Crystal Vale', kind: 'landmark', nx: .28, ny: .2 },
   ],
   entrances: [
-    { name: 'Ruins of Ahn\'Qiraj', nx: .55, ny: .9, levelMin: 55, levelMax: 60, kind: 'raid', theme: 'ossuary' },
-    { name: 'Temple of Ahn\'Qiraj', nx: .6, ny: .93, levelMin: 55, levelMax: 60, kind: 'raid', theme: 'ossuary' },
+    { name: 'Ruins of Ahn\'Qiraj', nx: .55, ny: .9, levelMin: 60, levelMax: 60, kind: 'raid', theme: 'ossuary' },
+    { name: 'Temple of Ahn\'Qiraj', nx: .6, ny: .93, levelMin: 60, levelMax: 60, kind: 'raid', theme: 'ossuary' },
   ],
 });

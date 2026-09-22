@@ -44,8 +44,8 @@ test('sampleBiome answers the zone biome inside zones and stays procedural outsi
 
 test('zone borders blend biomes instead of snapping', () => {
   const world = new AuthoredWorld(7319);
-  // Durotar (sunscar) borders Barrens North (steppe) at x=240000.
-  const border = { x: 240000, y: 220000 };
+  // Durotar (sunscar) borders Barrens North (steppe) at x=300000.
+  const border = { x: 300000, y: 220000 };
   const west = world.sampleBiome(border.x - 200, border.y);
   const east = world.sampleBiome(border.x + 200, border.y);
   assert.ok(west.weights.steppe > 0 && west.weights.sunscar > 0, 'west side blends toward sunscar');
@@ -86,11 +86,14 @@ test('authored towns become settlements with stable numeric portal bands', () =>
 test('authored camps and dungeon entrances come from zone content', () => {
   const world = new AuthoredWorld(7319);
   const barrens = zoneRect('barrens-north')!;
-  const camps = world.getEnemyCamps(barrens.x, barrens.y, barrens.w, barrens.h);
+  // The Barrens is wider than the 100k world-query cap; query the central band
+  // holding the camps, Wailing Caverns, and The Crossroads.
+  const qx = barrens.x + barrens.w * 0.3, qw = barrens.w * 0.35;
+  const camps = world.getEnemyCamps(qx, barrens.y, qw, barrens.h);
   assert.ok(camps.length >= 3, 'default content seeds camps');
-  const entrances = world.getDungeonEntrances(barrens.x, barrens.y, barrens.w, barrens.h);
+  const entrances = world.getDungeonEntrances(qx, barrens.y, qw, barrens.h);
   assert.ok(entrances.some(e => e.name === 'Wailing Caverns'));
-  const pois = world.getPOIs(barrens.x, barrens.y, barrens.w, barrens.h);
+  const pois = world.getPOIs(qx, barrens.y, qw, barrens.h);
   assert.ok(pois.some(p => p.name === 'The Crossroads'));
   world.dispose();
 });

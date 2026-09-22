@@ -33,7 +33,7 @@
     "src/wow-skills-warrior.ts", "src/wow-skills-paladin.ts", "src/wow-skills-hunter.ts", "src/wow-skills-rogue.ts", "src/wow-skills-priest.ts",
     "src/wow-skills-deathknight.ts", "src/wow-skills-shaman.ts", "src/wow-skills-mage.ts", "src/wow-skills-warlock.ts", "src/wow-skills-druid.ts", "src/wow-skills-racial.ts",
     "src/hydrology.ts", "src/water-simulation.ts", "src/water-presentation.ts", "src/world-geography.ts", "src/biomes.ts", "src/biome-props.ts", "src/settlements.ts", "src/settlement-residents.ts", "src/road-shape.ts", "src/world-query.ts",
-    "src/elevation.ts", "src/occlusion.ts", "src/world-atlas.ts", "src/zone-content.ts", "src/zone-content-kalimdor.ts", "src/zone-content-northrend.ts", "src/transport.ts", "src/transport-content.ts",
+    "src/elevation.ts", "src/occlusion.ts", "src/world-atlas.ts", "src/zone-content.ts", "src/zone-content-kalimdor.ts", "src/zone-content-northrend.ts", "src/transport.ts", "src/transport-content.ts", "src/world-time.ts",
     "src/player-arm-rig.ts", "src/camera.ts", "src/exploration-save.ts",
     "src/action-bar.ts", "src/mount-content.ts", "src/mount-state.ts", "src/mount-command.ts",
     "src/profession-content.ts", "src/profession-state.ts", "src/profession-command.ts", "src/gather-node.ts",

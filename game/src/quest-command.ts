@@ -12,7 +12,7 @@ import { xpLevelFactor } from './progression.ts';
 import { pushChatMessage } from './chat-log.ts';
 import { formatWalletCompact } from './currency.ts';
 import { GAME_FEATURES } from './game-features.ts';
-import { buildingNPC, canInteractNPC, hashService, type TownNPC } from './npcs.ts';
+import { buildingNPC, canInteractNPC, hashService, positionedNPC, type TownNPC } from './npcs.ts';
 import { grantMaterial, type ProfessionsCarrier } from './profession-state.ts';
 import { PROFESSION_MATERIALS } from './profession-content.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
@@ -77,14 +77,19 @@ function townMatches(town: Settlement, spec: QuestGiver): boolean {
     && (spec.biome === undefined || town.buildings[0]?.biome === spec.biome);
 }
 
-/** All anchors offering/accepting `spec` inside the bounds. */
+/** All anchors offering/accepting `spec` inside the bounds. When `time` (sim
+ * seconds) is given, NPC anchors resolve to their daily-routine position. */
 export function questGiverAnchors(world: QuestWorld, spec: QuestGiver,
-  x: number, y: number, width: number, height: number): QuestGiverAnchor[] {
+  x: number, y: number, width: number, height: number, time?: number): QuestGiverAnchor[] {
   const anchors: QuestGiverAnchor[] = [];
   if (spec.role) {
+    const towns = time === undefined ? [] : world.getSettlements(x - 1400, y - 1400, width + 2800, height + 2800);
     for (const building of world.getBuildings?.(x, y, width, height) ?? []) {
       const npc = buildingNPC(building);
-      if (npc && npcMatches(npc, building, spec)) anchors.push({ kind: 'npc', npc, x: npc.x, y: npc.y });
+      if (!npc || !npcMatches(npc, building, spec)) continue;
+      const town = towns.find(t => t.buildings.some(b => b.id === building.id));
+      const placed = positionedNPC(npc, town, time);
+      anchors.push({ kind: 'npc', npc: placed, x: placed.x, y: placed.y });
     }
   } else if (spec.poi === 'town') {
     for (const town of world.getSettlements(x, y, width, height))
@@ -160,7 +165,7 @@ export function questInteract(sim: Simulation, world: QuestWorld, pointer?: { x:
     seen.add(key);
     const buckets = questsAtGiver(p, spec);
     if (!buckets.turnIns.length && !buckets.offers.length && !buckets.upcoming.length && !buckets.pending.length) return;
-    for (const anchor of questGiverAnchors(world, spec, p.x - 320, p.y - 320, 640, 640)) candidates.push({ anchor, spec, greeting: buckets });
+    for (const anchor of questGiverAnchors(world, spec, p.x - 320, p.y - 320, 640, 640, sim.time)) candidates.push({ anchor, spec, greeting: buckets });
   };
   for (const def of Object.values(QUEST_BY_ID)) { consider(giverSpec(def)); consider(turnInSpec(def)); }
   const hit = candidates

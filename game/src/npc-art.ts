@@ -24,7 +24,7 @@ export function drawNPC(c:CanvasRenderingContext2D,npc:TownNPC|Resident,time:num
   const look=npcLook(npc.seed,role);
   c.save();c.translate(npc.x,npc.y);const scale=npcArtScale(npc);c.scale(scale,scale);
   drawHumanoid(c,{kind:'player',...look,appearance:resident&&npc.child?{...look.appearance!,facialHair:'none'}:look.appearance,
-    angle:resident?npc.angle:Math.PI/2,time:reduced?0:time+npc.seed%37,moving:resident&&!reduced?npc.moving:0,
+    angle:npc.angle??Math.PI/2,time:reduced?0:time+npc.seed%37,moving:reduced?0:(npc.moving??0),
     gaitPhase:time*2.2,attack:0,attackAngle:Math.PI/2,weapon:UNARMED_WEAPON.visual,offHand:null,hitFlash:0,dodging:false});
   c.restore();
 }
