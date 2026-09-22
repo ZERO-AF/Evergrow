@@ -37,6 +37,8 @@
 .appearance-editor .world-study { position:absolute; bottom:28px; right:6px; width:94px; text-align:center; }
 .appearance-editor .world-study canvas { width:94px; height:110px; display:block; }
 .appearance-editor .world-study span { font-size:12px; color:var(--ui-muted); }
+.appearance-editor .facing-strip { position:absolute; left:6px; bottom:28px; display:flex; flex-direction:column; gap:6px; }
+.appearance-editor .facing-thumb { width:56px; height:64px; display:block; background:#0d1a20; border:1px solid #33454a; border-radius:4px; }
 .appearance-editor .rotation { display:flex; align-items:center; justify-content:center; gap:16px; margin:0 0 16px; }
 .appearance-editor .rotation output { text-align:center; min-width:94px; color:var(--ui-muted); font-size:14px; }
 .appearance-editor .rotation button { width:44px; }

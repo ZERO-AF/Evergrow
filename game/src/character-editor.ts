@@ -67,9 +67,10 @@ root.innerHTML = `<div class="editor-shell">
   <header class="editor-header"><div class="editor-brand">${uiIcon('star')}<span>EVERGROW</span></div>${options.onInventory?`<button type="button" class="ui-button ui-button--quiet" id="inventory-preview" aria-label="Inventory preview">${uiIcon('inventory')} <span>Inventory preview</span></button>`:`<button type="button" class="ui-button ui-button--quiet ui-button--icon" id="close-editor" aria-label="Close editor">${uiIcon('close')}</button>`}</header>
   <div class="editor-layout">
     <section class="editor-stage" aria-label="Character preview">
-      <div class="stage-title"><h1 id="preview-name">Rowan</h1><span>Appearance preview</span></div>
+      <div class="stage-title"><h1 id="preview-name">Rowan</h1><span>${race ? `${race.name} · ` : ''}Appearance preview</span></div>
       <div class="figure-space"><canvas id="figure" role="img" aria-label="Full character wearing selected appearance and starting gear"></canvas>
-        <div class="world-study"><canvas id="world-size" role="img" aria-label="Small character preview"></canvas><span>Small scale</span></div></div>
+        <div class="world-study"><canvas id="world-size" role="img" aria-label="Small character preview"></canvas><span>Small scale</span></div>
+        <div class="facing-strip" aria-label="Facing preview">${[0, 2, 4, 6].map(i => `<canvas class="facing-thumb" data-facing="${i}" role="img" aria-label="${directions[i]} view"></canvas>`).join('')}</div></div>
       <div class="rotation"><button type="button" class="ui-button ui-button--quiet ui-button--icon rotate-left" id="rotate-left" aria-label="Rotate left">${uiIcon('chevron')}</button><output id="direction">Front</output><button type="button" class="ui-button ui-button--quiet ui-button--icon" id="rotate-right" aria-label="Rotate right">${uiIcon('chevron')}</button></div>
       <div class="stage-options"><label class="gear-choice">Gear<select id="gear">${Object.values(WOW_CLASSES).map(c => `<option value="${c.id}">${c.name}</option>`).join('')}</select></label></div>
     </section>
@@ -103,6 +104,8 @@ const accessory = root.querySelector<HTMLSelectElement>('#accessory')!;
 const feature = root.querySelector<HTMLSelectElement>('#feature')!;
 const helmet = root.querySelector<HTMLInputElement>('#helmet-visible')!;
 gear.value = gearClass;
+// The gear/class picker is a study-only tool; the real editor keeps the character's class.
+root.querySelector<HTMLElement>('.stage-options')!.hidden = !options.study;
 let sheet = structuredClone(options.sheet);
 const tintPrompt=bindArmorTintPrompt(root,()=>!busy&&!disposed,tint=>{
   tints=tint==='original'?{}:Object.fromEntries(ARMOR_PARTS.map(part=>[part.id,tint]));refresh();
@@ -110,14 +113,15 @@ const tintPrompt=bindArmorTintPrompt(root,()=>!busy&&!disposed,tint=>{
   tab=delta<0?'character':'armor';root.querySelector('.editor-controls')!.scrollTop=0;refresh();
   root.querySelector<HTMLButtonElement>(`[data-tab="${tab}"]`)!.focus();
 });
-if(!options.study)root.querySelector<HTMLElement>('.stage-options')!.hidden=true;
 let envelope: CharacterBounds = { left:-60, right:60, top:-70, bottom:20 };
+let bodyEnvelope: CharacterBounds = { left:-30, right:30, top:-60, bottom:10 };
+let resolvedOutfit: CharacterPose['outfit'];
 const label = <T extends {id: string; name: string}>(catalog: readonly T[], id: string) => catalog.find(p => p.id === id)!.name;
 function pose(time: number, source:CharacterSheet=sheet, angle=facing): CharacterPose {
   const main = source.equipped.weapon?.weapon ?? UNARMED_WEAPON;
   const off = source.equipped.offhand;
   return { kind: 'player', appearance, raceId, time, angle, attackAngle: angle, moving: 0, attack: 0, hitFlash: 0, dodging: false,
-    outfit: tintedOutfit(outfitFromEquipment(transmoggedSheet(source)),tints,showHelmet),
+    outfit: resolvedOutfit,
     weapon: main.visual, grip: main.hands === 2 ? 'two-handed' : 'one-handed',
     offHand: off?.shield ? { kind: 'shield', visual: off.shield.visual } : off?.focus ? { kind: 'focus', visual: off.focus.visual } : off?.weapon ? {kind:'weapon',visual:off.weapon.visual}:null };
 }
@@ -129,10 +133,12 @@ function surface(target: HTMLCanvasElement) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, rect.width, rect.height);
   return { ctx, width: rect.width, height: rect.height };
 }
-function drawFigure(target: HTMLCanvasElement, time: number, miniature = false) {
+function drawFigure(target: HTMLCanvasElement, time: number, miniature = false, angle?: number, thumb = false) {
   const { ctx, width, height } = surface(target);
-  const current = pose(time);
-  const fit = fitCharacter(envelope, width * (target === figure ? .94 : 1), height, .045);
+  const base = pose(time, sheet, angle ?? facing);
+  // Facing thumbs frame the body only: no weapon reach inflates the fit.
+  const current = thumb ? { ...base, weapon: UNARMED_WEAPON.visual, offHand: null } : base;
+  const fit = fitCharacter(thumb ? bodyEnvelope : envelope, width * (target === figure ? .94 : 1), height, .045);
   ctx.save(); ctx.translate(fit.x, fit.y); ctx.scale(miniature ? Math.min(1.6, fit.scale) : fit.scale, miniature ? Math.min(1.6, fit.scale) : fit.scale);
   ctx.fillStyle = '#02080ba0'; ctx.beginPath(); ctx.ellipse(0, 3, 16, 3.5, 0, 0, Math.PI * 2); ctx.fill();
   drawHumanoid(ctx, current); ctx.restore();
@@ -147,11 +153,16 @@ function draw(time = 0) {
   if (disposed) return;
 
   drawFigure(figure, time); drawFigure(small, 0, true);
+  root.querySelectorAll<HTMLCanvasElement>('.facing-thumb').forEach(thumb =>
+    drawFigure(thumb, time, true, Number(thumb.dataset.facing) * Math.PI / 4, true));
 }
 function refresh() {
-
-  // Resolve geometry only on editor changes, never rebuild items/bounds per animation frame.
+  // Resolve geometry and the outfit only on editor changes, never per animation frame.
+  resolvedOutfit = tintedOutfit(outfitFromEquipment(transmoggedSheet(sheet)), tints, showHelmet);
   const neutral = pose(0);
+  const unarmed = { ...neutral, weapon: UNARMED_WEAPON.visual, offHand: null };
+  const bodyBounds = Array.from({length:8}, (_,i) => characterBounds({...unarmed, angle:i * Math.PI / 4, attackAngle:i * Math.PI / 4}));
+  bodyEnvelope = {left:Math.min(...bodyBounds.map(b=>b.left)), right:Math.max(...bodyBounds.map(b=>b.right)), top:Math.min(...bodyBounds.map(b=>b.top)) - 3, bottom:Math.max(...bodyBounds.map(b=>b.bottom))};
   const bounds = Array.from({length:8}, (_,i) => characterBounds({...neutral, angle:i * Math.PI / 4, attackAngle:i * Math.PI / 4}));
   envelope = {left:Math.min(...bounds.map(b=>b.left)), right:Math.max(...bounds.map(b=>b.right)), top:Math.min(...bounds.map(b=>b.top)) - 3, bottom:Math.max(...bounds.map(b=>b.bottom))};
   root.querySelectorAll<HTMLButtonElement>('[data-choice]').forEach(button => {

@@ -93,6 +93,8 @@ export interface WowRaceVisual {
   /** Body scale: height multiplies vertical reach, width horizontal bulk. */
   readonly height: number;
   readonly width: number;
+  /** Limb/torso thickness multiplier: tauren bulk out, trolls slim down. */
+  readonly bulk?: number;
   /** Head scale relative to the body (gnomes run large-headed). */
   readonly headScale?: number;
   /** Forward stoop: shears the torso toward the facing and drops the head. */

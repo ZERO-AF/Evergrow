@@ -98,8 +98,9 @@ export function appearanceHeadShapes(appearance: Readonly<CharacterAppearance>, 
   return shapes;
 }
 
-/** Race silhouette on the head: ears, tusks, horns, markings, undead hollows. */
-function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppearance>, facing: number, skin: AppearancePalette, covered: boolean, feat?: RaceFeatureId): GearShape[] {
+/** Race silhouette on the head: ears, tusks, horns, markings, undead hollows.
+ * `overlayOnly` keeps just the protruding features that must draw over helmets. */
+function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppearance>, facing: number, skin: AppearancePalette, covered: boolean, feat?: RaceFeatureId, overlayOnly = false): GearShape[] {
   const v = WOW_RACES[raceId]?.visual;
   if (!v) return [];
   const back = Math.sin(facing) < -.16, side = Math.cos(facing), look = side * .8;
@@ -107,7 +108,7 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
   const shape = (points: readonly Point[], color: string) => shapes.push(fill(points, color));
   const stroke = (points: readonly Point[], color: string, width = .6) => shapes.push(line(points, color, width));
   // Ears sit behind the jaw; troll ears droop outward, bovine ears lie flat.
-  if (v.ears && !covered) {
+  if (v.ears && (overlayOnly || !covered)) {
     for (const e of [-1, 1]) {
       if (v.ears === 'bovine') {
         const ex = e * 3.6, ey = 1.6;
@@ -125,7 +126,7 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
     }
   }
   // Horns/crest above the brow; the feature pick chooses the variant.
-  if (v.horns) {
+  if (v.horns && (overlayOnly || !covered)) {
     const horn = '#e8dcc0', hornShade = '#a8946e';
     if (v.horns === 'tauren') {
       for (const e of [-1, 1]) {
@@ -155,7 +156,7 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
     }
   }
   // Tusks flank the mouth on the front face only; orcs are short, trolls long.
-  if (v.tusks && !back) {
+  if (v.tusks && !back && (overlayOnly || !covered)) {
     const ivory = '#f0e6cc', ivoryShade = '#c9b892';
     for (const e of [-1, 1]) {
       if (v.tusks === 'long') {
@@ -172,7 +173,7 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
     }
   }
   // Undead: sunken dark eye hollows with a lit ember inside, bone brow, stitches.
-  if (v.decay && !back) {
+  if (v.decay && !back && !overlayOnly) {
     for (const e of [-1, 1]) {
       shape([[e * 1.6 + look - .9, .6], [e * 1.6 + look + .9, .6], [e * 1.6 + look + .7, 1.9], [e * 1.6 + look - .7, 1.9]], '#2a2226');
       if (v.eyeGlow) shape([[e * 1.6 + look - .42, 1], [e * 1.6 + look + .42, 1], [e * 1.6 + look + .32, 1.7], [e * 1.6 + look - .32, 1.7]], v.eyeGlow);
@@ -181,7 +182,7 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
     stroke([[-2.4 + look, -1.1], [-1.2 + look, -.7], [look, -1], [1.2 + look, -.6], [2.4 + look, -1]], mixColor(skin.shadow, '#3a3236', .5), .45);
   }
   // Night elf markings: dark violet stripes under the eyes and a forehead V.
-  if (v.markings && feat === 'markings' && !back) {
+  if (v.markings && feat === 'markings' && !back && !overlayOnly) {
     const mark = mixColor(skin.shadow, '#4a2a6a', .55);
     for (const e of [-1, 1]) {
       stroke([[e * 1.1 + look, 2.2], [e * 1.4 + look, 3.6]], mark, .55);
@@ -190,16 +191,29 @@ function raceFeatureShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppe
     stroke([[-.6 + look, -1.6], [look, -.9], [.6 + look, -1.6]], mark, .5);
   }
   // Draenei tendrils hang beside the jaw.
-  if (v.tendrils && !back) {
+  if (v.tendrils && !back && (overlayOnly || !covered)) {
     for (const e of [-1, 1]) {
       shape([[e * 2.1 + look, 4.3], [e * 2.6 + look, 4.6], [e * 2.4 + look, 7.2], [e * 1.9 + look, 7.8], [e * 1.7 + look, 6]], skin.base);
       stroke([[e * 2.2 + look, 5], [e * 2.15 + look, 7]], skin.light, .4);
     }
   }
   // Dwarf rings clasp the beard when one is grown.
-  if (feat === 'beard-ringed' && !back && appearance.facialHair !== 'none' && appearance.facialHair !== 'stubble') {
+  if (feat === 'beard-ringed' && !back && !overlayOnly && appearance.facialHair !== 'none' && appearance.facialHair !== 'stubble') {
     stroke([[-1.7 + look, 5.1], [1.7 + look, 5.1]], '#8a7a4a', .8);
     stroke([[-1.2 + look, 6.3], [1.2 + look, 6.3]], '#8a7a4a', .8);
   }
   return shapes;
+}
+
+/** Protruding race features (ears, horns, tusks, tendrils) drawn over head armor.
+ * Returns the same head-local space as appearanceHeadShapes, headScale applied. */
+export function raceOverlayShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppearance>, facing: number): GearShape[] {
+  const v = WOW_RACES[raceId]?.visual;
+  if (!v) return [];
+  const skin = appearancePalette(SKIN_PALETTES, appearance.skin);
+  const feat = appearance.feature ?? RACE_FEATURE_OPTIONS[raceId]?.[0];
+  const shapes = raceFeatureShapes(raceId, appearance, facing, skin, false, feat, true);
+  const headScale = v.headScale ?? 1;
+  if (headScale === 1) return shapes;
+  return shapes.map(s => ({ ...s, points: s.points.map(([x, y]): Point => [x * headScale, .6 + (y - .6) * headScale]), width: s.width === undefined ? undefined : s.width * headScale }));
 }

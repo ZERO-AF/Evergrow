@@ -14,6 +14,14 @@ export function createRaceLook(raceId: WowRaceId):CharacterLook {
   if (race?.visual.feature) look.appearance.feature = race.visual.feature as CharacterAppearance['feature'];
   return look;
 }
+const raceAppearanceCache = new Map<WowRaceId, CharacterAppearance>();
+/** Memoized race-seeded appearance for render paths that lack an explicit look.
+ * Read-only: callers must not mutate the returned object. */
+export function raceAppearance(raceId: WowRaceId): CharacterAppearance {
+  let appearance = raceAppearanceCache.get(raceId);
+  if (!appearance) { appearance = createRaceLook(raceId).appearance; raceAppearanceCache.set(raceId, appearance); }
+  return appearance;
+}
 const record=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 /** Only bounded catalog IDs cross command/save boundaries. Unknown keys are rejected. */
 export function validCharacterLook(v:unknown):v is CharacterLook {

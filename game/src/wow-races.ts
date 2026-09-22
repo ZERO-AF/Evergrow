@@ -20,7 +20,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ frostResistance: 5, critDamage: 3 }),
     passiveDescription: '+5 frost resistance · +3% critical damage',
     skinTones: Object.freeze(['sand', 'copper', 'umber', 'rose']),
-    visual: Object.freeze({ hairColor: 'copper', facialHair: 'fullbeard', feature: 'beard-ringed', height: 0.8, width: 1.22, nose: 'broad' }),
+    visual: Object.freeze({ hairColor: 'copper', facialHair: 'fullbeard', feature: 'beard-ringed', height: 0.76, width: 1.3, bulk: 1.4, nose: 'broad' }),
   }),
   nightElf: Object.freeze({
     id: 'nightElf', name: 'Night Elf', faction: 'alliance',
@@ -30,7 +30,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ moveSpeedPercent: 2, lightningResistance: 3 }),
     passiveDescription: '+2% movement speed · +3 lightning resistance',
     skinTones: Object.freeze(['violet', 'lavender', 'moonblue', 'duskwine', 'ashen']),
-    visual: Object.freeze({ hairColor: 'silver', feature: 'markings', height: 1.07, width: 0.94, ears: 'elf', eyeGlow: '#f4d97b', markings: true }),
+    visual: Object.freeze({ hairColor: 'silver', feature: 'markings', height: 1.1, width: 0.92, bulk: 0.88, ears: 'elf', eyeGlow: '#f4d97b', markings: true }),
   }),
   gnome: Object.freeze({
     id: 'gnome', name: 'Gnome', faction: 'alliance',
@@ -40,7 +40,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ intelligence: 5, arcaneResistance: 3 }),
     passiveDescription: '+5 intellect · +3 arcane resistance',
     skinTones: Object.freeze(['porcelain', 'sand', 'rose', 'warm']),
-    visual: Object.freeze({ hairColor: 'golden', height: 0.66, width: 0.88, headScale: 1.3, eyeScale: 1.35 }),
+    visual: Object.freeze({ hairColor: 'golden', height: 0.62, width: 0.86, bulk: 0.8, headScale: 1.5, eyeScale: 1.4 }),
   }),
   draenei: Object.freeze({
     id: 'draenei', name: 'Draenei', faction: 'alliance',
@@ -50,7 +50,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ arcaneResistance: 5, critChance: 1 }),
     passiveDescription: '+5 arcane resistance · +1% critical chance',
     skinTones: Object.freeze(['azure', 'indigohide', 'moonblue', 'lavender', 'ashen']),
-    visual: Object.freeze({ hairColor: 'silver', feature: 'crest', height: 1.05, width: 1.0, horns: 'draenei', tendrils: true, hooves: true, tail: 'smooth', eyeGlow: '#bfe3ff' }),
+    visual: Object.freeze({ hairColor: 'silver', feature: 'crest', height: 1.08, width: 1.04, bulk: 1.05, horns: 'draenei', tendrils: true, hooves: true, tail: 'smooth', eyeGlow: '#bfe3ff' }),
   }),
   orc: Object.freeze({
     id: 'orc', name: 'Orc', faction: 'horde',
@@ -60,7 +60,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ damagePercent: 2 }),
     passiveDescription: '+2% damage',
     skinTones: Object.freeze(['fel', 'swamp', 'moss', 'olive']),
-    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-small', height: 1.03, width: 1.16, tusks: 'short', jaw: 'wide', hunch: 0.5 }),
+    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-small', height: 1.05, width: 1.22, bulk: 1.3, tusks: 'short', jaw: 'wide', hunch: 0.45 }),
   }),
   undead: Object.freeze({
     id: 'undead', name: 'Undead', faction: 'horde',
@@ -70,7 +70,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ arcaneResistance: 5 }),
     passiveDescription: '+5 arcane resistance',
     skinTones: Object.freeze(['grave', 'pale', 'ashen', 'moonblue']),
-    visual: Object.freeze({ hairColor: 'espresso', feature: 'bone-bare', height: 0.97, width: 0.9, decay: true, jaw: 'bone', hunch: 0.65, eyeGlow: '#e8d44d' }),
+    visual: Object.freeze({ hairColor: 'espresso', feature: 'bone-bare', height: 0.96, width: 0.88, bulk: 0.78, decay: true, jaw: 'bone', hunch: 0.5, eyeGlow: '#e8d44d' }),
   }),
   tauren: Object.freeze({
     id: 'tauren', name: 'Tauren', faction: 'horde',
@@ -80,7 +80,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ maxHp: 25, lightningResistance: 3 }),
     passiveDescription: '+25 maximum life · +3 lightning resistance',
     skinTones: Object.freeze(['pelt', 'umber', 'mahogany', 'stonepelt', 'ebony']),
-    visual: Object.freeze({ hairColor: 'walnut', feature: 'horns-curved', height: 1.15, width: 1.3, horns: 'tauren', ears: 'bovine', muzzle: true, hooves: true, tail: 'tuft', hunch: 0.7 }),
+    visual: Object.freeze({ hairColor: 'walnut', feature: 'horns-curved', height: 1.22, width: 1.4, bulk: 1.55, horns: 'tauren', ears: 'bovine', muzzle: true, hooves: true, tail: 'tuft', hunch: 0.5 }),
   }),
   troll: Object.freeze({
     id: 'troll', name: 'Troll', faction: 'horde',
@@ -90,7 +90,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ lifeRegen: 0.5 }),
     passiveDescription: '+0.5 life per second',
     skinTones: Object.freeze(['cerulean', 'deepsea', 'moonblue', 'moss']),
-    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-long', height: 1.09, width: 0.88, ears: 'long', tusks: 'long', nose: 'hooked', hunch: 0.55 }),
+    visual: Object.freeze({ hairColor: 'raven', feature: 'tusks-long', height: 1.12, width: 0.86, bulk: 0.8, ears: 'long', tusks: 'long', nose: 'hooked', hunch: 0.45 }),
   }),
   bloodElf: Object.freeze({
     id: 'bloodElf', name: 'Blood Elf', faction: 'horde',
@@ -100,7 +100,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
     passives: Object.freeze({ arcaneResistance: 5, critChance: 2 }),
     passiveDescription: '+5 arcane resistance · +2% critical chance',
     skinTones: Object.freeze(['porcelain', 'rose', 'sand', 'honey']),
-    visual: Object.freeze({ hairColor: 'golden', height: 1.0, width: 0.92, ears: 'elf', eyeGlow: '#7ce87c' }),
+    visual: Object.freeze({ hairColor: 'golden', height: 1.0, width: 0.9, bulk: 0.85, ears: 'elf', eyeGlow: '#7ce87c' }),
   }),
 });
 

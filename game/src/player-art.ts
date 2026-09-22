@@ -9,6 +9,7 @@ import { STARTER_OUTFIT, heldWeapon, heldShield, heldFocus, upperArm, forearm, g
 import { hash, polygon, line, taper, mixColor, type Color, type Point } from './art-primitives.ts';
 import { WOW_RACES } from './wow-races.ts';
 import { appearancePalette, HAIR_PALETTES, SKIN_PALETTES } from './appearance-content.ts';
+import { raceAppearance } from './character-look.ts';
 import { drawQuadruped, drawBrute, type QuadArt, type BruteArt } from './ally-art.ts';
 import { drawGlow } from './lighting.ts';
 import type { ShapeshiftForm } from './wow-types.ts';
@@ -142,8 +143,15 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
     weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
   const rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
-  const skin = pose.appearance ? appearancePalette(SKIN_PALETTES, pose.appearance.skin) : undefined;
+  // A race without an explicit look still wears its default skin and hair.
+  const appearance = pose.appearance ?? (pose.raceId ? raceAppearance(pose.raceId) : undefined);
+  const skin = appearance ? appearancePalette(SKIN_PALETTES, appearance.skin) : undefined;
   const fur = rv?.muzzle && skin;
+  // Race build: bulk thickens limbs and torso; bare skin shows where armor is absent.
+  const bulk = rv?.bulk ?? 1;
+  const bareArms = skin && !outfit.chest ? skin : undefined;
+  const bareHands = skin && !outfit.hands ? skin : undefined;
+  const bareLegs = skin && !outfit.legs ? skin : undefined;
   const legs = playerLegRig(pose.angle, pose.moveAngle ?? pose.angle, phase, moving, hipX, hipY);
   const cape = () => {
     const cloth = outfit.cloak;
@@ -192,39 +200,53 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     const sway = Math.sin(phase + .9) * (0.5 + moving * 1.4) + Math.sin(pose.time * 2.2) * .3;
     const rootX = -Math.cos(pose.angle) * 3.4 + hipX * .6, rootY = -14 + bob * .6;
     const tipX = rootX - Math.cos(pose.angle) * 4.5 + sway, tipY = -2.5;
-    taper(ctx, [rootX, rootY], [tipX, tipY], 1.5, .8, color(skin.shadow));
+    taper(ctx, [rootX, rootY], [tipX, tipY], 1.5 * bulk, .8 * bulk, color(skin.shadow));
+    ctx.save(); ctx.translate(tipX, tipY); ctx.scale(bulk, bulk); ctx.translate(-tipX, -tipY);
     if (rv.tail === 'tuft') {
-      const hair = appearancePalette(HAIR_PALETTES, pose.appearance!.hairColor);
+      const hair = appearancePalette(HAIR_PALETTES, appearance!.hairColor);
       polygon(ctx, [[tipX - 1.4, tipY - 1.2], [tipX + 1.3, tipY - 1], [tipX + 1.6, tipY + 1.6], [tipX - .2, tipY + 2.6], [tipX - 1.7, tipY + 1.2]], color(hair.shadow));
     } else {
       polygon(ctx, [[tipX - 1, tipY - .9], [tipX + 1.1, tipY - .6], [tipX + .9, tipY + 1], [tipX - .9, tipY + .8]], color(skin.shadow));
     }
+    ctx.restore();
   }
   // A faint warm halo behind the torso keeps the small figure readable against
   // dark ground without touching the authored palette.
   drawGlow(ctx, 0, -18, 24, '#ffe9b8', .14);
   for (const leg of legs) {
     const hip = projectLegPoint(leg.hip), knee = projectLegPoint(leg.knee), ankle = projectLegPoint(leg.ankle);
-    taper(ctx, hip, knee, fur ? 4.6 : 3.8, fur ? 3.6 : 2.8, color(fur ? skin.shadow : '#293d39'));
-    taper(ctx, knee, ankle, fur ? 3.6 : 2.8, fur ? 2.8 : 2.1, color(fur ? skin.base : '#4d5a4c'));
+    const thighFill = fur ? skin.shadow : bareLegs ? bareLegs.shadow : '#293d39';
+    const shinFill = fur ? skin.base : bareLegs ? bareLegs.base : '#4d5a4c';
+    taper(ctx, hip, knee, (fur ? 4.6 : 3.8) * bulk, (fur ? 3.6 : 2.8) * bulk, color(thighFill));
+    taper(ctx, knee, ankle, (fur ? 3.6 : 2.8) * bulk, (fur ? 2.8 : 2.1) * bulk, color(shinFill));
+    if (rv?.decay && bareLegs) polygon(ctx, [[knee[0] - 1.1 * bulk, knee[1] - .9], [knee[0] + 1.1 * bulk, knee[1] - .9], [knee[0] + .8 * bulk, knee[1] + .9], [knee[0] - .8 * bulk, knee[1] + .9]], color('#cfc9b0'));
     if (outfit.legs) {
       const m = outfit.legs.material;
-      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,gear,'thigh',.65+.35*Math.abs(Math.sin(pose.angle)));
+      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,gear,'thigh',(.65+.35*Math.abs(Math.sin(pose.angle)))*bulk);
       if (outfit.legs.style === 'plate') {
-        taper(ctx, [hip[0], hip[1] - 0.5], [hip[0] + step * 0.25, hip[1] + 3.4], 4.6, 4.1, gear(m.shadow));
-        line(ctx, [[hip[0] - 1.8, hip[1] + 2], [hip[0] + 1.8, hip[1] + 2.4]], gear(m.trim), 0.65);
+        taper(ctx, [hip[0], hip[1] - 0.5], [hip[0] + step * 0.25, hip[1] + 3.4], 4.6 * bulk, 4.1 * bulk, gear(m.shadow));
+        line(ctx, [[hip[0] - 1.8 * bulk, hip[1] + 2], [hip[0] + 1.8 * bulk, hip[1] + 2.4]], gear(m.trim), 0.65);
       }
     }
     const foot = projectLegPoint(leg.foot);
     if (rv?.hooves && skin) {
       // Cloven hoof: a dark wedge seated on the ground line, fetlock fur above.
+      ctx.save(); ctx.translate(foot[0], foot[1]); ctx.scale(bulk, bulk); ctx.translate(-foot[0], -foot[1]);
       const dir = Math.cos(pose.angle) * .75 + leg.side * .15;
       polygon(ctx, [[foot[0] - 2.3, foot[1] - 2.6], [foot[0] + 2.3, foot[1] - 2.6], [foot[0] + 2.7 + dir, foot[1] + .6], [foot[0] - 2.7 + dir, foot[1] + .6]], color('#2b2119'));
       line(ctx, [[foot[0] + dir * .5, foot[1] - .6], [foot[0] + dir * .5, foot[1] + .6]], color('#171008'), .7);
       if (fur) polygon(ctx, [[foot[0] - 2.6, foot[1] - 4.6], [foot[0] + 2.6, foot[1] - 4.6], [foot[0] + 2.4, foot[1] - 2.2], [foot[0] - 2.4, foot[1] - 2.2]], color(skin.base));
-    } else armorBoot(ctx, foot, outfit.boots, gear, leg.facing, ankle, knee);
+      ctx.restore();
+    } else armorBoot(ctx, foot, outfit.boots, outfit.boots ? gear : color, leg.facing, ankle, knee, bulk, skin);
     // The knee cap overlaps the boot cuff when the lower leg is foreshortened.
-    if (outfit.legs) kneeArmor(ctx,knee,outfit.legs,gear,pose.angle);
+    if (outfit.legs) kneeArmor(ctx,knee,outfit.legs,gear,pose.angle,bulk);
+  }
+  if (bareLegs && !fur) {
+    // A breechcloth keeps bare-legged races decent between the hip sockets.
+    const leftHip = projectLegPoint(legs[legs.length - 1].hip), rightHip = projectLegPoint(legs[0].hip);
+    const cx = (leftHip[0] + rightHip[0]) / 2, top = Math.min(leftHip[1], rightHip[1]) - 1.2;
+    polygon(ctx, [[cx - 4.4 * bulk, top], [cx + 4.4 * bulk, top], [cx + 3.4 * bulk, top + 4.6], [cx - 3.4 * bulk, top + 4.6]], color('#29363d'));
+    line(ctx, [[cx - 4 * bulk, top + .8], [cx + 4 * bulk, top + .8]], color('#496257'), .6);
   }
 
   ctx.save();
@@ -234,12 +256,12 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     const hand = projectArmPoint(weaponArm.hand);
     if (pose.weapon?.kind === 'unarmed') {
       const elbow = projectArmPoint(weaponArm.elbow);
-      gauntlet(ctx, hand, outfit.hands, gear, -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]), pose.attack > 0);
+      gauntlet(ctx, hand, outfit.hands, outfit.hands ? gear : color, -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]), pose.attack > 0, bulk, bareHands);
       return;
     }
     heldWeapon(ctx, weaponOrigin, weaponAngle, gear, pose.weapon, rangedDraw, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? 0 : weaponCharge, weaponScale, pose.imbueElement);
-    gauntlet(ctx, hand, outfit.hands, gear, weaponAngle);
-    if (supportHolding) gauntlet(ctx, projectArmPoint(offArm.hand), outfit.hands, gear, weaponAngle);
+    gauntlet(ctx, hand, outfit.hands, outfit.hands ? gear : color, weaponAngle, true, bulk, bareHands);
+    if (supportHolding) gauntlet(ctx, projectArmPoint(offArm.hand), outfit.hands, outfit.hands ? gear : color, weaponAngle, true, bulk, bareHands);
     // Fingers cross the grip, keeping the weapon seated in the animated gauntlet.
     ctx.save(); ctx.translate(hand[0], hand[1]); ctx.rotate(weaponAngle);
     line(ctx, [[-0.6, -1.2], [-0.6, 1.3]], gear(outfit.hands?.material.edge ?? '#baa078'), 0.7);
@@ -255,25 +277,25 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     const offHand = projectArmPoint(offArm.hand);
     if (pose.offHand?.kind === 'focus') {
       heldFocus(ctx, offHand, pose.offHand.visual, gear, pose.effectTime ?? pose.time, pose.angle, weaponCharge);
-      gauntlet(ctx, offHand, outfit.hands, gear, -.2, false);
+      gauntlet(ctx, offHand, outfit.hands, outfit.hands ? gear : color, -.2, false, bulk, bareHands);
     }
     if (pose.offHand?.kind === 'shield') heldShield(ctx, offHand, pose.angle, pose.offHand.visual, gear, pose.guard);
     if (pose.offHand?.kind === 'weapon') {
       heldWeapon(ctx, offWeaponOrigin, offWeaponAngle, gear, pose.offHand.visual, 0, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? weaponCharge : 0, offWeaponScale, pose.imbueElement);
-      gauntlet(ctx, offHand, outfit.hands, gear, offWeaponAngle);
+      gauntlet(ctx, offHand, outfit.hands, outfit.hands ? gear : color, offWeaponAngle, true, bulk, bareHands);
     }
   };
   const armLayers = [weaponArm, offArm].flatMap(arm => [
     { depth: (arm.shoulder[1] + arm.elbow[1]) / 2,
-      draw: () => upperArm(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), gear) },
+      draw: () => upperArm(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), color, bulk, bareArms) },
     { depth: supportHolding ? (weaponBehind ? -1 : 1) : (arm.elbow[1] + arm.hand[1]) / 2,
-      draw: () => forearm(ctx, projectArmPoint(arm.elbow), projectArmPoint(arm.hand), outfit.hands, gear) },
+      draw: () => forearm(ctx, projectArmPoint(arm.elbow), projectArmPoint(arm.hand), outfit.hands, outfit.hands ? gear : color, bulk, bareHands) },
   ]).sort((a, b) => a.depth - b.depth);
   if (!supportHolding) {
     const hand = projectArmPoint(offArm.hand), elbow = projectArmPoint(offArm.elbow);
     const relaxed = pose.weapon?.kind === 'unarmed' && !pose.offHand;
-    armLayers.push({ depth: offArm.hand[1], draw: () => gauntlet(ctx, hand, outfit.hands, gear,
-      relaxed ? -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]) : -.5, false) });
+    armLayers.push({ depth: offArm.hand[1], draw: () => gauntlet(ctx, hand, outfit.hands, outfit.hands ? gear : color,
+      relaxed ? -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]) : -.5, false, bulk, bareHands) });
     armLayers.sort((a, b) => a.depth - b.depth);
   }
   for (const layer of armLayers) if (layer.depth < 0) layer.draw();
@@ -283,7 +305,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   ctx.translate(0, PLAYER_ATTACHMENTS.chest[1]);
   ctx.transform(1 - Math.abs(torsoTurn) * 0.08, torsoTurn * 0.12, 0, 1, 0, 0);
   ctx.translate(0, -PLAYER_ATTACHMENTS.chest[1]);
-  chestArmor(ctx, outfit.chest, gear, bodyAngle);
+  chestArmor(ctx, outfit.chest, outfit.chest ? gear : color, bodyAngle, bulk, skin);
   if (outfit.cloak && !back) {
     ctx.save(); const turn = torsoFacing(bodyAngle); ctx.translate(turn.surfaceOffset, 0); ctx.scale(turn.surface, 1);
     const trim = outfit.cloak.trim;
@@ -298,13 +320,13 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   for (const layer of armLayers) if (layer.depth >= 0) layer.draw();
   const caps = [weaponArm, offArm].sort((a, b) => a.shoulder[1] - b.shoulder[1]);
   for (const arm of caps) {
-    shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, gear);
+    shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, gear, bulk);
   }
   // The neck counterbalances the moving torso; the head reads ~18% larger with
   // a warm rim arc so the silhouette separates from dark terrain.
   ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
   ctx.scale(1.18, 1.18);
-  headArmor(ctx, outfit.head, gear, pose.angle, pose.appearance, pose.raceId);
+  headArmor(ctx, outfit.head, gear, pose.angle, appearance, pose.raceId, color);
   ctx.restore();
   ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3;

@@ -1,9 +1,9 @@
-import { appearancePalette, HAIR_PALETTES, RACE_FEATURE_OPTIONS, SKIN_PALETTES, type CharacterAppearance } from './appearance-content.ts';
+import { appearancePalette, HAIR_PALETTES, RACE_FEATURE_OPTIONS, SKIN_PALETTES, type AppearancePalette, type CharacterAppearance, type RaceFeatureId } from './appearance-content.ts';
 import { profileHairShapes } from './appearance-hair-directions.ts';
 import { mixColor, type Point } from './art-primitives.ts';
 import type { GearShape } from './weapon-shapes.ts';
 import { WOW_RACES } from './wow-races.ts';
-import type { WowRaceId } from './wow-types.ts';
+import type { WowRaceId, WowRaceVisual } from './wow-types.ts';
 
 /** A right-facing skull, nose, jaw and one visible eye; mirror for west. All
  * cosmetics stay on this head mount, including the projected hairstyle recipe. */
@@ -88,24 +88,8 @@ export function appearanceProfileShapes(appearance: Readonly<CharacterAppearance
     }
   }
   // Tusks rise from the lower jaw over the beard; trolls run long, orcs short.
-  if (v?.tusks) {
-    const ivory = '#f0e6cc', ivoryShade = '#c9b892';
-    if (v.tusks === 'long') {
-      const tipY = feat === 'tusks-small' ? 2.2 : feat === 'tusks-upcurved' ? -.2 : .9;
-      const tipX = feat === 'tusks-upcurved' ? 3.4 : 3.9;
-      f([[2.5,4.6],[tipX,tipY],[tipX + .7,tipY + 1.3],[3.2,5]], ivory);
-      l([[2.8,4.5],[tipX + .2,tipY + .9]], ivoryShade, .4);
-    } else {
-      const big = feat === 'tusks-large';
-      f([[2.4,4.4],[3.4,big ? 2.4 : 3],[3.6,4.6]], ivory);
-      l([[2.7,4.3],[3.3,big ? 2.9 : 3.4]], ivoryShade, .4);
-    }
-  }
-  // Draenei tendrils hang beside the jaw.
-  if (v?.tendrils) {
-    f([[.6,4.4],[1.4,4.6],[1.2,7.4],[.4,8],[.2,6]], skin.base);
-    l([[.9,5],[.8,7.2]], skin.light, .4);
-  }
+  // Draenei tendrils hang beside the jaw. Both re-draw over helmets via the overlay.
+  if (!covered) shapes.push(...profileJawShapes(v, feat, skin));
   const accessory=appearance.accessory;
   if (accessory === 'spectacles') {
     l([[1.55,.15],[2.9,.3],[3.1,1.55],[1.8,1.8],[1.55,.15]],'#d3bc86',.55);
@@ -120,28 +104,72 @@ export function appearanceProfileShapes(appearance: Readonly<CharacterAppearance
   shapes.push(...layers.front);
   // Near ear overlaps the sideburn, giving the profile a readable depth cue.
   if (!covered) {
-    if (v?.ears === 'long') {
-      // Troll ears droop outward past the jaw.
-      f([[-1.6,.6],[-4.6,3.4],[-3.4,4.3],[-.9,2.6]], skin.shadow);
-      f([[-1.4,.9],[-3.9,3.3],[-3,3.8],[-.9,2.4]], skin.base);
-    } else if (v?.ears === 'bovine') {
-      // Tauren ears lie flat beside the skull.
-      f([[-2.2,-.5],[-5.6,-1.1],[-6.1,.2],[-2.4,.9]], skin.shadow);
-      f([[-2.3,-.2],[-5,-.7],[-5.4,.1],[-2.4,.6]], skin.base);
-    } else if (v?.ears === 'elf') {
-      // Elf ears sweep up and back.
-      f([[-1.5,.2],[-4.3,-2.6],[-3.1,-3],[-.6,-.4]], skin.shadow);
-      f([[-1.3,.1],[-3.8,-2.3],[-2.9,-2.6],[-.6,-.2]], skin.base);
-    } else {
+    if (v?.ears) shapes.push(...profileEarShapes(v, skin));
+    else {
       f([[-1.4,.15],[-.3,-.15],[.15,.65],[-.1,2.15],[-1,2.45],[-1.6,1.45]],skin.base);
       l([[-1, .65],[-.55,.45],[-.4,1.45],[-.9,1.8]],skin.shadow,.45);
     }
     if(accessory==='hoop') l([[-.65,2],[-.1,2.5],[-.2,3.6],[-1,3.8],[-1.35,2.9],[-.65,2]],'#d5b478',.55);
     if(accessory==='studs') f([[-.7,1.5],[-.15,2],[-.7,2.5],[-1.2,2]],'#d2dbda');
-    if(accessory==='earcuff') l([[-1.3,.6],[-.4,.4],[-.15,1.1],[-1,1.4]],'#c9d5d7',.65);
+    if(accessory==='earcuff') l([[-1.3,.6],[-.4,.4],[-.15,1.1],[-1,1.4],[-1.3,.6]],'#c9d5d7',.65);
     if(accessory==='circlet') { l([[-3.2,-1.8],[.4,-1.4],[2.8,-.9]],'#d5dcca',.6); f([[2.5,-1.4],[3,-.8],[2.6,-.1],[2.2,-.8]],'#abd2d5'); }
   }
   // Horns crown the silhouette above the hair; the feature pick chooses the variant.
+  if (!covered) shapes.push(...profileHornShapes(v, feat));
+  const headScale = v?.headScale ?? 1;
+  return shapes.map(shape => ({ ...shape, points: shape.points.map(([x,y]) => [x*sign*headScale, .6+(y-.6)*headScale] as Point), width: shape.width === undefined ? undefined : shape.width * headScale }));
+}
+
+/** Tusks and chin tendrils in right-facing head-local space (unmirrored, unscaled). */
+function profileJawShapes(v: WowRaceVisual | undefined, feat: RaceFeatureId | undefined, skin: AppearancePalette): GearShape[] {
+  const shapes: GearShape[] = [];
+  const f = (points: readonly Point[], fill: string) => shapes.push({ points, fill });
+  const l = (points: readonly Point[], stroke: string, width = .55) => shapes.push({ points, stroke, width });
+  if (v?.tusks) {
+    const ivory = '#f0e6cc', ivoryShade = '#c9b892';
+    if (v.tusks === 'long') {
+      const tipY = feat === 'tusks-small' ? 2.2 : feat === 'tusks-upcurved' ? -.2 : .9;
+      const tipX = feat === 'tusks-upcurved' ? 3.4 : 3.9;
+      f([[2.5,4.6],[tipX,tipY],[tipX + .7,tipY + 1.3],[3.2,5]], ivory);
+      l([[2.8,4.5],[tipX + .2,tipY + .9]], ivoryShade, .4);
+    } else {
+      const big = feat === 'tusks-large';
+      f([[2.4,4.4],[3.4,big ? 2.4 : 3],[3.6,4.6]], ivory);
+      l([[2.7,4.3],[3.3,big ? 2.9 : 3.4]], ivoryShade, .4);
+    }
+  }
+  if (v?.tendrils) {
+    f([[.6,4.4],[1.4,4.6],[1.2,7.4],[.4,8],[.2,6]], skin.base);
+    l([[.9,5],[.8,7.2]], skin.light, .4);
+  }
+  return shapes;
+}
+
+/** Race ear silhouettes in right-facing head-local space. */
+function profileEarShapes(v: WowRaceVisual, skin: AppearancePalette): GearShape[] {
+  const shapes: GearShape[] = [];
+  const f = (points: readonly Point[], fill: string) => shapes.push({ points, fill });
+  if (v.ears === 'long') {
+    // Troll ears droop outward past the jaw.
+    f([[-1.6,.6],[-4.6,3.4],[-3.4,4.3],[-.9,2.6]], skin.shadow);
+    f([[-1.4,.9],[-3.9,3.3],[-3,3.8],[-.9,2.4]], skin.base);
+  } else if (v.ears === 'bovine') {
+    // Tauren ears lie flat beside the skull.
+    f([[-2.2,-.5],[-5.6,-1.1],[-6.1,.2],[-2.4,.9]], skin.shadow);
+    f([[-2.3,-.2],[-5,-.7],[-5.4,.1],[-2.4,.6]], skin.base);
+  } else if (v.ears === 'elf') {
+    // Elf ears sweep up and back.
+    f([[-1.5,.2],[-4.3,-2.6],[-3.1,-3],[-.6,-.4]], skin.shadow);
+    f([[-1.3,.1],[-3.8,-2.3],[-2.9,-2.6],[-.6,-.2]], skin.base);
+  }
+  return shapes;
+}
+
+/** Horn crowns in right-facing head-local space; the feature pick chooses the variant. */
+function profileHornShapes(v: WowRaceVisual | undefined, feat: RaceFeatureId | undefined): GearShape[] {
+  const shapes: GearShape[] = [];
+  const f = (points: readonly Point[], fill: string) => shapes.push({ points, fill });
+  const l = (points: readonly Point[], stroke: string, width = .55) => shapes.push({ points, stroke, width });
   if (v?.horns) {
     const horn = '#e8dcc0', hornShade = '#a8946e';
     if (v.horns === 'tauren') {
@@ -165,6 +193,18 @@ export function appearanceProfileShapes(appearance: Readonly<CharacterAppearance
       f([[.4,-4.3],[-1.6,-5.4],[-2.3,-5],[-.7,-3.6]], horn);
     }
   }
-  const headScale = v?.headScale ?? 1;
-  return shapes.map(shape => ({ ...shape, points: shape.points.map(([x,y]) => [x*sign*headScale, .6+(y-.6)*headScale] as Point), width: shape.width === undefined ? undefined : shape.width * headScale }));
+  return shapes;
+}
+
+/** Protruding race features (ears, horns, tusks, tendrils) drawn over head armor.
+ * Returns the same head-local space as appearanceProfileShapes, headScale applied. */
+export function raceProfileOverlayShapes(raceId: WowRaceId, appearance: Readonly<CharacterAppearance>, facing: number): GearShape[] {
+  const v = WOW_RACES[raceId]?.visual;
+  if (!v) return [];
+  const skin = appearancePalette(SKIN_PALETTES, appearance.skin);
+  const feat = appearance.feature ?? RACE_FEATURE_OPTIONS[raceId]?.[0];
+  const sign = Math.cos(facing) >= 0 ? 1 : -1;
+  const headScale = v.headScale ?? 1;
+  const shapes = [...profileJawShapes(v, feat, skin), ...profileEarShapes(v, skin), ...profileHornShapes(v, feat)];
+  return shapes.map(shape => ({ ...shape, points: shape.points.map(([x, y]) => [x * sign * headScale, .6 + (y - .6) * headScale] as Point), width: shape.width === undefined ? undefined : shape.width * headScale }));
 }

@@ -38,6 +38,7 @@ export const TOOLS: readonly Tool[] = [
   {id:'editor',group:'characters',name:'Appearance editor',path:'/character-editor.html',description:'Edit a staged character and armor colors.'},
   {id:'atelier',group:'characters',name:'Motion & equipment',path:'/atelier.html',description:'Weapon carrying, character proportions and animated poses.'},
   {id:'rig',group:'characters',name:'Rig directions',path:'/rig.html',description:'Inspect heads, torso shapes and equipment across eight facings; scrub the walking stride.'},
+  {id:'races',group:'characters',name:'Race gallery',path:'/race-grid.html',description:'All ten races side by side — bare front, side profile and geared — to compare proportions, skin and racial features.',tags:'race tauren orc elf dwarf gnome proportions'},
   {id:'looks',group:'characters',name:'Looks in the world',path:'/appearance-world.html',description:'Shared portraits and world art with actual lighting and CRT.'},
   {id:'appearance',group:'characters',name:'Hair & accessories',path:'/appearance-catalog.html',description:'Catalog of hair, facial hair and accessory silhouettes.'},
   {id:'editor-phone',group:'characters',name:'Editor · phone',path:'/character-editor-phone.html',description:'Character, armor and inventory views at smartphone sizes.'},

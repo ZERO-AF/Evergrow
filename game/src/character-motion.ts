@@ -166,10 +166,10 @@ export function playerMotion(pose: CharacterPose) {
   const hipY = Math.cos(phase * 2) * moving * 0.25 + crouch;
   const lean = moving * moveX * 0.065 + Math.cos(pose.attackAngle) * commitment * 0.065;
   const hunch = pose.raceId ? WOW_RACES[pose.raceId]?.visual.hunch ?? 0 : 0;
-  const body: Affine = [1, 0, -lean - hunch * Math.cos(pose.angle), 1,
+  const bulk = pose.raceId ? WOW_RACES[pose.raceId]?.visual.bulk ?? 1 : 1;
+  const body: Affine = [1, 0, -lean - hunch * .45 * Math.cos(pose.angle), 1,
     hipX * 0.6 + Math.cos(pose.attackAngle) * commitment * 1.6,
     bob + crouch - 3 + Math.sin(pose.attackAngle) * commitment * 1.4 + hunch * (1 + Math.abs(Math.sin(pose.angle)))];
-  // The grip cuts across the front of the chest, independently of blade pitch.
   // Recovery retracts from the end of that cut rather than orbiting the torso.
   const sweep = smooth(active);
   const sweepSide = -3 + sweep * 10;
@@ -222,7 +222,7 @@ export function playerMotion(pose: CharacterPose) {
   const rightX = -Math.sin(bodyAngle), rightDepth = Math.cos(bodyAngle);
   // Empty arms hang just outside the hips, with a shallow elbow bend and a
   // small opposing swing in travel. Keep these mounts body-relative at every facing.
-  const relaxedWidth = unarmed ? 7.8 : 9;
+  const relaxedWidth = (unarmed ? 7.8 : 9) * (.7 + .3 * bulk);
   const relaxedHeight = unarmed ? 10.5 : 8;
   const relaxedHand = (side: number): RigPoint => [
     rightX * side * relaxedWidth + Math.cos(bodyAngle) + side * step * moveX * .5,
@@ -236,8 +236,8 @@ export function playerMotion(pose: CharacterPose) {
       relaxed[2] * (1 - actionBlend) + weaponHand[2] * actionBlend];
   }
   const guardHand = (side: number): RigPoint => [
-    rightX * side * 8 + Math.cos(bodyAngle) * (8 + (pose.guard ?? 0) * 3) - step * moveX * .5,
-    rightDepth * side * 8 + Math.sin(bodyAngle) * (8 + (pose.guard ?? 0) * 3) - step * moveY * .5,
+    rightX * side * 8 * (.7 + .3 * bulk) + Math.cos(bodyAngle) * (8 + (pose.guard ?? 0) * 3) - step * moveX * .5,
+    rightDepth * side * 8 * (.7 + .3 * bulk) + Math.sin(bodyAngle) * (8 + (pose.guard ?? 0) * 3) - step * moveY * .5,
     20 + (pose.guard ?? 0) * 2,
   ];
   const supportOffset = bow ? bowStringOffset(rangedDraw) : staff ? staffPalmOffset - 8 : getSupportGripOffset(pose.weapon);
@@ -306,7 +306,7 @@ export function playerMotion(pose: CharacterPose) {
   // its existing reach; action targets still extend continuously when needed.
   // Heroic silhouette: shoulders sit wider and weapons carry ~20% more mass so
   // the player reads at gameplay distance. Arm IK still solves to the same hands.
-  const shoulderScale = (mount: RigPoint): RigPoint => [mount[0] * 1.18, mount[1] * 1.18, mount[2]];
+  const shoulderScale = (mount: RigPoint): RigPoint => [mount[0] * 1.18 * (.75 + .25 * bulk), mount[1] * 1.18 * (.75 + .25 * bulk), mount[2]];
   const weaponArm = solveArm(shoulderScale(armShoulder(bodyAngle, 1, shoulderSway)), mainPalm, bodyAngle, 1, elbowTuck, diagonal && independent && !offAttacking ? .55 * attackBlend : gripAmount, unarmed ? .86 : 1);
   const offArm = solveArm(shoulderScale(armShoulder(bodyAngle, -1, shoulderSway)), offPalm, bodyAngle, -1, offAttacking ? elbowTuck : 0, restingStaffArm ? 0 : diagonal && offAttacking ? .55 * offBlend : gripAmount, unarmed && !pose.offHand ? .86 : 1);
   hand = projectArmPoint(mainHand3);

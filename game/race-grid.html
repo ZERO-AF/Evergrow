@@ -1,0 +1,27 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Evergrow · Race gallery</title><link rel="icon" href="data:,"><style>body{margin:0;background:#0a141b;color:#d2dbd4;font:13px sans-serif}#g{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px}.cell{background:#14232b;border:1px solid #334}canvas{width:100%;height:340px;display:block}p{margin:4px;text-align:center}</style></head><body><div id="g"></div><script type="module">
+import { drawHumanoid } from './src/art.ts';
+import { createRaceLook } from './src/character-look.ts';
+import { WOW_RACES } from './src/wow-races.ts';
+import { UNARMED_WEAPON } from './src/equipment.ts';
+const g = document.getElementById('g');
+const bare = { head: null, chest: null, shoulders: null, hands: null, legs: null, boots: null, cloak: null };
+for (const raceId of Object.keys(WOW_RACES)) {
+  const cell = document.createElement('div'); cell.className='cell';
+  const cv = document.createElement('canvas'); const label=document.createElement('p'); label.textContent=raceId;
+  cell.append(cv,label); g.append(cell);
+  const dpr=2; const W=cv.clientWidth||200; cv.width=W*dpr; cv.height=340*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  const look = createRaceLook(raceId);
+  // Three reads per race: bare front, bare side profile, geared front.
+  const views = [
+    { angle: Math.PI/2, outfit: bare, weapon: UNARMED_WEAPON.visual },
+    { angle: 0, outfit: bare, weapon: UNARMED_WEAPON.visual },
+    { angle: Math.PI/2, outfit: undefined, weapon: undefined },
+  ];
+  for (const [i,view] of views.entries()) {
+    ctx.save(); ctx.translate(W*(0.17+0.33*i), 268); ctx.scale(3.2,3.2);
+    drawHumanoid(ctx, { kind:'player', raceId, appearance:look.appearance, angle:view.angle, time:1.2, moving:0, attack:0, attackAngle:view.angle, hitFlash:0, dodging:false, outfit:view.outfit, weapon:view.weapon });
+    ctx.restore();
+  }
+}
+</script><script type="module" src="/src/tools/review-nav.ts"></script></body></html>

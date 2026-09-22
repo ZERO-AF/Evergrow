@@ -7,6 +7,7 @@ import { projectArmPoint } from './player-arm-rig.ts';
 import { STARTING_SWORD } from './equipment.ts';
 import { shieldShapes, weaponShapes } from './weapon-shapes.ts';
 import { WOW_RACES } from './wow-races.ts';
+import { raceAppearance } from './character-look.ts';
 
 export interface CharacterBounds { left: number; top: number; right: number; bottom: number; }
 
@@ -21,7 +22,8 @@ export function characterBounds(pose: CharacterPose): CharacterBounds {
     points.push(transformPoint(outer, [local[0] * scaleX, local[1] * scaleY]));
   };
   for (const x of [-20, 20]) for (const y of [-42, 10]) add([x, y]);
-  if(pose.appearance) for(const shape of appearanceHeadShapes(pose.appearance,pose.angle,!!pose.outfit?.head,pose.raceId)) for(const [x,y] of shape.points) {
+  const headAppearance = pose.appearance ?? (pose.raceId ? raceAppearance(pose.raceId) : undefined);
+  if(headAppearance) for(const shape of appearanceHeadShapes(headAppearance,pose.angle,false,pose.raceId)) for(const [x,y] of shape.points) {
     add([x+Math.cos(pose.angle)*(1.4+motion.hunch*7)-motion.lean*12,y-33-motion.bob*.3+motion.hunch*2.2]);
   }
   for (const x of [-19, 19]) for (const y of [-16, 12]) add([x, y], false);
