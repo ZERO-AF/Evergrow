@@ -1,0 +1,26 @@
+/* Class trainer shop — compact stock list mirroring the emblem quartermaster. */
+.trainer-panel { width: min(560px, 92vw); }
+.trainer-panel .trainer-name { margin-left: auto; margin-right: 8px; color: var(--ui-text-dim, #9fb3bd); font-size: 12px; }
+.trainer-balance { display: flex; gap: 18px; padding: 8px 14px; border-bottom: 1px solid #738b9230; font-size: 13px; color: var(--ui-text); }
+.trainer-balance span { display: inline-flex; align-items: center; gap: 6px; }
+.trainer-balance svg { width: 14px; height: 14px; opacity: .8; }
+.trainer-balance b { font-weight: 600; }
+.trainer-balance .trainer-class { margin-left: auto; color: var(--ui-text-dim, #9fb3bd); font-size: 12px; }
+.trainer-stock { max-height: min(52vh, 460px); overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.trainer-group { display: flex; flex-direction: column; gap: 6px; }
+.trainer-group + .trainer-group { margin-top: 4px; }
+.trainer-group-title { display: flex; justify-content: space-between; align-items: baseline; margin: 4px 2px 0; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-text-dim, #9fb3bd); }
+.trainer-group-title span { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.trainer-row { display: grid; grid-template-columns: 44px 1fr auto auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid #738b9226; background: #07131c66; }
+.trainer-row.is-blocked { opacity: .62; }
+.trainer-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #738b9230; background: #040d16; }
+.trainer-icon svg { max-width: 100%; max-height: 100%; }
+.trainer-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trainer-copy strong { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trainer-copy small { font-size: 11px; color: var(--ui-text-dim, #9fb3bd); }
+.trainer-price { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.trainer-price svg { width: 13px; height: 13px; opacity: .8; }
+.trainer-buy { min-width: 92px; font-size: 12px; }
+.trainer-buy:disabled { cursor: default; }
+.trainer-notice { margin: 0; padding: 8px 14px; border-top: 1px solid #738b9230; font-size: 12px; color: var(--ui-text); }
+.trainer-empty { margin: 18px 0; text-align: center; color: var(--ui-text-dim, #9fb3bd); font-size: 13px; }

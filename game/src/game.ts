@@ -73,6 +73,13 @@ import { PvpVendorPanel } from './pvp-vendor-panel.ts';
 import { executePvpBuy, focusedPvpVendor, pvpVendorsNear, type PvpVendor } from './pvp-vendor.ts';
 import { BadgeVendorPanel } from './badge-vendor-panel.ts';
 import { executeBadgeBuy, focusedBadgeVendor, badgeVendorsNear, type BadgeVendor } from './badge-vendor.ts';
+import { TrainerPanel } from './trainer-panel.ts';
+import { executeLearnSkill, executeUpgradeRank } from './trainer-command.ts';
+import { trainersNear, focusedTrainer, type Trainer } from './trainer-npc.ts';
+import { QuartermasterPanel } from './quartermaster-panel.ts';
+import { executeQuartermasterBuy } from './quartermaster-command.ts';
+import { quartermastersNear, focusedQuartermaster, type Quartermaster } from './quartermaster-npc.ts';
+import { SocketingPanel } from './socket-panel.ts';
 import { activateStabledPet, stableActivePet, releasePet, freshPetStable, PET_RULES, type PetStable } from './pet-content.ts';
 import { executePetTalentLearn, executePetTalentReset } from './pet-talent-command.ts';
 import { ChroniclePanel } from './chronicle-panel.ts';
@@ -301,8 +308,13 @@ export class Game {
   private actionBarPanel!: ActionBarPanel;
   private dungeonFinderPanel!: DungeonFinderPanel;
   private mailPanel!: MailPanel;
+ private socketingPanel!: SocketingPanel;
   private holidayPanel!: HolidayPanel;
   private calendarPanel!: CalendarPanel;
+ private trainerPanel!: TrainerPanel;
+ private quartermasterPanel!: QuartermasterPanel;
+ private activeTrainer: Trainer | null = null;
+ private activeQuartermaster: Quartermaster | null = null;
   private damageMeter!: DamageMeter;
   private damageMeterPanel!: DamageMeterPanel;
   private auctionPanel!: AuctionHousePanel;
@@ -458,6 +470,7 @@ export class Game {
           pushChatMessage(p, 'loot', message, this.sim.time);
           return { ok: true, message };
         }, { ok: false, message: 'Saving the previous action…' }),
+        openSocketing: () => this.panels.open('socketing'),
       }));
       this.pvpScorePanel = this.lifetime.own(new PvpScoreboardPanel(this.shell.panelMount, { leave: () => this.leavePvpMatch() }));
       this.stablePanel = this.lifetime.own(new StablePanel(this.shell.panelMount, this.petActions));
@@ -481,6 +494,26 @@ export class Game {
           if (result.message) this.notify(result.message);
           return result;
         }, { ok: false, message: 'Saving the previous action…' }),
+      }));
+      this.trainerPanel = this.lifetime.own(new TrainerPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        learn: skillId => this.durable(() => executeLearnSkill(this.sim, skillId, c => this.persistTravel(c)), { ok: false, message: 'Saving the previous action…' }),
+        upgrade: skillId => this.durable(() => executeUpgradeRank(this.sim, skillId, c => this.persistTravel(c)), { ok: false, message: 'Saving the previous action…' }),
+      }));
+      this.quartermasterPanel = this.lifetime.own(new QuartermasterPanel(this.shell.panelMount, {
+        close: () => this.resume(),
+        buy: rewardId => this.durable(async () => {
+          const vendor = this.activeQuartermaster;
+          if (!vendor) return { ok: false, message: 'The quartermaster is no longer here.' };
+          const result = await executeQuartermasterBuy(this.sim, vendor, rewardId, c => this.persistTravel(c));
+          if (result.message) this.notify(result.message);
+          return result;
+        }, { ok: false, message: 'Saving the previous action…' }),
+      }));
+      this.socketingPanel = this.lifetime.own(new SocketingPanel(this.shell.panelMount, {
+        onSocket: (target, gemIndex, socketIndex) => this.characterAction({ type: 'socketGem', gemIndex, target, socketIndex }),
+        onUnsocket: (target, socketIndex) => this.characterAction({ type: 'unsocketGem', target, socketIndex }),
+        onClose: () => this.resume(),
       }));
       this.riftPanel=this.lifetime.own(new RiftPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
       this.expeditionPanel=this.lifetime.own(new ExpeditionPanel(this.shell.panelMount,{close:()=>this.resume(),enter:async action=>{const ok=await this.switchDungeon(action);if(ok)this.resume();return ok;}}));
@@ -678,6 +711,9 @@ export class Game {
         stats: { open: () => { this.statsPanel.open(); this.shell.setStatus('Character stats open. Game paused.'); }, close: () => this.statsPanel.close() },
         reputation: { open: () => { this.reputationPanel.open(); this.shell.setStatus('Reputation open. Game paused.'); }, close: () => this.reputationPanel.close() },
         calendar: { open: () => { this.calendarPanel.open(); this.shell.setStatus('Calendar open. Game paused.'); }, close: () => this.calendarPanel.close() },
+        trainer: { open: () => { if (this.activeTrainer) this.trainerPanel.open(this.sim.player, this.activeTrainer); this.shell.setStatus('Class trainer open. Game paused.'); }, close: () => { this.trainerPanel?.close(); this.activeTrainer = null; } },
+        quartermaster: { open: () => { if (this.activeQuartermaster) this.quartermasterPanel.open(this.sim.player, this.activeQuartermaster); this.shell.setStatus('Quartermaster open. Game paused.'); }, close: () => { this.quartermasterPanel?.close(); this.activeQuartermaster = null; } },
+        socketing: { open: () => { this.socketingPanel.open(this.sim.player); this.shell.setStatus('Socketing open. Game paused.'); }, close: () => this.socketingPanel.close() },
         dungeonFinder: { open: () => { this.dungeonFinderPanel.open(this.sim.player); this.shell.setStatus('Dungeon Finder open. Game paused.'); }, close: () => this.dungeonFinderPanel.close() },
         auctionHouse: { open: () => { this.auctionPanel.open(this.sim.player); this.shell.setStatus('Auction House open. Game paused.'); }, close: () => this.auctionPanel.close() },
         guild: { open: () => { this.guildPanel.open(); this.guildPanel.update(this.sim.player); this.shell.setStatus('Guild open. Game paused.'); }, close: () => this.guildPanel.close() },
@@ -1494,6 +1530,18 @@ export class Game {
               this.panels.open('badgeVendor');
               return true;
           }
+          const trainer = focusedTrainer(trainersNear(this.world, p.x - 160, p.y - 160, 320, 320).map(t => this.liveNPC(t)), p, this.world, pointer);
+          if (trainer) {
+              this.activeTrainer = trainer;
+              this.panels.open('trainer');
+              return true;
+          }
+          const quartermaster = focusedQuartermaster(quartermastersNear(this.world, p.x - 160, p.y - 160, 320, 320).map(q => this.liveNPC(q)), p, this.world, pointer);
+          if (quartermaster) {
+              this.activeQuartermaster = quartermaster;
+              this.panels.open('quartermaster');
+              return true;
+          }
           const mailbox = GAME_FEATURES.mail ? focusedMailbox(mailboxesNear(this.world, p.x - 160, p.y - 160, 320, 320), p, this.world, pointer) : null;
           if (mailbox) {
               this.panels.open('mailbox');
@@ -2253,6 +2301,7 @@ export class Game {
     this.professionPanel.update(this.sim.player);
     this.achievementPanel.update(this.sim.player);
     this.glyphPanel.update(this.sim.player);
+    this.socketingPanel.update(this.sim.player);
     this.shell.setTargetEffects(this.phase === 'playing' ? this.renderer.targetEffects : null);
     this.groundLootHighlight.update(this.sim.player, this.sim.groundItems,
       this.renderer.groundLootLabels, this.renderer.width, this.renderer.height,

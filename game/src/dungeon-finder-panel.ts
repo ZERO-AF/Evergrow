@@ -12,7 +12,7 @@ import type { Player } from './model.ts';
 import { attachPanelFrame } from './panel-frames.ts';
 import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import {
-  DUNGEON_FINDER_RULES, RDF_DUNGEONS, dungeonFinderDungeon, dungeonFinderProblem,
+  DUNGEON_FINDER_RULES, RDF_DUNGEONS, RDF_RAIDS, dungeonFinderDungeon, dungeonFinderProblem,
   dungeonFinderWaitSeconds, type DungeonFinderEntry,
 } from './dungeon-finder-content.ts';
 import { dungeonFinderOf, queuedDungeon } from './dungeon-finder-state.ts';
@@ -39,6 +39,7 @@ export class DungeonFinderPanel {
   private heroic = false;
   private busy = false;
   private status = '';
+  private tab: 'dungeons' | 'raids' = 'dungeons';
   private readonly actions: DungeonFinderActions;
 
   constructor(mount: HTMLElement, actions: DungeonFinderActions) {
@@ -95,12 +96,17 @@ export class DungeonFinderPanel {
     if (queueId !== undefined) {
       const entry = dungeonFinderDungeon(queueId);
       if (!entry || !this.player) return;
-      this.beginWait(entry, this.heroic, button.dataset.group !== undefined);
+      this.beginWait(entry, entry.kind === 'raid' ? false : this.heroic, button.dataset.group !== undefined);
       return;
     }
     if (button.hasAttribute('data-heroic')) {
       this.heroic = !this.heroic;
       this.render();
+      return;
+    }
+    const tab = button.dataset.tab;
+    if (tab === 'dungeons' || tab === 'raids') {
+      if (this.tab !== tab) { this.tab = tab; this.render(); }
       return;
     }
     if (button.hasAttribute('data-enter-now')) {
@@ -182,20 +188,22 @@ export class DungeonFinderPanel {
     const queuedHeroic = marker?.heroic === true;
     const pendingEntry = this.pending ? dungeonFinderDungeon(this.pending.id) : undefined;
     const heroic = this.heroic && heroicDungeonsEnabled();
-    const rows = RDF_DUNGEONS.map(entry => {
+    const raids = this.tab === 'raids';
+    const rows = (raids ? RDF_RAIDS : RDF_DUNGEONS).map(entry => {
       const problem = player ? dungeonFinderProblem(entry, player, heroic) : 'No character loaded.';
       const isQueued = queued?.id === entry.id || pendingEntry?.id === entry.id;
+      const raid = entry.kind === 'raid';
       return `<li class="rdf-row${problem ? ' locked' : ''}${isQueued ? ' queued' : ''}">
         <div class="rdf-info">
-          <span class="rdf-name">${e(entry.name)}${heroic ? ' <span class="ui-badge rdf-heroic-badge">Heroic</span>' : ''}</span>
-          <span class="rdf-zone">${e(entry.zone)}</span>
+          <span class="rdf-name">${e(entry.name)}${heroic && !raid ? ' <span class="ui-badge rdf-heroic-badge">Heroic</span>' : ''}</span>
+          <span class="rdf-zone">${e(entry.zone)}${raid && entry.boss ? ` · ${e(entry.boss)}` : ''}</span>
         </div>
-        <span class="rdf-level">${heroic ? `Lv ${HEROIC_RULES.level}` : `Lv ${entry.levelMin}–${entry.levelMax}`}</span>
+        <span class="rdf-level">${heroic && !raid ? `Lv ${HEROIC_RULES.level}` : entry.levelMin === entry.levelMax ? `Lv ${entry.levelMin}` : `Lv ${entry.levelMin}–${entry.levelMax}`}</span>
         ${isQueued
           ? '<span class="ui-badge rdf-badge">Queued</span>'
           : `<span class="rdf-actions">
               <button class="ui-button ui-button--quiet rdf-queue" data-queue="${e(entry.id)}"${problem || this.busy || this.pending ? ' disabled' : ''}
-                data-tooltip="${e(problem ?? 'Queue solo for this dungeon')}">${problem ? e(problem) : 'Queue'}</button>
+                data-tooltip="${e(problem ?? `Queue solo for this ${raid ? 'raid' : 'dungeon'}`)}">${problem ? e(problem) : 'Queue'}</button>
               <button class="ui-button ui-button--quiet rdf-group" data-group="${e(entry.id)}"${problem || this.busy || this.pending ? ' disabled' : ''}
                 data-tooltip="${e(problem ?? 'Queue with a full AI party (tank, healer, 2 dps)')}">Find Group</button>
             </span>`}
@@ -208,7 +216,11 @@ export class DungeonFinderPanel {
         <button class="ui-button ui-button--icon" data-close aria-label="Close dungeon finder">${uiIcon('close')}</button>
       </header>
       <div class="ui-window-body rdf-body">
-        ${heroicDungeonsEnabled() ? `<div class="rdf-difficulty" role="group" aria-label="Dungeon difficulty">
+        <div class="rdf-difficulty rdf-tabs" role="group" aria-label="Finder list">
+          <button class="ui-button ui-button--quiet${raids ? '' : ' active'}" data-tab="dungeons"${this.busy || this.pending ? ' disabled' : ''}>Dungeons</button>
+          <button class="ui-button ui-button--quiet${raids ? ' active' : ''}" data-tab="raids"${this.busy || this.pending ? ' disabled' : ''}>Raids</button>
+        </div>
+        ${!raids && heroicDungeonsEnabled() ? `<div class="rdf-difficulty" role="group" aria-label="Dungeon difficulty">
           <button class="ui-button ui-button--quiet${heroic ? '' : ' active'}" data-heroic${this.busy || this.pending ? ' disabled' : ''}>Normal</button>
           <button class="ui-button ui-button--quiet${heroic ? ' active' : ''}" data-heroic${this.busy || this.pending ? ' disabled' : ''}
             data-tooltip="Heroic: level ${HEROIC_RULES.level} floors, promoted enemies, Emblems of Heroism">Heroic</button>

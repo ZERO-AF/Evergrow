@@ -10,6 +10,8 @@ const IDENTITIES={
  pvpVendor:{color:'#d8a04a',cloth:'#6b4a2e',dark:'#3f2c1c',paths:['M-6 -8 L6 -8 L6 2 L0 8 L-6 2 Z','M-6 -4 L6 -4 M0 -8 L0 8']},
  badgeVendor:{color:'#7ec8e3',cloth:'#2e4a6b',dark:'#1c2f3f',paths:['M0 -8 L7 -4 L7 4 L0 8 L-7 4 L-7 -4 Z','M0 -8 L0 8 M-7 -4 L7 4 M7 -4 L-7 4']},
  darkmoonVendor:{color:'#d6a8e0',cloth:'#5a3b78',dark:'#33204a',paths:['M-8 6 L-4 -6 L0 2 L4 -6 L8 6 Z','M-8 6 L8 6 M0 -9 L0 -5']},
+ trainer:{color:'#e0d08a',cloth:'#6b5a2e',dark:'#3f3418',paths:['M-7 -8 L7 -8 L7 8 L-7 8 Z','M-4 -4 L4 -4 M-4 0 L4 0 M-4 4 L4 4']},
+ quartermaster:{color:'#8fb8d8',cloth:'#2e4a5b',dark:'#1c2f3a',paths:['M-8 -8 L8 -8 L8 8 L-8 8 Z','M-8 -8 L0 -2 L8 -8 M0 -2 L0 8']},
 };
 export function vendorIdentity(kind:string){return IDENTITIES[(kind==='merchant'?'jeweler':kind==='chapel'?'enchanter':kind) as keyof typeof IDENTITIES]??null;}
 export function vendorEmblem(kind:string):string{const identity=vendorIdentity(kind);return identity?`<svg viewBox="-12 -12 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${identity.paths.map(d=>`<path d="${d}"/>`).join('')}</svg>`:'';}

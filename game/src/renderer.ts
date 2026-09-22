@@ -55,6 +55,8 @@ import { townPortalAnchor, withinPortalReach, PORTAL_RULES, type PortalAnchor } 
 import { buildingNPC, stableMasterFor, focusedStableMaster, stableMastersNear, battlemasterFor, battlemastersNear, focusedBattlemaster, focusNPC, canInteractNPC, positionedNPC, NPC_NAMES, NPC_COLORS, type TownNPC } from './npcs.ts';
 import { pvpVendorFor, pvpVendorsNear, focusedPvpVendor } from './pvp-vendor.ts';
 import { badgeVendorFor, badgeVendorsNear, focusedBadgeVendor } from './badge-vendor.ts';
+import { trainerFor, trainersNear, focusedTrainer } from './trainer-npc.ts';
+import { quartermasterFor, quartermastersNear, focusedQuartermaster } from './quartermaster-npc.ts';
 import { mailboxFor, focusedMailbox, mailboxesNear, type Mailbox } from './mail-content.ts';
 import { faireActive, faireSite, faireVendor, type FaireSite } from './holiday-content.ts';
 import { focusedFaireVendor } from './holiday-state.ts';
@@ -666,6 +668,10 @@ export class Renderer {
       if (pvpVendor) this.drawNPCShadow(pvpVendor.x, pvpVendor.y, npcArtScale(pvpVendor));
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) this.drawNPCShadow(badgeVendor.x, badgeVendor.y, npcArtScale(badgeVendor));
+      const trainer = this.positioned(trainerFor(building));
+      if (trainer) this.drawNPCShadow(trainer.x, trainer.y, npcArtScale(trainer));
+      const quartermaster = this.positioned(quartermasterFor(building));
+      if (quartermaster) this.drawNPCShadow(quartermaster.x, quartermaster.y, npcArtScale(quartermaster));
     }
     if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
       const vendor = faireVendor(this.faireSiteFor(world));
@@ -899,6 +905,16 @@ export class Renderer {
         const point = worldToScreen(view, badgeVendor.x, badgeVendor.y - 78);
         text(c, `${badgeVendor.name} - Badge Vendor  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
+      const trainer = focusedTrainer(trainersNear(world, p.x - 100, p.y - 100, 200, 200).map(t => this.positioned(t)!), p, world);
+      if (trainer) {
+        const point = worldToScreen(view, trainer.x, trainer.y - 78);
+        text(c, `${trainer.name} - Class Trainer  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
+      const quartermaster = focusedQuartermaster(quartermastersNear(world, p.x - 100, p.y - 100, 200, 200).map(q => this.positioned(q)!), p, world);
+      if (quartermaster) {
+        const point = worldToScreen(view, quartermaster.x, quartermaster.y - 78);
+        text(c, `${quartermaster.name} - Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
+      }
       const mailbox = GAME_FEATURES.mail ? focusedMailbox(mailboxesNear(world, p.x - 100, p.y - 100, 200, 200), p, world) : null;
       if (mailbox) {
         const point = worldToScreen(view, mailbox.x, mailbox.y - 34);
@@ -1105,6 +1121,10 @@ export class Renderer {
       if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) entries.push({ y: badgeVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(badgeVendor.x,badgeVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, badgeVendor, this.visualTime, settings.reducedMotion)) });
+      const trainer = this.positioned(trainerFor(building));
+      if (trainer) entries.push({ y: trainer.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(trainer.x,trainer.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, trainer, this.visualTime, settings.reducedMotion)) });
+      const quartermaster = this.positioned(quartermasterFor(building));
+      if (quartermaster) entries.push({ y: quartermaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(quartermaster.x,quartermaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, quartermaster, this.visualTime, settings.reducedMotion)) });
       const mailbox = GAME_FEATURES.mail ? mailboxFor(building) : null;
       if (mailbox) entries.push({ y: mailbox.y, stage: 'props', draw: () => drawMailbox(c, mailbox) });
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
@@ -1266,6 +1286,10 @@ export class Renderer {
       if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
       const badgeVendor = this.positioned(badgeVendorFor(building));
       if (badgeVendor) environmentLights.push({ x: badgeVendor.x, y: badgeVendor.y - 20, radius: 60, color: NPC_COLORS.badgeVendor, power: .3 });
+      const trainer = this.positioned(trainerFor(building));
+      if (trainer) environmentLights.push({ x: trainer.x, y: trainer.y - 20, radius: 60, color: NPC_COLORS.trainer, power: .3 });
+      const quartermaster = this.positioned(quartermasterFor(building));
+      if (quartermaster) environmentLights.push({ x: quartermaster.x, y: quartermaster.y - 20, radius: 60, color: NPC_COLORS.quartermaster, power: .3 });
     }
     if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
       const vendor = faireVendor(this.faireSiteFor(sim.world));

@@ -18,8 +18,8 @@ test('character creation, pause checkpoint and reload continue use the same slot
   await page.getByRole('button', { name: 'SAVE & CHARACTER HALL' }).click();
   await expect(page.locator('[data-slot="0"]')).toContainText('Browser test');
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('button', { name: 'Enter World' })).toBeVisible();
+  await page.getByRole('button', { name: 'Enter World' }).click();
   expect(await page.evaluate(() => (window as any).__evergrow.sim.player.name)).toBe('Browser test');
   await page.keyboard.press('Escape');
   await expect(page.locator('.menu-save-state')).toHaveText('Character saved locally.');

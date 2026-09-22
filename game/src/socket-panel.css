@@ -1,0 +1,74 @@
+/* Socketing panel — three-column jewelcrafting bench: socketable gear,
+ * the selected item's sockets, and loose gems. Reuses ui-kit windows,
+ * ui-item-slot cells and the gem color hexes from gem-content. */
+.socketing-panel[hidden] { display: none; }
+.socketing-panel { position: absolute; inset: 0; z-index: 25; display: grid; place-items: center; background: #03090b80; padding: 24px; font-family: var(--ui-font); }
+.socketing-window { width: min(880px, 100%); max-height: 88vh; display: flex; flex-direction: column; }
+.socketing-window .ui-window-header { gap: 12px; flex: none; }
+.socketing-window .ui-window-header h2 { flex: 1; }
+.socketing-emblem { color: #d8c894; }
+.socketing-emblem svg { width: 18px; height: 18px; }
+.socketing-notice { margin: 0; padding: 8px 18px; border-bottom: 1px solid #738b9230; font-size: 12px; color: #b5c9b8; flex: none; }
+.socketing-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+.socketing-column { padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.socketing-column + .socketing-column { border-left: 1px solid #8ba5ae1e; }
+.socketing-heading { margin: 4px 2px 2px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ui-muted); }
+.socketing-heading + .socketing-heading { margin-top: 10px; }
+.socketing-none { margin: 6px 2px; font-size: 12px; color: var(--ui-faint); }
+
+/* Socketable item rows */
+.socket-target { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid #738b9226; background: #07131c66; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+.socket-target:hover { border-color: #b8d3e066; }
+.socket-target.is-selected { border-color: var(--ui-jade); background: #0e1c1666; box-shadow: inset 0 0 14px #66876b1f; }
+.socketing-panel .socket-target-icon, .socketing-panel .socket-gem-icon, .socketing-panel .socket-detail-icon { width: 40px; height: 40px; min-width: 0; min-height: 0; padding: 2px; flex: none; }
+.socket-target-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.socket-target-copy strong { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.socket-target-copy small { font-size: 11px; color: var(--ui-muted); }
+
+/* Selected item's sockets */
+.socketing-detail-head { display: flex; align-items: center; gap: 10px; padding: 4px 2px 10px; border-bottom: 1px solid #a5bec21c; }
+.socketing-detail-title { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.socketing-detail-title strong { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.socketing-detail-title small { font-size: 11px; color: var(--ui-muted); }
+.socket-armed-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 9px; border: 1px solid currentColor; border-radius: 2px; font-size: 11px; background: #0b151e66; }
+.socket-armed-chip .ui-button { min-width: 0; min-height: 0; width: 18px; height: 18px; padding: 0; font-size: 12px; }
+.socketing-slots { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.socket-slot-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid #738b9226; background: #07131c66; }
+.socket-slot-row.is-completing { border-color: #a9c98f66; box-shadow: inset 0 0 14px #66876b1f; }
+.socketing-panel .socket-slot { width: 40px; height: 40px; min-width: 0; min-height: 0; padding: 0; color: var(--socket-color, var(--ui-brass)); }
+.socket-slot-gem { font-size: 20px; line-height: 1; color: var(--socket-color); text-shadow: 0 0 8px color-mix(in srgb, var(--socket-color) 60%, transparent); }
+.socket-slot:not(.is-filled) .socket-slot-gem { opacity: .35; text-shadow: none; }
+.socket-slot.is-match { border-color: var(--socket-color); box-shadow: inset 0 0 10px color-mix(in srgb, var(--socket-color) 22%, transparent); }
+.socket-slot.is-drop-target { border-color: #d9efde; outline: 2px solid #b4dcca; outline-offset: 2px; }
+.socket-slot-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.socket-slot-copy strong { font-size: 12.5px; font-weight: 500; }
+.socket-slot-copy small { font-size: 11px; color: var(--ui-muted); }
+.socket-slot-hint { color: #a9c98f; }
+.socket-remove { min-width: 0; width: 26px; height: 26px; padding: 0; font-size: 14px; color: var(--ui-muted); }
+.socket-remove:hover { color: #da9294; border-color: #da929466; }
+.socket-bonus { margin: 10px 2px 0; font-size: 12px; color: var(--ui-muted); opacity: .65; }
+.socket-bonus.is-active { color: #a9c98f; opacity: 1; }
+.socket-bonus.is-preview { color: #d8c894; opacity: 1; }
+.socketing-empty { margin: auto; padding: 30px 10px; text-align: center; color: var(--ui-muted); }
+.socketing-empty-gem { display: inline-flex; color: #d8c89466; }
+.socketing-empty-gem svg { width: 30px; height: 30px; }
+.socketing-empty p { margin: 10px 0 4px; font-size: 13px; }
+.socketing-empty small { font-size: 11px; color: var(--ui-faint); }
+
+/* Gem rows */
+.socket-gem { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid #738b9226; background: #07131c66; color: var(--ui-text); font: inherit; text-align: left; cursor: grab; }
+.socket-gem:hover { border-color: #b8d3e066; }
+.socket-gem.is-armed { border-color: var(--ui-jade); background: #0e1c1666; cursor: pointer; }
+.socket-gem.is-dragging { opacity: .36; }
+.socket-gem-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.socket-gem-copy strong { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.socket-gem-copy small { font-size: 11px; color: var(--ui-muted); }
+.socket-gem-fits { color: var(--ui-faint); }
+.socket-gem-armed { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ui-jade); white-space: nowrap; }
+
+.socketing-window .ui-window-footer { flex: none; font-size: 12px; }
+@media (max-width: 760px) {
+  .socketing-panel { padding: 10px; }
+  .socketing-body { grid-template-columns: 1fr; overflow: auto; }
+  .socketing-column + .socketing-column { border-left: 0; border-top: 1px solid #8ba5ae1e; }
+}

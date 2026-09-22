@@ -5,6 +5,8 @@ import { BAR_TOTAL } from './action-bar.ts';
 import { resetSpecs, type DualSpecSheet } from './dual-spec-state.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { isWowClassId } from './wow-types.ts';
+import { trainedNodeIds, trainedOf } from './trainer-state.ts';
+import type { SkillId } from './character-types.ts';
 
 type RecordValue = Record<string, unknown>;
 const record = (value: unknown): value is RecordValue => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -68,8 +70,11 @@ export function upgradeSkillTree(checkpoint: RecordValue): boolean {
       && typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1000)) return false;
   sheet.treeVersion = SKILL_TREE_VERSION;
   sheet.skillPoints = checkpoint.level - 1;
-  sheet.allocatedNodes = isWowClassId(sheet.classId) ? ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`] : ['origin'];
-  sheet.skillRanks = {}; sheet.activeSkillRanks = {}; sheet.skillSpecializations = {};
+  const trainedSheet = sheet as unknown as import('./trainer-state.ts').TrainedSheet;
+  sheet.allocatedNodes = isWowClassId(sheet.classId) ? ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`, ...trainedNodeIds(trainedSheet)] : ['origin', ...trainedNodeIds(trainedSheet)];
+  const skillRanks: Partial<Record<SkillId, number>> = {}, activeSkillRanks: Partial<Record<SkillId, number>> = {};
+  for (const [id, n] of Object.entries(trainedOf(trainedSheet).ranks)) { skillRanks[id as SkillId] = 1 + n; activeSkillRanks[id as SkillId] = 1 + n; }
+  sheet.skillRanks = skillRanks; sheet.activeSkillRanks = activeSkillRanks; sheet.skillSpecializations = {};
   sheet.skillSlots = Array(BAR_TOTAL).fill(null); sheet.arcaneOverload = false;
   // Re-seed the class starter skill on slot 0, matching createCharacterSheet —
   // otherwise a migrated character loads with a completely empty action bar.

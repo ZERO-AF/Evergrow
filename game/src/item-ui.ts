@@ -214,7 +214,7 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
     ${view.context ? `<div class="ui-item-comparison">${escapeUI(view.context)}</div>` : ''}`;
 }
 
-const EQUIPPED_LABELS: Record<EquipmentSlot, string> = {
+export const EQUIPPED_LABELS: Record<EquipmentSlot, string> = {
   weapon: 'Main hand', offhand: 'Off hand', head: 'Head', chest: 'Chest', gloves: 'Gloves',
   legs: 'Legs', boots: 'Boots', cloak: 'Cloak', amulet: 'Amulet', ring1: 'Ring 1', ring2: 'Ring 2',
 };

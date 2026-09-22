@@ -16,6 +16,8 @@ import { createGemForSeed, isGemItem } from './gem-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import { freeNodeCount } from './skill-tree.ts';
+import { trainedNodeIds, trainedRankCount, trainedOf } from './trainer-state.ts';
+import type { SkillId } from './character-types.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { formatWalletCompact } from './currency.ts';
 
@@ -86,7 +88,7 @@ function gambleItem(sheet:CharacterSheet,npc:TownNPC,level:number,kind:ItemKind)
   if(item.weapon)item.weapon.id=id;if(item.shield)item.shield.id=id;if(item.focus)item.focus.id=id;return item;
 }
 export const RESPEC_GOLD_PER_POINT = 25;
-export const respecPoints = (sheet: CharacterSheet) => sheet.allocatedNodes.length - freeNodeCount(sheet.allocatedNodes) + Object.values(sheet.skillRanks).reduce((sum, rank) => sum + rank - 1, 0);
+export const respecPoints = (sheet: CharacterSheet) => sheet.allocatedNodes.length - freeNodeCount(sheet.allocatedNodes) - trainedNodeIds(sheet).length + Object.entries(sheet.skillRanks).reduce((sum, [id, rank]) => sum + rank - 1 - trainedRankCount(sheet, id as SkillId), 0);
 export const attributeResetPoints = (sheet: CharacterSheet) => Object.values(sheet.attributes).reduce((sum, value) => sum + value - 10, 0);
 export type ServiceRequest = {type:'refreshStock'} | {type:'resetAttributes'} | {type:'respec'} | {type:'gamble';kind:ItemKind} | {type:'store';bag:number;tab?:number} | {type:'unlockStorage';tab:number} | {type:'retrieve';slot:number} | { type: 'buy'; slot: number } | { type: 'sell'; source: ItemSource }
   | { type: 'sellMany'; items: SaleItem[]; includeActiveCharms?: boolean }
@@ -216,7 +218,8 @@ export function planService(sheet: CharacterSheet, npc: TownNPC, level: number, 
     if (!spendGold(character,price)) return {ok:false,message:'Not enough gold.'};
     const points=respecPoints(character);
     character.skillPoints += points;
-    character.allocatedNodes=['origin',`wow-${character.classId}-${WOW_CLASSES[character.classId].starterSkill}`]; character.skillRanks={}; character.activeSkillRanks={};
+    character.allocatedNodes=['origin',`wow-${character.classId}-${WOW_CLASSES[character.classId].starterSkill}`, ...trainedNodeIds(character)]; character.skillRanks={}; character.activeSkillRanks={};
+    for (const [id, n] of Object.entries(trainedOf(character).ranks)) { character.skillRanks[id as SkillId] = 1 + n; character.activeSkillRanks[id as SkillId] = 1 + n; }
     character.skillSpecializations={}; character.skillSlots=Array(BAR_TOTAL).fill(null); character.arcaneOverload=false;
     return {ok:true,character,item:null,message:`${points} skill points refunded.`};
   }

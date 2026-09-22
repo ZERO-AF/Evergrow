@@ -7,16 +7,19 @@ import { currentDungeon } from '../src/dungeon-state.ts';
 import { decodeCharacterSave, type CharacterCheckpoint } from '../src/character-save.ts';
 import { queueForDungeon, leaveQueue } from '../src/dungeon-finder-command.ts';
 import {
-  DUNGEON_FINDER_RULES, RDF_DUNGEONS, dungeonFinderDungeon, dungeonFinderEntrance,
+  DUNGEON_FINDER_RULES, RDF_DUNGEONS, RDF_RAIDS, dungeonFinderDungeon, dungeonFinderEntrance,
   dungeonFinderProblem, dungeonFinderWaitSeconds,
 } from '../src/dungeon-finder-content.ts';
 import { dungeonFinderOf, queuedDungeon, validDungeonFinder, type DungeonFinderSheet } from '../src/dungeon-finder-state.ts';
+import { recordRaidLockout, raidLockedOut, RAID_ENTRANCE_IDS } from '../src/raid-lockout.ts';
 import { createWowSim } from './fixtures/wow-sim.ts';
 import type { WorldQuery } from '../src/model.ts';
 const surface: WorldQuery = { seed: 7319, blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }), sampleBiome: () => ({ id: 'deadwood' }) };
 const ok = () => ({ ok: true, message: '' });
 const DEADMINES = 'rdf:westfall:0';
 const UTGARDE = 'rdf:howling-fjord:0';
+const NAXXRAMAS = 'rdf:dragonblight:2';
+const KARAZHAN = 'rdf:deadwind:0';
 
 function decoded(c: CharacterCheckpoint) {
   return decodeCharacterSave(JSON.stringify({ version: 4, id: 'test', name: 'Test', worldSeed: 7319, worldVersion: 5, createdAt: 1, updatedAt: 2, checkpoint: c }));
@@ -186,4 +189,68 @@ test('the synthesized entrance matches the world door seed and theme', () => {
   assert.equal(b.scaling?.base, 21);
   // The generated floor is identical to what the physical door produces.
   assert.deepEqual(generateDungeon(a.seed, a.level, a), generateDungeon(a.seed, a.level, a));
+});
+
+test('the raid catalog lists every authored raid with boss and door id', () => {
+  assert.equal(RDF_RAIDS.length, 23);
+  assert.ok(RDF_RAIDS.every(r => r.kind === 'raid' && r.boss && r.levelMin <= r.levelMax));
+  const naxx = dungeonFinderDungeon(NAXXRAMAS)!;
+  assert.equal(naxx.name, 'Naxxramas');
+  assert.equal(naxx.boss, "Kel'Thuzad");
+  assert.equal(naxx.entranceId, 'dungeon:raid:naxxramas');
+  assert.equal(naxx.levelMin, 80);
+  // The nine dedicated arenas resolve to their dungeon:raid ids; other authored
+  // raids keep the themed dungeon:atlas door the world gate uses.
+  const arenas = RDF_RAIDS.filter(r => r.entranceId.startsWith('dungeon:raid:'));
+  assert.equal(arenas.length, RAID_ENTRANCE_IDS.length);
+  assert.ok(arenas.every(r => RAID_ENTRANCE_IDS.includes(r.entranceId)));
+  const kara = dungeonFinderDungeon(KARAZHAN)!;
+  assert.equal(kara.name, 'Karazhan');
+  assert.equal(kara.entranceId, 'dungeon:atlas:deadwind:0');
+  assert.equal(kara.boss, 'The Astral Custodian');
+  // No raid leaked into the dungeon list and vice versa.
+  assert.ok(!RDF_DUNGEONS.some(d => d.kind === 'raid'));
+  assert.ok(!RDF_RAIDS.some(r => r.entranceId.startsWith('atlas:')));
+});
+
+test('a locked raid refuses the queue before any write; an open raid enters', async () => {
+  const sim = createWowSim('warrior');
+  levelTo(sim, 80);
+  const naxx = dungeonFinderDungeon(NAXXRAMAS)!;
+  // Stamp the weekly receipt: the finder reports the lockout verbatim.
+  recordRaidLockout(sim.player.character, naxx.entranceId);
+  assert.ok(raidLockedOut(sim.player.character, naxx.entranceId));
+  assert.match(dungeonFinderProblem(naxx, sim.player)!, /^Locked · resets /);
+  let writes = 0;
+  const denied = await queueForDungeon(sim, NAXXRAMAS, surface, async () => { writes++; return ok(); });
+  assert.equal(denied.ok, false);
+  assert.match(denied.message, /^Locked · resets /);
+  assert.equal(writes, 0, 'a locked raid must not even stage the queue marker');
+  assert.equal(dungeonFinderOf(sim.player.character), undefined);
+  // Once the receipt expires the same raid queues through the entrance path.
+  sim.player.character.raidLockouts![naxx.entranceId] = 1;
+  assert.ok(!raidLockedOut(sim.player.character, naxx.entranceId));
+  assert.equal(dungeonFinderProblem(naxx, sim.player), null);
+  const seen: CharacterCheckpoint[] = [];
+  const result = await queueForDungeon(sim, NAXXRAMAS, surface, async c => { seen.push(c); return ok(); });
+  assert.ok(result.ok, result.ok ? '' : result.message);
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1].expeditions?.location, 'dungeon:raid:naxxramas');
+  commit(sim, result.checkpoint);
+  assert.equal(sim.expeditions.location, 'dungeon:raid:naxxramas');
+  assert.ok(sim.dungeonFloor);
+});
+
+test('queued raid markers resolve and the entrance ignores heroic', () => {
+  const sim = createWowSim('mage');
+  levelTo(sim, 80);
+  (sim.player.character as DungeonFinderSheet).dungeonFinder = { queued: NAXXRAMAS, queuedAt: 1 };
+  assert.equal(queuedDungeon(sim.player.character)?.name, 'Naxxramas');
+  const naxx = dungeonFinderDungeon(NAXXRAMAS)!;
+  const normal = dungeonFinderEntrance(naxx, { x: 1, y: 2, level: 80 }, 7319);
+  const forced = dungeonFinderEntrance(naxx, { x: 1, y: 2, level: 80 }, 7319, true);
+  assert.equal(normal.id, 'dungeon:raid:naxxramas');
+  assert.equal(forced.name, 'Naxxramas', 'raids have no heroic mode');
+  assert.equal(forced.scaling?.heroic, undefined);
+  assert.equal(dungeonFinderProblem(naxx, { level: 79, dead: false }), 'Requires level 80.');
 });

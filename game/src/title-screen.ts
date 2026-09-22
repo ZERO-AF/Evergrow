@@ -1,4 +1,5 @@
 import { titleCharacterDetails, titleCharacterLoading } from './title-character-details.ts';
+import { titleLocation } from './title-character-summary.ts';
 import { drawTitlePlinth } from './title-plinth.ts';
 import { ItemTooltip } from './item-tooltip.ts';
 import type { EquipmentSlot } from './character-types.ts';
@@ -58,6 +59,11 @@ const roleIcons: Record<string, UIIconName> = {
   'Melee damage': 'sword', 'Ranged damage': 'center', 'Spell damage': 'star', Healing: 'plus',
   Tank: 'shield', Pet: 'skull', Stealth: 'dodge', Control: 'diamond',
 };
+/** Class medallion for roster cards whose record has not been read yet (cloud summaries). */
+const classEmblems: Record<WowClassId, UIIconName> = {
+  warrior: 'sword', paladin: 'shield', hunter: 'center', rogue: 'dodge', priest: 'plus',
+  deathKnight: 'skull', shaman: 'diamond', mage: 'star', warlock: 'portal', druid: 'leaf',
+};
 const lookCatalogs: Record<keyof CharacterAppearance, readonly { id: string }[]> = {
   skin: SKIN_PALETTES, hairColor: HAIR_PALETTES, hair: HAIR_STYLES, facialHair: FACIAL_HAIR, accessory: ACCESSORIES, feature: RACE_FEATURES,
 };
@@ -104,7 +110,7 @@ export class TitleScreen {
     this.element.innerHTML = `<details class="title-audio"><summary aria-label="Audio options">Sound <kbd class="audio-pad-key">Y</kbd></summary>${audioControlsMarkup(true)}</details><div class="title-vignette" aria-hidden="true"></div>
       <header class="title-brand"><span aria-hidden="true">${uiIcon('skilltree')}</span><h1>EVERGROW</h1><nav class="title-home-nav" aria-label="Home">${homePages.map(page=>`<button data-home-page="${page}" aria-current="${page==='characters'?'page':'false'}">${homeLabels[page]}${page==='changelog'?'<i class="home-unread" aria-label="Unread update" hidden></i>':''}</button>`).join('')}</nav><span class="home-pad-hint">LB / RB</span></header>
       <section class="title-hero" aria-label="Selected character"><div class="title-halo" aria-hidden="true"></div><canvas width="560" height="720" aria-label="Selected character wearing their saved equipment"></canvas></section>
-      <section class="title-roster ui-window" aria-labelledby="roster-title"><header class="title-roster-header"><h2 id="roster-title">Characters</h2><div class="title-sources" role="group" aria-label="Save location" hidden><button data-source="cloud">Cloud</button><button data-source="local">Local</button></div><span class="title-controller-hint"><kbd>A</kbd> Continue</span><span class="title-slot-count"></span></header>
+      <section class="title-roster ui-window" aria-labelledby="roster-title"><header class="title-roster-header"><h2 id="roster-title">Characters</h2><div class="title-sources" role="group" aria-label="Save location" hidden><button data-source="cloud">Cloud</button><button data-source="local">Local</button></div><span class="title-controller-hint"><kbd>A</kbd> Enter World</span><span class="title-slot-count"></span></header>
       <div class="title-hall-body"><div class="title-slot-grid" role="group" aria-label="Eight character slots" data-slot-grid></div></div></section><section class="title-dossier ui-window" aria-label="Character details"><div class="title-selection"></div>
       <footer class="title-roster-footer"><span class="title-storage-status" role="status"></span><a class="title-signout" href="/signout-with-chatgpt?return_to=/" target="_top" hidden>Sign out</a><span class="title-transfer"><button data-action="import">Import</button><button data-action="download">Download</button></span></footer>
       <div class="title-cloud-recovery" hidden><p class="title-cloud-message" role="status"></p><button class="ui-button" data-action="retry">Retry</button><a class="ui-button" href="/signin-with-chatgpt?return_to=/" target="_top" hidden>Sign in again</a></div>
@@ -368,7 +374,7 @@ export class TitleScreen {
     this.element.querySelector('.title-slot-count')!.textContent = loading ? '' : `${this.slots.filter(s => s.record || s.summary).length} / 8`;
     this.element.querySelector('.title-hall-body')!.setAttribute('aria-busy', String(loading));
     if (loading) {
-      this.element.querySelector('.title-slot-grid')!.innerHTML = Array.from({length:8}, () => '<div class="title-slot title-slot-skeleton" aria-hidden="true"><i></i><span></span></div>').join('');
+      this.element.querySelector('.title-slot-grid')!.innerHTML = Array.from({length:8}, () => '<div class="title-slot title-slot-skeleton" aria-hidden="true"><span class="title-slot-figure"></span><span class="title-slot-copy"><span></span><span></span></span></div>').join('');
       this.renderSelection(); return;
     }
     this.element.querySelector('.title-slot-grid')!.innerHTML = this.slots.map(slot => {
@@ -376,9 +382,23 @@ export class TitleScreen {
       const cls = summary?.classId ? WOW_CLASSES[summary.classId] : undefined, race = summary?.raceId ? WOW_RACES[summary.raceId] : undefined;
       const detail = cls && race ? `Lv ${summary!.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${cls.name}</b>`
         : summary ? `Lv ${summary.level} ${summary.gearPower!==undefined?`<i>·</i> ${format(summary.gearPower)} GP`:''}` : '';
-      return `<button class="title-slot" data-slot="${slot.index}" aria-pressed="${slot.index === this.selected}" aria-label="Slot ${slot.index + 1}: ${summary ? escapeUI(summary.name) : 'New character'}"><span class="title-slot-number">${slot.index + 1}</span><span class="title-slot-copy"><strong>${summary ? escapeUI(summary.name) : slot.state === 'empty' ? '+ New' : 'Unavailable'}</strong>${summary ? `<small>${detail}</small>` : ''}</span>${slot.conflict ? '<span class="title-slot-alert" aria-label="Save conflict">!</span>' : ''}</button>`;
+      const playedAt = r?.updatedAt ?? slot.summary?.updatedAt;
+      const played = playedAt ? new Date(playedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      const meta = r ? `${escapeUI(titleLocation(r).name)} <i>·</i> ${played}` : summary ? `Last played ${played}` : slot.state === 'empty' ? 'Empty slot' : '';
+      const figure = r ? `<canvas class="title-slot-portrait" width="96" height="128" aria-hidden="true"></canvas>`
+        : `<span class="title-slot-emblem" aria-hidden="true">${uiIcon(cls ? classEmblems[cls.id] : slot.state === 'empty' ? 'plus' : 'close')}</span>`;
+      return `<button class="title-slot${slot.state === 'empty' ? ' is-empty' : ''}" data-slot="${slot.index}" style="--class-color:${cls?.color ?? '#5d7480'}" aria-pressed="${slot.index === this.selected}" aria-label="Slot ${slot.index + 1}: ${summary ? escapeUI(summary.name) : 'New character'}"><span class="title-slot-figure">${figure}</span><span class="title-slot-copy"><strong>${summary ? escapeUI(summary.name) : slot.state === 'empty' ? 'New Character' : 'Unavailable'}</strong>${summary ? `<small>${detail}</small>` : ''}${meta ? `<small class="title-slot-meta">${meta}</small>` : ''}</span>${slot.conflict ? '<span class="title-slot-alert" aria-label="Save conflict">!</span>' : ''}</button>`;
     }).join('');
+    this.drawSlotPortraits();
     this.renderSelection();
+  }
+  /** Static equipped portraits for loaded records; summary-only slots keep their class medallion. */
+  private drawSlotPortraits() {
+    for (const canvas of this.element.querySelectorAll<HTMLCanvasElement>('.title-slot-portrait')) {
+      const slot = this.slots[Number(canvas.closest('[data-slot]')?.getAttribute('data-slot'))];
+      const ctx = canvas.getContext('2d');
+      if (slot?.record && ctx) drawCharacterPortrait(ctx, previewCharacter(slot.record), 3, Math.PI / 2 + .18, canvas.width, canvas.height, { padding: .02, verticalOffset: .05 });
+    }
   }
   private renderSelection() {
     this.itemTooltip.hide();
@@ -436,7 +456,7 @@ export class TitleScreen {
       const cls = WOW_CLASSES[record.checkpoint.character.classId], race = WOW_RACES[record.checkpoint.character.raceId];
       if (cls && race) selection.querySelector?.('.title-selection-heading')?.insertAdjacentHTML('afterend',
         `<p class="title-identity">Level ${record.checkpoint.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${escapeUI(specIdentity(record.checkpoint.character) || cls.name)}</b></p>`);
-      if (slot.conflict) selection.querySelector?.('.title-enter')?.insertAdjacentHTML('beforebegin', '<div class="title-conflict"><span>Another device has a newer save.</span><button class="ui-button" data-action="cloud">Use cloud version</button></div>');
+      if (slot.conflict) selection.querySelector?.('.title-cta-row')?.insertAdjacentHTML('beforebegin', '<div class="title-conflict"><span>Another device has a newer save.</span><button class="ui-button" data-action="cloud">Use cloud version</button></div>');
     } else if (slot?.state === 'empty') {
       if (slot.conflict || slot.pending) {
         selection.innerHTML = '<div class="title-confirm"><h3>Deletion needs attention</h3><p>Resolve this slot’s cloud save before creating another character.</p><button class="ui-button" data-action="retry">Retry</button><button class="ui-button" data-action="delete">Delete character</button></div>'; return;

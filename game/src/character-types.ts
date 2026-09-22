@@ -201,6 +201,8 @@ export interface CharacterSheet extends GoldWallet, HonorWallet, ArenaPointsWall
   pets?: PetStable;
   /** Earned player title id (title-content.ts); shown on the nameplate/character sheet. */
   title?: string;
+  /** Gold-trained skills/ranks from a class trainer (trainer-state.ts); exempt from point conservation. */
+  trained?: import('./trainer-state.ts').TrainedSkills;
   /** Preferred mount for the X summon toggle; set at the stable master (mount-state.ts). */
   mount?: import('./mount-content.ts').MountId;
   /** Dungeon Finder queue marker: the queued catalog id and when (dungeon-finder-state.ts). */

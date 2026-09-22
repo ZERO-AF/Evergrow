@@ -9,14 +9,14 @@ import type { WowRaceId } from './wow-types.ts';
 import { WORLD_TIME } from './world-time.ts';
 import { GAME_FEATURES } from './game-features.ts';
 
-export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable' | 'battlemaster' | 'pvpVendor' | 'badgeVendor' | 'darkmoonVendor';
+export type NPCRole = 'blacksmith' | 'jeweler' | 'enchanter' | 'gambler' | 'stash' | 'stable' | 'battlemaster' | 'pvpVendor' | 'badgeVendor' | 'darkmoonVendor' | 'trainer' | 'quartermaster';
 export interface TownNPC { settlementTier?:SettlementTier; id: string; name: string; role: NPCRole; x: number; y: number; level: number; maxLevel?: number; seed: number; buildingId: string;
   /** Faction the NPC serves (factions.ts); opposing-faction players can't use its services. */
   faction?: FactionTag;
   /** Daily-routine pose (npcs.ts routines): facing angle and gait while strolling.
    * Undefined means the NPC stands at its building anchor facing south. */
   angle?: number; moving?: number; }
-export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master', battlemaster: 'Battlemaster', pvpVendor: 'PvP Quartermaster', badgeVendor: 'Badge Vendor', darkmoonVendor: 'Darkmoon Faire Vendor' };
+export const NPC_NAMES: Record<NPCRole, string> = { blacksmith: 'Blacksmith', jeweler: 'Jeweler', enchanter: 'Enchanter', gambler: 'Gambler', stash: 'Storage', stable: 'Stable Master', battlemaster: 'Battlemaster', pvpVendor: 'PvP Quartermaster', badgeVendor: 'Badge Vendor', darkmoonVendor: 'Darkmoon Faire Vendor', trainer: 'Class Trainer', quartermaster: 'Quartermaster' };
 export const NPC_COLORS=Object.fromEntries(Object.keys(NPC_NAMES).map(role=>[role,vendorIdentity(role)!.color])) as Record<NPCRole,string>;
 export function hashService(value: string): number {
   let n = 2166136261;

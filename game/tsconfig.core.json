@@ -50,7 +50,7 @@
     "src/tabard-content.ts", "src/tabard-state.ts",
     "src/title-content.ts", "src/title-state.ts",
     "src/pack-grid.ts", "src/random-source.ts", "src/bag-content.ts", "src/bag-state.ts",
-    "src/gem-content.ts", "src/gem-command.ts", "src/enchant-content.ts", "src/enchant-command.ts",
+    "src/gem-content.ts", "src/gem-command.ts", "src/socket-state.ts", "src/enchant-content.ts", "src/enchant-command.ts",
     "src/quest-state.ts", "src/quest-command.ts",
     "src/pvp-combatant.ts", "src/pvp-status.ts", "src/pvp-ai.ts", "src/pvp-chargen.ts", "src/pvp-setup.ts", "src/pvp-floor.ts", "src/pvp-instance.ts",
     "src/pvp-currency.ts", "src/pvp-vendor.ts", "src/pvp-rewards.ts",
@@ -62,8 +62,10 @@
     "src/auction-content.ts", "src/auction-state.ts", "src/auction-command.ts",
     "src/mail-content.ts", "src/mail-state.ts", "src/mail-command.ts",
     "src/heroic-content.ts", "src/emblem-state.ts", "src/emblem-content.ts", "src/badge-vendor.ts",
+    "src/quartermaster-content.ts", "src/quartermaster-state.ts", "src/quartermaster-command.ts", "src/quartermaster-npc.ts",
     "src/enemy-buffs.ts", "src/raid-lockout.ts", "src/raid-loot-content.ts",
     "src/zone-content-eastern-kingdoms.ts", "src/zone-content-outland.ts",
-    "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts", "src/calendar-state.ts"
+    "src/holiday-content.ts", "src/holiday-state.ts", "src/holiday-command.ts", "src/calendar-state.ts",
+    "src/trainer-content.ts", "src/trainer-state.ts", "src/trainer-command.ts", "src/trainer-npc.ts"
   ]
 }

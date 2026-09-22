@@ -26,6 +26,7 @@ import { glyphVendorStock, glyphPrice } from './glyph-command.ts';
 import { bagVendorStock, bagPrice } from './bag-state.ts';
 import { repairQuote } from './durability.ts';
 import './service-panel.css';
+import { GAME_FEATURES } from './game-features.ts';
 
 const ENCHANT_OPERATIONS = ['rarity', 'rerollOne', 'rerollAll', 'relevel'] as const;
 const ENCHANT_LABELS = { rarity:'Rarity', rerollOne:'One affix', rerollAll:'All affixes', relevel:'Item level' };
@@ -56,7 +57,7 @@ export class ServicePanel {
   private revealed:Item|null=null;
   private abort = new AbortController();
   private focus: { dispose(): void } | null = null;
-  private actions: { close(): void; sort(target: 'storage' | 'inventory', tab?: number): void; trade(quote: ServiceQuote): Promise<{ ok: boolean; message: string }>; repair?(): Promise<{ ok: boolean; message: string }>; buyGlyph?(glyphId: string): Promise<{ ok: boolean; message: string }>; buyBag?(bagId: string): Promise<{ ok: boolean; message: string }> };
+  private actions: { close(): void; sort(target: 'storage' | 'inventory', tab?: number): void; trade(quote: ServiceQuote): Promise<{ ok: boolean; message: string }>; repair?(): Promise<{ ok: boolean; message: string }>; buyGlyph?(glyphId: string): Promise<{ ok: boolean; message: string }>; buyBag?(bagId: string): Promise<{ ok: boolean; message: string }>; openSocketing?(): void };
 
   constructor(mount: HTMLElement, actions: ServicePanel['actions']) {
     this.actions = actions;
@@ -218,7 +219,9 @@ export class ServicePanel {
     if (this.npc.role === 'blacksmith') tabs.push(['improve', 'Enhance']);
     if (bagVendorStock(this.npc).length) tabs.push(['bags', 'Bags']);
     tabs.push(['sell', 'Sell'], ['buyback', `Buyback <small>${this.player.character.commerce.buyback.length}/12</small>`]);
-    return `<nav class="service-tabs" aria-label="Services">${tabs.map(([tab, label]) => `<button class="ui-button ui-button--quiet" data-tab="${tab}" aria-pressed="${this.tab === tab}">${label}</button>`).join('')}<span>${escapeUI(this.npc.name)}${this.tab === 'improve' ? ` · Services Lv ${vendorLevel(this.npc, this.player.level)}` : ''}</span></nav>`;
+    const socketing = this.npc.role === 'jeweler' && GAME_FEATURES.gems && this.actions.openSocketing
+      ? '<button class="ui-button ui-button--quiet" data-open-socketing>Socketing</button>' : '';
+    return `<nav class="service-tabs" aria-label="Services">${tabs.map(([tab, label]) => `<button class="ui-button ui-button--quiet" data-tab="${tab}" aria-pressed="${this.tab === tab}">${label}</button>`).join('')}${socketing}<span>${escapeUI(this.npc.name)}${this.tab === 'improve' ? ` · Services Lv ${vendorLevel(this.npc, this.player.level)}` : ''}</span></nav>`;
   }
   showRespec(): void { if(this.npc.role!=='enchanter')return; this.tab='respec'; this.render(); }
   private renderRespec(): void {
@@ -542,6 +545,7 @@ export class ServicePanel {
       if(result.ok){this.quote=result.quote;void this.confirm();}return;
     }
     if (button.hasAttribute('data-close')) { this.actions.close(); return; }
+    if (button.hasAttribute('data-open-socketing')) { this.actions.openSocketing?.(); return; }
     if (button.dataset.storageTab !== undefined) {
       const tab=Number(button.dataset.storageTab);
       if (!Number.isInteger(tab)||tab<0||tab>=MAX_STORAGE_TABS||tab>storageTabCount(this.player.character)) return;

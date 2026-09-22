@@ -32,6 +32,7 @@ import { object, number, integer, text, validItem, type ObjectValue } from './it
 import { validCommerce } from './commerce-validation.ts';
 import { itemFitsSlot } from './inventory.ts';
 import { SKILL_NODES, unlockedSkills, freeNodeCount } from './skill-tree.ts';
+import { validTrainerLedger, trainedNodeIds, trainedRankCount } from './trainer-state.ts';
 import { MAX_CONTENT_LEVEL } from './progression-content.ts';
 import { xpForNextLevel } from './progression.ts';
 import { ENEMY_DEFINITIONS, LOOT_RULES } from './combat-content.ts';
@@ -123,15 +124,16 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (v.dungeonFinder !== undefined && !validDungeonFinder(v.dungeonFinder)) return false;
   if (v.raidLockouts !== undefined && !validRaidLockouts(v.raidLockouts)) return false;
   if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
+  if (v.trained !== undefined && !validTrainerLedger(v.trained, (v as unknown as CharacterSheet).classId)) return false;
   const sheet = v as unknown as CharacterSheet;
   if (sheet.treeVersion!==SKILL_TREE_VERSION || sheet.treeRefunded!==undefined&&sheet.treeRefunded!==true || sheet.allocatedNodes.some(id=>{const node=SKILL_NODES.get(id)!;return doctrineConflict(sheet.allocatedNodes,node)||node.classId!==undefined&&node.classId!==sheet.classId;}) || !validSkillProgression(sheet) || sheet.inventory.length > bagGridLayout(sheet).totalCells || !validPackLayout(sheet.inventory, sheet.inventoryLayout, bagGridLayout(sheet)) || !validSpecs(sheet.specs, sheet.activeSpec, sheet.classId, sheet.raceId, level)) return false;
   const ids = [...(sheet.stash??[]), ...(sheet.guildVault??[]), ...sheet.inventory, ...Object.values(sheet.equipped), ...(sheet.bags??[])].filter((i): i is Item => i !== null).map(i => i.id);
   if (new Set(ids).size !== ids.length || sheet.equipped.weapon?.weapon?.hands === 2 && sheet.equipped.offhand !== null) return false;
-  const allocated = new Set(sheet.allocatedNodes), connected = new Set(['origin']), queue = ['origin'];
+  const allocated = new Set(sheet.allocatedNodes), trained = new Set(trainedNodeIds(sheet)), connected = new Set(['origin', ...trained]), queue = ['origin', ...trained];
   for (let i = 0; i < queue.length; i++) for (const next of SKILL_NODES.get(queue[i])!.neighbors) {
     if (allocated.has(next) && !connected.has(next)) { connected.add(next); queue.push(next); }
   }
-  if (connected.size !== allocated.size || sheet.skillPoints + allocated.size - freeNodeCount(sheet.allocatedNodes) + Object.values(sheet.skillRanks).reduce((sum, rank) => sum + rank - 1, 0) !== level - 1
+  if (connected.size !== allocated.size || sheet.skillPoints + allocated.size - freeNodeCount(sheet.allocatedNodes) - trained.size + Object.entries(sheet.skillRanks).reduce((sum, [id, rank]) => sum + rank - 1 - trainedRankCount(sheet, id as SkillId), 0) !== level - 1
     || sheet.statPoints + Object.values(sheet.attributes).reduce((sum, n) => sum + n - 10, 0) !== (level - 1) * 5) return false;
   const unlocked = unlockedSkills(sheet.allocatedNodes);
   return Array.isArray(v.skillSlots) && v.skillSlots.length === BAR_TOTAL && v.skillSlots.every(id => id === null || unlocked.includes(id))

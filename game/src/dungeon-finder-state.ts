@@ -8,7 +8,7 @@
 import { GAME_FEATURES } from './game-features.ts';
 import type { CharacterSheet } from './character-types.ts';
 import { integer, object, text, type ObjectValue } from './item-validation.ts';
-import { RDF_DUNGEONS, type DungeonFinderEntry } from './dungeon-finder-content.ts';
+import { dungeonFinderDungeon, type DungeonFinderEntry } from './dungeon-finder-content.ts';
 
 export interface DungeonFinderState {
   /** Catalog id (rdf:<zone>:<index>) of the queued dungeon. */
@@ -34,10 +34,9 @@ export const dungeonFinderEnabled = (): boolean =>
 export const dungeonFinderOf = (sheet: CharacterSheet): DungeonFinderState | undefined =>
   (sheet as DungeonFinderSheet).dungeonFinder;
 
-/** The dungeon the sheet is queued for, or undefined when idle/stale. */
+/** The dungeon or raid the sheet is queued for, or undefined when idle/stale. */
 export function queuedDungeon(sheet: CharacterSheet): DungeonFinderEntry | undefined {
-  const id = dungeonFinderOf(sheet)?.queued;
-  return id === undefined ? undefined : RDF_DUNGEONS.find(d => d.id === id);
+  return dungeonFinderDungeon(dungeonFinderOf(sheet)?.queued);
 }
 
 /** Save validation for `character.dungeonFinder`; wired into validSheet.

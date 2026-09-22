@@ -20,6 +20,7 @@ import type { WowClassId, WowRaceId } from './wow-types.ts';
 import type { Player } from './model.ts';
 import type { Simulation } from './simulation.ts';
 import { summonCast } from './mount-state.ts';
+import { trainedNodeIds, trainedRankCount, trainedOf } from './trainer-state.ts';
 import { gatherChannelOf } from './gather-node.ts';
 
 /** Local gate until the integrator adds `dualSpec` to GAME_FEATURES. */
@@ -86,23 +87,41 @@ export function specUnspentPoints(spec: Pick<TalentSpec, 'allocatedNodes' | 'ski
 
 /** Snapshot the sheet's live build fields, preserving the stored spec's name. */
 export function captureSpec(sheet: DualSpecSheet, name: string): TalentSpec {
+  const trained = new Set(trainedNodeIds(sheet));
+  const trainedSkills = new Set(trainedOf(sheet).skills);
+  const skillRanks: Partial<Record<SkillId, number>> = {};
+  for (const [id, rank] of Object.entries(sheet.skillRanks)) {
+    const paid = rank - trainedRankCount(sheet, id as SkillId);
+    if (paid >= 2) skillRanks[id as SkillId] = paid;
+  }
+  const activeSkillRanks: Partial<Record<SkillId, number>> = {};
+  for (const [id, rank] of Object.entries(sheet.activeSkillRanks)) {
+    const paid = Math.min(rank - trainedRankCount(sheet, id as SkillId), skillRanks[id as SkillId] ?? rank);
+    if (paid >= 2) activeSkillRanks[id as SkillId] = paid;
+  }
+  const skillSpecializations = { ...sheet.skillSpecializations };
+  for (const id of trainedSkills) delete skillSpecializations[id];
   return {
     name,
-    allocatedNodes: [...sheet.allocatedNodes],
-    skillSlots: [...sheet.skillSlots],
-    skillRanks: { ...sheet.skillRanks },
-    activeSkillRanks: { ...sheet.activeSkillRanks },
-    skillSpecializations: { ...sheet.skillSpecializations },
+    allocatedNodes: sheet.allocatedNodes.filter(id => !trained.has(id)),
+    skillSlots: sheet.skillSlots.map(id => id !== null && trainedSkills.has(id) ? null : id),
+    skillRanks,
+    activeSkillRanks,
+    skillSpecializations,
     arcaneOverload: sheet.arcaneOverload,
   };
 }
 
-/** Install a stored build on the sheet; unspent points re-derive from level. */
 export function applySpec(sheet: DualSpecSheet, spec: TalentSpec, level: number): void {
-  sheet.allocatedNodes = [...spec.allocatedNodes];
+  sheet.allocatedNodes = [...spec.allocatedNodes, ...trainedNodeIds(sheet).filter(id => !spec.allocatedNodes.includes(id))];
   sheet.skillSlots = [...spec.skillSlots];
   sheet.skillRanks = { ...spec.skillRanks };
   sheet.activeSkillRanks = { ...spec.activeSkillRanks };
+  for (const id of trainedOf(sheet).skills) {
+    const total = (spec.skillRanks[id] ?? 1) + trainedRankCount(sheet, id);
+    sheet.skillRanks[id] = total;
+    sheet.activeSkillRanks[id] = Math.min(spec.activeSkillRanks[id] ?? total, total);
+  }
   sheet.skillSpecializations = { ...spec.skillSpecializations };
   sheet.arcaneOverload = spec.arcaneOverload;
   sheet.skillPoints = level - 1 - specSpentPoints(spec);
