@@ -8,6 +8,9 @@ import { isRaid3EntranceId, RAID3_BOSS_NAME } from './raid3-boss-content.ts';
 import { isRaid4EntranceId, RAID4_BOSS_NAME } from './raid4-boss-content.ts';
 import { isRaid5EntranceId, RAID5_BOSS_NAME } from './raid5-boss-content.ts';
 import { isRaid6EntranceId, RAID6_BOSS_NAME } from './raid6-boss-content.ts';
+import { isRaid7EntranceId, RAID7_BOSS_NAME } from './raid7-boss-content.ts';
+import { isRaid8EntranceId, RAID8_BOSS_NAME } from './raid8-boss-content.ts';
+import { isRaid9EntranceId, RAID9_BOSS_NAME } from './raid9-boss-content.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import type { JourneyMarker } from './journey-marker.ts';
 
@@ -31,7 +34,7 @@ export function dungeonJourney(state: Expeditions, floor: DungeonFloor | null | 
     return {id:run.entrance.id,name:run.entrance.name,level:run.entrance.level,objective,phase,marker:run.rift.phase==='hunt'?null:{x:target.x,y:target.y,name:objective,known:true}};
   }
   const boss = run.states.warden;
-  const bossName = isRaidEntranceId(run.entrance.id) ? RAID_BOSS_NAME : isRaid2EntranceId(run.entrance.id) ? RAID2_BOSS_NAME : isRaid3EntranceId(run.entrance.id) ? RAID3_BOSS_NAME : isRaid4EntranceId(run.entrance.id) ? RAID4_BOSS_NAME : isRaid5EntranceId(run.entrance.id) ? RAID5_BOSS_NAME : isRaid6EntranceId(run.entrance.id) ? RAID6_BOSS_NAME : dungeonTheme(run.entrance.seed, run.entrance.theme).bossName ?? 'Hollow Warden';
+  const bossName = isRaidEntranceId(run.entrance.id) ? RAID_BOSS_NAME : isRaid2EntranceId(run.entrance.id) ? RAID2_BOSS_NAME : isRaid3EntranceId(run.entrance.id) ? RAID3_BOSS_NAME : isRaid4EntranceId(run.entrance.id) ? RAID4_BOSS_NAME : isRaid5EntranceId(run.entrance.id) ? RAID5_BOSS_NAME : isRaid6EntranceId(run.entrance.id) ? RAID6_BOSS_NAME : isRaid7EntranceId(run.entrance.id) ? RAID7_BOSS_NAME : isRaid8EntranceId(run.entrance.id) ? RAID8_BOSS_NAME : isRaid9EntranceId(run.entrance.id) ? RAID9_BOSS_NAME : dungeonTheme(run.entrance.seed, run.entrance.theme).bossName ?? 'Hollow Warden';
   const phase = boss.hp > 0 ? 'boss' : run.chestMasks[2] === dungeonChestMask(run, 2) ? 'exit' : 'chest';
   const objective = phase === 'boss' ? `Defeat ${bossName}` : phase === 'chest' ? 'Claim the boss chest' : 'Return to the surface';
   const target = phase === 'boss' ? boss : phase === 'chest' ? floor.chests[2] : floor.exit;

@@ -147,6 +147,9 @@ import { isRaid3EntranceId } from './raid3-boss-content.ts';
 import { isRaid4EntranceId } from './raid4-boss-content.ts';
 import { isRaid5EntranceId } from './raid5-boss-content.ts';
 import { isRaid6EntranceId } from './raid6-boss-content.ts';
+import { isRaid7EntranceId } from './raid7-boss-content.ts';
+import { isRaid8EntranceId } from './raid8-boss-content.ts';
+import { isRaid9EntranceId } from './raid9-boss-content.ts';
 import { TransmogPanel } from './transmog-panel.ts';
 import { executeTransmogApply, executeTransmogClear } from './transmog-command.ts';
 import { executeDualSpecUnlock, executeSpecSwap, executeSpecRename } from './dual-spec-command.ts';
@@ -1560,7 +1563,7 @@ export class Game {
       const ok = await this.locations.dungeon(action);
       if (ok && action.kind === 'enter') {
         const entrance = action.entrance;
-        this.trackAchievement(isRaidEntranceId(entrance.id) || isRaid2EntranceId(entrance.id) || isRaid3EntranceId(entrance.id) || isRaid4EntranceId(entrance.id) || isRaid5EntranceId(entrance.id) || isRaid6EntranceId(entrance.id)
+        this.trackAchievement(isRaidEntranceId(entrance.id) || isRaid2EntranceId(entrance.id) || isRaid3EntranceId(entrance.id) || isRaid4EntranceId(entrance.id) || isRaid5EntranceId(entrance.id) || isRaid6EntranceId(entrance.id) || isRaid7EntranceId(entrance.id) || isRaid8EntranceId(entrance.id) || isRaid9EntranceId(entrance.id)
           ? { type: 'raid', id: entrance.id }
           : { type: 'dungeon', id: entrance.id, theme: entrance.theme });
       }

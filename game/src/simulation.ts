@@ -106,6 +106,12 @@ import { updateRaid5Boss } from './raid5-boss.ts';
 import { isRaid5Boss } from './raid5-boss-content.ts';
 import { updateRaid6Boss } from './raid6-boss.ts';
 import { isRaid6Boss } from './raid6-boss-content.ts';
+import { updateRaid7Boss } from './raid7-boss.ts';
+import { isRaid7Boss } from './raid7-boss-content.ts';
+import { updateRaid8Boss } from './raid8-boss.ts';
+import { isRaid8Boss } from './raid8-boss-content.ts';
+import { updateRaid9Boss } from './raid9-boss.ts';
+import { isRaid9Boss } from './raid9-boss-content.ts';
 import { advanceWorldEvents, freshWorldEvents, recordWorldEventKill, worldEventTrialContext, type WorldEventState } from './world-event-state.ts';
 import { DEMON_FAMILIES, PET_SKILLS, PET_RULES, adoptPet, adjustPetLoyalty, createPetRecord, demonFamilyForAlly, freshPetStable,
   petFamilyForAlly, petStatsFor, stableActivePet, tameableFamily, type PetRecord, type PetSkill } from './pet-content.ts';
@@ -1629,7 +1635,7 @@ export class Simulation {
       enemy.rallyTime=Math.max(0,(enemy.rallyTime??0)-dt);
       if (!advanceEnemyStatuses(enemy, dt,
         (actor, amount, school) => this.damageEnemy(actor, amount, 0, false, true, schoolProjectileStyle(school ?? 'fire')))) continue;
-      if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
+      if(isRaid7Boss(enemy)) updateRaid7Boss(enemy,dt,context); else if(isRaid8Boss(enemy)) updateRaid8Boss(enemy,dt,context); else if(isRaid9Boss(enemy)) updateRaid9Boss(enemy,dt,context); else if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
       this.enemyNeighbors.update(enemy);
       if (p.dead) break;
     }

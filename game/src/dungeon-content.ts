@@ -1,7 +1,7 @@
 import type { EnemyKind } from './model.ts';
 import type { WaveRules } from './wave-system.ts';
 import { BLACKROCK_DEPTHS } from './dungeon2-content.ts';
-export type DungeonThemeId = 'rootbound' | 'foundry' | 'drowned' | 'rime' | 'ossuary' | 'astral' | 'blackrock';
+export type DungeonThemeId = 'rootbound' | 'foundry' | 'drowned' | 'rime' | 'ossuary' | 'astral' | 'blackrock' | 'nerubian' | 'titankeep' | 'frostmourne' | 'violet';
 export interface DungeonTheme {
     id: DungeonThemeId; name: string; description: string;
     ambient: string; stone: readonly [number, number, number]; floor: readonly [number, number, number];
@@ -17,8 +17,15 @@ export const DUNGEON_THEMES: Readonly<Record<DungeonThemeId, DungeonTheme>> = Ob
     ossuary: Object.freeze({id:'ossuary',name:'Sunken Ossuary',description:'Ochre burial halls, bone niches and fallen sandstone idols.',ambient:'#30241f',stone:[112,89,60] as const,floor:[88,69,48] as const,accent:'#e6c18a',light:'#f5c87f',map:'#756047',wall:'#ceb78b',roster:['stalker','archer','brute','caster'] as const,boss:'graveMarshal',bossName:'The Sepulchral King'}),
     astral: Object.freeze({id:'astral',name:'Astral Archive',description:'Violet marble, bronze orreries and sealed star charts.',ambient:'#221a34',stone:[76,63,99] as const,floor:[55,48,75] as const,accent:'#ceadff',light:'#bda1ff',map:'#55446b',wall:'#c4addd',roster:['stormSentinel','wisp','caster','archer'] as const,boss:'warden',bossName:'The Astral Custodian'}),
     blackrock: BLACKROCK_DEPTHS,
+    nerubian: Object.freeze({id:'nerubian',name:'Nerubian Ziggurat',description:'Web-shrouded ziggurat halls, chitin reliefs and cold teal witchfire.',ambient:'#12262a',stone:[52,80,80] as const,floor:[40,66,68] as const,accent:'#6fd8ce',light:'#7fe0d6',map:'#2c4c50',wall:'#8fb8b2',roster:['stalker','caster','brute','hound','archer'] as const,boss:'graveMarshal',bossName:'The Nerubian Underking'}),
+    titankeep: Object.freeze({id:'titankeep',name:'Titankeep Halls',description:'Titan-cut stone, brass runes and arcane gold conduits.',ambient:'#26221a',stone:[96,88,66] as const,floor:[80,72,54] as const,accent:'#e8c96a',light:'#f2d67c',map:'#5c5238',wall:'#c9b98a',roster:['stormSentinel','brute','caster','archer','wisp'] as const,boss:'ashColossus',bossName:'The Titan Keeper'}),
+    frostmourne: Object.freeze({id:'frostmourne',name:'Frozen Halls',description:'Frozen citadel galleries, pale blue ice and chained souls.',ambient:'#141f2e',stone:[62,80,100] as const,floor:[50,68,88] as const,accent:'#a5d8ff',light:'#8fc9ff',map:'#3a5468',wall:'#a9c8dd',roster:['frostRevenant','stalker','caster','brute','archer'] as const,boss:'warden',bossName:'Herald of the Lich King'}),
+    violet: Object.freeze({id:'violet',name:'Violet Hold',description:'Arcane prison tiers, violet wards and bound portal cells.',ambient:'#1e1730',stone:[72,58,96] as const,floor:[58,46,80] as const,accent:'#b98cff',light:'#c49aff',map:'#4a3a66',wall:'#b9a3d8',roster:['caster','wisp','stormSentinel','stalker','archer'] as const,boss:'warden',bossName:'The Violet Jailer'}),
 });
-export const DUNGEON_THEME_IDS = Object.freeze(Object.keys(DUNGEON_THEMES) as DungeonThemeId[]);
+/** Procedural roll pool: the original seven themes only. The WotLK themes stay
+ * reachable through explicit theme selection and authored entrances so existing
+ * seeds keep their theme rolls; validation accepts every registered theme. */
+export const DUNGEON_THEME_IDS = Object.freeze(['rootbound', 'foundry', 'drowned', 'rime', 'ossuary', 'astral', 'blackrock'] as const satisfies readonly DungeonThemeId[]);
 export const dungeonTheme = (seed: number, theme?: DungeonThemeId): DungeonTheme => DUNGEON_THEMES[theme ?? (['rootbound', 'foundry', 'drowned'] as const)[(seed >>> 0) % 3]];
 export type DungeonEventKind = 'reliquary' | 'ward' | 'champion';
 export interface DungeonEventRecipe { name: string; action: string; objective: string; rules: Readonly<WaveRules>; size: number }

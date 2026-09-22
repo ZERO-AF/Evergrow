@@ -4,6 +4,9 @@ import { raid3BossWarningSpec } from './raid3-boss-content.ts';
 import { raid4BossWarningSpec } from './raid4-boss-content.ts';
 import { raid5BossWarningSpec } from './raid5-boss-content.ts';
 import { raid6BossWarningSpec } from './raid6-boss-content.ts';
+import { raid7BossWarningSpec } from './raid7-boss-content.ts';
+import { raid8BossWarningSpec } from './raid8-boss-content.ts';
+import { raid9BossWarningSpec } from './raid9-boss-content.ts';
 import type { CombatEvent, Enemy, EnemyKind, ProjectileStyle } from './model.ts';
 import { ENEMY_DEFINITIONS, enemyAttackDefinition } from './combat-content.ts';
 import { BOSS_PALETTES, isBossKind } from './wilderness-boss-content.ts';
@@ -94,7 +97,7 @@ function bossColor(e: Enemy): string {
 
 /** Telegraphs worth a center-screen warning; ordinary basics stay silent. */
 function warningSpec(e: Enemy): WarningSpec | undefined {
-  const raid = raidBossWarningSpec(e) ?? raid2BossWarningSpec(e) ?? raid3BossWarningSpec(e) ?? raid4BossWarningSpec(e) ?? raid5BossWarningSpec(e) ?? raid6BossWarningSpec(e); if (raid) return { ...raid, color: bossColor(e) };
+  const raid = raidBossWarningSpec(e) ?? raid2BossWarningSpec(e) ?? raid3BossWarningSpec(e) ?? raid4BossWarningSpec(e) ?? raid5BossWarningSpec(e) ?? raid6BossWarningSpec(e) ?? raid7BossWarningSpec(e) ?? raid8BossWarningSpec(e) ?? raid9BossWarningSpec(e); if (raid) return { ...raid, color: bossColor(e) };
   if (e.bossMove) {
     const move = BOSS_MOVE_WARNINGS[e.bossMove];
     return { ability: move.ability, advice: move.advice, color: bossColor(e) };

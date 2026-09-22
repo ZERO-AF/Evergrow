@@ -1,7 +1,7 @@
 import { validRiftTag, validRiftLedger, riftEnemyStats, RIFT_RULES } from './rift-content.ts';
 import { EXPEDITION_MODIFIER_IDS } from './expedition-modifiers.ts';
 import { validExpeditionRoute, expeditionChoices, dungeonChestMask } from './expedition-route.ts';
-import { DUNGEON_THEME_IDS } from './dungeon-content.ts';
+import { DUNGEON_THEMES } from './dungeon-content.ts';
 import { DUNGEON_EVENTS } from './dungeon-content.ts';
 import { dungeonMemberLevel } from './dungeon-state.ts';
 import { dungeonMemberRank } from './heroic-content.ts';
@@ -41,7 +41,7 @@ export function validExpeditions(v: unknown): v is Expeditions {
             for(const key of ['treasure','exit'])if(r[key]!==undefined&&(!object(r[key])||!point(r[key])||r.phase!=='complete'))return false;
             if((r.phase==='hunt'&&r.points===RIFT_RULES.progress)||(r.phase==='boss'||r.phase==='complete')&&r.points!==RIFT_RULES.progress||r.phase!=='failed'&&r.phase!=='complete'&&r.elapsed>=RIFT_RULES.duration||r.claimed&&r.phase!=='complete')return false;
         }else if(run.rift!==undefined)return false;
-        if(e.theme!==undefined && !DUNGEON_THEME_IDS.includes(e.theme as never))return false;
+        if(e.theme!==undefined && !(typeof e.theme==='string' && Object.hasOwn(DUNGEON_THEMES,e.theme)))return false;
         if(e.expedition!==undefined) {
             const tag=e.expedition, route=v.route;
             if(!object(tag)||!validExpeditionRoute(route)||!integer(tag.attempt,1)||tag.attempt!==route.attempt||!integer(tag.stage,0,9)||tag.stage>route.cleared||!integer(tag.choice,0,1))return false;

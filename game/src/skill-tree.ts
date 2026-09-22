@@ -218,9 +218,9 @@ function buildTree() {
  // it. The inner band is saturated, so clusters claim the first free discs in
  // kit-size order — the biggest land inside ~25% of the atlas extent, the rest
  // on a second band farther out. Each cluster is a planar wheel: a passive
- // triangle inside two concentric skill rings joined by order-preserving spokes,
+ // wheel inside two concentric skill rings joined by order-preserving spokes,
  // entered through two or three short spokes from the nearest road nodes.
- // Adds 233 nodes and 453 edges on top of the existing 1,831 / 2,125.
+ // Adds 253 nodes and 473 edges on top of the existing 1,831 / 2,125.
  {
    const sorted=[...SKILL_TERRITORIES].sort((a,b)=>a.angle-b.angle);
    // A coarse occupancy grid rejects crowded disc candidates without scanning
@@ -243,24 +243,30 @@ function buildTree() {
     const ringCount=sanctum.skills.length>44?3:2;
     const base=Math.floor(sanctum.skills.length/ringCount),extra=sanctum.skills.length%ringCount;
     const ringSizes=Array.from({length:ringCount},(_,i)=>base+(i<extra?1:0));
-    // Ring 0 is the specialization ring: three signature keystones between the
-    // passive triangle and the skill rings. Skill rings grow outward from it.
-    const specRadius=Math.max(108,3*40/(Math.PI*2));
+    // Ring 0 is the specialization ring: signature keystones centered in the
+    // passive-wheel gaps, between the passives and the skill rings. Skill rings
+    // grow outward from it.
+    const specRadius=Math.max(108,sanctum.specs.length*40/(Math.PI*2));
     const ringRadii:number[]=[];{let r=specRadius;for(const n of ringSizes){r=Math.max(r+44,n*40/(Math.PI*2));ringRadii.push(r);}}
     const r2=ringRadii[ringRadii.length-1]+33;
     if(sanctum.specs.length!==3||sanctum.specs.some((spec,i)=>!specSignatureNode(sanctum.classId,spec.id).endsWith(WOW_CLASSES[sanctum.classId].specs[i].toLowerCase().replace(/[^a-z]+/g,'-'))))throw Error(`Spec signatures must match WowClassDef.specs order for ${sanctum.classId}`);
+     // Each spec keystone sits at the center of a passive-wheel gap and links to
+     // the passive that opens that gap; with three passives this is exactly the
+     // old half-step offset triangle.
+     const specGap=(i:number)=>Math.floor((2*i+1)*sanctum.passives.length/(2*sanctum.specs.length));
      const make=(center:Point)=>{
        const members:Array<Omit<MutableNode,'neighbors'>>=sanctum.passives.map((p,i)=>{
-         const a=Math.atan2(-center.y,-center.x)+i*Math.PI*2/3;
+         const a=Math.atan2(-center.y,-center.x)+i*Math.PI*2/sanctum.passives.length;
          return {id:`wow-${sanctum.classId}-passive-${i}`,name:p.name,description:p.description,
            x:center.x+Math.cos(a)*42,y:center.y+Math.sin(a)*42,kind:'notable' as const,domain:sanctum.domain,
            classId:sanctum.classId,cluster:`sanctum:${sanctum.classId}`,role:'cluster' as const,bonuses:p.small};
        });
        for(const [i,spec] of sanctum.specs.entries()){
-         // Offset each spec keystone half a passive step and place it between the
-         // passive triangle and the first skill ring: clear of the passive edges and
-         // of every passive→skill spoke, so no route edge crosses a spec node.
-         const a=Math.atan2(-center.y,-center.x)+(i+0.5)*Math.PI*2/3;
+         // Offset each spec keystone to the center of a passive gap and place it
+         // between the passive wheel and the first skill ring: clear of the
+         // passive edges and of every passive→skill spoke, so no route edge
+         // crosses a spec node.
+         const a=Math.atan2(-center.y,-center.x)+(specGap(i)+0.5)*Math.PI*2/sanctum.passives.length;
          members.push({id:specSignatureNode(sanctum.classId,spec.id),name:spec.name,
            description:`${spec.spec} specialization: choose one of three. ${spec.description} Other specializations are mutually exclusive.`,
            x:center.x+Math.cos(a)*70,y:center.y+Math.sin(a)*70,kind:'notable' as const,domain:sanctum.domain,
@@ -292,17 +298,17 @@ function buildTree() {
      }
      if(!placed||!center)throw Error(`No sanctum pocket for ${sanctum.classId}`);
      const members=placed.map(n=>add(n,2));
-     const passives=members.slice(0,3),specRing=members.slice(3,6);
-     const rings:MutableNode[][]=[];{let off=6;for(const n of ringSizes){rings.push(members.slice(off,off+n));off+=n;}}
+     const passives=members.slice(0,sanctum.passives.length),specRing=members.slice(sanctum.passives.length,sanctum.passives.length+sanctum.specs.length);
+     const rings:MutableNode[][]=[];{let off=sanctum.passives.length+sanctum.specs.length;for(const n of ringSizes){rings.push(members.slice(off,off+n));off+=n;}}
      const outer=rings[rings.length-1];
-     // Planar wheel: passive triangle hub, concentric skill cycles, order-preserving
-     // spokes. Spec signatures are leaf choices off their aligned passive — never on
-     // the route to a skill, so their mutual exclusivity can't gate progression.
-     for(let i=0;i<3;i++)link(passives[i].id,passives[(i+1)%3].id);
+     // Planar wheel: passive wheel hub, concentric skill cycles, order-preserving
+     // spokes. Spec signatures are leaf choices off the passive that opens their
+     // gap — never on the route to a skill, so exclusivity can't gate progression.
+     for(let i=0;i<sanctum.passives.length;i++)link(passives[i].id,passives[(i+1)%sanctum.passives.length].id);
      for(const ring of rings)for(let i=0;i<ring.length;i++)link(ring[i].id,ring[(i+1)%ring.length].id);
      for(const o of rings[0])link(o.id,[...passives].sort((a,b)=>distance(o,a)-distance(o,b))[0].id);
      for(let r=1;r<rings.length;r++)for(const o of rings[r])link(o.id,[...rings[r-1]].sort((a,b)=>distance(o,a)-distance(o,b))[0].id);
-     for(let i=0;i<3;i++)link(passives[i].id,specRing[i].id);
+     for(let i=0;i<sanctum.specs.length;i++)link(passives[specGap(i)].id,specRing[i].id);
      // Entrances: the nearest nodes on the two flanking roads, then the Root,
      // then any nearby node as a last resort.
      const actual=Math.atan2(center.y,center.x);

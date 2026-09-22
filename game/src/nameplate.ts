@@ -7,6 +7,13 @@ import type { EnemyRank } from './progression-content.ts';
 import { isBossKind, isWildernessBoss, BOSS_NAMES } from './wilderness-boss-content.ts';
 import { raidBossName } from './raid-boss-content.ts';
 import { raid2BossName } from './raid2-boss-content.ts';
+import { raid3BossName } from './raid3-boss-content.ts';
+import { raid4BossName } from './raid4-boss-content.ts';
+import { raid5BossName } from './raid5-boss-content.ts';
+import { raid6BossName } from './raid6-boss-content.ts';
+import { raid7BossName } from './raid7-boss-content.ts';
+import { raid8BossName } from './raid8-boss-content.ts';
+import { raid9BossName } from './raid9-boss-content.ts';
 import { DUNGEON_THEMES } from './dungeon-content.ts';
 import { riftMechanic } from './rift-encounters.ts';
 import { enemyDisplayName } from './zone-roster.ts';
@@ -76,7 +83,7 @@ export function nameplateName(e: Enemy): string {
   if (role === 'storm') return `Stormbound ${base}`;
   if (role === 'fire') return `Cinder ${base}`;
   if (isBossKind(e.kind)) {
-    return raidBossName(e) ?? raid2BossName(e)
+    return raidBossName(e) ?? raid2BossName(e) ?? raid3BossName(e) ?? raid4BossName(e) ?? raid5BossName(e) ?? raid6BossName(e) ?? raid7BossName(e) ?? raid8BossName(e) ?? raid9BossName(e)
       ?? (e.dungeonTheme ? DUNGEON_THEMES[e.dungeonTheme]?.bossName : undefined)
       ?? (isWildernessBoss(e.kind) ? BOSS_NAMES[e.kind] : undefined)
       ?? base;

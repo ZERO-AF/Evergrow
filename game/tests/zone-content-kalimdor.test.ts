@@ -5,7 +5,7 @@ import { ZONE_CONTENT } from '../src/zone-content.ts';
 import { ZONES } from '../src/world-atlas.ts';
 import { PROP_KINDS } from '../src/biome-props.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
-import { DUNGEON_THEME_IDS } from '../src/dungeon-content.ts';
+import { DUNGEON_THEMES } from '../src/dungeon-content.ts';
 import { isPOIKind } from '../src/world-pois.ts';
 
 const KALIMDOR_IDS = Object.keys(ZONES).filter(id => ZONES[id].continent === 'kalimdor');
@@ -76,7 +76,7 @@ test('normalized coordinates stay inside [0,1] and vocabularies are valid', () =
     }
     for (const e of content.entrances) {
       assert.ok(inUnit(e.nx) && inUnit(e.ny), `${id} entrance ${e.name}`);
-      if (e.theme) assert.ok(DUNGEON_THEME_IDS.includes(e.theme), `${id} entrance theme ${e.theme}`);
+      if (e.theme) assert.ok(Object.hasOwn(DUNGEON_THEMES, e.theme), `${id} entrance theme ${e.theme}`);
     }
     for (const w of content.water ?? []) {
       assert.ok(inUnit(w.nx) && inUnit(w.ny), `${id} water ${w.kind}`);

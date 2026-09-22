@@ -5,7 +5,7 @@ import { ZONE_CONTENT, zoneContent } from '../src/zone-content.ts';
 import { PROP_KINDS } from '../src/biome-props.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
 import { POI_DEFINITIONS } from '../src/world-pois.ts';
-import { DUNGEON_THEME_IDS } from '../src/dungeon-content.ts';
+import { DUNGEON_THEMES } from '../src/dungeon-content.ts';
 import '../src/zone-content-northrend.ts';
 
 const NORTHREND_IDS = Object.keys(ZONES).filter(id => ZONES[id].continent === 'northrend');
@@ -60,7 +60,7 @@ test('atlas dungeons appear as entrances at their normalized positions', () => {
       assert.ok(Math.abs(entrance.nx - dungeon.nx) < 1e-9 && Math.abs(entrance.ny - dungeon.ny) < 1e-9,
         `${id} entrance ${dungeon.name} at atlas position`);
       assert.equal(entrance.kind, dungeon.kind, `${id} entrance ${dungeon.name} kind`);
-      if (entrance.theme) assert.ok(DUNGEON_THEME_IDS.includes(entrance.theme), `${id} theme ${entrance.theme}`);
+      if (entrance.theme) assert.ok(Object.hasOwn(DUNGEON_THEMES, entrance.theme), `${id} theme ${entrance.theme}`);
     }
   }
 });

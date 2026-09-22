@@ -25,8 +25,11 @@ import { RAID3_ENTRANCE_ID, KELTHUZAD_RULES } from './raid3-boss-content.ts';
 import { RAID4_ENTRANCE_ID, LICHKING_RULES } from './raid4-boss-content.ts';
 import { RAID5_ENTRANCE_ID, MALYGOS_RULES } from './raid5-boss-content.ts';
 import { RAID6_ENTRANCE_ID, SARTH_RULES } from './raid6-boss-content.ts';
+import { RAID7_ENTRANCE_ID, YOGG_RULES } from './raid7-boss-content.ts';
+import { RAID9_ENTRANCE_ID, HALION_RULES } from './raid9-boss-content.ts';
+import { RAID8_ENTRANCE_ID, ANUBARAK_RULES } from './raid8-boss-content.ts';
 
-export type RaidLootTableId = 'onyxia' | 'ragnaros' | 'kelthuzad' | 'lichking' | 'malygos' | 'sartharion';
+export type RaidLootTableId = 'onyxia' | 'ragnaros' | 'kelthuzad' | 'lichking' | 'malygos' | 'sartharion' | 'yoggsaron' | 'halion' | 'anubarak';
 
 type ArmorSlot = 'head' | 'chest' | 'gloves' | 'legs' | 'boots';
 const ARMOR_SLOTS: readonly ArmorSlot[] = Object.freeze(['head', 'chest', 'gloves', 'legs', 'boots']);
@@ -168,9 +171,74 @@ const SARTH_LOOT: RaidLootTable = Object.freeze({
   }),
 });
 
+/** Yogg-Saron's cache: Tier-8 helms and chests plus the God of Death's hoard.
+ * Mimiron's Head stands in via the Mekgineer's Chopper mount art. */
+const YOGG_LOOT: RaidLootTable = Object.freeze({
+  id: 'yoggsaron', name: 'Cache of the Old God', rolls: 3,
+  drops: Object.freeze([
+    drop({ kind: 'setPiece', slot: 'head', weight: 30 }),
+    drop({ kind: 'setPiece', slot: 'chest', weight: 25 }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'rondel-dagger', weight: 12,
+      name: 'Kingsbane', flavor: 'The blade that unmade a kingdom\'s sanity.' }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'greataxe', weight: 11,
+      name: 'Dark Edge of Depravity', flavor: 'It whispers to the hand that holds it.' }),
+    drop({ kind: 'epic', itemKind: 'amulet', profile: 'sage-pendant', weight: 11,
+      name: 'Pendant of a Thousand Maws', flavor: 'Every maw speaks a different truth.' }),
+    drop({ kind: 'epic', itemKind: 'cloak', weight: 11,
+      name: 'Shawl of Haunted Memories', flavor: 'Woven from dreams the Old God has eaten.' }),
+  ]),
+  // Mimiron's Head — the Mekgineer's Chopper stands in as the mount drop.
+  bonus: Object.freeze({ mount: 'chopper' as MountId, chance: .02 }),
+});
+
+/** Halion's hoard: Tier-10 boots plus the Twilight Destroyer's signature
+ * scale trinkets and jewelry — the Ruby Sanctum's twilight spoils. */
+const HALION_LOOT: RaidLootTable = Object.freeze({
+  id: 'halion', name: 'Hoard of the Twilight Destroyer', rolls: 3,
+  drops: Object.freeze([
+    drop({ kind: 'setPiece', slot: 'boots', weight: 55 }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'rondel-dagger', weight: 12,
+      name: 'Surgeon\'s Needle', flavor: 'Fine enough to stitch a soul back into its body.' }),
+    drop({ kind: 'epic', itemKind: 'charm', weight: 12,
+      name: 'Charred Twilight Scale', flavor: 'A scale of the Destroyer, still smoldering between worlds.' }),
+    drop({ kind: 'epic', itemKind: 'charm', weight: 10,
+      name: 'Glowing Twilight Scale', flavor: 'It hums with light that is not quite light.' }),
+    drop({ kind: 'epic', itemKind: 'ring', profile: 'garnet-band', weight: 10,
+      name: 'Signet of Twilight', flavor: 'Half in this world, half in the next.' }),
+    drop({ kind: 'epic', itemKind: 'amulet', profile: 'sage-pendant', weight: 9,
+      name: 'Penumbra Pendant', flavor: 'A shadow cast by a fire that never dies.' }),
+    drop({ kind: 'epic', itemKind: 'cloak', weight: 9,
+      name: 'Abduction\'s Cover', flavor: 'It remembers the moment the sanctum fell.' }),
+  ]),
+  // Reins of the Twilight Drake — the Nether Drake stands in as the achievement-gated mount.
+  bonus: Object.freeze({ mount: 'drake' as MountId, chance: .02 }),
+});
+
+/** The Crusader's Tribute: Tier-9 armor plus the Traitor King's hoard — the
+ * Argent Coliseum's spoils. The Crusader's Warhorse stands in via the
+ * Spectral Steed mount art. */
+const ANUBARAK_LOOT: RaidLootTable = Object.freeze({
+  id: 'anubarak', name: 'The Crusader\'s Tribute', rolls: 3,
+  drops: Object.freeze([
+    drop({ kind: 'setPiece', weight: 55 }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'greataxe', weight: 12,
+      name: 'The Lion\'s Maw', flavor: 'An Argent Crusade greatblade, blooded in the pit.' }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'longsword', weight: 11,
+      name: 'Fordragon Blades', flavor: 'Forged for the march on Icecrown.' }),
+    drop({ kind: 'epic', itemKind: 'cloak', weight: 11,
+      name: 'Drape of the Untamed Predator', flavor: 'A carapace cloak, cold as the pit floor.' }),
+    drop({ kind: 'epic', itemKind: 'amulet', profile: 'sage-pendant', weight: 10,
+      name: 'Mystifying Charm', flavor: 'A Nerubian ward, still whispering.' }),
+    drop({ kind: 'epic', itemKind: 'ring', profile: 'garnet-band', weight: 10,
+      name: 'Signet of the Traitor King', flavor: 'Azjol-Nerub\'s crown, pressed into a band.' }),
+  ]),
+  // Crusader's White/Black Warhorse — the Spectral Steed stands in as the mount drop.
+  bonus: Object.freeze({ mount: 'spectralSteed' as MountId, chance: .04 }),
+});
+
 export const RAID_LOOT_TABLES: Readonly<Record<RaidLootTableId, RaidLootTable>> = Object.freeze({
   onyxia: ONYXIA_LOOT, ragnaros: RAGNAROS_LOOT, kelthuzad: KELTHUZAD_LOOT, lichking: LICHKING_LOOT,
-  malygos: MALYGOS_LOOT, sartharion: SARTH_LOOT,
+  malygos: MALYGOS_LOOT, sartharion: SARTH_LOOT, yoggsaron: YOGG_LOOT, halion: HALION_LOOT, anubarak: ANUBARAK_LOOT,
 });
 
 /** Entrance id → the boss's named table, keyed off each content file's `lootTable` field. */
@@ -181,6 +249,9 @@ export const RAID_BOSS_LOOT: Readonly<Record<string, RaidLootTableId>> = Object.
   [RAID4_ENTRANCE_ID, LICHKING_RULES.lootTable],
   [RAID5_ENTRANCE_ID, MALYGOS_RULES.lootTable],
   [RAID6_ENTRANCE_ID, SARTH_RULES.lootTable],
+  [RAID7_ENTRANCE_ID, YOGG_RULES.lootTable],
+  [RAID9_ENTRANCE_ID, HALION_RULES.lootTable],
+  [RAID8_ENTRANCE_ID, ANUBARAK_RULES.lootTable],
 ]));
 
 export const raidLootTable = (entranceId: string | undefined | null): RaidLootTable | undefined =>

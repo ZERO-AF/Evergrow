@@ -132,6 +132,11 @@ import { raidBossName } from './raid-boss-content.ts';
 import { raid2BossName } from './raid2-boss-content.ts';
 import { raid3BossName } from './raid3-boss-content.ts';
 import { raid4BossName } from './raid4-boss-content.ts';
+import { raid5BossName } from './raid5-boss-content.ts';
+import { raid6BossName } from './raid6-boss-content.ts';
+import { raid7BossName } from './raid7-boss-content.ts';
+import { raid8BossName } from './raid8-boss-content.ts';
+import { raid9BossName } from './raid9-boss-content.ts';
 import { worldEventsOf, worldEventProgress, worldEventChestAt } from './world-event-state.ts';
 import { drawNecropolis, drawWorldEventChest, worldEventLights, WorldEventCardPresentation, drawWorldEventCard, worldEventChestLabel } from './world-event-art.ts';
 import { drawNameplates } from './nameplate-art.ts';
@@ -811,7 +816,7 @@ export class Renderer {
       const framed = frameEnemy === target;
       drawBossFrame(c, frameEnemy, plateWidth, plateHeight, {
         slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset,
-        name: isBossKind(frameEnemy.kind) ? (raidBossName(frameEnemy) ?? raid2BossName(frameEnemy) ?? raid3BossName(frameEnemy) ?? raid4BossName(frameEnemy) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
+        name: isBossKind(frameEnemy.kind) ? (raidBossName(frameEnemy) ?? raid2BossName(frameEnemy) ?? raid3BossName(frameEnemy) ?? raid4BossName(frameEnemy) ?? raid5BossName(frameEnemy) ?? raid6BossName(frameEnemy) ?? raid7BossName(frameEnemy) ?? raid8BossName(frameEnemy) ?? raid9BossName(frameEnemy) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
         debuffs: framed ? debuffs : [...enemyTraitBuffs(frameEnemy),...enemyDebuffs(frameEnemy, p)],
         time: this.visualTime, reducedMotion: settings.reducedMotion,
         hitPulse: settings.reducedMotion ? 0 : Math.min(1, frameEnemy.hitFlash / COMBAT_TIMING.hitFlashDuration),

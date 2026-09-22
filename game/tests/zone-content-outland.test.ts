@@ -5,7 +5,7 @@ import { ZONE_CONTENT, zoneContent } from '../src/zone-content.ts';
 import { PROP_KINDS } from '../src/biome-props.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
 import { isPOIKind } from '../src/world-pois.ts';
-import { DUNGEON_THEME_IDS } from '../src/dungeon-content.ts';
+import { DUNGEON_THEMES } from '../src/dungeon-content.ts';
 import '../src/zone-content-outland.ts';
 
 const OUTLAND_IDS = Object.keys(ZONES).filter(id => ZONES[id].continent === 'outland');
@@ -63,7 +63,7 @@ test('atlas dungeons become entrances at their normalized positions', () => {
       assert.equal(entrance.kind, dungeon.kind, `${id} ${dungeon.name} kind`);
       assert.equal(entrance.levelMin, dungeon.levelMin, `${id} ${dungeon.name} levelMin`);
       assert.equal(entrance.levelMax, dungeon.levelMax, `${id} ${dungeon.name} levelMax`);
-      assert.ok(DUNGEON_THEME_IDS.includes(entrance.theme!), `${id} ${dungeon.name} theme`);
+      assert.ok(Object.hasOwn(DUNGEON_THEMES, entrance.theme!), `${id} ${dungeon.name} theme`);
     }
   }
 });

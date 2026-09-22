@@ -185,7 +185,7 @@ for(const territory of SKILL_TERRITORIES)freezeContent(territory);
 freezeContent(OUTER_SPECIALTIES);freezeContent(BORDER_GARDENS);freezeContent(TERRITORY_SPECIALTIES);freezeContent(SKILL_DOCTRINES);
 
 /** A class-gated pocket in the Class Sanctum ring: the class's authored skill kit
- * plus three class-flavored passives and three specialization signature keystones.
+ * plus five class-flavored passives and three specialization signature keystones.
  * Nodes cost one point and only unlock for a CharacterSheet whose classId matches. */
 export interface ClassSanctum {
   readonly classId: WowClassId;
@@ -218,6 +218,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Warrior Conditioning', { strength: 2 }, { strength: 4, damagePercent: 6 }, 'Raw strength behind every strike.'),
     f('Plate Discipline', { armor: 12 }, { armor: 30, maxHp: 15 }, 'Heavier plate worn well.'),
     f('Battle Fury', { damagePercent: 3 }, { damagePercent: 9, attackSpeedPercent: 2 }, 'Rage honed into harder blows.'),
+    f('Cruelty', { critChance: 1 }, { critChance: 2.5, critDamage: 10 }, 'Old wars teach where to cut.'),
+    f('Second Wind', { lifeRegen: 0.5 }, { lifeRegen: 1.5, maxHp: 15 }, 'Down is not done.'),
   ], [
     sig('arms', 'Arms', 'Taste for Blood', 'Critical wounds run deep: Rend and Overpower fight above their training.', { 'skill:rend': 3, 'skill:overpower': 3, critDamage: 15 }),
     sig('fury', 'Fury', "Titan's Grip", 'Two-handed fury: Bloodthirst and Slam fight above their training.', { 'skill:bloodthirst': 3, 'skill:slam': 3, attackSpeedPercent: 6, damagePercent: 8 }),
@@ -227,6 +229,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Holy Might', { strength: 2 }, { strength: 3, damagePercent: 5 }, 'The Light lends weight to the blow.'),
     f('Devout Aegis', { armor: 10 }, { armor: 24, allResistance: 3 }, 'Faith made plate.'),
     f('Righteous Zeal', { spellDamagePercent: 3 }, { spellDamagePercent: 8, critChance: 1 }, 'Judgement burns brighter.'),
+    f('Divine Strength', { strength: 1 }, { strength: 3, damagePercent: 5 }, 'The Light answers muscle.'),
+    f('Sacred Duty', { maxHp: 8 }, { maxHp: 20, armor: 15 }, 'A vow heavier than plate.'),
   ], [
     sig('holy', 'Holy', 'Beacon of Light', 'The Light answers faster: heals and holy spells hit harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
     sig('protection', 'Protection', 'Holy Shield Mastery', 'Shield of Righteousness and Avenger\'s Shield fight above their training. Requires a shield.', { 'skill:shieldOfRighteousness': 3, 'skill:avengersShield': 3, blockChance: 4, blockReduction: 6 }),
@@ -236,6 +240,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Deadeye', { dexterity: 2 }, { dexterity: 4, critChance: 1.5 }, 'A steadier hand on the string.'),
     f('Wild Bond', { damagePercent: 2 }, { damagePercent: 6, moveSpeedPercent: 2 }, 'Hunter and beast move as one.'),
     f('Trailcraft', { moveSpeedPercent: 1 }, { moveSpeedPercent: 3, maxHp: 12 }, 'Long roads, quick feet.'),
+    f('Master Tactician', { critChance: 1 }, { critChance: 2.5, damagePercent: 5 }, 'Every hunt teaches the next shot.'),
+    f('Survivalist', { vitality: 2 }, { vitality: 4, maxHp: 15 }, 'The wild keeps its own alive.'),
   ], [
     sig('beast-mastery', 'Beast Mastery', 'Master of Beasts', 'Kill Command fights above its training; the hunt never slows.', { 'skill:killCommand': 4, damagePercent: 6, moveSpeedPercent: 4 }),
     sig('marksmanship', 'Marksmanship', 'Master Marksman', 'Aimed Shot and Chimera Shot fight above their training.', { 'skill:aimedShot': 3, 'skill:chimeraShot': 3, critChance: 3, critDamage: 12 }),
@@ -245,6 +251,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Blade Finesse', { dexterity: 2 }, { dexterity: 4, critDamage: 10 }, 'Precision over power.'),
     f('Shadowstep', { moveSpeedPercent: 1 }, { moveSpeedPercent: 3, critChance: 1 }, 'Unseen, unhurried.'),
     f('Lethality', { critChance: 1 }, { critChance: 2.5, critDamage: 12 }, 'Strike where it ends.'),
+    f('Deadliness', { damagePercent: 2 }, { damagePercent: 6, critChance: 1 }, 'Practice for the single strike.'),
+    f('Lightning Reflexes', { dexterity: 1 }, { dexterity: 3, attackSpeedPercent: 2 }, 'Gone before the blade lands.'),
   ], [
     sig('assassination', 'Assassination', 'Master Poisoner', 'Mutilate and Envenom fight above their training.', { 'skill:mutilate': 3, 'skill:envenom': 3, critDamage: 15 }),
     sig('combat', 'Combat', 'Combat Potency', 'Sinister Strike and Eviscerate fight above their training.', { 'skill:sinisterStrike': 3, 'skill:eviscerate': 3, attackSpeedPercent: 7 }),
@@ -254,6 +262,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Devotion', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 5 }, 'Faith sharpens the mind.'),
     f('Inner Sanctum', { maxMana: 8 }, { maxMana: 20, manaRegen: 0.6 }, 'A deeper well of spirit.'),
     f('Holy Resolve', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'The faithful endure.'),
+    f('Meditation', { manaRegen: 0.5 }, { manaRegen: 1.5, maxMana: 12 }, 'Spirit flows even in the fight.'),
+    f('Focused Power', { spellDamagePercent: 2 }, { spellDamagePercent: 6, critChance: 1 }, 'Discipline sharpens every prayer.'),
   ], [
     sig('discipline', 'Discipline', 'Soul Warding', 'Penance fights above its training; shields and wards hold longer.', { 'skill:penance': 3, maxMana: 20, manaRegen: 1.5 }),
     sig('holy', 'Holy', 'Divine Providence', 'Heals and holy spells answer faster and land harder.', { spellDamagePercent: 10, castSpeedPercent: 5, manaRegen: 1.5 }),
@@ -263,6 +273,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Runic Might', { strength: 2 }, { strength: 4, damagePercent: 6 }, 'Runes carve strength into the blade.'),
     f('Unholy Resilience', { armor: 10 }, { armor: 24, maxHp: 15 }, 'Death is a poor argument.'),
     f('Chill of the Grave', { critChance: 1 }, { critChance: 2, critDamage: 10 }, 'Cold precision in every cut.'),
+    f('Bladed Armor', { armor: 10 }, { armor: 24, damagePercent: 4 }, 'Plate turned to purpose.'),
+    f('Veteran of the Third War', { maxHp: 8 }, { maxHp: 20, strength: 3 }, 'Northrend remembers its own.'),
   ], [
     sig('blood', 'Blood', 'Blood Gorged', 'Death Strike and Blood Strike fight above their training; blood sustains the blade.', { 'skill:deathStrike': 3, 'skill:bloodStrike': 3, maxHp: 20, lifeOnHit: 1 }),
     sig('frost', 'Frost', 'Threat of Thassarian', 'Obliterate and Frost Strike fight above their training.', { 'skill:obliterate': 3, 'skill:frostStrike': 3, frostDamage: 6, critDamage: 12 }),
@@ -272,6 +284,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Elemental Attunement', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'The elements answer faster.'),
     f('Ancestral Vigor', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'Old blood runs strong.'),
     f('Stormcall', { castSpeedPercent: 1 }, { castSpeedPercent: 3, critChance: 1 }, 'The storm does not wait.'),
+    f('Totemic Focus', { manaRegen: 0.5 }, { manaRegen: 1.5, spellDamagePercent: 4 }, 'The totems do the waiting.'),
+    f('Elemental Fury', { critDamage: 8 }, { critDamage: 20, critChance: 1 }, 'The storm hits twice as hard.'),
   ], [
     sig('elemental', 'Elemental', 'Elemental Mastery', 'Lava Burst and Chain Lightning fight above their training.', { 'skill:lavaBurst': 3, 'skill:chainLightning': 3, spellDamagePercent: 8, castSpeedPercent: 4 }),
     sig('enhancement', 'Enhancement', 'Stormbringer', 'Stormstrike fights above its training; weapon swings quicken.', { 'skill:stormstrike': 4, attackSpeedPercent: 7, damagePercent: 6 }),
@@ -281,6 +295,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Arcane Brilliance', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'A sharper mind cuts deeper.'),
     f('Mana Reserves', { maxMana: 8 }, { maxMana: 22, manaRegen: 0.6 }, 'A larger font to draw from.'),
     f('Spellweaver', { castSpeedPercent: 1 }, { castSpeedPercent: 3, spellDamagePercent: 4 }, 'Threads of magic, woven faster.'),
+    f('Arcane Focus', { castSpeedPercent: 1 }, { castSpeedPercent: 3, spellDamagePercent: 4 }, 'Precision is a kind of power.'),
+    f('Arcane Meditation', { manaRegen: 0.5 }, { manaRegen: 1.5, spellDamagePercent: 4 }, 'Clarity outlasts the casting.'),
   ], [
     sig('arcane', 'Arcane', 'Arcane Power', 'Arcane Blast and Arcane Missiles fight above their training; spells cost 15% more mana.', { 'skill:arcaneBlast': 3, 'skill:arcaneMissiles': 3, spellDamagePercent: 10, manaCostPercent: -15 }),
     sig('fire', 'Fire', 'Hot Streak', 'Pyroblast and Fire Blast fight above their training.', { 'skill:pyroblast': 3, 'skill:fireBlast': 3, fireDamage: 6, critDamage: 15 }),
@@ -290,6 +306,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Fel Corruption', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 6 }, 'Power taken, not given.'),
     f('Soul Harvest', { manaRegen: 0.5 }, { manaRegen: 1.5, maxMana: 14 }, 'Every soul has its use.'),
     f('Demonic Resilience', { maxHp: 8 }, { maxHp: 20, allResistance: 3 }, 'What does not kill you is fuel.'),
+    f('Demonic Embrace', { vitality: 2 }, { vitality: 4, maxHp: 15 }, 'The bargain includes the body.'),
+    f('Fel Synergy', { damagePercent: 2 }, { damagePercent: 6, manaRegen: 0.5 }, 'Master and demon feed alike.'),
   ], [
     sig('affliction', 'Affliction', 'Everlasting Affliction', 'Corruption and Unstable Affliction fight above their training.', { 'skill:corruption': 3, 'skill:unstableAffliction': 3, spellDamagePercent: 8 }),
     sig('demonology', 'Demonology', 'Demonic Pact', 'Shadow Bolt fights above its training; demonic resilience deepens.', { 'skill:shadowBolt': 3, maxHp: 20, armor: 20 }),
@@ -299,6 +317,8 @@ export const CLASS_SANCTUMS: readonly ClassSanctum[] = [
     f('Natural Vigor', { vitality: 2 }, { vitality: 4, maxHp: 15 }, 'The wild does not tire.'),
     f('Moonkin Insight', { intelligence: 2 }, { intelligence: 4, spellDamagePercent: 5 }, 'The moon teaches patience.'),
     f('Feral Instinct', { dexterity: 2 }, { dexterity: 4, critChance: 1.5 }, 'Claw and fang remember.'),
+    f('Survival of the Fittest', { armor: 10 }, { armor: 24, maxHp: 15 }, 'Thick hide, thicker stubbornness.'),
+    f('Naturalist', { damagePercent: 2 }, { damagePercent: 6, castSpeedPercent: 2 }, 'Every form strikes truer.'),
   ], [
     sig('balance', 'Balance', 'Eclipse', 'Wrath and Starfire fight above their training.', { 'skill:wrath': 3, 'skill:starfire': 3, spellDamagePercent: 8, critChance: 2 }),
     sig('feral', 'Feral', 'Leader of the Pack', 'Shred and Ferocious Bite fight above their training.', { 'skill:shred': 3, 'skill:ferociousBite': 3, attackSpeedPercent: 5, critDamage: 12 }),

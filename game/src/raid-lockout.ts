@@ -15,6 +15,9 @@ import { RAID3_ENTRANCE_ID } from './raid3-boss-content.ts';
 import { RAID4_ENTRANCE_ID } from './raid4-boss-content.ts';
 import { RAID5_ENTRANCE_ID } from './raid5-boss-content.ts';
 import { RAID6_ENTRANCE_ID } from './raid6-boss-content.ts';
+import { RAID7_ENTRANCE_ID } from './raid7-boss-content.ts';
+import { RAID8_ENTRANCE_ID } from './raid8-boss-content.ts';
+import { RAID9_ENTRANCE_ID } from './raid9-boss-content.ts';
 
 export const RAID_LOCKOUT_RULES = Object.freeze({
   /** 7-day reset bucket in milliseconds. */
@@ -24,7 +27,7 @@ export const RAID_LOCKOUT_RULES = Object.freeze({
 });
 
 export const RAID_ENTRANCE_IDS: readonly string[] = Object.freeze([
-  RAID_ENTRANCE_ID, RAID2_ENTRANCE_ID, RAID3_ENTRANCE_ID, RAID4_ENTRANCE_ID, RAID5_ENTRANCE_ID, RAID6_ENTRANCE_ID,
+  RAID_ENTRANCE_ID, RAID2_ENTRANCE_ID, RAID3_ENTRANCE_ID, RAID4_ENTRANCE_ID, RAID5_ENTRANCE_ID, RAID6_ENTRANCE_ID, RAID7_ENTRANCE_ID, RAID8_ENTRANCE_ID, RAID9_ENTRANCE_ID,
 ]);
 export const isRaidEntranceAny = (id: string | undefined | null): boolean =>
   !!id && (RAID_ENTRANCE_IDS as readonly string[]).includes(id);
