@@ -11,6 +11,8 @@ import { addInventoryItem } from './inventory-grid.ts';
 import { creditGold, spendGold, goldBalance } from './wallet.ts';
 import { hashService, vendorLevel, type TownNPC } from './npcs.ts';
 import { nextRarityTier, improveItem, improvementProblem, ITEM_TIERS, AFFIX_FOCUSES, rerollPool, affixCategory, type AffixFocus, type Improvement } from './item-improvement.ts';
+import { createGemForSeed, isGemItem } from './gem-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import { freeNodeCount } from './skill-tree.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
@@ -22,7 +24,10 @@ export const stockEpoch = (level: number) => Math.floor((level - 1) / 3);
 /** Stock and its UI label share the same stable three-level refresh bracket. */
 export const vendorStockLevel = (npc: TownNPC, playerLevel: number) => vendorLevel(npc, stockEpoch(playerLevel) * 3 + 1);
 const budget = (level: number) => 30 + 3 * (level - 1);
+/** Gems price like mid-rarity equipment without the jewelry markup. */
+const GEM_PRICE_FACTOR = 3;
 export function itemPrice(item: Item, mode: 'buy' | 'sell'): number {
+  if (isGemItem(item)) return mode === 'sell' ? Math.floor(.15 * budget(item.itemLevel) * GEM_PRICE_FACTOR) : Math.ceil(budget(item.itemLevel) * GEM_PRICE_FACTOR);
   return mode === 'sell' ? Math.floor(.15 * budget(item.itemLevel) * RARITY_COST[item.tier] * itemMaterialValue(item))
     : Math.ceil(budget(item.itemLevel) * RARITY_COST[item.tier] * itemMaterialValue(item) * (item.kind === 'ring' || item.kind === 'amulet' ? 2.5 : 1));
 }
@@ -55,10 +60,12 @@ export function vendorStock(sheet: CharacterSheet, npc: TownNPC, level: number, 
     const premium=slot>=count-policy.premium;
     const weights=premium?[0,0,90,9.5,.5]:npc.settlementTier==='city'?(npc.role==='jeweler'?[0,42,52,5.7,.3]:[10,55,31,3.8,.2]):npc.settlementTier==='village'?(npc.role==='jeweler'?[0,52,44,3.8,.2]:[25,52,21,1.9,.1]):npc.role==='jeweler'?[0,60,35,4.8,.2]:[55,35,9,1,0];
     let total = 0; const tier = ITEM_TIERS[weights.findIndex(weight => { total += weight; return roll < total; })];
-    const kind = npc.role === 'jeweler' ? slot%8 < 4 ? 'ring' : slot%8 < 6 ? 'amulet' : slot%8 === 6 ? 'grimoire' : 'orb'
+    // The last jeweler slot rotates orb ↔ gem each stock epoch, so both stay available.
+    const kind = npc.role === 'jeweler' ? slot%8 < 4 ? 'ring' : slot%8 < 6 ? 'amulet' : slot%8 === 6 ? 'grimoire' : GAME_FEATURES.gems && epoch % 2 === 1 ? 'gem' : 'orb'
       : (['weapon', 'weapon', 'weapon', 'shield', 'head', 'chest', 'gloves', 'legs', 'boots', 'cloak', 'weapon', 'shield', 'weapon','weapon','weapon','weapon','weapon','chest','shield','boots','chest','weapon','weapon','weapon'] as const)[slot];
     const profile = npc.role === 'blacksmith' ? ({ 0: 'longsword', 1: 'thorn-shortbow', 2: 'ember-staff', 10: 'cinder-wand',12:'hand-axe',13:'flanged-mace',14:'rondel-dagger',15:'greatblade',16:'crescent-recurve',21:'greatblade',22:'warden-longbow',23:'rime-staff' } as Record<number, string>)[slot] : undefined;
-    const item = generateItem(seed, vendorStockLevel(npc, level), kind, profile, tier,undefined,{level:vendorStockLevel(npc,level),merchantBonus:policy.materialBonus}); item.id = id;
+    const item = kind === 'gem' ? createGemForSeed(seed, vendorStockLevel(npc, level))
+      : generateItem(seed, vendorStockLevel(npc, level), kind, profile, tier,undefined,{level:vendorStockLevel(npc,level),merchantBonus:policy.materialBonus}); item.id = id;
     if (item.weapon) item.weapon.id = id;
     if (item.focus) item.focus.id = id;
     if (item.shield) item.shield.id = id;

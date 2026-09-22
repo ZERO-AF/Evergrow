@@ -14,6 +14,7 @@ import { CharacterSession } from '../src/character-session.ts';
 import { CharacterRepository } from '../src/character-storage.ts';
 import { decodeCharacterSave } from '../src/character-save.ts';
 import { validItem } from '../src/item-validation.ts';
+import { isGemItem } from '../src/gem-content.ts';
 import type { CharacterSheet } from '../src/character-types.ts';
 
 const smith: TownNPC = { id: 'town:7319:0:building:0:blacksmith', buildingId: 'town:7319:0:building:0', role: 'blacksmith', name: 'Edda', seed: 7, x: 0, y: 0, level: 10 };
@@ -42,7 +43,8 @@ test('stock is deterministic, visible jewelry only, varied equipment and distinc
   assert.equal(stock[0]!.weapon!.family, 'sword'); assert.equal(stock[1]!.weapon!.family, 'bow'); assert.equal(stock[2]!.weapon!.family, 'staff');
   assert.ok(stock.every(i => i?.itemLevel === 10 && validItem(i)));
   const jewelry = vendorStock(c, jeweler, 10); assert.equal(jewelry.length, 8);
-  assert.equal(jewelry.filter(i => i!.kind === 'ring').length, 4); assert.equal(jewelry.filter(i => i!.kind === 'amulet').length, 2);
+  assert.equal(jewelry.filter(i => i!.kind === 'ring').length, 4); assert.equal(jewelry.filter(i => i!.kind === 'amulet' && !isGemItem(i)).length, 2);
+  assert.equal(jewelry.filter(i => isGemItem(i)).length, 1, 'the last jeweler slot sells a gem');
   assert.ok(!vendorStock(c, smith, 13).some(i => stock.some(j => j!.id === i!.id)));
   assert.deepEqual(vendorStock(c, enchanter, 10), []);
 });

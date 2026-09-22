@@ -1,5 +1,5 @@
 import { drawRadiantSeal } from './radiant-art.ts';
-import { drawSchoolImpact } from './spell-school-art.ts';
+import { drawSchoolImpact, classStyle, type ClassStyle } from './spell-school-art.ts';
 import { weaponGlowColor } from './radiant-content.ts';
 import { SkillMeleeArt } from './skill-melee-art.ts';
 import { weaponReleasePoint } from './projectile-launch.ts';
@@ -18,6 +18,9 @@ import { GAME_FEATURES } from './game-features.ts';
 import { SwordTrail } from './sword-trail.ts';
 import { projectileStyle, PROJECTILE_COLORS } from './projectile-art.ts';
 import { SkillEffects } from './skill-effects.ts';
+import { LOOT_BEAMS } from './loot-beam.ts';
+import { LOOT_RULES } from './combat-content.ts';
+import { TREASURE_FLIGHT_DURATION } from './treasure-flight.ts';
 
 interface Spark {
   x: number; y: number; vx: number; vy: number;
@@ -25,7 +28,7 @@ interface Spark {
   life: number; max: number; size: number; color: string; luminous: boolean;
 }
 interface Flash { x: number; y: number; life: number; max: number; radius: number; color: string; ring: boolean; radiant?: boolean; }
-interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; }
+interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
 interface Popup { x: number; y: number; vx: number; vy: number; life: number; max: number; value: string; color: string; size: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
@@ -41,11 +44,47 @@ export class CombatEffects {
   private sword = new SwordTrail();
   private skillEffects = new SkillEffects();
   private meleeSkills = new SkillMeleeArt();
+  /** Ground-drop ids already seen, so a landing item bursts exactly once. */
+  private seenGroundItems = new Set<number>();
+  private groundItemsPrimed = false;
 
   reset() {
     this.sparks = []; this.flashes = []; this.impacts = []; this.popups = [];
     this.manaWarningLife = 0;
     this.emitterTime = 0; this.sword.reset(); this.skillEffects.reset(); this.meleeSkills.reset();
+    this.seenGroundItems.clear(); this.groundItemsPrimed = false;
+  }
+
+  /**
+   * Rarity-scaled sparkle burst when a ground drop appears or its treasure
+   * flight lands. Presentation only; bounded per tick and by the drop cap.
+   */
+  private updateDropBursts(sim: Simulation) {
+    const drops = sim.groundItems;
+    if (!this.groundItemsPrimed) {
+      // Restored or travelled-to loot is scenery, not a fresh drop.
+      this.groundItemsPrimed = true;
+      for (const drop of drops) this.seenGroundItems.add(drop.id);
+      return;
+    }
+    let bursts = 0;
+    for (const drop of drops) {
+      if (this.seenGroundItems.has(drop.id)) continue;
+      if (drop.flight && sim.time < drop.flight.at + drop.flight.delay + TREASURE_FLIGHT_DURATION) continue;
+      this.seenGroundItems.add(drop.id);
+      if (bursts >= 8) continue;
+      bursts++;
+      const spec = LOOT_BEAMS[drop.item.tier];
+      for (let i = 0; i < 4 + spec.motes * 2; i++)
+        this.spark(drop.x, drop.y, Math.random() * Math.PI * 2, i % 3 === 0 ? spec.core : spec.color, .5 + spec.motes * .12);
+      if (spec.motes >= 4) this.flashes.push({ x: drop.x, y: drop.y, life: .3, max: .3,
+        radius: spec.glow * .9, color: spec.color, ring: spec.motes >= 5 });
+    }
+    // Collected drops leak ids; rebuild from live drops before the set can grow past the cap.
+    if (this.seenGroundItems.size > LOOT_RULES.maxGroundItems * 2) {
+      this.seenGroundItems.clear();
+      for (const drop of drops) this.seenGroundItems.add(drop.id);
+    }
   }
 
   private spark(x: number, y: number, angle: number, color: string, strength = 1, airborne = true, luminous = true) {
@@ -86,19 +125,23 @@ export class CombatEffects {
       }
       const contactY = event.y - (event.type === 'hurt' ? 24 : enemyKind === 'brute' ? 25 : 18);
       if (contact) this.impacts.push({ x: event.x, y: contactY, angle: eventAngle,
-        life: event.type === 'kill' ? .3 : .22, max: event.type === 'kill' ? .3 : .22,
-        color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: seal, style: event.style });
+        life: event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : .22,
+        max: event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : .22,
+        color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: seal, style: event.style, cls: classStyle(event.classId) });
       if (count > 5) {
-        const max = restoring ? .55 : event.type === 'kill' ? .16 : .22;
+        const max = restoring ? .55 : event.type === 'kill' && GAME_FEATURES.combatJuice ? .24 : event.type === 'kill' ? .16 : .22;
         this.flashes.push({ x: event.x + (tip?.x ?? 0), y: tip ? event.y + tip.y : contact ? contactY : event.y - 10, life: max, max,
-          radius: seal ? 58 : event.type === 'kill' ? 62 : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
-          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' });
+          radius: seal ? 58 : event.type === 'kill' ? (GAME_FEATURES.combatJuice ? 96 : 62) : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
+          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' || (event.type === 'kill' && GAME_FEATURES.combatJuice) });
       }
       if (event.type === 'hit' && event.value) {
-        const reactionColor = event.reaction === 'melt' ? '#ffd177' : event.reaction === 'overload' ? '#ff77aa' : event.reaction === 'superconduct' ? '#a0d0ff' : event.reaction === 'singularity' ? '#c578ff' : event.reaction === 'combustion' ? '#ff4d79' : event.reaction === 'cascade' ? '#67e8f9' : (heavy ? '#ffd177' : '#fff0c8');
-        if (!(heavy && GAME_FEATURES.lootBeams)) this.popups.push({ x: event.x + (Math.random() - .5) * 10,
-          y: event.y - (enemyKind === 'brute' ? 54 : 44), vx: (Math.random() - .5) * 22, vy: -47,
-          life: .85, max: .85, value: String(Math.round(event.value)), color: reactionColor, size: heavy ? 2.6 : 2 });
+        // Juice crits: bigger, hotter, longer-lived numbers that always show,
+        // even where heavy-hit popups are otherwise suppressed for loot beams.
+        const crit = heavy && !event.reaction && GAME_FEATURES.combatJuice;
+        const reactionColor = event.reaction === 'melt' ? '#ffd177' : event.reaction === 'overload' ? '#ff77aa' : event.reaction === 'superconduct' ? '#a0d0ff' : event.reaction === 'singularity' ? '#c578ff' : event.reaction === 'combustion' ? '#ff4d79' : event.reaction === 'cascade' ? '#67e8f9' : (crit ? '#ffb347' : heavy ? '#ffd177' : '#fff0c8');
+        if (!(heavy && GAME_FEATURES.lootBeams) || crit) this.popups.push({ x: event.x + (Math.random() - .5) * 10,
+          y: event.y - (enemyKind === 'brute' ? 54 : 44), vx: (Math.random() - .5) * 22, vy: crit ? -58 : -47,
+          life: crit ? 1 : .85, max: crit ? 1 : .85, value: String(Math.round(event.value)), color: reactionColor, size: crit ? 3.4 : heavy ? 2.6 : 2 });
         if (event.reaction) {
           const tag = event.reaction.toUpperCase();
           this.popups.push({ x: event.x, y: event.y - (enemyKind === 'brute' ? 78 : 68), vx: 0, vy: -47,
@@ -136,6 +179,7 @@ export class CombatEffects {
     this.sword.update(sim.player, dt, sim.time, sim.interpolationAlpha);
     this.skillEffects.update(dt, sim.enemies);
     this.meleeSkills.update(sim.player, dt, sim.interpolationAlpha);
+    this.updateDropBursts(sim);
     for (const spark of this.sparks) {
       spark.life -= dt;
       const angle = spark.curl * dt, cos = Math.cos(angle), sin = Math.sin(angle);
@@ -237,12 +281,12 @@ export class CombatEffects {
   }
 
   private drawImpact(c: CanvasRenderingContext2D, impact: Impact, reducedMotion: boolean) {
-    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 1.3 : impact.hurt ? .8 : 1, reducedMotion)) return;
+    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 1.3 : impact.hurt ? .8 : 1, reducedMotion, impact.cls)) return;
     const t = Math.max(0, impact.life / impact.max), elapsed = impact.radiant && reducedMotion ? .4 : 1 - t;
     c.save(); c.translate(impact.x, impact.y); c.rotate(impact.angle);
     c.globalCompositeOperation = 'lighter';
     c.globalAlpha = Math.pow(t, 1.5);
-    const length = (impact.lethal ? 30 : 23) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
+    const length = (impact.lethal ? (GAME_FEATURES.combatJuice ? 38 : 30) : 23) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
     const waist = 3.7 * t;
     c.fillStyle = elapsed < .3 ? '#fff8da' : impact.color;
     // The contact has a hard, brief center, followed by an expanding broken star.

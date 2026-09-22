@@ -16,7 +16,11 @@ import { createWowSim, manaClassForRace } from './fixtures/wow-sim.ts';
 import { BAR_TOTAL, RACIAL_SLOT } from '../src/action-bar.ts';
 import type { Enemy, Input, WorldQuery } from '../src/model.ts';
 import type { SkillId } from '../src/character-types.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
 
+// These tests assert drops persist on the ground; the Diablo loot vacuum would
+// auto-collect them, so it is disabled for this file.
+GAME_FEATURES.lootVacuum = false;
 
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 // Default harness character: mage/undead — mana resource, neutral passives, sword-capable.

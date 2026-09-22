@@ -6,6 +6,7 @@ import { EQUIPMENT_SLOTS, RELIC_CLASSES } from './items.ts';
 import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
 import type { WowClassId } from './wow-types.ts';
 import { isGlyphItem } from './glyph-content.ts';
+import { isGemItem } from './gem-content.ts';
 import { isBagItem } from './bag-content.ts';
 import { equipBag } from './bag-state.ts';
 import { useConsumable } from './consumable-command.ts';
@@ -15,7 +16,7 @@ const success = (): ActionResult => ({ ok: true });
 const fail = (message: string): ActionResult => ({ ok: false, message });
 const validIndex = (sheet: CharacterSheet, index: number) => Number.isInteger(index) && index >= 0 && index < sheet.inventory.length;
 export function itemFitsSlot(item: Item, slot: EquipmentSlot, classId?: WowClassId): boolean {
-  if (isGlyphItem(item) || isBagItem(item)) return false;
+  if (isGlyphItem(item) || isBagItem(item) || isGemItem(item)) return false;
   if (isConsumableItem(item)) return false;
   if (item.kind === 'ring') return slot === 'ring1' || slot === 'ring2';
   if (item.kind === 'relic') return slot === 'offhand' && (classId === undefined || RELIC_CLASSES.includes(classId));
@@ -32,7 +33,7 @@ export type EquipmentPlan = { ok: false; message: string } | {
 export interface EquipmentTarget { sourceIndex?: number; slot?: EquipmentSlot; }
 
 export function defaultEquipmentSlot(sheet: CharacterSheet, item: Item): EquipmentSlot | undefined {
-  if (item.kind === 'charm' || item.kind === 'riftKey' || item.kind === 'consumable' || isBagItem(item)) return undefined;
+  if (item.kind === 'charm' || item.kind === 'riftKey' || item.kind === 'consumable' || isBagItem(item) || isGemItem(item)) return undefined;
   return (item.kind === 'ring'
     ? !sheet.equipped.ring1 ? 'ring1' : !sheet.equipped.ring2 ? 'ring2' : 'ring1'
     : (item.kind === 'shield' || item.kind === 'grimoire' || item.kind === 'orb' || item.kind === 'relic') ? 'offhand' : item.kind);

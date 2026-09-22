@@ -23,6 +23,8 @@ import { LEGENDARY_PROCS, legendaryProcsFor } from './legendary-content.ts';
 import { createConsumableItem, isConsumableId } from './consumable-content.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import type { CharacterSheet, EquipmentSlot, Item, ItemAffix, ItemKind, ItemTier, SkillId, StatKey, StatModifiers } from './character-types.ts';
+import { isGemId, rollSockets, socketedModifiers } from './gem-content.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { setPiecesFor, setPiece, setPieceSet, SET_PIECE_PREFIX, SET_PIECE_ROLL, type SetPieceDef, type SetPieceId } from './item-set-content.ts';
 
 export const INVENTORY_CAPACITY = 120;
@@ -303,6 +305,10 @@ export function generateItem(seed: number, itemLevel: number, kind?: ItemKind, p
     const procs = legendaryProcsFor(item.weapon.family, item.weapon.hands);
     if (procs.length) item.recipe = { ...item.recipe, procId: procs[Math.floor(randomSource(seed ^ 0x5d4e2b1f)() * procs.length)].id };
   }
+  // Sockets roll on a dedicated stream (gem-content.ts); the flag gates generation,
+  // while saved sockets keep deriving regardless so loaded gear never loses stats.
+  const sockets = GAME_FEATURES.gems ? rollSockets(itemKind, item.tier, seed) : undefined;
+  if (sockets) item.sockets = sockets;
   return roundItemStats(item);
 }
 
@@ -391,6 +397,10 @@ function deriveEquipment(item: Item): Item {
     if (item.kind === 'ring') next.implicit.damagePercent = 2 * itemPercentageScale(item.itemLevel) * quality * enhance * baseScale;
   }
   if (JEWELRY_PROFILES.some(p=>p.id===r.profileId)) next.implicit=jewelryImplicit(r.profileId!,item.itemLevel,quality*enhance*baseScale);
+  // Socketed gems and the matched socket bonus derive into implicit (gem-content.ts).
+  if (item.sockets?.length) for (const [stat, value] of Object.entries(socketedModifiers(item))) {
+    next.implicit[stat as StatKey] = (next.implicit[stat as StatKey] ?? 0) + value!;
+  }
   if (weapon && item.weapon) next.weapon = { ...item.weapon, damage: Math.round(weapon.damage * growth * (r.starter ? 1 : weaponBaseBudget(baseScale, item.tier === 'unique') / baseScale)) };
   if (shield && item.shield) next.shield = { ...item.shield,
     blockChance: shield.blockChance * enhance,
@@ -444,7 +454,15 @@ export function estimateItemPower(item: Item): number {
       : item.weapon && ['maxMana', 'manaRegen', 'manaCostPercent'].includes(affix.stat) ? .7 : 1;
     return total + Math.max(0, affix.value) / reference * relevance;
   }, 0);
-  return Math.max(1, Math.round((item.itemLevel + 5) * 10 * (.65 * base + .12 * rolled)));
+  // Socketed gem stats and the matched socket bonus count like rolled affixes.
+  const socketed = Object.entries(socketedModifiers(item)).reduce((total, [stat, value]) => {
+    const definition = definitions.find(a => a.stat === stat);
+    if (!definition) return total;
+    const level = PERCENT_STATS.has(stat as StatKey) || isManaBudgetStat(stat) || isOffensiveAttribute(stat)
+      ? itemAffixGrowthLevel(item.itemLevel) : item.itemLevel - 1;
+    return total + Math.max(0, value!) / Math.max(1, (definition.base + level * definition.growth) * affixPotency(item.kind, stat as StatKey, item.tier === 'unique'));
+  }, 0);
+  return Math.max(1, Math.round((item.itemLevel + 5) * 10 * (.65 * base + .12 * (rolled + socketed))));
 }
 
 /** Apply current random weapon/glove budgets on a validated save copy. Keep
@@ -516,8 +534,7 @@ function deriveCharm(item:Item):Item {
   });
   return roundItemStats({...item,affixes,implicit:{},requiredLevel:Math.max(1,item.itemLevel-2),power:0,recipe:{...item.recipe,manaVersion:1,offenseVersion:1,rollVersion:1,rolls:[...item.recipe.rolls]}});
 }
-export const itemAffixCount = (item:Pick<Item,'kind'|'tier'|'recipe'>) => item.kind==='riftKey'?0: item.kind==='charm'?charmAffixCount(item):TIER_AFFIXES[item.tier];
-
+export const itemAffixCount = (item:Pick<Item,'kind'|'tier'|'recipe'>) => item.kind==='riftKey'?0: isGemId(item.recipe?.profileId)?0: item.kind==='charm'?charmAffixCount(item):TIER_AFFIXES[item.tier];
 /** Upgrade validated pre-budget stones in place, retaining identity, roll quality and progress. */
 export function rebalanceCharm(item: Item): Item {
   if (item.kind !== 'charm' || item.recipe.charmVersion === 1) return item;

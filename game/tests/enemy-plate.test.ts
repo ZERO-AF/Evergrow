@@ -46,6 +46,15 @@ test('phone landscape notifications can start below a scaled target plate', () =
   assert.ok(plateBottom < notificationTop);
 });
 
+test('offsetY shifts the plate down to clear a stacked boss frame and can push it out of bounds', () => {
+  const base = getEnemyPlateLayout(960, 600);
+  const shifted = getEnemyPlateLayout(960, 600, false, 0, false, false, 88);
+  assert.equal(shifted.y, base.y + 88);
+  assert.equal(shifted.height, 70);
+  assert.equal(getEnemyPlateLayout(960, 600, false, 0, false, false, 400).height, 0,
+    'a plate pushed into the HUD is omitted rather than overlapping');
+});
+
 test('surfaces too small for a readable enemy plate omit it instead of overlapping the HUD', () => {
   for (const [width, height] of [[960, 160], [320, 240], [200, 844], [0, 0]]) {
     const plate = getEnemyPlateLayout(width, height);

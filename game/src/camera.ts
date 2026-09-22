@@ -35,6 +35,38 @@ export class CameraZoom {
   }
 }
 
+/** Presentation-only impact shake: a directional kick plus a decaying ambient
+ * tremor, both in screen pixels so amplitude is independent of zoom. Purely a
+ * render offset — it never feeds back into the simulation. */
+export class CameraShake {
+  /** Ambient tremor amplitude in screen pixels. */
+  shake = 0;
+  private kickX = 0;
+  private kickY = 0;
+
+  reset() { this.shake = 0; this.kickX = 0; this.kickY = 0; }
+
+  /** Directional impulse away from the hit plus an ambient tremor, both bounded. */
+  impact(angle: number, strength: number, ambient: number) {
+    this.kickX = Math.max(-6, Math.min(6, this.kickX - Math.cos(angle) * strength));
+    this.kickY = Math.max(-5, Math.min(5, this.kickY - Math.sin(angle) * strength * .7));
+    this.shake = Math.max(this.shake, ambient);
+  }
+
+  update(dt: number) {
+    this.shake *= Math.exp(-dt * 22);
+    this.kickX *= Math.exp(-dt * 18);
+    this.kickY *= Math.exp(-dt * 18);
+  }
+
+  /** Screen-pixel offset for the current frame; zero under reduced motion. */
+  offset(time: number, reducedMotion: boolean): { x: number; y: number } {
+    if (reducedMotion) return { x: 0, y: 0 };
+    return { x: this.kickX + Math.sin(time * 103) * this.shake,
+      y: this.kickY + Math.cos(time * 127) * this.shake * .7 };
+  }
+}
+
 export interface CameraView {
   zoom: number;
   offsetX: number;

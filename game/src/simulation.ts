@@ -41,6 +41,7 @@ import { GROUND_EFFECT_RULES, SKILL_EXECUTION } from './skill-execution-content.
 import { freshTravel, PortalChannel, PORTAL_RULES } from './travel.ts';
 import { advanceTransport, type TransportArrival, type TransportRide } from './transport.ts';
 import { advanceGold, type GroundGold } from './gold.ts';
+import { advanceGroundLoot } from './ground-loot.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Attack, CombatEvent, Enemy, EnemyKind, Input, Player, Projectile, ProjectileStyle, ProjectileEffects, GroundEffect, SimulationOptions, WorldQuery, Ally, WowBuff, EnemyDot, EnemyCc } from './model.ts';
 import type { Pickup } from './model.ts';
@@ -1068,6 +1069,9 @@ export class Simulation {
     this.updatePickups(dt);
     if(!this.ghost){
       this.groundGold = advanceGold(this.groundGold, this.player, this.world, dt, event => this.emit(event));
+      if (GAME_FEATURES.lootVacuum)
+        advanceGroundLoot(this.groundItems, this.player, this.world, this.time, dt,
+          index => this.awardGroundItem(index), this.groundPickup.id);
       this.collectSelectedGroundItem();
     }
     syncTrial(this.eventState, this.enemies);
@@ -1944,7 +1948,13 @@ export class Simulation {
     const drop=this.groundItems[index];
     if(!this.groundPickup.ready(this.player,drop,this.world))return;
     if(drop.flight&&this.time<drop.flight.at+drop.flight.delay+TREASURE_FLIGHT_DURATION)return;
-    this.groundPickup.cancel();
+    this.awardGroundItem(index);
+  }
+
+  /** The single validated equipment award: pack space, quest hooks and the loot event. */
+  private awardGroundItem(index: number): void {
+    const drop=this.groundItems[index];
+    if(this.groundPickup.id===drop.id)this.groundPickup.cancel();
     if(!addInventoryItem(this.player.character,drop.item)) {
       this.emit({type:'notice',x:drop.x,y:drop.y,message:`${packSpaceProblem(this.player.character,drop.item)} Item left on the ground.`});return;
     }

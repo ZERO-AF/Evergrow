@@ -21,12 +21,9 @@ function advance(sim:Simulation, seconds:number, input:Partial<Input>={}) {
   for(let i=0;i<seconds/FIXED_STEP;i++)sim.update(FIXED_STEP,{...idle,...input});
 }
 
-test('standing on loot never picks it up; selecting one item leaves its neighbor untouched', () => {
+test('standing on loot vacuums it up; a distant neighbor stays put', () => {
   const sim=setup(open,0);
-  sim.groundItems.push({id:902,x:0,y:0,item:generateItem(902,1)});
-  advance(sim,1);
-  assert.equal(sim.groundItems.length,2);
-  assert.equal(sim.requestGroundItem(901),null);
+  sim.groundItems.push({id:902,x:300,y:0,item:generateItem(902,1)});
   advance(sim,1);
   assert.deepEqual(sim.groundItems.map(d=>d.id),[902]);
   assert.equal(sim.player.character.inventory.filter(i=>i?.id===generateItem(901,1).id).length,1);

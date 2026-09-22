@@ -22,6 +22,7 @@ import { formatWalletCompact } from './currency.ts';
 import { durabilityMetaMarkup } from './durability.ts';
 import { LEGENDARY_PROCS, PROC_TRIGGER_LABELS, procTrigger } from './legendary-content.ts';
 import { consumableFor, CONSUMABLE_CATEGORY_LABELS } from './consumable-content.ts';
+import { GEM_COLOR_HEX, gemDefinition, isGemItem, socketBonusActive, socketBonusStats } from './gem-content.ts';
 
 const greaterMark = '<span class="ui-greater-affix" role="img" aria-label="Greater affix · top 10% roll" title="Greater affix · top 10% roll"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0 10 6 16 8 10 10 8 16 6 10 0 8 6 6Z"/></svg></span>';
 const TIER_RANK: Record<Exclude<ItemTier, 'unique'>, number> = { common: 1, magic: 2, rare: 3, epic: 4, legendary: 5 };
@@ -134,7 +135,7 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
       + `<p class="ui-item-description">${escapeUI(CONSUMABLE_CATEGORY_LABELS[def.buffCategory])} · Use: ${escapeUI(def.useText)}</p>`
       + `<p class="ui-item-description">Stack: ${count} / ${def.stackSize}${def.cooldown > 1 ? ` · ${def.cooldown}s shared potion cooldown` : ''}</p>`;
   }
-  const preview = view.compare === false || view.equipped || item.kind === 'charm' && view.sourceIndex !== undefined ? null : previewEquipmentChange(view.sheet, item, view.level,
+  const preview = view.compare === false || view.equipped || isGemItem(item) || item.kind === 'charm' && view.sourceIndex !== undefined ? null : previewEquipmentChange(view.sheet, item, view.level,
     { sourceIndex: view.sourceIndex, slot: view.targetSlot });
   const changes = new Map(preview?.ok ? preview.changes.map(change => [change.key, change]) : []);
   const rows = Object.entries(itemModifiers(item)).map(([stat, value]) => {
@@ -166,6 +167,16 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   }
   if (item.focus) weapon = `<p class="ui-item-description">Off-hand · ${item.kind === 'grimoire' ? 'Grimoire · Mana & spell sustain' : 'Orb · Spell potency'}<br>Pairs with a one-handed weapon</p>`;
   if (item.shield) weapon = `<div class="ui-item-weapon"><div><strong>${number(item.shield.blockChance)}%</strong><span>Block chance</span></div><div><strong>${number(item.shield.blockReduction)}%</strong><span>Damage blocked</span></div></div>`;
+  // Socket rows mirror WoW: colored gem names when filled, empty sockets dimmed,
+  // and the seed-authored socket bonus shown active only on a full color match.
+  let socketBlock = '';
+  if (item.sockets?.length) {
+    const bonus = socketBonusStats(item), active = socketBonusActive(item);
+    socketBlock = `<div class="ui-item-sockets">${item.sockets.map(socket => {
+      const gem = gemDefinition(socket.gem);
+      return `<p class="ui-item-description" style="color:${GEM_COLOR_HEX[gem?.color ?? socket.color]}">◆ ${escapeUI(gem?.name ?? `${socket.color} socket`)}</p>`;
+    }).join('')}${bonus ? `<p class="ui-item-description"${active ? '' : ' style="opacity:.55"'}>Socket bonus: ${escapeUI(STAT_LABELS[bonus.stat])} ${formatStatValue(bonus.stat, bonus.value)}</p>` : ''}</div>`;
+  }
   const setModel = GAME_FEATURES.itemSets ? setTooltipModel(item, view.sheet.equipped) : null;
   const setBlock = setModel ? `<div class="ui-item-set"><p class="ui-item-set-name">${escapeUI(setModel.set.name)} (${setModel.count}/${setModel.set.pieces.length})</p>
     <ul class="ui-item-set-pieces">${setModel.pieces.map(({ def, have }) => `<li class="${have ? 'is-owned' : ''}">${escapeUI(def.name)}</li>`).join('')}</ul>
@@ -184,7 +195,7 @@ export function itemTooltipMarkup(item: Item, view: ItemPresentation): string {
   return `<div class="ui-item-heading"><div><span class="ui-item-class"><span class="ui-rarity-badge" data-tier="${item.tier}">${escapeUI(TIER_NAMES[item.tier])}</span><span>${escapeUI(item.baseName)}</span>${view.equipped && view.compactComparison ? `<span class="ui-item-equipped-inline" title="${escapeUI(view.equippedLabel ?? '')}">Equipped</span>` : ''}</span><h4>${hasGreaterAffix(item) ? escapeUI(itemDisplayName(item).slice(0, -(GREATER_AFFIX_SYMBOL.length + 1))) + ' ' + greaterMark : escapeUI(itemDisplayName(item))}</h4></div></div>
     <div class="ui-item-meta"><span>Item level ${number(item.itemLevel, 0)}</span><span class="${item.requiredLevel > view.level ? 'is-loss' : ''}">Requires level ${number(item.requiredLevel, 0)}</span>${classMeta}${view.equipped ? '<span class="ui-item-equipped">Equipped</span>' : ''}${item.locked?'<span class="ui-item-equipped">Locked</span>':''}${view.durability !== undefined ? durabilityMetaMarkup(view.durability) : ''}</div>
     ${item.recipe.enhancement && !view.hideEnhancementDetails ? `<div class="ui-item-upgrade">Enhancement +${item.recipe.enhancement} / 10 · +${item.recipe.enhancement * 5}% scalable item stats</div>` : ''}
-    ${weapon}${properties}
+    ${weapon}${properties}${socketBlock}
     ${uniqueDefinition(item)?uniquePowerMarkup(uniqueDefinition(item)!):''}${legendaryProcMarkup(item)}
     ${item.flavor ? `<p class="ui-item-description">${escapeUI(item.flavor)}</p>` : ''}
     ${itemModifiers(item).spellweavePercent ? `<p class="ui-item-description">Enables ${effectTerm('spellweave', 'Spellweave')} · melee ↔ magic · ${AFFIX_COMBAT_RULES.weaveDuration}s.</p>` : ''}${item.affixes.length ? `<div class="ui-item-affixes">${item.affixes.map(a => escapeUI(a.name)).join(' · ')}</div>` : ''}

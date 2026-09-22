@@ -26,6 +26,16 @@ export function drawLootBeams(c: CanvasRenderingContext2D, anchors: readonly Loo
     c.fillStyle = spec.color;
     c.beginPath(); c.ellipse(x, y + 1, spec.glow * .55, spec.glow * .2, 0, 0, Math.PI * 2); c.fill();
 
+    // High-rarity drops pulse a soft ground ring outward from the item.
+    if (spec.pulse > 0) {
+      const phase = reducedMotion ? .35 : (t / spec.pulse + anchor.drop.id * .37) % 1;
+      const ring = spec.glow * (.45 + phase * 1.15);
+      c.globalAlpha = alpha * (1 - phase) * .55;
+      c.strokeStyle = spec.color;
+      c.lineWidth = 1.4;
+      c.beginPath(); c.ellipse(x, y + 1, ring, ring * .36, 0, 0, Math.PI * 2); c.stroke();
+    }
+
     // Pillar: base-hot gradient column plus a narrow near-white core.
     const pillar = c.createLinearGradient(0, y, 0, y - height);
     pillar.addColorStop(0, spec.color);

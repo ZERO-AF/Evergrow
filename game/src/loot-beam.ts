@@ -1,6 +1,7 @@
 import type { GroundItem, ItemTier } from './character-types.ts';
 import type { PointLight } from './light-types.ts';
 import { treasurePose, TREASURE_FLIGHT_DURATION } from './treasure-flight.ts';
+import { lootFilterHides, type LootFilterMode } from './loot.ts';
 
 /** Diablo-style rarity beam tuning: pillar size, ground glow and rising motes. */
 export interface LootBeamSpec {
@@ -20,16 +21,18 @@ export interface LootBeamSpec {
   readonly alpha: number;
   /** PointLight power contributed while the beam is on screen (0 = none). */
   readonly light: number;
+  /** Ground ring pulse period in seconds on high-rarity drops (0 = none). */
+  readonly pulse: number;
 }
 
 /** Spec palette: white / blue / yellow / purple / orange / pink (unique keeps its item color). */
 export const LOOT_BEAMS: Readonly<Record<ItemTier, LootBeamSpec>> = Object.freeze({
-  common:    { color: '#e8f0e9', core: '#ffffff', height: 64,  width: 5,   glow: 22, motes: 2, alpha: .30, light: 0 },
-  magic:     { color: '#6fb4ff', core: '#d8ecff', height: 84,  width: 6,   glow: 30, motes: 3, alpha: .42, light: .18 },
-  rare:      { color: '#ffd75e', core: '#fff3c4', height: 104, width: 7,   glow: 38, motes: 4, alpha: .52, light: .3 },
-  epic:      { color: '#c08bff', core: '#ecd9ff', height: 122, width: 8,   glow: 46, motes: 5, alpha: .60, light: .42 },
-  legendary: { color: '#ff9e4f', core: '#ffe3bd', height: 148, width: 9.5, glow: 56, motes: 7, alpha: .70, light: .6 },
-  unique:    { color: '#ff8fb8', core: '#ffd9e8', height: 148, width: 9.5, glow: 56, motes: 7, alpha: .70, light: .6 },
+  common:    { color: '#e8f0e9', core: '#ffffff', height: 56,  width: 4.5, glow: 20, motes: 2, alpha: .26, light: 0,   pulse: 0 },
+  magic:     { color: '#6fb4ff', core: '#d8ecff', height: 84,  width: 6,   glow: 30, motes: 3, alpha: .42, light: .18, pulse: 0 },
+  rare:      { color: '#ffd75e', core: '#fff3c4', height: 108, width: 7,   glow: 38, motes: 4, alpha: .54, light: .3,  pulse: 0 },
+  epic:      { color: '#c08bff', core: '#ecd9ff', height: 138, width: 8.5, glow: 50, motes: 6, alpha: .66, light: .48, pulse: 2.2 },
+  legendary: { color: '#ff9e4f', core: '#ffe3bd', height: 172, width: 10,  glow: 62, motes: 8, alpha: .78, light: .7,  pulse: 1.6 },
+  unique:    { color: '#ff8fb8', core: '#ffd9e8', height: 172, width: 10,  glow: 62, motes: 8, alpha: .78, light: .7,  pulse: 1.6 },
 });
 
 export interface LootBeamAnchor {
@@ -45,7 +48,7 @@ export interface LootBeamAnchor {
  * Beam anchors mirror lootPositions() in loot-art.ts so pillars rise from the
  * drawn silhouettes in a multi-item drop. Keep the grouping math in sync.
  */
-export function lootBeamAnchors(drops: readonly GroundItem[], worldTime: number, reducedMotion = false): LootBeamAnchor[] {
+export function lootBeamAnchors(drops: readonly GroundItem[], worldTime: number, reducedMotion = false, filter: LootFilterMode = 'off'): LootBeamAnchor[] {
   const groups = new Map<string, GroundItem[]>();
   for (const drop of drops) {
     const key = `${drop.x}:${drop.y}`;
@@ -55,7 +58,8 @@ export function lootBeamAnchors(drops: readonly GroundItem[], worldTime: number,
   for (const group of groups.values()) {
     group.sort((a, b) => a.id - b.id).forEach((drop, i) => {
       const pose = treasurePose(drop, worldTime, reducedMotion);
-      if (!pose.landed) return;
+      // Filtered drops keep their spread slot so surviving beams stay aligned.
+      if (!pose.landed || lootFilterHides(drop.item.tier, filter)) return;
       const landedAt = drop.flight ? drop.flight.at + drop.flight.delay + TREASURE_FLIGHT_DURATION : -Infinity;
       anchors.push({
         drop,

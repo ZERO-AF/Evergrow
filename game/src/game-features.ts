@@ -7,6 +7,10 @@ export const GAME_FEATURES = {
   mounts: true,
   professions: true,
   lootBeams: true,
+  // Diablo-style rarity filter for ground loot (display-only; reveal key bypasses)
+  lootFilter: true,
+  // Ground equipment within reach glides to the player and auto-collects.
+  lootVacuum: true,
   actionBars: true,
   hearthstone: true,
   currency: true,
@@ -17,6 +21,8 @@ export const GAME_FEATURES = {
   durability: true,
   fishing: true,
   glyphs: true,
+  // WoW jewelcrafting: socketed gems, socket bonuses, jeweler gem stock
+  gems: true,
  raidBoss: true,
  dungeon2: true,
  // Wave C (docs/wow-deepening.md, second pass)
@@ -42,4 +48,7 @@ export const GAME_FEATURES = {
   factions: true,
   // WoW world (wayfinder world-t02): authored atlas replaces procedural climate
   authored: true,
+  // Presentation-only combat juice: hit-stop, magnitude-scaled screen shake,
+  // kill impact and crit popups. Never touches the 120 Hz simulation clock.
+  combatJuice: true,
 };

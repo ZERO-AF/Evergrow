@@ -8,6 +8,7 @@ import { GEAR_MATERIAL_IDS } from './gear-material-content.ts';
 import { isSkillStat, skillAffixRank } from './equipment-affix-content.ts';
 import { isElementalAffix, meleeEnchantment } from './elemental-weapon.ts';
 import { FOCUS_PROFILES } from './focus-content.ts';
+import { isGemId, validGemItem, validItemSockets } from './gem-content.ts';
 import type { Item } from './character-types.ts';
 import { isWowClassId } from './wow-types.ts';
 import { ITEM_KINDS, TIER_NAMES, STAT_LABELS, itemAffixCount, itemAffixPool, deriveItem } from './items.ts';
@@ -32,6 +33,7 @@ export function validItem(v: unknown): v is Item {
     || (v.stack !== undefined && !integer(v.stack, 1, 20))
     || (v.classId !== undefined && !isWowClassId(v.classId))
     || !v.affixes.every(a => object(a) && text(a.name) && Object.hasOwn(STAT_LABELS, String(a.stat)) && number(a.value, -1e9, 1e9))) return false;
+  if (!validItemSockets(v.sockets, v.kind as Item['kind'])) return false;
   const r = v.recipe;
   if (!object(r) || typeof r.starter !== 'boolean' || !integer(r.enhancement, 0, 10) || !integer(r.revision)
     || !integer(r.targetedRolls) || !integer(r.fullRolls) || !Array.isArray(r.rolls) || r.rolls.length !== v.affixes.length
@@ -53,7 +55,9 @@ export function validItem(v: unknown): v is Item {
   if (v.kind === 'weapon' && !(profile === STARTING_SWORD.id || WEAPON_PROFILES.some(p => p.id === profile))) return false;
   if (v.kind === 'shield' && !SHIELD_PROFILES.some(p => p.id === profile)) return false;
   if (v.kind !== 'charm' && v.kind !== 'weapon' && v.kind !== 'shield' && v.kind !== 'grimoire' && v.kind !== 'orb' && v.kind !== 'ring' && v.kind !== 'amulet' && profile !== undefined) return false;
-  if ((v.kind==='ring'||v.kind==='amulet')&&profile!==undefined&&!JEWELRY_PROFILES.some(p=>p.id===profile&&p.kind===v.kind))return false;
+  if ((v.kind==='ring'||v.kind==='amulet')&&profile!==undefined&&!isGemId(profile)&&!JEWELRY_PROFILES.some(p=>p.id===profile&&p.kind===v.kind))return false;
+  // Gem tokens (gem-content.ts) are 'amulet' hosts with a gem profileId; enforce the strict token shape.
+  if (isGemId(profile) && !validGemItem(v)) return false;
   if (v.affixes.filter(a => isSkillStat(a.stat)).length > 1
     || Object.keys(v.implicit as ObjectValue).some(isSkillStat)
     || v.affixes.some((a, i) => isSkillStat(a.stat) ? !integer(a.value, 1, 5) || a.value !== skillAffixRank((r.rolls as number[])[i], v.itemLevel as number) : a.stat === 'projectilePierce' && a.value !== 1)) return false;

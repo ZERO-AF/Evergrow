@@ -4,6 +4,8 @@ import { ControlsPanel, controlsMarkup } from './controls-panel.ts';
 import { ChangelogPanel } from './changelog-panel.ts';
 import { LeaderboardPanel, type LeaderboardLoader } from './leaderboard-panel.ts';
 import type { GroundLootNameplates } from './ground-loot-hover.ts';
+import { LOOT_FILTER_MODES, type LootFilterMode } from './loot.ts';
+import { GAME_FEATURES } from './game-features.ts';
 import { trapDialogFocus, uiIcon } from './ui-components.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
 import type { GamepadInput } from './gamepad-input.ts';
@@ -16,15 +18,20 @@ export type SystemDestination = 'options' | 'controls' | 'changelog' | 'leaderbo
 export interface SystemWindowActions extends AudioControlActions {
   groundLootNames?(): GroundLootNameplates;
   setGroundLootNames?(mode: GroundLootNameplates): void;
+  lootFilter?(): LootFilterMode;
+  setLootFilter?(mode: LootFilterMode): void;
   zoom?(factor: number): void;
   leaderboard?: LeaderboardLoader;
   leaderboardAvailable?(): boolean;
 }
 
+const LOOT_FILTER_LABELS: Readonly<Record<LootFilterMode, string>> = Object.freeze({ off: 'Off', hideCommon: 'Magic+', hideBelowRare: 'Rare+', hideBelowEpic: 'Epic+' });
+
 function optionsMarkup(): string {
   return `<section class="system-option-group" aria-labelledby="options-audio"><h3 id="options-audio">Audio</h3>${audioControlsMarkup(true)}</section>
     <section class="system-option-group" aria-labelledby="options-world"><h3 id="options-world">World view</h3>
       <div class="pause-option pause-option--loot"><span id="ground-loot-names-label">Loot names</span><div class="pause-loot-modes" role="group" aria-labelledby="ground-loot-names-label"><button type="button" data-loot-names="always" class="ui-button ui-button--quiet" aria-pressed="true">Always</button><button type="button" data-loot-names="ctrl" class="ui-button ui-button--quiet" aria-pressed="false" data-loot-hold>Hold key</button></div></div>
+      ${GAME_FEATURES.lootFilter ? `<div class="pause-option pause-option--loot"><span id="loot-filter-label">Loot filter</span><div class="pause-loot-modes" role="group" aria-labelledby="loot-filter-label">${LOOT_FILTER_MODES.map(mode => `<button type="button" data-loot-filter="${mode}" class="ui-button ui-button--quiet" aria-pressed="${mode === 'off'}">${LOOT_FILTER_LABELS[mode]}</button>`).join('')}</div></div>` : ''}
       <div class="pause-option"><span>Camera zoom</span><div class="pause-stepper"><button type="button" data-zoom="out" class="ui-button ui-button--icon" aria-label="Zoom camera out">${uiIcon('minus')}</button><button type="button" data-zoom="in" class="ui-button ui-button--icon" aria-label="Zoom camera in">${uiIcon('plus')}</button></div></div>
       <div class="pause-option" data-fullscreen-row hidden><span>Fullscreen</span><button type="button" data-fullscreen aria-label="Fullscreen" class="ui-button pause-toggle" aria-pressed="false">Off</button></div>
     </section><section class="system-option-group" aria-labelledby="options-combat"><h3 id="options-combat">Combat</h3>${castBarOptionsMarkup()}${nameplateOptionsMarkup()}</section><p class="system-window-status" role="status"></p>`;
@@ -100,6 +107,10 @@ export class PauseSystemWindows {
       button.disabled = !this.actions.setGroundLootNames;
       button.addEventListener('click', () => { this.actions.setGroundLootNames?.(button.dataset.lootNames === 'ctrl' ? 'ctrl' : 'always'); this.refresh(); }, { signal });
     }
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-loot-filter]')) {
+      button.disabled = !this.actions.setLootFilter;
+      button.addEventListener('click', () => { this.actions.setLootFilter?.(button.dataset.lootFilter as LootFilterMode); this.refresh(); }, { signal });
+    }
     if (document.fullscreenEnabled && document.documentElement.requestFullscreen) {
       root.querySelector<HTMLElement>('[data-fullscreen-row]')!.hidden = false;
       root.querySelector('[data-fullscreen]')!.addEventListener('click', async () => {
@@ -122,6 +133,8 @@ export class PauseSystemWindows {
     }
     for (const button of this.window?.querySelectorAll<HTMLButtonElement>('[data-loot-names]') ?? [])
       button.setAttribute('aria-pressed', String(button.dataset.lootNames === (this.actions.groundLootNames?.() ?? 'always')));
+    for (const button of this.window?.querySelectorAll<HTMLButtonElement>('[data-loot-filter]') ?? [])
+      button.setAttribute('aria-pressed', String(button.dataset.lootFilter === (this.actions.lootFilter?.() ?? 'off')));
     const fullscreen = this.window?.querySelector<HTMLButtonElement>('[data-fullscreen]');
     if (fullscreen) { fullscreen.textContent = document.fullscreenElement ? 'On' : 'Off'; fullscreen.setAttribute('aria-pressed', String(!!document.fullscreenElement)); }
   }

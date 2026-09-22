@@ -1,8 +1,8 @@
 import { drawGlow } from './lighting.ts';
-import { clamp, hash, polygon, TAU } from './art-primitives.ts';
-import { schoolOf, type School, type SchoolStyle } from './spell-school.ts';
-export { castSchoolStyle } from './spell-school.ts';
-export type { SchoolStyle } from './spell-school.ts';
+import { clamp, hash, mixColor, polygon, TAU } from './art-primitives.ts';
+import { schoolOf, type ClassStyle, type School, type SchoolStyle } from './spell-school.ts';
+export { castSchoolStyle, castSignature, classStyle } from './spell-school.ts';
+export type { ClassStyle, SchoolStyle } from './spell-school.ts';
 /**
  * WoW school-flavored spell VFX (docs/wow-deepening.md §4 lineage). Maps each
  * damage school to a signature impact burst plus an ambient cast aura:
@@ -16,6 +16,12 @@ export type { SchoolStyle } from './spell-school.ts';
  * 'physical'/'bleed' share a steel-and-blood slash; 'arrow' stays unstyled
  * (returns false) so the caller keeps the existing art, and 'spirit'/'radiant'
  * keep their own packs.
+ *
+ * Class layer: an optional `cls` accent (see classStyle in spell-school.ts)
+ * blends the class color into every glow, draws a class-colored rune ring
+ * under the caster, and stamps a per-class glyph motif — so a mage frostbolt
+ * reads violet-arcane while a death knight's frost reads runic ice-blue.
+ * Null `cls` keeps the pure school art for shared/enemy skills.
  *
  * Presentation only: pure functions, no state, no gameplay mutation. Every
  * flourish is a fixed-count loop (hard particle caps), deterministic from the
@@ -58,13 +64,84 @@ function count(base: number, intensity: number, reducedMotion: boolean): number 
 }
 
 /**
+ * Per-class glyph silhouette stamped under the caster and at the burst edge.
+ * `r` is the ring radius the motif sits on; `alpha`/`tint` come from the
+ * caller's fade so the glyph dies with its burst. Fixed-count strokes only.
+ */
+function drawClassGlyph(c: CanvasRenderingContext2D, cls: ClassStyle, r: number,
+  alpha: number, spin: number, scale = 1): void {
+  c.save();
+  c.globalAlpha = alpha;
+  c.strokeStyle = cls.accent; c.fillStyle = cls.accent; c.lineWidth = 1.1 * scale;
+  const s = Math.min(r, 30) * .34; // motif half-extent; capped so burst rings don't blow the glyph up
+  switch (cls.motif) {
+    case 'blades': // warrior — crossed sword slashes
+      for (const d of [-1, 1]) {
+        c.beginPath(); c.moveTo(-s * d, -s); c.lineTo(s * d, s); c.stroke();
+        polygon(c, [[s * d, s], [s * d - d * s * .34, s * .62], [s * d + d * s * .3, s * .7]], cls.hot);
+      }
+      break;
+    case 'sigil': // paladin — hammer head over a short haft
+      c.strokeRect(-s * .7, -s * .95, s * 1.4, s * .55);
+      c.beginPath(); c.moveTo(0, -s * .4); c.lineTo(0, s); c.stroke();
+      c.fillStyle = cls.hot; c.fillRect(-s * .12, s * .55, s * .24, s * .3);
+      break;
+    case 'fang': // hunter — paired arrowhead barbs
+      for (const d of [-1, 1]) {
+        c.beginPath(); c.moveTo(d * s * .8, -s * .5); c.lineTo(d * s * .25, s * .1); c.lineTo(d * s * .8, s * .7); c.stroke();
+        c.beginPath(); c.moveTo(d * s * .25, s * .1); c.lineTo(d * s * .1, s * .95); c.stroke();
+      }
+      break;
+    case 'shroud': // rogue — hooded shadow slash, deep fill under a pale edge
+      c.fillStyle = cls.deep;
+      c.beginPath(); c.moveTo(-s, s * .6); c.quadraticCurveTo(0, -s * 1.3, s, s * .6); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(-s * .7, s * .75); c.lineTo(s * .7, -s * .75); c.stroke();
+      break;
+    case 'halo': // priest — twin nested halo arcs
+      for (const rr of [s, s * .55]) {
+        c.beginPath(); c.ellipse(0, -s * .2, rr, rr * .38, 0, 0, TAU); c.stroke();
+      }
+      c.fillStyle = cls.hot; c.beginPath(); c.arc(0, s * .45, s * .16, 0, TAU); c.fill();
+      break;
+    case 'rune': // deathKnight — angular rune tick marks around the ring
+      for (let i = 0; i < 4; i++) {
+        const a = spin + i * TAU / 4;
+        const gx = Math.cos(a) * r, gy = Math.sin(a) * r * .42;
+        c.beginPath(); c.moveTo(gx - s * .3, gy); c.lineTo(gx, gy - s * .42); c.lineTo(gx + s * .3, gy); c.stroke();
+      }
+      break;
+    case 'totem': // shaman — three upright elemental spikes
+      for (let i = -1; i <= 1; i++) {
+        const h = s * (i === 0 ? 1.15 : .75);
+        c.beginPath(); c.moveTo(i * s * .55 - s * .18, s * .5); c.lineTo(i * s * .55, s * .5 - h); c.lineTo(i * s * .55 + s * .18, s * .5); c.stroke();
+      }
+      break;
+    case 'star': // mage — four-point arcane star
+      polygon(c, [[0, -s], [s * .22, -s * .22], [s, 0], [s * .22, s * .22], [0, s], [-s * .22, s * .22], [-s, 0], [-s * .22, -s * .22]], cls.accent);
+      c.fillStyle = cls.hot; c.beginPath(); c.arc(0, 0, s * .18, 0, TAU); c.fill();
+      break;
+    case 'fel': // warlock — fel orb with orbiting shard
+      c.beginPath(); c.arc(0, 0, s * .5, 0, TAU); c.stroke();
+      c.fillStyle = '#7ee05a';
+      c.beginPath(); c.arc(Math.cos(spin) * s * .95, Math.sin(spin) * s * .4, s * .2, 0, TAU); c.fill();
+      break;
+    case 'leaf': // druid — diamond leaf with a center vein
+      polygon(c, [[0, -s], [s * .5, 0], [0, s], [-s * .5, 0]], cls.accent);
+      c.strokeStyle = cls.deep;
+      c.beginPath(); c.moveTo(0, -s * .7); c.lineTo(0, s * .7); c.stroke();
+      break;
+  }
+  c.restore();
+}
+
+/**
  * One-shot school impact burst, drawn in the emission pass. `time` is the
  * impact's age in seconds (0 = contact); `intensity` scales the flourish
  * (1 = normal hit, ~1.3 kills, ~.8 player-hurt). Returns false for unstyled
  * schools so the caller falls back to the generic impact star.
  */
 export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: number,
-  style: SchoolStyle, time: number, intensity = 1, reducedMotion = false): boolean {
+  style: SchoolStyle, time: number, intensity = 1, reducedMotion = false, cls: ClassStyle | null = null): boolean {
   const school = schoolOf(style);
   if (!school) return false;
   const pal = PALETTES[school];
@@ -74,13 +151,16 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
   if (fade <= 0) return true;
   const k = clamp(intensity, .25, 2);
   const ease = 1 - (1 - pm) * (1 - pm);       // ease-out expansion
+  // Class accent: tint every glow toward the class color so the same school
+  // reads differently per caster (mage frost vs death-knight frost).
+  const glow = cls ? mixColor(pal.glow, cls.accent, .35) : pal.glow;
 
   c.save();
   c.translate(x, y);
   switch (school) {
     case 'holy': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (30 + 26 * ease) * k, pal.glow, .5 * fade);
+      drawGlow(c, 0, 0, (30 + 26 * ease) * k, glow, .5 * fade);
       // Radiant core: hot center collapsing as the burst expands.
       c.globalAlpha = fade;
       c.fillStyle = pm < .3 ? pal.hot : pal.core;
@@ -118,7 +198,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
       c.fillStyle = pal.deep;
       c.beginPath(); c.arc(0, 0, (20 - 9 * pm) * k, 0, TAU); c.fill();
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (26 + 14 * ease) * k, pal.glow, .35 * fade);
+      drawGlow(c, 0, 0, (26 + 14 * ease) * k, glow, .35 * fade);
       // Void tendrils: wavy strokes reaching out then curling.
       const tendrils = count(CAP.tendrils, intensity, reducedMotion);
       c.strokeStyle = pal.core; c.lineCap = 'round';
@@ -156,7 +236,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
       c.strokeStyle = pal.deep; c.lineWidth = 3.2;
       c.beginPath(); c.ellipse(0, 10, (8 + 40 * ease) * k, (3.5 + 17 * ease) * k, 0, 0, TAU); c.stroke();
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (34 + 24 * ease) * k, pal.glow, .6 * fade);
+      drawGlow(c, 0, 0, (34 + 24 * ease) * k, glow, .6 * fade);
       c.globalAlpha = fade;
       c.fillStyle = pm < .25 ? pal.hot : pal.core;
       c.beginPath(); c.arc(0, 0, (13 - 6 * pm) * k, 0, TAU); c.fill();
@@ -183,7 +263,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
       c.globalAlpha = .2 * fade;
       c.fillStyle = '#bff0ff';
       c.beginPath(); c.ellipse(0, 10, 30 * k * ease + 6, 12 * k * ease + 3, 0, 0, TAU); c.fill();
-      drawGlow(c, 0, 0, (26 + 20 * ease) * k, pal.glow, .5 * fade);
+      drawGlow(c, 0, 0, (26 + 20 * ease) * k, glow, .5 * fade);
       // Frost nova ring: double ellipse racing outward.
       c.globalAlpha = .8 * fade;
       c.strokeStyle = pal.core; c.lineWidth = 2.4 * fade + .5;
@@ -218,7 +298,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
     }
     case 'lightning': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (30 + 18 * ease) * k, pal.glow, .55 * fade);
+      drawGlow(c, 0, 0, (30 + 18 * ease) * k, glow, .55 * fade);
       c.globalAlpha = fade;
       c.fillStyle = pal.hot;
       c.beginPath(); c.arc(0, 0, (8 * (1 - pm) + 3) * k, 0, TAU); c.fill();
@@ -272,7 +352,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
         c.beginPath(); c.ellipse(0, 10, r, r * .42, 0, a, a + .9); c.stroke();
       }
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (24 + 16 * ease) * k, pal.glow, .4 * fade);
+      drawGlow(c, 0, 0, (24 + 16 * ease) * k, glow, .4 * fade);
       // Leaf burst: diamond leaves spiraling outward.
       const leaves = count(CAP.leaves, intensity, reducedMotion);
       for (let i = 0; i < leaves; i++) {
@@ -300,7 +380,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
     }
     case 'arcane': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (28 + 18 * ease) * k, pal.glow, .5 * fade);
+      drawGlow(c, 0, 0, (28 + 18 * ease) * k, glow, .5 * fade);
       c.globalAlpha = fade;
       c.fillStyle = pal.hot;
       c.beginPath(); c.arc(0, 0, (9 * (1 - pm) + 2) * k, 0, TAU); c.fill();
@@ -347,7 +427,7 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
       // Steel flash: a hot core collapsing fast, then paired slash arcs sweeping
       // outward and a spray of blood droplets — WotLK warrior/rogue contact.
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, 0, (22 + 14 * ease) * k, pal.glow, .4 * fade);
+      drawGlow(c, 0, 0, (22 + 14 * ease) * k, glow, .4 * fade);
       c.globalAlpha = fade;
       c.fillStyle = pm < .3 ? pal.hot : pal.core;
       c.beginPath(); c.arc(0, 0, (9 - 4 * pm) * k, 0, TAU); c.fill();
@@ -377,6 +457,15 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
       break;
     }
   }
+  // Class edge: an accent-colored rim racing past the burst plus the class
+  // glyph at its heart — the per-class signature on top of the school flourish.
+  if (cls) {
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = .55 * fade;
+    c.strokeStyle = cls.accent; c.lineWidth = 1.3 * fade + .3;
+    c.beginPath(); c.ellipse(0, 8, (10 + 48 * ease) * k, (4 + 20 * ease) * k, 0, 0, TAU); c.stroke();
+    drawClassGlyph(c, cls, (10 + 48 * ease) * k, .8 * fade, pm * 1.4, k);
+  }
   c.restore();
   return true;
 }
@@ -389,12 +478,13 @@ export function drawSchoolImpact(c: CanvasRenderingContext2D, x: number, y: numb
  * unstyled schools so callers can skip the call entirely.
  */
 export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number,
-  style: SchoolStyle, time: number, scale = 1, reducedMotion = false): boolean {
+  style: SchoolStyle, time: number, scale = 1, reducedMotion = false, cls: ClassStyle | null = null): boolean {
   const school = schoolOf(style);
   if (!school) return false;
   const pal = PALETTES[school];
   const t = reducedMotion ? 0 : time;
   const k = scale;
+  const glow = cls ? mixColor(pal.glow, cls.accent, .35) : pal.glow;
 
   c.save();
   c.translate(x, y);
@@ -404,7 +494,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
       c.globalAlpha = .22 + Math.sin(t * 3) * .08;
       c.strokeStyle = pal.core; c.lineWidth = 1.2;
       c.beginPath(); c.ellipse(0, 8, 20 * k, 8 * k, 0, 0, TAU); c.stroke();
-      drawGlow(c, 0, -6, 16 * k, pal.glow, .16 + Math.sin(t * 3.7) * .05);
+      drawGlow(c, 0, -6, 16 * k, glow, .16 + Math.sin(t * 3.7) * .05);
       for (let i = 0; i < 4; i++) {
         const cy = (t * .35 + i * .25) % 1;
         c.globalAlpha = Math.sin(cy * Math.PI) * .6;
@@ -430,12 +520,12 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
         c.fillStyle = pal.hot;
         c.beginPath(); c.arc(wx, wy - 2.4, 1.1, 0, TAU); c.fill();
       }
-      drawGlow(c, 0, -6, 14 * k, pal.glow, .14);
+      drawGlow(c, 0, -6, 14 * k, glow, .14);
       break;
     }
     case 'fire': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, -4, 17 * k, pal.glow, .18 + Math.sin(t * 7) * .06);
+      drawGlow(c, 0, -4, 17 * k, glow, .18 + Math.sin(t * 7) * .06);
       for (let i = 0; i < 5; i++) {
         const cy = (t * .5 + i * .2) % 1;
         c.globalAlpha = Math.sin(cy * Math.PI) * .65;
@@ -450,7 +540,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
       c.globalAlpha = .2;
       c.strokeStyle = pal.core; c.lineWidth = 1;
       c.beginPath(); c.ellipse(0, 8, 18 * k, 7 * k, 0, 0, TAU); c.stroke();
-      drawGlow(c, 0, -4, 14 * k, pal.glow, .15);
+      drawGlow(c, 0, -4, 14 * k, glow, .15);
       for (let i = 0; i < 4; i++) {
         const a = t * .9 + i * TAU / 4;
         const cx = Math.cos(a) * 17 * k, cy = Math.sin(a) * 8 * k - 6;
@@ -462,7 +552,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
     }
     case 'lightning': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, -4, 15 * k, pal.glow, .15);
+      drawGlow(c, 0, -4, 15 * k, glow, .15);
       // Flicker arcs: each bolt only shows inside its short cycle window.
       for (let i = 0; i < 2; i++) {
         const phase = (t * 2.4 + i * .5) % 1;
@@ -491,7 +581,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
       c.fillStyle = pal.deep;
       c.beginPath(); c.ellipse(0, 8, 17 * k, 7 * k, 0, 0, TAU); c.fill();
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, -4, 14 * k, pal.glow, .14);
+      drawGlow(c, 0, -4, 14 * k, glow, .14);
       for (let i = 0; i < 3; i++) {
         const a = t * 1.1 + i * TAU / 3;
         const lx = Math.cos(a) * 15 * k, ly = Math.sin(a) * 7 * k - 7;
@@ -513,7 +603,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
     }
     case 'arcane': {
       c.globalCompositeOperation = 'lighter';
-      drawGlow(c, 0, -4, 16 * k, pal.glow, .16);
+      drawGlow(c, 0, -4, 16 * k, glow, .16);
       const rr = 16 * k;
       c.globalAlpha = .4;
       c.strokeStyle = pal.core; c.lineWidth = 1;
@@ -539,7 +629,7 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
       c.globalAlpha = .14;
       c.strokeStyle = pal.core; c.lineWidth = 1;
       c.beginPath(); c.ellipse(0, 6, 15 * k, 6 * k, 0, 0, TAU); c.stroke();
-      drawGlow(c, 0, -4, 11 * k, pal.glow, .1);
+      drawGlow(c, 0, -4, 11 * k, glow, .1);
       for (let i = 0; i < 2; i++) {
         const a = t * 2.6 + i * Math.PI;
         c.globalAlpha = .5;
@@ -548,6 +638,15 @@ export function schoolCastAura(c: CanvasRenderingContext2D, x: number, y: number
       }
       break;
     }
+  }
+  // Class rune ring: a slow accent-colored ellipse under the cast point with
+  // the class glyph riding it — the persistent signature while casting.
+  if (cls) {
+    c.globalCompositeOperation = 'lighter';
+    c.globalAlpha = .3 + Math.sin(t * 2.2) * .06;
+    c.strokeStyle = cls.accent; c.lineWidth = 1.2;
+    c.beginPath(); c.ellipse(0, 9, 23 * k, 9.5 * k, 0, 0, TAU); c.stroke();
+    drawClassGlyph(c, cls, 23 * k, .55, t * .8, k);
   }
   c.restore();
   return true;

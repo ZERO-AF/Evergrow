@@ -1,5 +1,6 @@
 import type { DamageType, Player, ProjectileStyle } from './model.ts';
 import type { SkillId } from './character-types.ts';
+import type { WowClassId } from './wow-types.ts';
 import { resolveSkill } from './skill-progression.ts';
 /**
  * Headless WoW school→style resolution. Maps a skill's execution recipe to its
@@ -11,6 +12,38 @@ import { resolveSkill } from './skill-progression.ts';
 /** Accepted style inputs: projectile styles, damage types, and DoT schools. */
 export type SchoolStyle = ProjectileStyle | DamageType | 'bleed' | 'poison';
 export type School = 'holy' | 'shadow' | 'fire' | 'frost' | 'lightning' | 'nature' | 'arcane' | 'physical';
+
+/**
+ * Per-class visual signature layered over the school VFX (docs/wow-deepening.md
+ * §4 lineage): `accent` tints glows and the rune ring, `hot`/`deep` shade the
+ * class glyph, and `motif` picks the glyph silhouette drawn under the caster
+ * and at the burst edge. Palettes are authored distinct so a mage frostbolt
+ * reads differently from a death knight's frost.
+ */
+export type ClassMotif = 'blades' | 'sigil' | 'fang' | 'shroud' | 'halo'
+  | 'rune' | 'totem' | 'star' | 'fel' | 'leaf';
+export interface ClassStyle { readonly accent: string; readonly hot: string; readonly deep: string; readonly motif: ClassMotif; }
+
+export const CLASS_STYLES: Readonly<Record<WowClassId, ClassStyle>> = Object.freeze({
+  warrior:     { accent: '#d8483c', hot: '#ffd9c2', deep: '#5a1f1a', motif: 'blades' },
+  paladin:     { accent: '#f0c14e', hot: '#fff3c8', deep: '#7a5a1e', motif: 'sigil' },
+  hunter:      { accent: '#8fbf4a', hot: '#e4f2b8', deep: '#33481e', motif: 'fang' },
+  rogue:       { accent: '#9aa4b4', hot: '#eef2f8', deep: '#23262e', motif: 'shroud' },
+  priest:      { accent: '#d8c8f0', hot: '#ffffff', deep: '#5a4a80', motif: 'halo' },
+  deathKnight: { accent: '#5fd4f0', hot: '#e2fbff', deep: '#173a4e', motif: 'rune' },
+  shaman:      { accent: '#3f9df2', hot: '#d0e8ff', deep: '#16345e', motif: 'totem' },
+  mage:        { accent: '#9d7bf0', hot: '#efe6ff', deep: '#35246a', motif: 'star' },
+  warlock:     { accent: '#a06ad8', hot: '#eedcff', deep: '#3a1e4e', motif: 'fel' },
+  druid:       { accent: '#3ec97e', hot: '#d8ffe4', deep: '#1e4a30', motif: 'leaf' },
+});
+
+/**
+ * Resolves a caster's class signature. Null-safe: unknown or absent class ids
+ * (shared/enemy skills, legacy sheets) return null so callers keep school art.
+ */
+export function classStyle(classId: WowClassId | string | null | undefined): ClassStyle | null {
+  return CLASS_STYLES[classId as WowClassId] ?? null;
+}
 
 /**
  * Resolves the school signature of a skill being cast: projectile recipes carry
@@ -25,6 +58,16 @@ export function castSchoolStyle(p: Player, skill: SkillId): SchoolStyle | null {
   if ('school' in recipe && recipe.school) return recipe.school;
   if (recipe.kind === 'dot') return recipe.dot.school;
   return null;
+}
+
+/**
+ * Class-aware sibling of `castSchoolStyle`: resolves the school signature plus
+ * the caster's class accent in one pass. `cls` is null for classless casts so
+ * shared/enemy art stays untouched.
+ */
+export function castSignature(p: Player, skill: SkillId): { style: SchoolStyle; cls: ClassStyle | null } | null {
+  const style = castSchoolStyle(p, skill);
+  return style ? { style, cls: classStyle(p.character?.classId) } : null;
 }
 
 /** Maps any spell style payload to its school signature, or null = keep existing art. */

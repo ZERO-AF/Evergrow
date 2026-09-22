@@ -97,3 +97,20 @@ export function rollEnemyLoot(context: EnemyLootContext): Item[] {
   }
   return items;
 }
+
+/** Diablo-style ground-loot filter: display-only, never removes or blocks a drop. */
+export type LootFilterMode = 'off' | 'hideCommon' | 'hideBelowRare' | 'hideBelowEpic';
+export const LOOT_FILTER_MODES: readonly LootFilterMode[] = Object.freeze(['off', 'hideCommon', 'hideBelowRare', 'hideBelowEpic']);
+
+/** Rarity rank order shared by the filter thresholds; unique sits beside legendary. */
+const LOOT_FILTER_TIER_RANK: Readonly<Record<ItemTier, number>> = Object.freeze({
+  common: 0, magic: 1, rare: 2, epic: 3, legendary: 4, unique: 4,
+});
+const LOOT_FILTER_MINIMUM: Readonly<Record<LootFilterMode, number>> = Object.freeze({
+  off: -1, hideCommon: 1, hideBelowRare: 2, hideBelowEpic: 3,
+});
+
+/** True when the filter suppresses a drop's label, beam and silhouette. */
+export function lootFilterHides(tier: ItemTier, mode: LootFilterMode): boolean {
+  return LOOT_FILTER_TIER_RANK[tier] < LOOT_FILTER_MINIMUM[mode];
+}

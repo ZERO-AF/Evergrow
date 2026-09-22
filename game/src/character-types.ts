@@ -16,6 +16,14 @@ export type EquipmentSlot = 'weapon' | 'offhand' | 'head' | 'chest' | 'gloves' |
 export type ItemKind = Exclude<EquipmentSlot, 'offhand' | 'ring1' | 'ring2'> | 'ring' | 'shield' | 'grimoire' | 'orb' | 'relic' | 'charm' | 'riftKey' | 'consumable';
 export type ItemTier = 'common' | 'magic' | 'rare' | 'epic' | 'legendary' | 'unique';
 export interface ItemAffix { name: string; stat: StatKey; value: number; }
+export type SocketColor = 'red' | 'blue' | 'yellow';
+export interface ItemSocket {
+  color: SocketColor;
+  /** Socketed gem definition id (gem-content.ts); absent = empty socket. */
+  gem?: string;
+  /** The socketed gem's own item level; stats scale from it, not the host's. */
+  gemLevel?: number;
+}
 export interface ItemRecipe {
   riftKeyTier?: number;
   uniqueId?: string;
@@ -47,6 +55,8 @@ export interface Item {
   flavor?: string;
   /** Stack count for consumables (consumable-content.ts); absent = a single unit. */
   stack?: number;
+  /** Rolled sockets (gem-content.ts); absent = none. Socketed gems fold into implicit via deriveItem. */
+  sockets?: ItemSocket[];
   appearance: { surface?: GearMaterial; base: string; shadow: string; edge: string; trim: string; style: 'plate' | 'leather' | 'cloth' };
 }
 export type WowSkillId =

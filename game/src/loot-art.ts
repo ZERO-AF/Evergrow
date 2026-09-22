@@ -10,6 +10,7 @@ import { drawGearShapes } from './equipment-art.ts';
 import { polygon } from './art-primitives.ts';
 import { layoutLootLabels, groundLootName, fitLootName, LOOT_LABEL_STYLE } from './loot-label-layout.ts';
 import { groundLootVisibility, type GroundLootVisibility } from './ground-loot-hover.ts';
+import { lootFilterHides, type LootFilterMode } from './loot.ts';
 
 /** Separate silhouettes in a multi-item drop without changing pickup/save positions. */
 function lootPositions(drops: readonly GroundItem[]) {
@@ -24,11 +25,17 @@ function lootPositions(drops: readonly GroundItem[]) {
   })));
 }
 
-export function drawGroundLoot(c: CanvasRenderingContext2D, drops: readonly GroundItem[], time: number, reducedMotion = false, worldTime = time): void {
+export function drawGroundLoot(c: CanvasRenderingContext2D, drops: readonly GroundItem[], time: number, reducedMotion = false, worldTime = time, filter: LootFilterMode = 'off'): void {
   c.save();
   for (const { drop, x, y } of lootPositions(drops)) {
     if(drop.flight&&worldTime<drop.flight.at+drop.flight.delay)continue;
     const flight=treasurePose(drop,worldTime,reducedMotion);
+    // Filtered loot collapses to a faint marker once landed; the drop itself is untouched.
+    if(flight.landed&&lootFilterHides(drop.item.tier,filter)){
+      c.fillStyle=TIER_COLORS[drop.item.tier]+'3d';
+      c.beginPath();c.arc(x,y,2.2,0,Math.PI*2);c.fill();
+      continue;
+    }
     const color = TIER_COLORS[drop.item.tier];
     const precious = ['rare', 'epic', 'legendary','unique'].includes(drop.item.tier);
     c.fillStyle = '#040a10b0'; c.beginPath(); c.ellipse(flight.landed?x:flight.x, (flight.landed?y:flight.y) + 2, 12, 4, -.12, 0, Math.PI * 2); c.fill();
@@ -89,9 +96,11 @@ export function drawLootLabels(c: CanvasRenderingContext2D, drops: readonly Grou
   const { scale, nameSize, levelSize, maxWidth, charmMaxWidth } = LOOT_LABEL_STYLE;
   const measure = (value: string) => textWidth(value, nameSize);
   const positions = lootPositions(drops);
-  const labels = new Map(drops.map(drop => [drop.id, { drop, name: groundLootName(drop.item), greater: hasGreaterAffix(drop.item), inset: drop.item.kind === 'charm' ? 24 : 16,
+  // Filtered drops skip layout entirely so hidden plates never displace visible ones.
+  const shown = positions.filter(({ drop }) => !lootFilterHides(drop.item.tier, visibility.filter ?? 'off'));
+  const labels = new Map(shown.map(({ drop }) => [drop.id, { drop, name: groundLootName(drop.item), greater: hasGreaterAffix(drop.item), inset: drop.item.kind === 'charm' ? 24 : 16,
     level: `Lv ${drop.item.itemLevel}`, levelWidth: textWidth(`Lv ${drop.item.itemLevel}`, levelSize, 'interface') }]));
-  const anchors = positions.map(({ drop, x, y }) => {
+  const anchors = shown.map(({ drop, x, y }) => {
     const label = labels.get(drop.id)!;
     const screen = project(x, y);
     return { id: drop.id, x: screen.x / scale, y: screen.y / scale, width: Math.min(drop.item.kind === 'charm' ? charmMaxWidth : maxWidth, measure(label.name) + (label.greater ? 13 : 0) + label.levelWidth + label.inset + 18) };
@@ -99,6 +108,11 @@ export function drawLootLabels(c: CanvasRenderingContext2D, drops: readonly Grou
   const boxes = layoutLootLabels(anchors, width / scale, height / scale);
   const targets = groundLootVisibility(boxes.map(box => ({ id: box.id, x: box.left * scale, y: box.top * scale,
     width: box.width * scale, height: box.height * scale, anchorX: box.x * scale, anchorY: box.y * scale })), visibility);
+  // Zero-size plates keep filtered drops hoverable and pickupable without a drawn label.
+  for (const { drop, x, y } of positions) if (!labels.has(drop.id)) {
+    const screen = project(x, y);
+    targets.push({ id: drop.id, x: screen.x, y: screen.y, width: 0, height: 0, anchorX: screen.x, anchorY: screen.y, visible: false, filtered: true });
+  }
   const visibleIds = new Set(targets.filter(label => label.visible).map(label => label.id));
   c.save(); c.scale(scale, scale);
   for (const b of boxes) {

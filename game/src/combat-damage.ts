@@ -132,7 +132,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     enemy.knockbackX += Math.cos(angle) * shove / COMBAT_TIMING.knockbackDecay;
     enemy.knockbackY += Math.sin(angle) * shove / COMBAT_TIMING.knockbackDecay;
   }
-  context.emit({ ...(style ? { style } : {}), type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
+  context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'hit', actualValue, elementalValue:actualValue*elementFraction, melee, periodic, ...(offense?.skill?{skill:offense.skill}:{}), ...(reaction ? { reaction: reaction.type, color: reaction.color } : {}), x: enemy.x, y: enemy.y, angle, value: damage,
     targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, heavy: critical || !!reaction });
   // Legendary weapon procs roll on direct player hits only — never on periodic
   // ticks, ally strikes or proc-sourced damage (offense.proc guards recursion).
@@ -151,7 +151,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     }
     transitionEnemy(enemy, 'dead', ENCOUNTER_RULES.corpseDuration);
     context.killed(enemy);
-    context.emit({ ...(style ? { style } : {}), type: 'kill', x: enemy.x, y: enemy.y, angle, facing: enemy.angle,
+    context.emit({ ...(style ? { style } : {}), classId: context.player.character?.classId, type: 'kill', x: enemy.x, y: enemy.y, angle, facing: enemy.angle,
       targetId: enemy.id, remainingHp: 0, enemyKind: enemy.kind });
   } else if (definition.interruptible && melee) {
     applyStun(enemy, COMBAT_TIMING.staggerDuration, 'stagger');

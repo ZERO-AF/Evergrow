@@ -25,6 +25,8 @@ export interface EnemyPlateOptions {
   hitPulse?: number;
   time?: number;
   reducedMotion?: boolean;
+  /** Vertical shift in logical pixels, used to clear a stacked boss frame. */
+  offsetY?: number;
   /** Rogue/cat combo points on this target; undefined hides the pips. */
   comboPoints?: number;
 }
@@ -35,23 +37,23 @@ const compactNumber = new Intl.NumberFormat('en-US', { notation: 'compact', maxi
 const compact = (value: number) => value >= 10_000 ? compactNumber.format(value) : `${Math.ceil(value)}`;
 
 /** A centered target readout that shares the existing navigation and map space. */
-export function getEnemyPlateLayout(width: number, height: number, touch = false, topInset = 0, hasDebuffs = false, compactLandscape = false): { x: number; y: number; width: number; height: number } {
+export function getEnemyPlateLayout(width: number, height: number, touch = false, topInset = 0, hasDebuffs = false, compactLandscape = false, offsetY = 0): { x: number; y: number; width: number; height: number } {
   const plateHeight = hasDebuffs ? 114 : 70;
   width = Math.max(0, Number.isFinite(width) ? width : 0);
-  height = Math.max(0, Number.isFinite(height) ? height : 0);
+  offsetY = Math.max(0, Number.isFinite(offsetY) ? offsetY : 0);
   if (touch) {
     const plateWidth = Math.max(0, Math.min(240, width - 24));
     const safeTop = Math.max(8, (Number.isFinite(topInset) ? topInset : 0) + 6);
     // Normal mobile surfaces clear the top-left gold counter; tiny embedded
     // studies retain the compact fallback when there is no vertical room.
-    const y = height >= 134 ? Math.max(compactLandscape ? 32 : 64, safeTop) : safeTop;
+    const y = (height >= 134 ? Math.max(compactLandscape ? 32 : 64, safeTop) : safeTop) + offsetY;
     return {x: (width - plateWidth) / 2, y, width: plateWidth, height: plateWidth >= 160 && y + 70 <= height ? (y + plateHeight <= height ? plateHeight : 70) : 0};
   }
   const map = getMinimapRect(width, height);
   const besideMap = 2 * (map.x - 12 - width / 2);
   const belowMap = besideMap < 180;
   const plateWidth = Math.max(0, Math.min(270, width - 32, belowMap ? Infinity : besideMap));
-  const y = belowMap ? map.y + map.height + 8 : width < 720 ? 60 : 16;
+  const y = (belowMap ? map.y + map.height + 8 : width < 720 ? 60 : 16) + offsetY;
   const bottom = Math.min(height - 8, getHUDLayout(width, height).y - 8);
   // The actual game uses at least 450 logical pixels of height. If embedded in a
   // smaller surface, omit the plate when neither the map nor the HUD can move.
@@ -103,7 +105,7 @@ function bloodMotion(c: CanvasRenderingContext2D, x: number, y: number, width: n
 /** Native text and restrained metalwork, drawn after world post-processing. */
 export function drawEnemyPlate(c: CanvasRenderingContext2D, enemy: Pick<Enemy, 'kind' | 'hp' | 'maxHp' | 'level' | 'rank'> & EnemyDebuffState & Partial<Pick<Enemy,'lootSeed'|'rift'|'stateTime'|'stateDuration'>>,
   width: number, height: number, options: EnemyPlateOptions = {}): void {
-  const layout = getEnemyPlateLayout(width, height, options.touch, options.topInset, options.hasDebuffs, options.compactLandscape);
+  const layout = getEnemyPlateLayout(width, height, options.touch, options.topInset, options.hasDebuffs, options.compactLandscape, options.offsetY);
   const opacity = clamp(options.opacity ?? 1);
   if (!layout.height || opacity <= 0) return;
   const w = layout.width;

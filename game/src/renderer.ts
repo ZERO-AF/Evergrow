@@ -79,7 +79,7 @@ import type { PointLight } from './lighting.ts';
 import { CombatEffects } from './effects.ts';
 import { playerPose } from './character-pose.ts';
 import { drawProjectile, projectileLight } from './projectile-art.ts';
-import { castSchoolStyle, schoolCastAura } from './spell-school-art.ts';
+import { castSignature, classStyle, schoolCastAura } from './spell-school-art.ts';
 import { drawCastBars } from './cast-bar-art.ts';
 import { castBarSettings } from './cast-bar-settings.ts';
 import { drawCharacterStatus } from './status-art.ts';
@@ -91,7 +91,7 @@ import { SceneVisibility } from './scene-visibility.ts';
 import { isGameUIPoint, type UIRect } from './ui-hit-test.ts';
 import type { GamePhase } from './game-phase.ts';
 import { COMBAT_TIMING, PLAYER_ABILITIES, PLAYER_MOVEMENT } from './combat-content.ts';
-import { CAMERA_FOLLOW, CameraZoom, cameraFollowTarget, cameraSpawnExclusion,
+import { CAMERA_FOLLOW, CameraShake, CameraZoom, cameraFollowTarget, cameraSpawnExclusion,
   cameraView, screenToWorld, worldToScreen } from './camera.ts';
 import { EnemyFocus } from './enemy-focus.ts';
 import { BattleBarkScene } from './battle-bark-scene.ts';
@@ -102,11 +102,13 @@ import { resolveRangedAim, resolveDirectionalAim, PROJECTILE_HEIGHT, type Ranged
 import { deriveAttackStats } from './equipment.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { drawEnemyPlate, getEnemyPlateLayout } from './enemy-plate.ts';
+import { bossFrameEligible, bossFrameTargets, drawBossFrame, getBossFrameLayout, BOSS_FRAME } from './boss-frame.ts';
 import { drawSiteGround, drawSiteDecor, wildernessLights } from './wilderness-art.ts';
 import { VfxPack, drawCastTargetDecal } from './vfx-pack.ts';
 import { BossWarnings } from './boss-warnings.ts';
 import { drawBossWarnings } from './boss-warning-art.ts';
 import { lootBeamAnchors, lootBeamLights, type LootBeamAnchor } from './loot-beam.ts';
+import type { LootFilterMode } from './loot.ts';
 import { drawLootBeams } from './loot-beam-art.ts';
 import { MOUNTS } from './mount-content.ts';
 import { drawMount, mountPose, MOUNT_SEAT_HEIGHT } from './mount-art.ts';
@@ -140,6 +142,8 @@ interface Ghost { x: number; y: number; angle: number; gait: number; life: numbe
 export interface RenderSettings {
   liveMap?: boolean;
   showGroundLootNames?: boolean;
+  /** Effective loot filter ('off' while the reveal key is held). Display-only. */
+  lootFilter?: LootFilterMode;
   /** Save-free scene tools can animate presentation without following the player. */
   fixedCamera?: boolean;
   reducedMotion: boolean;
@@ -181,10 +185,13 @@ export class Renderer {
   /** Logical units per CSS pixel, supplied by the runtime viewport on resize. */
   cursorPixelScale = { x: 1, y: 1 };
   inspectedEnemyId: number | null = null;
-  shake = 0;
+  /** Ambient shake amplitude in screen pixels (observable; owned by CameraShake). */
+  get shake() { return this.cameraShake.shake; }
   hurt = 0;
-  private kickX = 0;
-  private kickY = 0;
+  /** Remaining render-only hit-stop in seconds; decays with real frame time and
+   * dilates only presentation clocks — the 120 Hz simulation is untouched. */
+  hitStop = 0;
+  private cameraShake = new CameraShake();
   private cameraZoom = new CameraZoom();
   private view = cameraView(this.width, this.height, 0, 0, 1);
   private lastDisplayedView = this.view;
@@ -341,7 +348,7 @@ export class Renderer {
     this.riftAtmosphere.reset(); this.groundLayer.reset(); this.groundDressing.reset(); this.biomeLife.reset(); this.occlusion.clear(); this.visualTime = 0;
     this.settlementArt.reset(); this.indoorBlend = 0; this.residents=[]; this.residentSpeech=null; this.residentCooldown=0;
     this.materials.reset(); this.deaths.reset(); resetDeathArt(); this.ghosts = []; this.ghostTimer = 0;
-    this.hurt = 0; this.shake = 0; this.kickX = this.kickY = 0;
+    this.hurt = 0; this.hitStop = 0; this.cameraShake.reset();
     this.damageTrails.clear(); this.playerHealthTrail = 100; this.playerHealthHold = 0;
     this.rewards.reset(); this.experienceFeedback.reset(); this.experienceDisplay = undefined;
     this.enemyFocus.reset(); this.focusedEnemy = this.plateEnemy = null; this.plateOpacity = 0;
@@ -368,11 +375,17 @@ export class Renderer {
         this.playerHealthHold = .22;
         this.playerHealthTrail = Math.max(this.playerHealthTrail, e.remainingHp + e.value);
       }
-      if (!reducedMotion && (e.type === 'hit' || e.type === 'hurt' || e.type === 'kill')) {
-        const strength = e.type === 'hurt' ? 5 : e.type === 'kill' ? 2 : 2.6;
-        this.kickX = Math.max(-6, Math.min(6, this.kickX - Math.cos(e.angle) * strength));
-        this.kickY = Math.max(-5, Math.min(5, this.kickY - Math.sin(e.angle) * strength * .7));
-        this.shake = Math.max(this.shake, e.type === 'hurt' ? 1.6 : .65);
+      // Combat juice: magnitude-scaled shake, directional kick and hit-stop.
+      // Presentation only — the flag gates the whole layer, reduced motion
+      // suppresses every displacement and freeze.
+      if (GAME_FEATURES.combatJuice && !reducedMotion && (e.type === 'hit' || e.type === 'hurt' || e.type === 'kill')) {
+        const magnitude = e.type === 'kill' ? 1.2 : Math.min(1.6, .45 + e.value / 60);
+        const heavy = 'heavy' in e && e.heavy;
+        this.cameraShake.impact(e.angle,
+          (e.type === 'hurt' ? 5 : e.type === 'kill' ? 2 : 2.6) * magnitude,
+          (e.type === 'hurt' ? 1.6 : e.type === 'kill' ? .95 : .65) * (heavy ? 1.5 : 1) * magnitude);
+        if (e.type === 'kill' || heavy)
+          this.hitStop = Math.max(this.hitStop, e.type === 'kill' ? .06 : .045);
       }
       this.materials.handle(e); this.deaths.handle(e);
     }
@@ -388,7 +401,12 @@ export class Renderer {
     this.cryptFloor=sim.dungeonFloor?.rift?null:sim.dungeonFloor;
     const setupStart = this.profiler?.start() ?? 0;
     const c = this.ctx, p = sim.player, active = settings.phase === 'playing' || settings.phase === 'map' && settings.liveMap === true;
-    const step = active ? dt : 0, alpha = sim.interpolationAlpha;
+    // Hit-stop lives entirely in this layer: the timer decays on real frame
+    // time while every presentation clock below runs on the dilated delta.
+    this.hitStop = Math.max(0, this.hitStop - dt);
+    const dilation = this.hitStop > 0 ? .18 : 1;
+    dt *= dilation;
+    const step = active ? dt : 0, alpha = sim.interpolationAlpha * dilation;
     const feedbackStep = active || settings.phase === 'dead' ? dt : 0;
     this.worldEventCard.update(this.cryptFloor ? null : worldEventProgress(worldEventsOf(sim), sim.time), feedbackStep, settings.reducedMotion);
     this.eventProgressPresentation.update(this.cryptFloor ? null : eventProgress(sim.eventState), feedbackStep, settings.reducedMotion);
@@ -405,8 +423,7 @@ export class Renderer {
     if (GAME_FEATURES.bossWarnings) this.bossWarnings.update(sim.enemies, this.visualTime);
 
     this.portalAnchors = world.getSettlements(this.view.left - 100, this.view.top - 100, this.view.width + 200, this.view.height + 200).map(townPortalAnchor);
-    this.shake *= Math.exp(-dt * 22); this.hurt *= Math.exp(-dt * 5);
-    this.kickX *= Math.exp(-dt * 18); this.kickY *= Math.exp(-dt * 18);
+    this.cameraShake.update(dt); this.hurt *= Math.exp(-dt * 5);
     this.playerHealthHold -= feedbackStep;
     this.playerHealthTrail = Math.max(p.hp, this.playerHealthTrail);
     if (this.playerHealthHold <= 0) this.playerHealthTrail += (p.hp - this.playerHealthTrail) * (1 - Math.exp(-feedbackStep * 7));
@@ -434,11 +451,10 @@ export class Renderer {
       this.ghosts.push({ x: px, y: py, angle: p.angle, gait: p.walkTime, life: .19 });
     }
 
-    const shake = settings.reducedMotion ? 0 : this.shake;
     const zoom = this.cameraZoom.update(step, settings.reducedMotion);
+    const shakeOffset = this.cameraShake.offset(this.visualTime, settings.reducedMotion);
     this.view = cameraView(this.width, this.height, this.cameraX, this.cameraY, zoom,
-      (settings.reducedMotion ? 0 : this.kickX) + Math.sin(this.visualTime * 103) * shake,
-      (settings.reducedMotion ? 0 : this.kickY) + Math.cos(this.visualTime * 127) * shake * .7);
+      shakeOffset.x, shakeOffset.y);
     this.lastDisplayedView = this.view;
     const { offsetX, offsetY, left, top, width: worldWidth, height: worldHeight } = this.view;
     this.focusedEnemy = this.enemyFocus.update(sim.enemies, this.view,
@@ -454,7 +470,7 @@ export class Renderer {
       if (this.plateOpacity < .01) this.plateEnemy = null;
     }
     this.visibility.update(world, this.view);
-    this.lootBeams = GAME_FEATURES.lootBeams ? lootBeamAnchors(sim.groundItems, sim.time, settings.reducedMotion) : [];
+    this.lootBeams = GAME_FEATURES.lootBeams ? lootBeamAnchors(sim.groundItems, sim.time, settings.reducedMotion, settings.lootFilter ?? 'off') : [];
     this.gatherNodes = this.cryptFloor ? [] : gatherNodesIn(world, p, sim.time, left, top, worldWidth, worldHeight);
     this.focusedGatherNode = this.gatherNodes.length
       ? focusGatherNode(world, p, sim.time, p,
@@ -648,7 +664,7 @@ export class Renderer {
     drawGroundGold(c, sim.groundGold, this.visualTime, settings.reducedMotion);
     drawLevelCelebration(c, this.rewards.level, px, py, settings.reducedMotion);
     if(!this.cryptFloor)drawEventObjectives(c,sim.eventState,settings.reducedMotion?0:this.visualTime);
-    drawGroundLoot(c, sim.groundItems, this.visualTime, settings.reducedMotion, sim.time);
+    drawGroundLoot(c, sim.groundItems, this.visualTime, settings.reducedMotion, sim.time, settings.lootFilter ?? 'off');
     drawLootBeams(c, this.lootBeams, this.visualTime, settings.reducedMotion);
     this.effects.drawSword(c);
     for (const effect of sim.groundEffects) {
@@ -690,7 +706,7 @@ export class Renderer {
     this.groundLootLabels = drawLootLabels(c, sim.groundItems.filter(d=>!d.flight||sim.time>=d.flight.at+d.flight.delay+1.05),
       (x, y) => worldToScreen(this.view, x, y), this.width, this.height,
       { showAll: settings.showGroundLootNames !== false, pointer: lootPointer, retainedId,
-        selectedId: settings.phase === 'playing' ? sim.groundPickup.id : null });
+        selectedId: settings.phase === 'playing' ? sim.groundPickup.id : null, filter: settings.lootFilter ?? 'off' });
     const lootBounds = this.groundLootLabels.filter(label => label.visible !== false);
     const phone = this.touchActive && this.touchViewport ? phoneLandscapeLayout(this.touchViewport) : null;
     const unit = this.touchViewport ? this.width / this.touchViewport.width : 1;
@@ -726,12 +742,18 @@ export class Renderer {
     const plateScale = phone ? .72*unit : 1;
     const plateWidth=this.width/plateScale, plateHeight=this.height/plateScale;
     const plateInset=this.touchTopInset/plateScale;
-    const boss=sim.enemies.find(e=>isBossKind(e.kind)&&e.hp>0&&e.state!=='return'&&Math.hypot(e.x-p.x,e.y-p.y)<(isWildernessBoss(e.kind)?650:1100));
-    const target = (this.plateOpacity > .01 ? this.plateEnemy : null) ?? boss;
+    const bossTargets = bossFrameTargets(sim.enemies, p, this.focusedEnemy?.id ?? null);
+    const bossLayouts = bossTargets.map((enemy, slot) => ({ enemy,
+      layout: getBossFrameLayout(plateWidth, plateHeight, { slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset }) }))
+      .filter(frame => frame.layout.height > 0);
+    const bossStack = bossLayouts.length ? bossLayouts[bossLayouts.length - 1].layout.y + bossLayouts[bossLayouts.length - 1].layout.height - bossLayouts[0].layout.y : 0;
+    const target = (this.plateOpacity > .01 && this.plateEnemy && !bossFrameEligible(this.plateEnemy) ? this.plateEnemy : null) ?? bossTargets[0] ?? null;
+    const targetFramed = !!target && bossLayouts.some(frame => frame.enemy.id === target.id);
     const debuffs = target ? [...enemyTraitBuffs(target),...enemyDebuffs(target, p)] : [];
-    const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone);
+    const plateOffset = target && !targetFramed ? bossStack + (bossStack ? BOSS_FRAME.gap : 0) : 0;
+    const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone, plateOffset);
     // Visible plates own this space, including their death fade. Dismiss without replaying after focus ends.
-    if(settings.phase==='playing'&&target&&targetPlate.height>0)this.areaBanner.clear();
+    if(settings.phase==='playing'&&(bossLayouts.length>0||target&&targetPlate.height>0))this.areaBanner.clear();
     if(settings.phase==='playing'&&!p.dead&&!this.rewards.level&&!this.rewards.journey) {
       // Use display pixels for banner sizing, independent of world resolution and zoom.
       const scale=this.cursorPixelScale;
@@ -741,22 +763,33 @@ export class Renderer {
     }
     c.save();
     if(phone) c.scale(plateScale,plateScale);
-    this.targetEffects = target && target.hp > 0 && targetPlate.height > 70 && debuffs.length && settings.phase === 'playing'
+    // Boss/elite frames draw their own status icons; the DOM strip stays with the small plate.
+    this.targetEffects = target && !targetFramed && target.hp > 0 && targetPlate.height > 70 && debuffs.length && settings.phase === 'playing'
       ? { id: target.id, buffs: debuffs, x: (targetPlate.x + targetPlate.width / 2) * plateScale / this.width,
-        y: (targetPlate.y + 76) * plateScale / this.height, opacity: boss ? 1 : this.plateOpacity } : null;
-    if (target) drawEnemyPlate(c, target, plateWidth, plateHeight, {
-      hasDebuffs: debuffs.length > 0, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset,
-      name: target === boss ? (raidBossName(target) ?? raid2BossName(target) ?? raid3BossName(target) ?? raid4BossName(target) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
+        y: (targetPlate.y + 76) * plateScale / this.height, opacity: this.plateOpacity } : null;
+    if (target && !targetFramed) drawEnemyPlate(c, target, plateWidth, plateHeight, {
+      hasDebuffs: debuffs.length > 0, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset, offsetY: plateOffset,
       time: this.visualTime, reducedMotion: settings.reducedMotion,
-      opacity: target === boss ? 1 : this.plateOpacity,
+      opacity: this.plateOpacity,
       hitPulse: settings.reducedMotion ? 0 : Math.min(1, target.hitFlash / COMBAT_TIMING.hitFlashDuration),
       comboPoints: p.comboPoints,
     });
-    if (boss) {
-      const plate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone);
-      if (plate.height && this.focusedEnemy?.id === boss.id) text(c, 'CONTROL DURATION −75% · BRIEF STUN IMMUNITY',
-        plateWidth / 2, plate.y + plate.height + 4, .7, '#9db8a7', 'center');
+    for (let slot = 0; slot < bossLayouts.length; slot++) {
+      const frameEnemy = bossLayouts[slot].enemy;
+      const framed = frameEnemy === target;
+      drawBossFrame(c, frameEnemy, plateWidth, plateHeight, {
+        slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset,
+        name: isBossKind(frameEnemy.kind) ? (raidBossName(frameEnemy) ?? raid2BossName(frameEnemy) ?? raid3BossName(frameEnemy) ?? raid4BossName(frameEnemy) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
+        debuffs: framed ? debuffs : [...enemyTraitBuffs(frameEnemy),...enemyDebuffs(frameEnemy, p)],
+        time: this.visualTime, reducedMotion: settings.reducedMotion,
+        hitPulse: settings.reducedMotion ? 0 : Math.min(1, frameEnemy.hitFlash / COMBAT_TIMING.hitFlashDuration),
+        comboPoints: framed ? p.comboPoints : undefined,
+      });
     }
+    const primaryBoss = bossLayouts.find(frame => isBossKind(frame.enemy.kind));
+    if (primaryBoss && this.focusedEnemy?.id === primaryBoss.enemy.id)
+      text(c, 'CONTROL DURATION −75% · BRIEF STUN IMMUNITY',
+        plateWidth / 2, primaryBoss.layout.y + primaryBoss.layout.height + 4, .7, '#9db8a7', 'center');
     if (settings.phase === 'playing' && !this.cryptFloor) {
       const view = this.view;
       for (const marker of questMarkers(world, p, view.left, view.top, view.width, view.height, sim.time)) {
@@ -1041,12 +1074,13 @@ export class Renderer {
         this.actor(px, py - MOUNT_SEAT_HEIGHT, { ...pose, gaitPhase: 0, moving: 0 });
       } else this.actor(px, py, pose);
       drawPlayerSkillEffects(c,p,px,py,settings.reducedMotion?0:sim.time,pose,settings.reducedMotion);
-      // School aura at the weapon tip while a cast or channel is in progress.
+      // School aura at the weapon tip while a cast or channel is in progress,
+      // accented with the caster's class signature (rune ring + tinted glow).
       const castSkill = p.cast?.skill ?? (p.castTime > 0 ? p.activeSkill : null);
-      const castStyle = castSkill ? castSchoolStyle(p, castSkill) : null;
-      if (GAME_FEATURES.spellVfx && castStyle) {
+      const cast = castSkill ? castSignature(p, castSkill) : null;
+      if (GAME_FEATURES.spellVfx && cast) {
         const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
-        schoolCastAura(c, px + tip.x, (mount ? py - MOUNT_SEAT_HEIGHT : py) + tip.y, castStyle, this.visualTime, 1, settings.reducedMotion);
+        schoolCastAura(c, px + tip.x, (mount ? py - MOUNT_SEAT_HEIGHT : py) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
       }
     } });
     for(const scar of this.riftAtmosphere.visible)if(scar.float)entries.push({y:scar.y,stage:'props',draw:()=>this.riftAtmosphere.drawFragment(c,scar)});
@@ -1177,7 +1211,7 @@ export class Renderer {
     for (const shot of sim.projectiles) {
       const { x, y } = projectilePresentation(shot, alpha);
       drawProjectile(c, shot, x, y, reducedMotion ? 0 : this.visualTime, reducedMotion);
-      if (GAME_FEATURES.spellVfx && shot.effects?.style) schoolCastAura(c, x, y, shot.effects.style, this.visualTime, .6, reducedMotion);
+      if (GAME_FEATURES.spellVfx && shot.effects?.style) schoolCastAura(c, x, y, shot.effects.style, this.visualTime, .6, reducedMotion, shot.owner === 'player' ? classStyle(sim.player.character?.classId) : null);
     }
   }
 

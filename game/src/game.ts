@@ -10,6 +10,7 @@ import { activeBuffs } from './active-buffs.ts';
 import { ExpeditionPanel } from './expedition-panel.ts';
 import { executeDropItem, type DropItemSource } from './drop-item-command.ts';
 import { hoveredGroundLoot, showGroundLootNames, type GroundLootNameplates } from './ground-loot-hover.ts';
+import type { LootFilterMode } from './loot.ts';
 import { startDungeonEvent } from './dungeon-events.ts';
 import { encounterScaleAt } from './encounter-scaling.ts';
 import { MUSIC_FILES } from './music-content.ts';
@@ -214,6 +215,7 @@ export class Game {
   get phase(): GamePhase { return this.panels?.phase ?? 'ready'; }
   private muted = false;
   private groundLootNames: GroundLootNameplates = 'always';
+  private lootFilter: LootFilterMode = 'off';
   private nextScore = 0;
   private audioPhase: GamePhase = 'ready';
   private nativeBackground = false;
@@ -288,6 +290,8 @@ export class Game {
         homePortal: () => { if (this.shouldShowHomePortal()) this.requestPortal(); },
         groundLootNames: () => this.groundLootNames,
         setGroundLootNames: mode => { this.groundLootNames = mode; this.savePreferences(); },
+        lootFilter: () => this.lootFilter,
+        setLootFilter: mode => { this.lootFilter = mode; this.savePreferences(); },
         volume: channel => this.audio.getVolumes()[channel], setVolume: (channel, value) => this.setAudioVolume(channel, value), panelSound: open => this.audio.panel(open),
         sound: () => this.toggleSound(), muted: () => this.muted, zoom: factor => this.renderer.zoomByWheel(-Math.log(factor)/.0016,0,this.canvas.getBoundingClientRect().height),
         lastSavedAt: () => this.session?.active?.record.updatedAt,
@@ -579,6 +583,7 @@ export class Game {
         const saved = JSON.parse(localStorage.getItem('evergrow-preferences') ?? 'null');
         if (typeof saved?.muted === 'boolean') this.muted = saved.muted;
         if (saved?.groundLootNames === 'ctrl') this.groundLootNames = 'ctrl';
+        if (saved?.lootFilter === 'hideCommon' || saved?.lootFilter === 'hideBelowRare' || saved?.lootFilter === 'hideBelowEpic') this.lootFilter = saved.lootFilter;
         for (const channel of ['master', 'sfx', 'music'] as const) this.audio.setVolume(channel, audioVolume(saved?.[channel], DEFAULT_AUDIO[channel]));
       } catch { /* Preferences are optional when storage is disabled. */ }
       // Presentation is fixed and motion follows the OS.
@@ -1916,6 +1921,8 @@ export class Game {
     const settings = {
       liveMap: this.panels.mapHeld,
       showGroundLootNames: showGroundLootNames(this.groundLootNames, controls.has('revealLoot'), this.input.held('revealLoot'), this.touch.active || this.usingGamepad),
+      // Holding the reveal key bypasses the loot filter, standard ARPG behavior.
+      lootFilter: GAME_FEATURES.lootFilter && !this.input.held('revealLoot') ? this.lootFilter : 'off',
       reducedMotion: this.reducedMotion, phase: this.phase,
     };
     if (this.phase === 'ready') {
@@ -2147,7 +2154,7 @@ export class Game {
     this.audio.setVolume(channel, value); this.savePreferences();
   }
   private savePreferences() {
-    try { localStorage.setItem('evergrow-preferences', JSON.stringify({ muted: this.muted, groundLootNames: this.groundLootNames, ...this.audio.getVolumes() })); } catch { /* Storage may be disabled. */ }
+    try { localStorage.setItem('evergrow-preferences', JSON.stringify({ muted: this.muted, groundLootNames: this.groundLootNames, lootFilter: this.lootFilter, ...this.audio.getVolumes() })); } catch { /* Storage may be disabled. */ }
   }
 
   private notify(message: string) {

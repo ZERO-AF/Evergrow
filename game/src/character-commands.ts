@@ -9,6 +9,7 @@ import { allocateSkillRoute } from './skill-tree-routes.ts';
 import { assignSkill, refreshCharacter } from './character.ts';
 import { refreshBuffStats } from './player-skill-effects.ts';
 import { equipBest, sortInventory, sortStorage, type InventorySort, type EquipBestChoice } from './inventory-tools.ts';
+import { socketGem, unsocketGem, type SocketTarget } from './gem-command.ts';
 
 export type CharacterCommand =
   | { type: 'chooseDoctrine'; id: string }
@@ -24,6 +25,8 @@ export type CharacterCommand =
   | { type: 'moveItem'; from: number; to: number }
   | { type: 'allocateAttribute'; attribute: Attribute }
   | { type: 'allocateNode'; id: string }
+  | { type: 'socketGem'; gemIndex: number; target: SocketTarget; socketIndex: number }
+  | { type: 'unsocketGem'; target: SocketTarget; socketIndex: number }
   | { type: 'assignSkill'; slot: number; skill: SkillId | null };
 
 /** The runtime mutation boundary owns validation, commit and projection refresh.
@@ -47,6 +50,8 @@ export function executeCharacterCommand(player: Player, command: CharacterComman
     case 'moveItem': result = moveInventoryItem(player.character, command.from, command.to); break;
     case 'allocateAttribute': result = allocateAttribute(player.character, command.attribute); break;
     case 'allocateNode': result = allocateSkillRoute(player.character, command.id); break;
+    case 'socketGem': result = socketGem(player.character, command.gemIndex, command.target, command.socketIndex); break;
+    case 'unsocketGem': result = unsocketGem(player.character, command.target, command.socketIndex); break;
     case 'assignSkill': result = assignSkill(player, command.slot, command.skill); break;
     default: {
       const unhandled: never = command;

@@ -6,7 +6,7 @@ import type { CharacterSheet, DerivedCharacterStats, SkillId, Item } from './cha
 import type { BiomeId } from './biomes.ts';
 import type { EnemyCamp } from './wilderness-sites.ts';
 import type { EnemyRank } from './progression-content.ts';
-import type { CcKind } from './wow-types.ts';
+import type { CcKind, WowClassId } from './wow-types.ts';
 import type { FactionTag } from './factions.ts';
 
 export interface WorldQuery {
@@ -535,6 +535,8 @@ export interface Pickup {
 interface EventAppearance {
   readonly x: number; readonly y: number;
   readonly color?: string; readonly style?: ProjectileStyle; readonly skill?: SkillId;
+  /** Attacking player's class; presentation layers tint school VFX with it. */
+  readonly classId?: WowClassId;
   readonly reaction?: 'melt' | 'overload' | 'superconduct' | 'singularity' | 'combustion' | 'cascade';
 }
 export type CombatEvent = EventAppearance & (

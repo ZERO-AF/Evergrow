@@ -203,6 +203,9 @@ export const ENEMY_AI_RULES = Object.freeze({
 
 export const LOOT_RULES = Object.freeze({
   maxGroundItems: 1024, equipmentCollectDistance: 30,
+  // Diablo-style vacuum: landed equipment within reach glides to the player and
+  // collects on contact through the same award path as a click pickup.
+  equipmentMagnetDistance: 90, equipmentMagnetSpeed: 150,
   maxPickups: 32, life: 20, radius: 4, healthEveryKills: 3, healthFraction: .12, manaFraction: MANA_RULES.vialMaxFraction,
   collectDistance: 18, magnetDistance: 55, magnetSpeed: 100,
 });

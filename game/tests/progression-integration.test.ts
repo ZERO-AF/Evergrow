@@ -12,6 +12,11 @@ import { sampleBiome } from '../src/biomes.ts';
 import { LOOT_RULES, PLAYER_ABILITIES } from '../src/combat-content.ts';
 import type { Enemy, Input, Projectile, WorldQuery } from '../src/model.ts';
 import type { WowClassId, WowRaceId } from '../src/wow-types.ts';
+import { GAME_FEATURES } from '../src/game-features.ts';
+
+// These tests assert loot identity/persistence on the ground; the Diablo loot
+// vacuum would auto-collect the drops, so it is disabled for this file.
+GAME_FEATURES.lootVacuum = false;
 
 const world: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
