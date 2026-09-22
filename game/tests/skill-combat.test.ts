@@ -69,7 +69,10 @@ test('all skill requirements admit the intended weapon families and reject incom
     assert.ok(skillRequirementLabel(skill.requirement).length > 2);
     for (const weapon of WEAPON_PROFILES) {
       const equipment: Equipment = { mainHand: weapon, offHand: null };
-      assert.equal(canUseSkill(skill.id, equipment), families[skill.requirement].includes(weapon.family), `${skill.id} with ${weapon.name}`);
+      // Class spells (classId set) cast from any equippable weapon; class-free
+      // 'magic' weapon skills still require a bolt weapon (staff/wand).
+      const expected = skill.requirement === 'magic' && skill.classId !== undefined ? true : families[skill.requirement].includes(weapon.family);
+      assert.equal(canUseSkill(skill.id, equipment), expected, `${skill.id} with ${weapon.name}`);
       equipment.offHand = { kind: 'shield', shield: SHIELD_PROFILES[0] };
       if (skill.requirement === 'shield') assert.equal(canUseSkill(skill.id, equipment), weapon.hands === 1);
     }
@@ -87,10 +90,11 @@ test('dual wield admits a matching off-hand skill and uses that hand rather than
   h.player.equipment.mainHand = WEAPON_PROFILES.find(weapon => weapon.family === 'sword' && weapon.hands === 2)!;
   assert.equal(skillWeapon('backstab', h.player.equipment), null, 'invalid two-handed dual wield cannot borrow an off-hand');
 });
-
 test('incompatible weapons reject every active skill before consuming resources or emitting effects', () => {
   for (const skill of Object.values(SKILL_DEFINITIONS).filter(s=>s.tier!=='aura')) {
     if(skill.requirement==='any')continue;
+    // Class spells cast from any equippable weapon — they have no incompatible profile.
+    if(skill.requirement==='magic'&&skill.classId!==undefined)continue;
     const h = harness(skill.id);
     h.player.equipment = { mainHand: WEAPON_PROFILES.find(weapon => !families[skill.requirement].includes(weapon.family))!, offHand: null };
     const before = h.player.mana;

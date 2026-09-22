@@ -6,6 +6,7 @@ import { SKILL_TREE_VERSION } from '../src/skill-tree.ts';
 import { ATLAS_V2_NODE_IDS, ATLAS_V2_EDGES } from '../src/skill-tree-v2.ts';
 import { BAR_TOTAL } from '../src/action-bar.ts';
 import { WOW_CLASSES } from '../src/wow-classes.ts';
+import type { SkillId } from '../src/character-types.ts';
 
 const graph = ATLAS_V2_NODE_IDS.map(() => [] as number[]);
 for (const [a, b] of ATLAS_V2_EDGES) { graph[a].push(b); graph[b].push(a); }
@@ -42,8 +43,9 @@ test('the published version-two atlas refunds its exact points and preserves all
   const original = v2Save(), bytes = JSON.stringify(original), upgraded = decodeCharacterSave(bytes);
   assert.ok(upgraded);
   const expected = structuredClone(original), sheet = expected.checkpoint.character;
+  const slots: (SkillId | null)[] = Array.from({ length: BAR_TOTAL }, () => null); slots[0] = WOW_CLASSES[sheet.classId].starterSkill;
   Object.assign(sheet, { treeVersion: SKILL_TREE_VERSION, treeRefunded: true, skillPoints: 99, allocatedNodes: ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`],
-    skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, skillSlots: Array.from({ length: BAR_TOTAL }, () => null), arcaneOverload: false });
+    skillRanks: {}, activeSkillRanks: {}, skillSpecializations: {}, skillSlots: slots, arcaneOverload: false });
   expected.checkpoint.skillCooldowns = {};
   assert.deepEqual(upgraded, expected);
   assert.equal(JSON.stringify(original), bytes, 'reading never mutates the source record');

@@ -350,17 +350,30 @@ export function createCharacterSheet(classId: WowClassId = 'warrior', raceId: Wo
   if (!isWowRaceId(raceId)) throw new RangeError(`Unknown race: ${raceId}`);
   const equipped = Object.fromEntries(EQUIPMENT_SLOTS.map(slot => [slot, null])) as CharacterSheet['equipped'];
   const starterPieces: readonly [EquipmentSlot, number][] = [['head', 31], ['chest', 17], ['gloves', 23], ['legs', 59], ['boots', 11], ['cloak', 71]];
+  // Armor proficiency: cloth classes wear cloth starters so they can re-equip them.
+  const armorStyle = WOW_CLASSES[classId].armorStyle;
   for (const [slot, seed] of starterPieces) {
-    const item = generateItem(seed, 1, slot as ItemKind, undefined, 'common', slot === 'cloak' ? 'cloth' : 'leather');
+    const material: ItemMaterialId = slot === 'cloak' ? 'cloth' : armorStyle === 'plate' ? 'iron' : armorStyle;
+    const item = generateItem(seed, 1, slot as ItemKind, undefined, 'common', material);
+    // Starter armor is an ordinary unspecified base (scale 1); the class palette/style below carries the look.
+    delete item.recipe.materialId;
     const wornNames: Partial<Record<EquipmentSlot, string>> = { head: 'Leather Hood', chest: 'Leather Jerkin',
       gloves: 'Leather Gloves', legs: 'Leather Trousers', boots: 'Leather Boots', cloak: 'Travel Cloak' };
-    item.baseName = wornNames[slot]!;
+    const clothNames: Partial<Record<EquipmentSlot, string>> = { head: 'Cloth Hood', chest: 'Cloth Robe',
+      gloves: 'Cloth Gloves', legs: 'Cloth Pants', boots: 'Cloth Shoes', cloak: 'Travel Cloak' };
+    const plateNames: Partial<Record<EquipmentSlot, string>> = { head: 'Plate Helm', chest: 'Plate Cuirass',
+      gloves: 'Plate Gauntlets', legs: 'Plate Greaves', boots: 'Plate Sabatons', cloak: 'Travel Cloak' };
+    const names = armorStyle === 'cloth' ? clothNames : armorStyle === 'plate' ? plateNames : wornNames;
+    item.baseName = names[slot]!;
     item.id = `starter-${slot}`; item.name = `Worn ${item.baseName}`;
     item.tier = 'common'; item.implicit = {}; item.affixes = []; item.power = 1;
     item.recipe = { ...item.recipe, starter: true, rolls: [] };
-    item.appearance = { base: '#655345', shadow: '#2c2826', edge: '#ac9470', trim: '#9e8156', style: 'leather' };
-    if (slot === 'boots') item.appearance = { base: '#5c4c41', shadow: '#292b30', edge: '#a79873', trim: '#b18b58', style: 'leather' };
-    if (slot === 'cloak') item.appearance = { base: '#555e50', shadow: '#292f2d', edge: '#89937c', trim: '#a28c64', style: 'leather' };
+    const palettes = { cloth: { base: '#4a4a5e', shadow: '#23232e', edge: '#8a8aa0', trim: '#7a7a92' },
+      leather: { base: '#655345', shadow: '#2c2826', edge: '#ac9470', trim: '#9e8156' },
+      plate: { base: '#5a5f6b', shadow: '#26282e', edge: '#9aa0ae', trim: '#8a8f9c' } } as const;
+    item.appearance = { ...palettes[armorStyle], style: armorStyle };
+    if (slot === 'boots') item.appearance = { ...item.appearance, base: armorStyle === 'cloth' ? '#45455a' : armorStyle === 'plate' ? '#525762' : '#5c4c41' };
+    if (slot === 'cloak') item.appearance = { base: '#555e50', shadow: '#292f2d', edge: '#89937c', trim: '#a28c64', style: 'cloth' };
     equipped[slot] = item;
   }
   const starter = WOW_CLASSES[classId].starter;

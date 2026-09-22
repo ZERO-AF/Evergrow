@@ -148,8 +148,8 @@ export const HUNTER_SKILLS: readonly WowSkill[] = Object.freeze([
     manaCost: 20, cooldown: 20, damageMultiplier: 0.5, color: H, targetMode: 'enemy', range: 490,
     description: 'A shot that interrupts spellcasting and silences your target for 3 seconds.',
     execution: { kind: 'interrupt', silence: 3 } },
-  { id: 'readiness', name: 'Readiness', classId: 'hunter', requirement: 'any', domain: 'Cunning', tier: 'ultimate',
+  { id: 'readiness', name: 'Focus', classId: 'hunter', requirement: 'any', domain: 'Cunning', tier: 'ultimate',
     manaCost: 0, cooldown: 180, damageMultiplier: 0, color: H, targetMode: 'self', offGcd: true,
-    description: 'Instantly ready your abilities, restoring your focus for 5 seconds.',
+    description: 'Steady your focus, restoring 10 mana per second for 5 seconds.',
     execution: { kind: 'buff', buff: { duration: 5, resourcePerSecond: 10 } } },
 ]);

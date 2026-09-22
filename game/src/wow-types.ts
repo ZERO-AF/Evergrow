@@ -153,6 +153,8 @@ export interface HotSpec {
 }
 
 export type CcKind = 'root' | 'fear' | 'incapacitate' | 'polymorph' | 'silence' | 'stun' | 'freeze' | 'slow';
+/** Creature family for family-gated control (Banish, Shackle Undead, Enslave Demon). */
+export type CreatureFamily = 'beast' | 'humanoid' | 'undead' | 'demon' | 'elemental' | 'dragonkin' | 'critter';
 
 /** Player buff entry (stances, seals, aspects, forms, shields, haste…). */
 export interface BuffSpec {

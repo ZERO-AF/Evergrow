@@ -505,15 +505,22 @@ export class Game {
         return { ok: saved, message: this.session.error };
       };
       this.dungeonFinderPanel = this.lifetime.own(new DungeonFinderPanel(this.shell.panelMount, {
-        close: () => this.resume(),
         queue: id => this.durable(async () => {
           const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c));
-          if (!r.ok) this.notify(r.message ?? 'Could not queue.'); return r.ok;
+          if (!r.ok) { this.notify(r.message ?? 'Could not queue.'); return false; }
+          // Complete the travel transition like LocationController.dungeon.
+          this.setLocationWorld(r.checkpoint);
+          this.sim.restoreCheckpoint(r.checkpoint);
+          this.sim.relocate(this.sim.player.x, this.sim.player.y);
+          this.finishTravel();
+          this.notify(r.message);
+          return true;
         }, false),
         leave: () => this.durable(async () => {
           const r = await leaveQueue(this.sim, c => this.persistTravel(c));
           if (!r.ok) this.notify(r.message ?? ''); return r.ok;
         }, false),
+        close: () => this.resume(),
       }));
       this.auctionPanel = this.lifetime.own(new AuctionHousePanel(this.shell.panelMount, {
         post: (i, b, h) => this.durable(() => postAuction(this.sim.player, i, b, h, persistSheet), { ok: false, message: 'Saving…' }),

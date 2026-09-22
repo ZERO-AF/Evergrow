@@ -17,7 +17,7 @@ import type { SkillId } from './character-types.ts';
 import { skillWeapon, SKILL_DEFINITIONS } from './skill-content.ts';
 import { unlockedSkills } from './skill-tree.ts';
 import { deriveAttackStats } from './equipment.ts';
-import { BASIC_ATTACK_PHASES, type ProjectileDefinition } from './combat-content.ts';
+import { BASIC_ATTACK_PHASES, creatureFamily, type ProjectileDefinition } from './combat-content.ts';
 import { SKILL_TARGETING, type SkillExecution } from './skill-execution-content.ts';
 import { applySlow, applyStun } from './combat-status.ts';
 import { circleIntersectsSector } from './combat-geometry.ts';
@@ -531,13 +531,15 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     }
     case 'buff': context.sim.addBuff(definition.name, color, recipe.buff, id); p.castTime = .18; break;
     case 'cc': {
+      // Family-gated control (Banish/Shackle/Enslave) only lands on matching creatures.
+      const familyOk = (e: Enemy) => !recipe.family || creatureFamily(e.kind) === recipe.family;
       if (recipe.radius) {
         // Point-targeted control centers on the aim point; otherwise on the player.
         const center = (costs.targetMode ?? 'point') === 'point' ? aimedPoint() : p;
         let hit = 0;
-        radialAround(center.x, center.y, recipe.radius, enemy => { if (hit < (recipe.maxTargets ?? 99)) { hit++; context.sim.applyCc(enemy, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); } });
+        radialAround(center.x, center.y, recipe.radius, enemy => { if (familyOk(enemy) && hit < (recipe.maxTargets ?? 99)) { hit++; context.sim.applyCc(enemy, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); } });
         blastAt(center.x, center.y, recipe.radius, hitStyle);
-      } else if (target) { context.sim.applyCc(target, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); blastAt(target.x, target.y, 56, hitStyle); }
+      } else if (target && familyOk(target)) { context.sim.applyCc(target, recipe.cc, recipe.duration, recipe.cc === 'incapacitate' || recipe.cc === 'polymorph'); blastAt(target.x, target.y, 56, hitStyle); }
       else blastAt(p.x, p.y, 56, hitStyle);
       if (recipe.resourceGain) p.mana = Math.min(p.maxMana, p.mana + recipe.resourceGain);
       p.castTime = .18;

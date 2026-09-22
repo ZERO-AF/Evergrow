@@ -46,7 +46,8 @@ test('attribute reset consumes its entitlement only after persistence and does n
 
 
 test('attribute refund clamps both resources before saving and after live commitment',async()=>{
-  const p=setup();p.character.attributes.intelligence+=50;p.character.attributes.vitality+=40;p.character.statPoints-=90;
+  // A mana class so intelligence can push mana past 100 before the reset clamps it.
+  const p=setup();p.character.classId='mage';p.character.attributes.intelligence+=50;p.character.attributes.vitality+=40;p.character.statPoints-=90;
   refreshCharacter(p);p.hp=p.maxHp;p.mana=p.maxMana;
   assert.ok(p.hp>100&&p.mana>100);
   const q=quoteService(p.character,npc,20,{type:'resetAttributes'});assert.ok(q.ok);

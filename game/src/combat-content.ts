@@ -146,6 +146,15 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = O
     knockbackDistance: 18, interruptible: true }),
 });
 
+/** WoW creature family per enemy kind — gates Banish/Shackle/Enslave-style control. */
+export const CREATURE_FAMILY: Readonly<Record<EnemyKind, import('./wow-types.ts').CreatureFamily>> = Object.freeze({
+  thornReaver: 'beast', mireSpitter: 'beast', duneScuttler: 'beast', hound: 'beast', stalker: 'beast',
+  emberAcolyte: 'humanoid', caster: 'humanoid', archer: 'humanoid', goblin: 'humanoid', goblinChief: 'humanoid',
+  frostRevenant: 'undead', graveMarshal: 'undead', warden: 'undead', brute: 'undead',
+  stormSentinel: 'elemental', briarMatriarch: 'elemental', ashColossus: 'elemental', wisp: 'elemental',
+});
+export function creatureFamily(kind: EnemyKind): import('./wow-types.ts').CreatureFamily { return CREATURE_FAMILY[kind] ?? 'humanoid'; }
+
 export const REGIONAL_ENEMY_KINDS = Object.freeze(['thornReaver', 'mireSpitter', 'frostRevenant', 'emberAcolyte', 'duneScuttler', 'stormSentinel'] as const);
 export type RegionalEnemyKind = typeof REGIONAL_ENEMY_KINDS[number];
 export function isRegionalEnemy(kind: EnemyKind): kind is RegionalEnemyKind { return (REGIONAL_ENEMY_KINDS as readonly EnemyKind[]).includes(kind); }

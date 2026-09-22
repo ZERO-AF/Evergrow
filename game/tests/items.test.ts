@@ -94,7 +94,7 @@ test('the starter sheet has neutral worn gear, an empty bag, independent leather
   for (const slot of EQUIPMENT_SLOTS) if (first.equipped[slot]) assert.deepEqual(itemModifiers(first.equipped[slot]!), {});
   first.equipped.weapon!.weapon!.damage = 1000;
   first.equipped.chest!.appearance.base = '#000000';
-  assert.equal(first.equipped.chest!.appearance.style, 'leather');
+  assert.equal(first.equipped.chest!.appearance.style, WOW_CLASSES[first.classId].armorStyle);
   first.inventory[0] = generateItem(888, 1); first.attributes.strength = 50;
   assert.equal(other.equipped.weapon!.weapon!.damage, 24); assert.equal(STARTING_SWORD.damage, 24);
   assert.notEqual(other.equipped.chest!.appearance.base, '#000000');

@@ -34,7 +34,11 @@ export function refreshCharacter(player: Player): void {
       : offhand?.focus ? { kind: 'focus', focus: offhand.focus }
       : offhand?.kind === 'weapon' && offhand.weapon ? { kind: 'weapon', weapon: offhand.weapon } : null };
   player.equipment = transmoggedEquipment(player.equipment, player.character);
-  player.maxHp = derived.maxHp; player.maxMana = derived.maxMana;
+  player.maxHp = derived.maxHp;
+  // Non-mana resource pools (rage/energy/runic) keep their class cap; only mana
+  // classes take the derived maxMana. Mirrors refreshBuffStats.
+  const resourceModel = WOW_CLASSES[player.character.classId];
+  player.maxMana = resourceModel && resourceModel.resource !== 'mana' ? resourceModel.resourceCap : derived.maxMana;
   advanceAffixBuffs(player, 0);
   advanceSkillEffects(player,0);
   syncAuras(player);

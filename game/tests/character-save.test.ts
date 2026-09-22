@@ -111,7 +111,7 @@ test('all eight slots create independent identical starters with leather armor a
   for (const slot of slots) {
     assert.deepEqual(slot.record!.checkpoint.character, sim.player.character);
     assert.equal(slot.record!.checkpoint.character.inventory.filter(Boolean).length, 0);
-    assert.equal(slot.record!.checkpoint.character.equipped.chest!.appearance.style, 'leather');
+    assert.equal(slot.record!.checkpoint.character.equipped.chest!.appearance.style, WOW_CLASSES[slot.record!.checkpoint.character.classId].armorStyle);
   }
   assert.equal((await session.create(0, 'Overwrite', 7319, sim.captureCheckpoint(), 'another', 101)), false);
   assert.throws(() => repo.read(8), RangeError);
@@ -229,7 +229,7 @@ test('each class starter persists with matching portrait equipment, common gear 
     assert.deepEqual(sim.player.character.equipped.weapon!.affixes, []);
     assert.equal(sim.player.character.equipped.offhand?.recipe.profileId ?? null, option.starter.offhand ?? null);
     assert.ok(sim.player.character.inventory.every(item => item === null));
-    assert.equal(sim.player.character.equipped.chest!.appearance.style, 'leather');
+    assert.equal(sim.player.character.equipped.chest!.appearance.style, option.armorStyle);
     if (index >= CHARACTER_SLOT_COUNT - 1) continue; // slot 0 holds the setup character; eight slots total
     assert.ok((await session.create(index + 1, option.name, 7319, sim.captureCheckpoint(), `starter-${option.id}`, 200)));
     const loaded = (await session.load(index + 1))!;

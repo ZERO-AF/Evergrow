@@ -71,6 +71,9 @@ export function upgradeSkillTree(checkpoint: RecordValue): boolean {
   sheet.allocatedNodes = isWowClassId(sheet.classId) ? ['origin', `wow-${sheet.classId}-${WOW_CLASSES[sheet.classId].starterSkill}`] : ['origin'];
   sheet.skillRanks = {}; sheet.activeSkillRanks = {}; sheet.skillSpecializations = {};
   sheet.skillSlots = Array(BAR_TOTAL).fill(null); sheet.arcaneOverload = false;
+  // Re-seed the class starter skill on slot 0, matching createCharacterSheet —
+  // otherwise a migrated character loads with a completely empty action bar.
+  if (isWowClassId(sheet.classId)) (sheet.skillSlots as (string | null)[])[0] = WOW_CLASSES[sheet.classId].starterSkill;
   resetSpecs(sheet as unknown as DualSpecSheet);
   if (owned.size > 1 || paidRanks > 0) sheet.treeRefunded = true;
   checkpoint.skillCooldowns = {};

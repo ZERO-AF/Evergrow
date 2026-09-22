@@ -149,6 +149,8 @@ function pickSpawnEntry(table: readonly SpawnEntry[], roll: number, preferred?: 
   return table[table.length - 1];
 }
 const ALLY_OFFENSE: HitSnapshot = Object.freeze({ critChance: 0, critMultiplier: 1, lifeOnHit: 0, directDamageMultiplier: 1, hitRating: 0, expertise: 0, ally: true });
+/** Reflected damage is a proc-sourced hit: it never crits, procs, or reflects again. */
+const REFLECT_OFFENSE: HitSnapshot = Object.freeze({ critChance: 0, critMultiplier: 1, lifeOnHit: 0, proc: true });
 
 export function initialPlayer(x: number, y: number): Player {
   const character = createCharacterSheet();
@@ -568,13 +570,16 @@ export class Simulation {
   /** Player-shaped damage entry: armor/resist/absorb/block mitigation, then the
    * PvP corpse rule. `source` owns combat-clock credit and leech-style procs. */
   private damageCombatant(target: Player, amount: number, angle: number, sourceLevel: number, damageType: DamageType,
-    periodic = false, style?: ProjectileStyle, source?: Player, kind?: EnemyKind, melee = false): boolean {
+    periodic = false, style?: ProjectileStyle, source?: Player, kind?: EnemyKind, melee = false, reflected = false): boolean {
     const hpBefore = target.hp;
     const landed = damageCombatant(amount, angle, sourceLevel, damageType, {
       player: target, world: this.world, random: () => this.random(), emit: event => this.emit(event),
       addBuff: (name, color, spec, id) => this.addBuffTo(target, name, color, spec, id),
       defensiveProc: (player, context) => tryDefensiveProc(player, context),
-      ...(source ? { offense: { hitRating: source.derived.hitRating, expertise: source.derived.expertise } } : {}),
+      ...(source ? { offense: { hitRating: source.derived.hitRating, expertise: source.derived.expertise },
+        attacker: source as unknown as Enemy } : {}),
+      reflected,
+      strikeBack: (foe, reflectedAmount, type) => this.reflectStrike(target, foe, reflectedAmount, type),
       wardBurst: burst => {
         this.emit({ type: 'blast', x: target.x, y: target.y, radius: burst.radius, style: 'arcane', skill: 'runicWard', color: '#d98eda' });
         strikeContainers(this.containerContext(), target.x, target.y, burst.radius);
@@ -590,6 +595,21 @@ export class Simulation {
     this.bumpCombat(target);
     return true;
   }
+
+  /** Reflect channel for damageCombatant: the post-mitigation fraction returns to
+   * the attacker through the enemy-damage path. Combatant attackers take the
+   * player-shaped path flagged `reflected` so reflect never answers reflect. */
+  private reflectStrike(target: Player, attacker: Enemy, amount: number, damageType: DamageType): void {
+    const style = damageType === 'physical' ? undefined : damageType;
+    if (isCombatant(attacker)) {
+      this.damageCombatant(attacker, amount, Math.atan2(attacker.y - target.y, attacker.x - target.x),
+        target.level, damageType, false, style, target, undefined, false, true);
+      return;
+    }
+    this.damageEnemy(attacker, amount, Math.atan2(attacker.y - target.y, attacker.x - target.x),
+      false, false, style, style ? amount : undefined, REFLECT_OFFENSE, false, target);
+  }
+
 
   /** Automatic population waits for the camera's current/pending visible envelope. */
   setSpawnExclusion(bounds: { x: number; y: number; width: number; height: number } | null): void {
@@ -1410,14 +1430,26 @@ export class Simulation {
     const weave = consumeRally(p,weapon.attackKind==='melee') * consumeSpellweave(p, weapon.attackKind === 'melee' ? 'melee' : weapon.attackKind === 'bolt' ? 'spell' : 'other');
     const duration = 1 / stats.attacksPerSecond;
     const ranged = weapon.attackKind !== 'melee';
-    const style = basicProjectileStyle(weapon);
+    // Weapon imbues (seals, poisons, shaman imbues) add a fraction of the swing's
+    // damage as elemental damage on melee and bolt basics; arrows carry no imbue.
+    // The strongest active imbue's element styles the hit when it outweighs the
+    // weapon's own elemental portion.
+    let imbueDamage = 0, imbueFraction = 0, imbueStyle: ProjectileStyle | undefined;
+    if (weapon.attackKind !== 'arrow') for (const buff of p.buffs ?? []) {
+      if (!buff.imbue || buff.remaining <= 0) continue;
+      imbueDamage += stats.damage * weave * buff.imbue.fraction;
+      if (buff.imbue.fraction > imbueFraction) { imbueFraction = buff.imbue.fraction; imbueStyle = buff.imbue.element; }
+    }
+    const imbueDominant = imbueStyle !== undefined && imbueDamage >= stats.elementalDamage * weave;
+    const style: ProjectileStyle = imbueDominant ? imbueStyle! : basicProjectileStyle(weapon);
     this.player.attack = {
       kind: ranged ? 'ranged' : 'melee', weapon, hand,
       elapsed, duration, activeStart: duration * (ranged ? RANGED_BASIC_ATTACK_PHASES.activeStart : BASIC_ATTACK_PHASES.activeStart),
       activeEnd: duration * (ranged ? RANGED_BASIC_ATTACK_PHASES.activeEnd : BASIC_ATTACK_PHASES.activeEnd), angle: this.player.angle,
-      range: stats.range, arc: stats.arc, damage: stats.damage * weave + consumeBastion(p,stats.damage,weapon.attackKind==='melee'), elementalDamage: stats.elementalDamage * weave, hitIds: new Set<number>(),
+      range: stats.range, arc: stats.arc, damage: stats.damage * weave + imbueDamage + consumeBastion(p,stats.damage,weapon.attackKind==='melee'), elementalDamage: stats.elementalDamage * weave + imbueDamage, hitIds: new Set<number>(),
       offense: snapshotSkillOffense(p),
-      ...(ranged ? { projectile: { style, pierce: p.derived.projectilePierce, offense: snapshotSkillOffense(p) } } : {}),
+      ...(imbueDominant ? { style: imbueStyle } : {}),
+      ...(ranged ? { projectile: { style, pierce: p.derived.projectilePierce, offense: snapshotSkillOffense(p), ...(imbueDamage > 0 ? { elementalDamage: stats.elementalDamage * weave + imbueDamage } : {}) } } : {}),
     };
     p.nextAttackHand = hand === 'main' ? 'off' : 'main';
     if (!ranged) this.emit({ type: 'swing', x: p.x, y: p.y, angle: p.angle });
@@ -1437,7 +1469,7 @@ export class Simulation {
       if (!circleIntersectsSector(enemy.x, enemy.y, enemy.radius, p.x, p.y, angle, attack.range, to - from)) continue;
       if (!this.lineOfSight(p.x, p.y, enemy.x, enemy.y)) continue;
       attack.hitIds.add(enemy.id);
-      this.damageEnemy(enemy, attack.damage, Math.atan2(enemy.y - p.y, enemy.x - p.x), true, false, weaponImpactStyle(attack.weapon), attack.elementalDamage ?? 0, attack.offense);
+      this.damageEnemy(enemy, attack.damage, Math.atan2(enemy.y - p.y, enemy.x - p.x), true, false, attack.style ?? weaponImpactStyle(attack.weapon), attack.elementalDamage ?? 0, attack.offense);
     }
     // One solid-surface response per swing; scenery impact never changes its collision.
     if (!attack.surfaceHit && this.world.impactMaterial) for (let reach = p.radius + 4; reach <= attack.range; reach += 4) {
@@ -1464,7 +1496,7 @@ export class Simulation {
     // Friendly faction actors are unattackable (world-t05): no damage, no aggro.
     if (!playerCanAttack(enemy, attacker)) return;
     this.bumpCombat(attacker);
-    if (!periodic && offense !== ALLY_OFFENSE) durabilityLoss(attacker, 'strike', this.time);
+    if (!periodic && !offense?.ally) durabilityLoss(attacker, 'strike', this.time);
     damageEnemy(enemy, damage, angle, melee, {
       player: attacker, enemies: this.hostileTargets(attacker), random: () => this.random(),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by), emit: event => this.emit(event),
@@ -1566,9 +1598,9 @@ export class Simulation {
       trial: trial ? { campId: `event:${trial.id}`, x: trial.x, y: trial.y, radius: EVENT_RULES.trialRadius } : worldEventTrialContext(this.worldEvents),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
       move: (actor, vx, vy, delta) => this.moveEnemy(actor, vx, vy, delta),
-      hurt: (amount, angle, actor, damageType) => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical'),
+      hurt: (amount, angle, actor, damageType) => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical', actor),
       shoot: (actor, angle, definition, effects) => this.projectile(actor.x, actor.y, angle,
-        definition, undefined, effects, actor.level, actor.kind, enemyDisplayName(actor)),
+        definition, undefined, effects, actor.level, actor.kind, enemyDisplayName(actor), actor.id),
       emit: event => this.emit(event),
       dropGold: actor => dropGold(this.groundGold, { id: this.nextId++, x: actor.x, y: actor.y,
         amount: TREASURE_GOBLIN.goldBase + TREASURE_GOBLIN.goldPerLevel * actor.level, age: 0 }),
@@ -1627,6 +1659,7 @@ export class Simulation {
       else if (ally.regen) ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * ally.regen.perSecond * dt);
       if (ally.guard && (ally.guard.remaining -= dt) <= 0) ally.guard = undefined;
       if (ally.speedBoost && (ally.speedBoost.remaining -= dt) <= 0) ally.speedBoost = undefined;
+      if (ally.stealth && (ally.stealth.remaining -= dt) <= 0) ally.stealth = undefined;
       if (ally.aura) {
         ally.aura.tickAcc = (ally.aura.tickAcc ?? 0) + dt;
         if (ally.aura.tickAcc >= 1) {
@@ -1780,13 +1813,15 @@ export class Simulation {
     enemy.y = destination.y;
   }
 
-  takeDamage(amount: number, angle: number, sourceLevel: number, damageType: DamageType, kind?: EnemyKind, sourceName?: string, melee = false): void {
+  takeDamage(amount: number, angle: number, sourceLevel: number, damageType: DamageType, kind?: EnemyKind, sourceName?: string, melee = false, attacker?: Enemy): void {
     this.bumpCombat(this.player);
     if(currentDungeon(this.expeditions)?.rift?.phase==='complete')return;
     if (!damageCombatant(amount, angle, sourceLevel, damageType, {
       player: this.player, world: this.world, random: () => this.random(), emit: event => this.emit(event),
       addBuff: (name, color, spec, id) => this.addBuffTo(this.player, name, color, spec, id),
       defensiveProc: (player, context) => tryDefensiveProc(player, context),
+      attacker,
+      strikeBack: (foe, reflectedAmount, type) => this.reflectStrike(this.player, foe, reflectedAmount, type),
       wardBurst: burst=>{
         const p=this.player;
         this.emit({type:'blast',x:p.x,y:p.y,radius:burst.radius,style:'arcane',skill:'runicWard',color:'#d98eda'});
@@ -1804,13 +1839,13 @@ export class Simulation {
     if (this.player.dead && !this.pvpCombatants) { this.chains.length = 0; this.clearInput(); }
   }
 
-  private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind, sourceName?: string): Projectile | undefined {
+  private projectile(x: number, y: number, angle: number, definition: ProjectileDefinition, skill?: SkillId, effects?: ProjectileEffects, sourceLevel = this.player.level, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number): Projectile | undefined {
     if (this.projectiles.length >= MAX_PROJECTILES) return;
     const { life, radius, damage, owner } = definition;
     const hawkeye=owner==='player'&&effects?.style==='arrow'?auraPower(this.player,'hawkeye'):0;
     const speed=definition.speed*(1+hawkeye/100);
     if(hawkeye)effects={...effects!,hawkeye:{x,y,crit:this.player.character.allocatedNodes.includes('keystone:measured-force')?0:hawkeye/200}};
-    const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, sourceName, x, y, prevX: x, prevY: y,
+    const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, sourceName, sourceId, x, y, prevX: x, prevY: y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, angle, radius, damage, life, maxLife: life, owner, skill,
       ...(this.pvpCombatants && owner === 'player' ? { source: this.player } : {}),
       effects: effects ? { ...effects, ...(effects.offense ? { offense: { ...effects.offense } } : {}) } : undefined, hitIds: new Set() };
@@ -1845,7 +1880,7 @@ export class Simulation {
         player: this.player, enemies: this.enemies, world: this.world,
         onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
         damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn),
-        hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName),
+        hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId)),
         hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
         visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
         emit: event => this.emit(event),
@@ -1867,7 +1902,7 @@ export class Simulation {
           player: source ?? this.player, enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
           onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
           damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source),
-          hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName),
+          hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId)),
           hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
           visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
           emit: event => this.emit(event),

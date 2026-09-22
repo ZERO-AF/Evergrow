@@ -106,7 +106,10 @@ export function skillWeapon(id: SkillId, equipment: Equipment): WeaponDefinition
       case 'heavy': return family === 'axe' || family === 'mace' || family === 'polearm';
       case 'dagger': return family === 'dagger';
       case 'bow': return family === 'bow' || family === 'gun';
-      case 'magic': return weapon.attackKind === 'bolt';
+      // Class spells (classId set) cast from any weapon the class can equip —
+      // priests/mages/warlocks may hold a mace/dagger/sword and still cast.
+      // Class-free 'magic' weapon skills still require a bolt weapon (staff/wand).
+      case 'magic': return SKILL_DEFINITIONS[id].classId !== undefined ? true : weapon.attackKind === 'bolt';
     }
   };
   if (eligible(equipment.mainHand)) return equipment.mainHand;

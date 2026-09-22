@@ -6,13 +6,13 @@ import type { CcKind, DotSchool, DotSpec } from './wow-types.ts';
 
 export interface SlowEffect { readonly duration: number; readonly factor: number }
 export interface BurnEffect { readonly duration: number; readonly dps: number }
-export const STATUS_RULES = Object.freeze({ burnInterval: .5, detonateRadius: 120, polymorphRegenPerSecond: .02 });
+export const STATUS_RULES = Object.freeze({ burnInterval: .5, detonateRadius: 120 });
 
 /** WoW diminishing returns: repeated control within a 15s window halves duration
  * (100% → 50% → 25% → immune). Normal/veteran ranks only; elite/boss keep their
  * existing controlImmunity scaling on top. */
 export const DIMINISHING_RULES = Object.freeze({ window: 15, minimum: .25, immuneAt: 3 });
-const DIMINISHED_KINDS: Record<CcKind, true | undefined> = { root: true, fear: true, incapacitate: true, polymorph: true, stun: true, freeze: true, silence: undefined, slow: undefined };
+const DIMINISHED_KINDS: Record<CcKind, true | undefined> = { root: true, fear: true, incapacitate: true, polymorph: true, stun: true, freeze: true, silence: true, slow: undefined };
 
 /** Returns the DR-scaled duration; 0 means the target is currently immune. */
 function diminished(enemy: Enemy, kind: CcKind, duration: number): number {
@@ -53,6 +53,7 @@ export function applyStun(enemy: Enemy, duration: number, kind: 'stun' | 'freeze
     duration = Math.min(threat.controlMaximum, duration * threat.controlFactor);
     enemy.controlImmunity = duration + threat.controlRest;
   }
+  // Bosses resist via the threat controlMaximum cap above; no extra halving here.
   if (duration >= enemy.stagger) (enemy.statusDurations ??= {}).stagger = duration;
   enemy.stagger = Math.max(enemy.stagger, duration); enemy.interrupted = true;
   if (kind === 'freeze') {
@@ -87,10 +88,12 @@ export function applyDot(enemy: Enemy, id: string, spec: DotSpec, baseDamage: nu
 /** WoW crowd control: root/fear/incapacitate/polymorph/silence ride enemy.cc; stun/freeze/slow reuse the legacy fields. */
 export function applyCc(enemy: Enemy, kind: CcKind, duration: number, breakOnDamage = kind === 'incapacitate' || kind === 'polymorph', factor?: number): void {
   if (enemy.state === 'dead' || !Number.isFinite(duration) || duration <= 0) return;
-  duration = diminished(enemy, kind, duration);
-  if (duration <= 0) return;
+  // Stun/freeze/slow delegate to their own owners, which apply DR, threat and
+  // boss scaling themselves — do not pre-diminish here or they double-diminish.
   if (kind === 'stun' || kind === 'freeze') { applyStun(enemy, duration, kind); return; }
   if (kind === 'slow') { applySlow(enemy, { duration, factor: factor ?? .5 }); return; }
+  duration = diminished(enemy, kind, duration);
+  if (duration <= 0) return;
   const threat = enemyThreat(enemy);
   if (threat.controlRest > 0) {
     if ((enemy.controlImmunity ?? 0) > 0) return;
@@ -133,9 +136,6 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
     if (next <= 0) { delete enemy.ccDiminishedUntil[kind]; delete enemy.ccDiminished?.[kind]; }
     else enemy.ccDiminishedUntil[kind] = next;
   }
-  if (enemy.reactionCooldown && enemy.reactionCooldown > 0) enemy.reactionCooldown = Math.max(0, enemy.reactionCooldown - dt);
-  if (enemy.fractureTime && enemy.fractureTime > 0) enemy.fractureTime = Math.max(0, enemy.fractureTime - dt);
-  if (enemy.chillTime && enemy.chillTime > 0) enemy.chillTime = Math.max(0, enemy.chillTime - dt);
   if (enemy.slowTime > 0) enemy.slowTime = Math.max(0, enemy.slowTime - dt);
   if (enemy.slowTime <= 0) enemy.slowFactor = 1;
   // Burn intentionally stays on its own fields in parallel with enemy.dots:
@@ -171,9 +171,6 @@ export function advanceEnemyStatuses(enemy: Enemy, dt: number, damage: (enemy: E
   if (enemy.cc) {
     for (const effect of enemy.cc) effect.remaining = Math.max(0, effect.remaining - dt);
     enemy.cc = enemy.cc.filter(effect => effect.remaining > 0);
-    // Polymorph incapacitates AND regenerates the victim (wow-transformation §3).
-    if (enemy.cc.some(effect => effect.kind === 'polymorph'))
-      enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * STATUS_RULES.polymorphRegenPerSecond * dt);
   }
   if (enemy.sundered) {
     enemy.sundered.remaining = Math.max(0, enemy.sundered.remaining - dt);

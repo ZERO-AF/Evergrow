@@ -86,6 +86,14 @@ export interface PlayerDamageContext {
   defensiveProc?(player: Player, context: PlayerDamageContext): void;
   /** Attacker's melee ratings for the attack table (PvP sources); enemies carry none. */
   offense?: { readonly hitRating?: number; readonly expertise?: number };
+  /** The live attacker this hit came from (enemy or PvP combatant); absent for
+   * unattributed damage — reflect buffs cannot answer those hits. */
+  attacker?: Enemy;
+  /** True on a reflected strike itself; reflect never answers reflect. */
+  reflected?: boolean;
+  /** Reflect channel: deals post-mitigation damage back to the attacker through
+   * the enemy-damage path. Injected by the simulation (contact owner). */
+  strikeBack?(attacker: Enemy, amount: number, damageType: DamageType): void;
 }
 
 /** One contact owner: damage, awareness, impulse, interruption and death commitment. */
@@ -293,6 +301,13 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
   if (!periodic && p.team === undefined) p.invulnerable = COMBAT_TIMING.hurtGuard;
   context.emit({ type: 'hurt', ...(damageType === 'physical' ? {} : { style: damageType }), actualValue, x: p.x, y: p.y, angle, value: amount,
     remainingHp: p.hp, enemyKind: kind, ...(sourceName ? { enemyName: sourceName } : {}), heavy: amount >= 20, ...(glancingHit ? { glancing: true } : {}) });
+  // Thorns-style reflect: a landed, non-periodic hit with a live attacker returns
+  // a fraction of the post-mitigation damage through the enemy-damage path.
+  if (!periodic && !context.reflected && amount > 0 && context.strikeBack
+    && context.attacker !== undefined && 'kind' in context.attacker && context.attacker.state !== 'dead') {
+    const reflect = (p.buffs ?? []).reduce((sum, buff) => sum + (buff.remaining > 0 ? buff.reflect ?? 0 : 0), 0);
+    if (reflect > 0) context.strikeBack(context.attacker, amount * reflect, damageType);
+  }
   const resource = resourceModelOf(p);
   if (resource && resource.gainOnHit > 0) p.mana = Math.min(p.maxMana, p.mana + resource.gainOnHit);
   if (p.stealthed) { p.stealthed = false; p.buffs = p.buffs?.filter(buff => !buff.stealth); }

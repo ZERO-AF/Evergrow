@@ -17,7 +17,7 @@ export interface ProjectileContext {
   schedule(effect: GroundEffectRequest): void;
   player: Player; enemies: Enemy[]; world: WorldQuery;
   damage(enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, offense?: HitSnapshot, authoredBurn?: boolean, elementalDamage?:number): void;
-  hurt(amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind, sourceName?: string): void;
+  hurt(amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number): void;
   /** Enemy projectile strikes a player ally (pet/minion/totem). */
   hurtAlly?(ally: import('./model.ts').Ally, amount: number): void;
   onScreen(enemy: Enemy): boolean;
@@ -165,7 +165,7 @@ export function advanceProjectiles(projectiles: Projectile[], dt: number, contex
           context.hurtAlly!(allyHit, projectile.damage); projectile.life = 0; continue;
         }
         if (playerHit) {
-          context.hurt(projectile.damage, projectile.angle, projectile.sourceLevel, projectileDamageType(projectile.effects?.style ?? 'arcane'), projectile.sourceKind, projectile.sourceName); projectile.life = 0;
+          context.hurt(projectile.damage, projectile.angle, projectile.sourceLevel, projectileDamageType(projectile.effects?.style ?? 'arcane'), projectile.sourceKind, projectile.sourceName, projectile.sourceId); projectile.life = 0;
         }
         continue;
       }

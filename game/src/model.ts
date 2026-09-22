@@ -79,6 +79,8 @@ export interface Attack {
   arc: number;
   damage: number;
   elementalDamage?: number;
+  /** Dominant element for this swing's elemental portion (weapon imbue); absent = weapon's own style. */
+  style?: ProjectileStyle;
   hitIds: Set<number>;
   projectile?: ProjectileEffects;
   released?: boolean;
@@ -504,6 +506,8 @@ export interface Projectile {
   readonly sourceKind?: EnemyKind;
   /** Zone-roster display name of the firing enemy; rides the shot so the hurt log names it. */
   readonly sourceName?: string;
+  /** Entity id of the firing enemy; lets reflected damage find a live attacker. */
+  readonly sourceId?: number;
   x: number;
   y: number;
   prevX: number;

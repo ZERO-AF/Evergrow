@@ -2,7 +2,7 @@ import { AURA_IDS, auraSummary, type AuraId } from './aura-content.ts';
 import type { SkillId, WowSkillId } from './character-types.ts';
 import type { ProjectileEffects, ProjectileStyle } from './model.ts';
 import type { SlowEffect } from './combat-status.ts';
-import type { AllyKind, BuffSpec, CcKind, DotSchool, DotSpec, HotSpec, ShapeshiftForm } from './wow-types.ts';
+import type { AllyKind, BuffSpec, CcKind, CreatureFamily, DotSchool, DotSpec, HotSpec, ShapeshiftForm } from './wow-types.ts';
 import type { SkillDefinition } from './skill-content.ts';
 import { WOW_SKILLS } from './wow-skills.ts';
 
@@ -51,7 +51,8 @@ export type SkillExecution = (
       /** Sacrifice a live ally of this kind to power the heal (Death Pact). */ consumeAlly?: AllyKind | 'demon' }
   | { kind: 'hot'; hot: HotSpec; maxHpFrac?: number }
   | { kind: 'buff'; buff: BuffSpec }
-  | { kind: 'cc'; cc: CcKind; duration: number; radius?: number; maxTargets?: number; resourceGain?: number }
+  | { kind: 'cc'; cc: CcKind; duration: number; radius?: number; maxTargets?: number; resourceGain?: number;
+      /** Restricts the control to a creature family (Banish→demon, Shackle→undead). */ family?: CreatureFamily }
   | { kind: 'interrupt'; silence: number }
   | { kind: 'pull'; stun?: number }
   | { kind: 'taunt'; duration: number; expose?: number }

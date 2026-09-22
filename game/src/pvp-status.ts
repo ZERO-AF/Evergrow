@@ -97,9 +97,6 @@ export function advanceCombatantStatuses(
     for (const effect of c.cc) effect.remaining = Math.max(0, effect.remaining - dt);
     c.cc = c.cc.filter(effect => effect.remaining > 0);
     if (!c.cc.length) c.cc = undefined;
-    // Polymorph incapacitates AND regenerates the victim (same rule as enemies).
-    if (c.cc?.some(effect => effect.kind === 'polymorph'))
-      c.hp = Math.min(c.maxHp, c.hp + c.maxHp * STATUS_RULES.polymorphRegenPerSecond * dt);
   }
   if (c.sundered) {
     c.sundered.remaining = Math.max(0, c.sundered.remaining - dt);
