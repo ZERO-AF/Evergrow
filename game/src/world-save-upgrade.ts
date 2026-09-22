@@ -17,13 +17,22 @@ export const canLoadWorld = (from:number,to:number):boolean => from===to || canU
 export interface UpgradeWorld { blocked(x:number,y:number,radius:number):boolean;getNearestSettlement(x:number,y:number):Settlement;dispose():void; }
 export type UpgradeWorldFactory=(seed:number)=>UpgradeWorld;
 
+/** Spiral outward for a clear spot. Never throws: a blocked save must still
+ * upgrade, so the last resort is the nearest settlement's portal anchor — a
+ * plaza that is clear by construction — rather than aborting the whole record. */
 function clearNearby(world:UpgradeWorld,x:number,y:number,radius:number):{x:number;y:number}{
   if(!world.blocked(x,y,radius))return {x,y};
-  for(let ring=16;ring<=512;ring+=16)for(let i=0;i<32;i++){
+  for(let ring=16;ring<=4096;ring+=16)for(let i=0;i<32;i++){
     const a=i*Math.PI/16,px=x+Math.cos(a)*ring,py=y+Math.sin(a)*ring;
     if(Math.abs(px)<=4e7&&Math.abs(py)<=4e7&&!world.blocked(px,py,radius))return {x:px,y:py};
   }
-  throw new Error('Could not find a safe position for the world upgrade. The previous save is untouched.');
+  const anchor=townPortalAnchor(world.getNearestSettlement(x,y));
+  if(!world.blocked(anchor.x,anchor.y,radius))return {x:anchor.x,y:anchor.y};
+  for(let ring=16;ring<=4096;ring+=16)for(let i=0;i<32;i++){
+    const a=i*Math.PI/16,px=anchor.x+Math.cos(a)*ring,py=anchor.y+Math.sin(a)*ring;
+    if(Math.abs(px)<=4e7&&Math.abs(py)<=4e7&&!world.blocked(px,py,radius))return {x:px,y:py};
+  }
+  return {x:anchor.x,y:anchor.y};
 }
 function safeArrival(world:UpgradeWorld,x:number,y:number):{x:number;y:number}{
   if(!world.blocked(x,y,PLAYER_DEFAULTS.radius))return {x,y};
