@@ -3,7 +3,8 @@ import { BIOME_IDS, type BiomeId, type BiomeWeights } from './biomes.ts';
 export type PropKind = 'tree' | 'deadTree' | 'rock' | 'shrine' | 'willow' | 'reeds' | 'fern' | 'flowers'
   | 'canopy' | 'snowPine' | 'iceCrystal' | 'charredTree' | 'basalt' | 'emberRock' | 'autumnTree'
   | 'sandstoneShard' | 'dryGrass' | 'sandstone' | 'thornBrush' | 'steppeStone' | 'desertScrub'
-  | 'leafPile' | 'windTree' | 'heather' | 'limestone' | 'tussock' | 'mushrooms' | 'stump' | 'lilies';
+  | 'leafPile' | 'windTree' | 'heather' | 'limestone' | 'tussock' | 'mushrooms' | 'stump' | 'lilies'
+  | 'giantMushroom';
 
 export interface PropDefinition {
   readonly radius: readonly [number, number];
@@ -53,6 +54,9 @@ export const PROP_DEFINITIONS: Readonly<Record<PropKind, PropDefinition>> = Obje
   mushrooms: definition([0, 0], null, [0, 0], 0, { offsetX: 0, offsetY: -7, radius: 36, color: '#a5cdb6', power: .07 }, [.8, 1.1]),
   stump: definition([7, 11], null, [13, 5], 0, null, [.8, 1.1]),
   lilies: definition([0, 0], null, [0, 0], .1),
+  // Zangarmarsh's towering mushroom trees: a thick stalk and a broad glowing cap.
+  giantMushroom: definition([11, 15], crown(120, 84), [30, 11], .35,
+    { offsetX: 0, offsetY: -96, radius: 120, color: '#7fd4c9', power: .3 }, [.9, 1.2]),
 });
 
 export const PROP_KINDS = Object.freeze(Object.keys(PROP_DEFINITIONS) as PropKind[]);

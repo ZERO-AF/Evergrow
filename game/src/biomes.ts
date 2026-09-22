@@ -1,9 +1,11 @@
 import { CONTINENTS, zoneAt, type AtlasZone } from './world-atlas.ts';
+import { terrainTint, type ZoneTint } from './zone-palettes.ts';
 
 export const BIOME_IDS = Object.freeze(['deadwood', 'verdant', 'swamp', 'frostpine', 'emberfall', 'autumn', 'highlands', 'steppe', 'sunscar'] as const);
 export type BiomeId = typeof BIOME_IDS[number];
 export type BiomeWeights = Record<BiomeId, number>;
-export interface BiomeSample { id: BiomeId; name: string; weights: BiomeWeights; }
+export interface BiomeSample { id: BiomeId; name: string; weights: BiomeWeights; tint?: ZoneTint | null; }
+
 export interface BiomeDefinition {
   readonly id: BiomeId;
   readonly name: string;
@@ -132,9 +134,8 @@ export const TERRAIN_BIOME: Readonly<Record<string, BiomeId>> = Object.freeze({
   'grey barren wastes': 'sunscar', 'green plains and mesas': 'steppe',
   'canyon needles and salt flats': 'sunscar', 'lush jungle forest': 'verdant',
   'desert': 'sunscar', 'prehistoric jungle crater': 'verdant',
-  'silithid desert': 'sunscar',
   // Eastern Kingdoms
-  'golden autumn forest': 'autumn', 'dead haunted forest': 'deadwood',
+  'golden autumn forest': 'autumn', 'sunlit elven isle': 'autumn', 'dead haunted forest': 'deadwood',
   'forsaken woodland': 'deadwood', 'plagued farmland': 'deadwood',
   'dark pine forest': 'deadwood', 'green foothills': 'verdant',
   'forested troll highlands': 'verdant', 'snowy dwarf highlands': 'frostpine',
@@ -171,8 +172,8 @@ export function authoredBiomeSample(x: number, y: number): BiomeSample | null {
   const o = CONTINENTS[zone.continent].origin;
   const r = { x: zone.rect.x + o.x, y: zone.rect.y + o.y, w: zone.rect.w, h: zone.rect.h };
   const d = Math.min(x - r.x, r.x + r.w - x, y - r.y, r.y + r.h - y);
-  const own = zoneBiome(zone.terrain);
-  if (d >= ZONE_BLEND) return { id: own, name: zone.name, weights: singleWeights(own) };
+  const own = zoneBiome(zone.terrain), tint = terrainTint(zone.terrain);
+  if (d >= ZONE_BLEND) return { id: own, name: zone.name, weights: singleWeights(own), tint };
   const neighbor = d === x - r.x ? zoneAt(r.x - 1, y) : d === r.x + r.w - x ? zoneAt(r.x + r.w + 1, y)
     : d === y - r.y ? zoneAt(x, r.y - 1) : zoneAt(x, r.y + r.h + 1);
   const other = neighbor ? zoneBiome(neighbor.terrain) : 'swamp';
@@ -180,7 +181,7 @@ export function authoredBiomeSample(x: number, y: number): BiomeSample | null {
   const weights = singleWeights(own);
   weights[own] = t; weights[other] += 1 - t;
   const id = weights[own] >= weights[other] ? own : other;
-  return { id, name: zone.name, weights };
+  return { id, name: zone.name, weights, tint };
 }
 
 

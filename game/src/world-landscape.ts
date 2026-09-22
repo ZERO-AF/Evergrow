@@ -16,6 +16,7 @@ import { raid4Entrances } from './raid4-boss-content.ts';
 import { blackrockEntrances } from './dungeon2-content.ts';
 import { biomeGround, biomeMapColor, proceduralBiomeSample } from './biomes.ts';
 import type { BiomeId, BiomeSample } from './biomes.ts';
+import type { ZoneTint } from './zone-palettes.ts';
 import { chooseBiomeProp, propDefinition, type PropKind } from './biome-props.ts';
 import { circleHitsRect, contains, freezeSettlement, generateSettlement, intersects, MAX_TOWN_RADIUS, settlementPavingWeight, settlementPOIs } from './settlements.ts';
 import type { Building, POI, Settlement } from './settlements.ts';
@@ -44,8 +45,11 @@ export interface Prop {
 
 export const TILE_SIZE = 256;
 export const WORLD_GENERATION_VERSION = 10;
+/** The authored atlas generation (AuthoredWorld.generationVersion). Save
+ * routing compares against this so v10 saves upgrade instead of orphaning. */
+export const AUTHORED_GENERATION_VERSION = 11;
 const PROP_CELL_SIZE = 80;
-const MAX_PROP_RADIUS = 15;
+export const MAX_PROP_RADIUS = 15;
 const PROP_CACHE_LIMIT = 8192;
 const COLLISION_CACHE_LIMIT = 256;
 const COLLISION_CELL = 256;
@@ -87,10 +91,19 @@ export function noise(x: number, y: number, seed: number): number {
 function inRectangle(prop: { x: number; y: number }, x: number, y: number, width: number, height: number): boolean {
   return prop.x >= x && prop.x < x + width && prop.y >= y && prop.y < y + height;
 }
-
 function compareProps(a: Prop, b: Prop): number {
   return a.y - b.y || a.x - b.x || a.id.localeCompare(b.id);
 }
+
+/** Blend a biome ground color toward an authored zone tint. The tint carries
+ * the zone's identity (Teldrassil purple, Durotar red) while the biome base
+ * keeps local relief/noise variation; 0.62 keeps the zone hue dominant. */
+function tintGround(base: readonly number[] | [number, number, number], tint?: ZoneTint | null): [number, number, number] {
+  if (!tint) return [base[0], base[1], base[2]];
+  const k = 0.62, g = tint.ground;
+  return [base[0] * (1 - k) + g[0] * k, base[1] * (1 - k) + g[1] * k, base[2] * (1 - k) + g[2] * k];
+}
+
 
 export class WorldLandscape {
   readonly seed: number;
@@ -127,7 +140,7 @@ export class WorldLandscape {
 
   getNearestSettlement(x:number,y:number):Settlement { return this.settlement(nearestPlace(this.seed,x,y).id); }
 
-  getPortalAnchor(band: number) { return townPortalAnchor(this.settlement(band)); }
+  getPortalAnchor(band: number, _faction?: unknown) { return townPortalAnchor(this.settlement(band)); }
 
   private settlement(band: number): Settlement {
     let town = this.settlements.get(band);
@@ -211,7 +224,9 @@ export class WorldLandscape {
   getEventSites(x: number, y: number, width: number, height: number) { return this.wildernessOnly ? [] : queryEventSites(this, x, y, width, height); }
 
   getEnemyCamps(x: number, y: number, width: number, height: number): EnemyCamp[] {
-    return this.getWildernessSites(x, y, width, height).filter(site => site.kind === 'camp' || site.kind === 'bossLair');
+    // Any site kind may carry an authored garrison (watchtower squads, graveyard
+    // patrols); procedural generation only populates camps and boss lairs.
+    return this.getWildernessSites(x, y, width, height).filter(site => site.members.length > 0);
   }
 
   getBuildings(x: number, y: number, width: number, height: number): Building[] {
@@ -245,8 +260,17 @@ export class WorldLandscape {
   /** Cheap map samples share terrain/road colors without querying collision. */
   mapColor(x: number, y: number, sampleSize = 24): string {
     if (sampleSize > 48) {
-      const water = this.terrainWater(x, y).coverage;
-      const [r, g, b] = biomeMapColor(this.sampleBiome(x, y).weights).map((v, i) => Math.round(v * (1 - water) + [29, 73, 85][i] * water));
+      const hydro = this.terrainWater(x, y), water = hydro.coverage;
+      const sample = this.sampleBiome(x, y), weights = sample.weights;
+      // Coarse relief + shoreline shading keep the world map from reading as
+      // flat zone rectangles; two low-frequency noise taps stay cheap per cell.
+      const relief = (noise(x / 700, y / 700, this.seed + 205) - .5) * 22;
+      const shore = smoothstep(.02, .3, water) * (1 - smoothstep(.3, .6, water));
+      const shallows = Math.max(0, 1 - hydro.depth / .65);
+      const pool = [17 + shallows * 22, 51 + shallows * 25, 60 + shallows * 16];
+      const base = tintGround(biomeMapColor(weights), sample.tint);
+      const [r, g, b] = base.map((v, i) =>
+        Math.round((v + relief - shore * 14) * (1 - water) + pool[i] * water));
       return `rgb(${r},${g},${b})`;
     }
     const towns = this.getSettlements(x, y, .01, .01);
@@ -273,10 +297,10 @@ export class WorldLandscape {
 
   protected surfaceColor(x: number, y: number, towns: Settlement[], detail: boolean): number[] {
     const damp = noise(x / 180, y / 180, this.seed + 201);
-    const weights = this.sampleBiome(x, y).weights;
+    const sample = this.sampleBiome(x, y), weights = sample.weights;
     const profile = roadSurface(x, y, this.seed), road = (this.riftShape ? this.roadWeight(x,y) : profile.weight) * (towns.some(t=>Math.hypot(x-t.x,y-t.y)<t.radius-100)?0:1);
     const paved = this.pavingWeight(towns, x, y, road);
-    const base = detail ? biomeGround(weights, smoothstep(.50, .85, damp) * .65) : biomeMapColor(weights);
+    const base = tintGround(detail ? biomeGround(weights, smoothstep(.50, .85, damp) * .65) : biomeMapColor(weights), sample.tint);
     const hydro = this.terrainWater(x, y);
     const water = Math.max(surfaceWaterWeight(weights, damp, road)*(this.riftShape?smoothstep(-30,120,this.riftShape.distance(x,y)):1), hydro.coverage * (1 - paved));
     const wet = smoothstep(.35, .85, damp) * (.35 + weights.swamp * .65);
@@ -288,17 +312,19 @@ export class WorldLandscape {
     const strength=town?.kind==='city'?.5:town?.kind==='village'?.34:.25;
     const earth=[58+weights.sunscar*40,51+weights.sunscar*33,39+weights.sunscar*22];
     const stone=base.map((v,i)=>v*(1-strength)+earth[i]*strength+(town?.kind==='city'?3:0));
-    const weather = detail ? (noise(x / 93, y / 93, this.seed + 203) - .5) * 18 : 0;
-    const relief = (detail ? landscapeRelief(x,y,this.seed,weights) : 0) - (this.riftShape ? smoothstep(-20,100,this.riftShape.distance(x,y))*17 : 0);
+    const weather = detail ? (noise(x / 93, y / 93, this.seed + 203) - .5) * 18 : (noise(x / 320, y / 320, this.seed + 203) - .5) * 10;
+    const relief = (detail ? landscapeRelief(x,y,this.seed,weights) : (noise(x / 700, y / 700, this.seed + 205) - .5) * 22) - (this.riftShape ? smoothstep(-20,100,this.riftShape.distance(x,y))*17 : 0);
     const grain = detail ? (noise(x / 18, y / 18, this.seed + 202) - .5) * 5 : 0;
     const track = profile.tracks * road * (1 - paved) * 3;
     const bank = hydro.bank * .7 + (detail ? weights.swamp * (smoothstep(.40, .50, damp) - smoothstep(.50, .64, damp)) * (1 - road) : 0);
     const dryRoad = road * (1 - hydro.coverage * .88);
-    return base.map((value, i) => (((value + relief + weather * .65 + [22, 23, 15][i] * bank) * (1 - water) + pool[i] * water) * (1 - dryRoad)
+    // Darken the land-side waterline so authored coasts and riverbanks read as
+    // organic edges instead of flat biome rectangles (also feeds mapColor).
+    const shore = smoothstep(.02, .3, hydro.coverage) * (1 - smoothstep(.3, .6, hydro.coverage));
+    return base.map((value, i) => (((value + relief + weather * .65 + [22, 23, 15][i] * bank - shore * 14) * (1 - water) + pool[i] * water) * (1 - dryRoad)
       + (dirt[i] + weather - track) * dryRoad) * (1 - paved)
       + (stone[i] + weather * .7 - (detail ? wet * 4 : 0)) * paved + grain);
   }
-
   protected terrainWater(x:number,y:number):WaterSample {
     const water=this.hydrology.sample(x,y);
     if(!this.riftShape)return water;
@@ -422,7 +448,7 @@ export class WorldLandscape {
 
   /** Immutable broad phase shared by footsteps, AI sight and projectile probes.
    * Exact query clipping and narrow-phase contacts below retain the original rules. */
-  private collisionRegion(x: number, y: number, width: number, height: number) {
+  protected collisionRegion(x: number, y: number, width: number, height: number) {
     const minX = Math.floor(x / COLLISION_CELL), minY = Math.floor(y / COLLISION_CELL);
     const maxX = Math.floor((x + width) / COLLISION_CELL), maxY = Math.floor((y + height) / COLLISION_CELL);
     const key = `${minX}:${minY}:${maxX}:${maxY}`, cached = this.collisionRegions.get(key);
@@ -477,11 +503,10 @@ export class WorldLandscape {
       (building.walls.some(rect => circleHitsRect(x, y, radius, rect)) || building.furniture.some((rect, i) => !(rect.kind === 'barrel' && this.brokenContainers.has(furnitureContainerId(building, i))) && circleHitsRect(x, y, radius, rect))));
   }
 
-  /** Test only the nearest discrete ray sample to each circle. This is the same
-   * sampled collision rule as repeated blocked(), with one broad-phase query. */
-  private sampledSegmentClear(ax:number,ay:number,bx:number,by:number,radius:number,steps:number,first:number,last:number):boolean|undefined {
-    // Authored dungeon/custom worlds override blocked and retain their own geometry.
-    if(this.blocked!==WorldLandscape.prototype.blocked)return undefined;
+  /** Prop-only narrow phase over one broad-phase region query. Returns
+   * undefined when the region holds buildings/sites (their decor needs the
+   * per-sample path) or the query itself is out of contract. */
+  protected segmentPropClear(ax:number,ay:number,bx:number,by:number,radius:number,steps:number,first:number,last:number):boolean|undefined {
     if(first>last)return true;
     if(![ax,ay,bx,by].every(isWorldCoordinate)||radius<0||radius>WORLD_QUERY_LIMITS.collisionRadius||Math.hypot(bx-ax,by-ay)>4000)return undefined;
     const extent=radius+(this.riftTerrain?64:MAX_PROP_RADIUS);
@@ -498,6 +523,16 @@ export class WorldLandscape {
     };
     if(region.props.some(hit))return false;
     return true;
+  }
+  /** Test only the nearest discrete ray sample to each circle. This is the same
+   * sampled collision rule as repeated blocked(), with one broad-phase query. */
+  private sampledSegmentClear(ax:number,ay:number,bx:number,by:number,radius:number,steps:number,first:number,last:number):boolean|undefined {
+    // The fast path is available whenever the world supplies a segmentPropClear
+    // implementation (base props-only, or an authored override that also covers
+    // water/ocean). Worlds that only override blocked() keep the sampled path.
+    if(this.segmentPropClear===WorldLandscape.prototype.segmentPropClear
+      && this.blocked!==WorldLandscape.prototype.blocked)return undefined;
+    return this.segmentPropClear(ax,ay,bx,by,radius,steps,first,last);
   }
   lineOfSight(ax:number,ay:number,bx:number,by:number):boolean|undefined {
     const steps=Math.ceil(Math.hypot(bx-ax,by-ay)/2);

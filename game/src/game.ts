@@ -106,7 +106,7 @@ import { isGameUIPoint, isUIRectPoint, projectUIRect } from './ui-hit-test.ts';
 import type { GamePhase } from './game-phase.ts';
 import type { Input } from './model.ts';
 import { GAME_FEATURES } from './game-features.ts';
-import { startingZone } from './factions.ts';
+import { playerFaction, startingZone } from './factions.ts';
 import { ActionBars, applyBarInput, activateBarSlot, executeBarCommand } from './action-bar.ts';
 import { ActionBarPanel } from './action-bar-panel.ts';
 import { actionBarSlotAt, drawActionBars, isActionBarPoint } from './hud-action-bars.ts';
@@ -978,7 +978,7 @@ export class Game {
     if (this.world !== this.overworld) this.world.dispose();
     this.overworld.dispose();
     this.overworld = createWorld(record.worldSeed); this.world = this.overworld;
-    const start = GAME_FEATURES.factions ? startingZone(record.checkpoint.character.raceId) : null;
+    const start = GAME_FEATURES.factions ? startingZone(record.checkpoint.character.raceId, this.overworld) : null;
     this.sim = new Simulation(this.world, { seed: record.worldSeed, ...(start ? { startX: start.spawn.x, startY: start.spawn.y } : {}) });
     this.setLocationWorld(record.checkpoint);
     this.sim.restoreCheckpoint(record.checkpoint);
@@ -1428,7 +1428,7 @@ export class Game {
 
   private updatePortalPresentation(): void {
     const destinations = portalDestinations({ seed: this.overworld.seed,
-      home: this.overworld.getPortalAnchor(this.sim.travel.homeTown), travel: this.sim.travel, expeditions: this.sim.expeditions });
+      home: this.overworld.getPortalAnchor(this.sim.travel.homeTown, playerFaction(this.sim.player)), travel: this.sim.travel, expeditions: this.sim.expeditions });
     this.renderer.portalDestinations = destinations;
     if (!this.touch.active) return;
     const progress = this.sim.portal.active ? this.sim.portal.progress : null;
@@ -1838,7 +1838,7 @@ export class Game {
       if (this.sim.hearthstone.ready) {
         void this.durable(async () => {
           const result = await executeHearthstone(this.sim,
-            hearthstoneHome(this.sim, this.overworld.getPortalAnchor(this.sim.travel.homeTown)), c => this.persistTravel(c));
+            hearthstoneHome(this.sim, this.overworld.getPortalAnchor(this.sim.travel.homeTown, playerFaction(this.sim.player))), c => this.persistTravel(c));
           if (result.ok) this.finishTravel(); else this.notify(result.message);
         }, undefined);
       }
@@ -1875,7 +1875,7 @@ export class Game {
           if(index>=0)void this.durable(async()=>{const result=await claimDungeonChest(this.sim,index,c=>this.persistTravel(c));if(!result.ok){this.nextEventClaim=performance.now()+30000;this.notify(result.message);}
             else if(result.celebration){this.renderer.handleEvents([result.celebration],this.reducedMotion);this.notify(result.message);}},undefined);
       }
-      if (this.sim.portal.ready) this.travelThrough(this.overworld.getPortalAnchor(this.sim.travel.homeTown), false);
+      if (this.sim.portal.ready) this.travelThrough(this.overworld.getPortalAnchor(this.sim.travel.homeTown, playerFaction(this.sim.player)), false);
       const run=currentDungeon(this.sim.expeditions);
       const zone = this.currentArea();
       this.renderer.areaBanner.retain(zone.id);

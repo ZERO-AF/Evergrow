@@ -1,4 +1,7 @@
-import { canUpgradeWorld, upgradeWorldChart } from './world-save-upgrade.ts';
+import { canUpgradeWorld, upgradeWorldChart, type UpgradeWorld } from './world-save-upgrade.ts';
+import { World } from './world.ts';
+import { AuthoredWorld } from './authored-world.ts';
+import { AUTHORED_GENERATION_VERSION } from './world-landscape.ts';
 import { parseChronicleLedger, recordChronicle, forkChronicle } from './chronicle.ts';
 import { decodeSaveBundle, makeSaveBundle, chartKey, bundleChart, encodeChart } from './save-bundle.ts';
 import { CharacterRepository, type SaveSlot } from './character-storage.ts';
@@ -98,8 +101,9 @@ async function execute(message: SaveRequest): Promise<unknown> {
                 const old=slot.record,nextRecord=message.record!,charts=tx.objectStore('charts'),read=charts.get(chartKey(old));
                 read.onsuccess=()=>{try{
                   const data=read.result===undefined?{chunks:[],pois:[]}:decodeExploration(read.result,{seed:old.worldSeed,generation:String(old.worldVersion)});
+                  const nextWorld:UpgradeWorld=nextRecord.worldVersion>=AUTHORED_GENERATION_VERSION?new AuthoredWorld(nextRecord.worldSeed):new World(nextRecord.worldSeed);
                   if(!data)throw new Error('The explored map could not be upgraded. The previous save is untouched.');
-                  charts.put(encodeChart(nextRecord,upgradeWorldChart(data,nextRecord.worldSeed)),chartKey(nextRecord));
+                  charts.put(encodeChart(nextRecord,upgradeWorldChart(data,nextRecord.worldSeed,nextRecord.worldVersion,nextWorld)),chartKey(nextRecord));
                 }catch(error){tx.abort();reject(error);}};
               }
               // Return a tiny revision token, never the serialized character, to the game thread.

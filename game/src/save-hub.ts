@@ -2,7 +2,7 @@ import { canLoadWorld } from './world-save-upgrade.ts';
 import type { LeaderboardOrder, LeaderboardSnapshot } from './leaderboard.ts';
 import type { ChronicleLedger } from './chronicle.ts';
 import { decodeSaveBundle } from './save-bundle.ts';
-import { WORLD_GENERATION_VERSION } from './world.ts';
+import { AUTHORED_GENERATION_VERSION } from './world-landscape.ts';
 import { SaveClient } from './save-client.ts';
 import { CloudClient } from './cloud-client.ts';
 import type { CharacterSave } from './character-save.ts';
@@ -75,7 +75,7 @@ export class SaveHub implements CharacterRepositoryPort, ExplorationPersistence 
   async import(index: number, raw: string): Promise<SaveResult> {
     if (this.mode !== 'local') return { ok: false, message: 'File transfers are only available for local saves.' };
     const bundle = decodeSaveBundle(raw);
-    if (!bundle || !canLoadWorld(bundle.character.worldVersion, WORLD_GENERATION_VERSION)) return { ok: false, message: 'Invalid or incompatible save file.' };
+    if (!bundle || !canLoadWorld(bundle.character.worldVersion, AUTHORED_GENERATION_VERSION)) return { ok: false, message: 'Invalid or incompatible save file.' };
     return this.local.import(index, raw);
   }
   async useCloud(index: number, expected: string | null) { if (this.mode === 'cloud') await this.cloud?.useCloud(index, expected); }

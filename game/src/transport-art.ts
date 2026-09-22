@@ -45,6 +45,25 @@ export function drawTransport(c: CanvasRenderingContext2D, marker: VehicleMarker
     c.fillStyle = '#2e3a26';
     c.fillRect(-16, -30, 32, 10); // deck hut
   } else if (marker.kind === 'tram') {
+    // Docked trams sit inside a stone depot: platform edge, a squat tunnel
+    // mouth behind the car, and signal lamps. The car overlaps the arch so it
+    // reads as emerging from the tunnel rather than parked in open snow.
+    if (marker.docked) {
+      c.fillStyle = '#2b2823';
+      c.fillRect(-52, 8, 104, 10);                                    // platform edge
+      c.fillStyle = '#46413a';
+      c.beginPath(); c.roundRect(-46, -52, 92, 62, 6); c.fill();      // depot block
+      c.fillStyle = '#57504a';
+      c.fillRect(-46, -52, 92, 10);                                   // lintel band
+      c.fillStyle = '#0d0b09';
+      c.beginPath();                                                  // tunnel mouth
+      c.moveTo(-26, 10); c.lineTo(-26, -22);
+      c.arc(0, -22, 26, Math.PI, 0);
+      c.lineTo(26, 10); c.closePath(); c.fill();
+      const lamp = .55 + Math.sin(time * 3.1) * .25;
+      c.fillStyle = `rgba(255,190,110,${lamp.toFixed(3)})`;
+      c.beginPath(); c.arc(-38, -40, 3, 0, Math.PI * 2); c.arc(38, -40, 3, 0, Math.PI * 2); c.fill();
+    }
     // Low armored car with a lit window band.
     c.fillStyle = def.hull;
     c.beginPath(); c.roundRect(-34, -12, 68, 24, 6); c.fill();

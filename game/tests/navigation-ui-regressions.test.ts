@@ -61,7 +61,7 @@ test('portal presentation refreshes desktop/controller destinations and clears s
   const expeditions = freshExpeditions(), touchViews: PortalActionView[] = [];
   const game = Object.assign(Object.create(Game.prototype), {
     overworld: { seed: 7319, getPortalAnchor: () => home }, renderer: {},
-    sim: { travel, expeditions, player: { x: 0, y: 0 }, portal: { active: false, progress: 0 } },
+    sim: { travel, expeditions, player: { x: 0, y: 0, character: { raceId: 'human' } }, portal: { active: false, progress: 0 } },
     touch: { active: false, setPortal: (view: PortalActionView) => touchViews.push(view) },
     world: { isSanctuary: () => true }, returnPortalInReach: () => false,
   });

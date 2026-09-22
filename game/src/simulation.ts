@@ -49,6 +49,8 @@ import { getActiveSwingOffset } from './attack-motion.ts';
 import { RANGED_BASIC_ATTACK_PHASES, BASIC_ATTACK_PHASES, COMBAT_TIMING, SKILL_CAST_MOTION, ENEMY_DEFINITIONS, LOOT_RULES, PLAYER_ABILITIES,
   PLAYER_DEFAULTS, PLAYER_MOVEMENT, type ProjectileDefinition } from './combat-content.ts';
 import { chooseEncounterEnemy, ENCOUNTER_RULES } from './encounter-director.ts';
+import { zoneAt } from './world-atlas.ts';
+import { ZONE_CONTENT, type SpawnEntry } from './zone-content.ts';
 import { circleIntersectsSector, segmentDistanceSquared, hasLineOfSight } from './combat-geometry.ts';
 import { refreshCharacter } from './character.ts';
 import { createCharacterSheet, TIER_COLORS } from './items.ts';
@@ -132,6 +134,16 @@ function tabConeHalfAt(d: number): number {
 const OFFENSIVE_EXECUTION: Record<string, true> = { sweep: true, dash: true, radial: true, cone: true, backstab: true, projectile: true,
   ground: true, chain: true, strike: true, dot: true, cc: true, interrupt: true, pull: true, taunt: true, channel: true, comboStrike: true, runeStrike: true };
 
+
+/** Weighted pick from a zone's authored spawn table; `preferred` wins when the
+ * table lists it (pack recipes keep their escort composition). */
+function pickSpawnEntry(table: readonly SpawnEntry[], roll: number, preferred?: EnemyKind): SpawnEntry {
+  if (preferred && table.some(e => e.kind === preferred)) return table.find(e => e.kind === preferred)!;
+  const total = table.reduce((sum, e) => sum + e.weight, 0);
+  let choice = Math.max(0, Math.min(1 - Number.EPSILON, roll)) * total;
+  for (const entry of table) { if (choice < entry.weight) return entry; choice -= entry.weight; }
+  return table[table.length - 1];
+}
 /** Ally hits carry no player crit/life-on-hit; a zeroed snapshot keeps them off player mechanics. */
 const ALLY_OFFENSE: HitSnapshot = Object.freeze({ critChance: 0, critMultiplier: 1, lifeOnHit: 0, directDamageMultiplier: 1, ally: true });
 
@@ -1970,7 +1982,7 @@ export class Simulation {
         roamingFormationRadius(ROAMING_RULES.maxGroupSize));
       const scaling = encounterScaleAt(anchor.x, anchor.y, this.world.seed ?? this.options.seed!, this.player.level);
       const size = this.roaming.groupSize(scaling.base,sizeRoll);
-      const members: Array<{ kind: EnemyKind; rank: EnemyRank; x: number; y: number }> = [];
+      const members: Array<{ kind: EnemyKind; rank: EnemyRank; x: number; y: number; levelOffset: number }> = [];
       for (let index = 0; index < size; index++) {
         for(let placement=0;placement<ROAMING_RULES.memberPlacementAttempts;placement++){
           if(++checks>ROAMING_RULES.placementBudget)return 0;
@@ -1979,7 +1991,17 @@ export class Simulation {
           const biome = (this.world.sampleBiome?.(x, y) ?? sampleBiome(x, y)).id;
           const recipe=index?ROAMING_GROUPS[members[0].kind]:undefined;
           const preferred = recipe ? recipe[1+(index-1)%(recipe.length-1)] : undefined;
-          const kind = chooseEncounterEnemy(biome, () => this.random(), preferred, roamingEscortRole(members[0], index));
+          // Authored zones carry their own spawn table (weighted pick +
+          // levelOffset); elsewhere the biome encounter table applies.
+          const zone = zoneAt(x, y), table = zone ? ZONE_CONTENT[zone.id]?.spawns : undefined;
+          let kind: EnemyKind, levelOffset = 0;
+          if (table?.length) {
+            const entry = pickSpawnEntry(table, this.random(), preferred);
+            kind = entry.kind; levelOffset = entry.levelOffset ?? 0;
+          } else {
+            kind = chooseEncounterEnemy(biome, () => this.random(), preferred, roamingEscortRole(members[0], index));
+          }
+
           if (!isSpawnHidden(x, y, view, ENEMY_DEFINITIONS[kind].radius)
             || this.world.isSanctuary?.(x, y)
             || this.world.blocked(x, y, ENEMY_DEFINITIONS[kind].radius + ENCOUNTER_RULES.spawnClearance)
@@ -1988,7 +2010,7 @@ export class Simulation {
             || living.some(enemy => Math.hypot(enemy.x - x, enemy.y - y) < ENCOUNTER_RULES.minimumSeparation)
             || members.some(enemy => Math.hypot(enemy.x - x, enemy.y - y) < ENCOUNTER_RULES.minimumSeparation)) continue;
           const rank = roamingMemberRank(scaling.base,index,this.random());
-          members.push({ kind, rank, x, y });
+          members.push({ kind, rank, x, y, levelOffset });
           break;
         }
         if(members.length!==index+1)break;
@@ -1998,7 +2020,10 @@ export class Simulation {
       // not scatter a half-formed group through several unrelated candidates.
       const created: Enemy[] = [], firstEvent = this.events.length;
       for (const member of members) {
-        const enemy = this.spawnEnemy(member.kind, member.x, member.y, member.rank, undefined, scaling);
+        const memberScaling = member.levelOffset
+          ? { base: Math.max(1, scaling.base + member.levelOffset), min: Math.max(1, scaling.min + member.levelOffset), max: Math.max(1, scaling.max + member.levelOffset), ...(scaling.fixed ? { fixed: true } : {}) }
+          : scaling;
+        const enemy = this.spawnEnemy(member.kind, member.x, member.y, member.rank, undefined, memberScaling);
         if (enemy) {
           enemy.angle = anchor.angle + Math.PI + (this.random() - .5) * .9;
           created.push(enemy);

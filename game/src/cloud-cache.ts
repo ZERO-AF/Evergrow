@@ -1,4 +1,7 @@
 import { canUpgradeWorld, upgradeWorldChart } from './world-save-upgrade.ts';
+import { World } from './world.ts';
+import { AuthoredWorld } from './authored-world.ts';
+import { AUTHORED_GENERATION_VERSION } from './world-landscape.ts';
 import type { CharacterSave } from './character-save.ts';
 import type { DecodedExploration } from './exploration-save.ts';
 import { emptyChronicle, mergeChronicles, parseChronicleLedger, recordChronicle, type ChronicleLedger } from './chronicle.ts';
@@ -10,7 +13,7 @@ export interface CloudRow { history?:ChronicleLedger; upload?: CloudUpload; inde
 export function prepareCloudSave(old:CloudRow|null,record:CharacterSave,chart?:DecodedExploration):SaveBundle{
   const previous=old?.bundle;
   if(previous&&previous.character.id===record.id&&previous.character.worldSeed===record.worldSeed&&canUpgradeWorld(previous.character.worldVersion,record.worldVersion))
-    chart=upgradeWorldChart(bundleChart(previous),record.worldSeed);
+    chart=upgradeWorldChart(bundleChart(previous),record.worldSeed,record.worldVersion,record.worldVersion>=AUTHORED_GENERATION_VERSION?new AuthoredWorld(record.worldSeed):new World(record.worldSeed));
   return makeSaveBundle(record,chart);
 }
 /** Validate the live read projection without rewriting cached bytes or an immutable upload retry. */

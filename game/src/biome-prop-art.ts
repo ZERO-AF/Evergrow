@@ -5,12 +5,13 @@ import { randomFromSeed, polygon, line, taper, type Point, type Random } from '.
 import type { BiomeId } from './biomes.ts';
 
 type Family = 'sandstoneShard' | 'dryGrass' | 'desertScrub' | 'sandstone' | 'steppeStone' | 'thornBrush' | 'iceCrystal' | 'basalt' | 'emberRock'
-  | 'leafPile' | 'heather' | 'limestone' | 'tussock' | 'mushrooms' | 'stump' | 'lilies';
+  | 'leafPile' | 'heather' | 'limestone' | 'tussock' | 'mushrooms' | 'stump' | 'lilies' | 'giantMushroom';
 export const BIOME_PROP_BOUNDS: Readonly<Partial<Record<PropKind, readonly [number, number]>>> = Object.freeze({
   sandstoneShard: [52, 48], dryGrass: [82, 56], desertScrub: [72, 35], sandstone: [82, 85], steppeStone: [58, 98], thornBrush: [76, 53],
   iceCrystal: [68, 82], basalt: [72, 61],
   emberRock: [68, 48], leafPile: [68, 30],
   heather: [64, 54], limestone: [70, 56], tussock: [64, 57], mushrooms: [50, 40], stump: [60, 44], lilies: [72, 36],
+  giantMushroom: [150, 184],
 });
 const TAU = Math.PI * 2;
 const ellipse = (x: number, y: number, rx: number, ry: number, count = 12): Point[] =>
@@ -115,6 +116,48 @@ function lilies(c: CanvasRenderingContext2D, random: Random) {
   }
   polygon(c, ellipse(3, -14, 2, 1.3, 6), '#ddc889');
 }
+/** Zangarmarsh's towering fungus: a thick ribbed stalk flaring into a broad
+ * glowing cap, with a few small shelf mushrooms at the base. */
+function giantMushroom(c: CanvasRenderingContext2D, random: Random) {
+  const lean = between(random, -7, 7), capY = -118 - random() * 14, capR = 46 + random() * 12;
+  // Stalk: a tapered column with a slight lean and a flared foot.
+  polygon(c, [[-13, 2], [-9, -34], [-7 + lean * .5, -78], [-5 + lean, capY + 14],
+    [5 + lean, capY + 14], [7 + lean * .5, -78], [10, -34], [14, 2]], '#b8b39a');
+  polygon(c, [[-13, 2], [-9, -34], [-7 + lean * .5, -78], [-5 + lean, capY + 14],
+    [-1 + lean, capY + 14], [-3 + lean * .5, -78], [-5, -34], [-8, 2]], '#d3cdb2');
+  for (let rib = 0; rib < 4; rib++) {
+    const rx = -6 + rib * 4 + lean * .4;
+    line(c, [[rx * 1.5, -6], [rx, -52], [rx * .8 + lean * .6, capY + 16]], '#8f8a72', .9);
+  }
+  // Cap underside: gills radiating from the stalk.
+  polygon(c, ellipse(lean, capY + 8, capR * .82, capR * .3), '#7a8f6e');
+  for (let g = 0; g < 9; g++) {
+    const a = Math.PI * (0.08 + g * .105);
+    line(c, [[lean, capY + 8], [lean - Math.cos(a) * capR * .78, capY + 8 + Math.sin(a) * capR * .26]], '#5d7057', .8);
+  }
+  // Cap dome: layered teal-violet with a bright crown and spotted flecks.
+  polygon(c, [[lean - capR, capY + 8], [lean - capR * .92, capY - capR * .34],
+    [lean - capR * .5, capY - capR * .62], [lean, capY - capR * .72],
+    [lean + capR * .5, capY - capR * .62], [lean + capR * .92, capY - capR * .34],
+    [lean + capR, capY + 8]], '#4e7d84');
+  polygon(c, [[lean - capR * .72, capY - capR * .3], [lean - capR * .4, capY - capR * .56],
+    [lean, capY - capR * .64], [lean + capR * .4, capY - capR * .56], [lean + capR * .72, capY - capR * .3],
+    [lean + capR * .3, capY - capR * .18], [lean - capR * .3, capY - capR * .18]], '#6fa0a4');
+  polygon(c, [[lean - capR * .34, capY - capR * .5], [lean, capY - capR * .6],
+    [lean + capR * .34, capY - capR * .5], [lean + capR * .12, capY - capR * .34],
+    [lean - capR * .12, capY - capR * .34]], '#9cc4c0');
+  for (let spot = 0; spot < 6; spot++) {
+    const sx = lean + between(random, -.6, .6) * capR, sy = capY - capR * between(random, .2, .55);
+    polygon(c, ellipse(sx, sy, 2.4 + random() * 2.4, 1.6 + random() * 1.4, 7), '#cfe6da');
+  }
+  line(c, [[lean - capR * .9, capY + 4], [lean, capY + 12], [lean + capR * .9, capY + 4]], '#38545c', 1.4);
+  // Shelf mushrooms at the foot.
+  for (const [sx, sr] of [[-16, 6], [15, 8], [-24, 4]] as const) {
+    taper(c, [sx, 0], [sx + 1, -sr], 1.8, 1.2, '#aab9a2');
+    polygon(c, [[sx - sr, -sr], [sx, -sr * 2.1], [sx + sr, -sr], [sx + 1, -sr + 2]], '#769989');
+  }
+}
+
 
 /** Geometry is generated once per cached family/variant, never loaded as an image asset. */
 export function drawBiomeProp(c: CanvasRenderingContext2D, kind: PropKind, seed: number): void {
@@ -123,7 +166,7 @@ export function drawBiomeProp(c: CanvasRenderingContext2D, kind: PropKind, seed:
     sandstoneShard: (ctx,r) => openStone(ctx,r,true,true),
     dryGrass, desertScrub: (ctx,r) => dryGrass(ctx,r,true), thornBrush, sandstone: (ctx,r) => openStone(ctx,r,true), steppeStone: (ctx,r) => openStone(ctx,r,false),
     iceCrystal: crystal, basalt: (ctx, r) => basalt(ctx, r, false),
-    emberRock: (ctx, r) => basalt(ctx, r, true), heather, limestone, tussock, mushrooms, stump, lilies,
+    emberRock: (ctx, r) => basalt(ctx, r, true), heather, limestone, tussock, mushrooms, stump, lilies, giantMushroom,
     leafPile: (ctx, r) => { for (let i = 0; i < 27; i++) leaf(ctx, between(r, -27, 27), between(r, -12, 1), between(r, 1.4, 4.6), ['#a77c45', '#c59c56', '#825a39'][i % 3], between(r, -1.3, 1.3)); },
   };
   if (!(kind in draw)) throw new Error(`No biome prop drawing for ${kind}.`);

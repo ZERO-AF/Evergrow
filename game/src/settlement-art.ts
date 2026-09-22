@@ -7,7 +7,7 @@ import { architectureStyle, roofVariant } from './settlement-style.ts';
 import { drawSettlementFixture, drawMarketCanopy, drawMarketWares, drawCampShelter } from './settlement-fixture-art.ts';
 import { furnitureContainerId } from './breakable-containers.ts';
 import { drawRoofCourses, drawBuildingApron, drawWallWeathering } from './architecture-art.ts';
-import { occluderBlocks, type OccluderVolume } from './occlusion.ts';
+import type { OccluderVolume } from './occlusion.ts';
 import type { Building, Rect } from './settlements.ts';
 import type { PointLight } from './lighting.ts';
 import { drawGlow } from './lighting.ts';
@@ -34,10 +34,38 @@ function inside(b: Rect, x: number, y: number, margin = 0) {
 function roofRise(b: Building) { if(roofVariant(b)==='terrace')return 3;return (b.biome==='frostpine'?9:0)+ Math.min(36, Math.max(22, b.width * .19)) + (b.kind === 'chapel' ? 7 : 0); }
 
 /** The building's occluder volume (world space): the projected roof plus wall face
- * that can cover the focus→player segment. Shared with the general occlusion pass. */
+ * that can cover the focus→player segment. Shared with the general occlusion pass.
+ * Memoized per building — the frozen blueprint never changes, and this runs per
+ * building per frame. */
+const OCCLUDER_CACHE = new WeakMap<Building, OccluderVolume>();
 export function buildingOccluder(b: Building): OccluderVolume {
+  const cached = OCCLUDER_CACHE.get(b);
+  if (cached) return cached;
   const roofBack = WALL_HEIGHT + roofRise(b) + 9;
-  return { x: b.x - 24, y: b.y - roofBack, width: b.width + 48, height: roofBack + b.height + 29 };
+  const volume: OccluderVolume = { x: b.x - 24, y: b.y - roofBack, width: b.width + 48, height: roofBack + b.height + 29 };
+  OCCLUDER_CACHE.set(b, volume);
+  return volume;
+}
+/** Allocation-free copy of occlusion.ts's slab test (that module is owned by the
+ * core-fix stream): true when the volume covers any part of the a→b segment. */
+function segmentHitsRect(v: OccluderVolume, ax: number, ay: number, bx: number, by: number): boolean {
+  const dx = bx - ax, dy = by - ay;
+  let t0 = 0, t1 = 1;
+  if (Math.abs(dx) < 1e-12) { if (ax < v.x || ax > v.x + v.width) return false; }
+  else {
+    let ta = (v.x - ax) / dx, tb = (v.x + v.width - ax) / dx;
+    if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  if (Math.abs(dy) < 1e-12) { if (ay < v.y || ay > v.y + v.height) return false; }
+  else {
+    let ta = (v.y - ay) / dy, tb = (v.y + v.height - ay) / dy;
+    if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  return true;
 }
 function facadeWindows(b: Building): Array<{ x: number; sign: boolean }> {
   const half = b.door.width / 2;
@@ -95,7 +123,7 @@ export class SettlementArt {
       // The projected roof is an occluder volume: it opens when it covers the
       // focus→player segment, including someone beside a wall or just south of it.
       const roofBack = WALL_HEIGHT + roofRise(b) + 9;
-      const roofOccludes = occluderBlocks(buildingOccluder(b), focusX, focusY, playerX, playerY);
+      const roofOccludes = segmentHitsRect(buildingOccluder(b), focusX, focusY, playerX, playerY);
       const nearRoof = playerX >= b.x - 38 && playerX <= b.x + b.width + 38
         && playerY >= b.y - roofBack - 14 && playerY <= b.y + b.height + 43;
       const revealNow = inside(b, playerX, playerY, 3) || approaching || roofOccludes;

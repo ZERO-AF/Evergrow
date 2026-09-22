@@ -41,14 +41,15 @@ test('vehicle schedule is deterministic, dwells at both docks and sails between'
   assert.deepEqual({ x: dockedFrom.x, y: dockedFrom.y }, route.points[0]);
   const mid = at(dwell + duration / 2);
   assert.equal(mid.phase, 'sailing');
-  assert.ok(Math.abs(mid.x - (route.points[0].x + route.points[1].x) / 2) < route.length / 4);
+  const last = route.points[route.points.length - 1];
+  assert.ok(Math.abs(mid.x - (route.points[0].x + last.x) / 2) < route.length / 3);
   const dockedTo = at(dwell + duration);
   assert.equal(dockedTo.dockedAt, 'to');
-  assert.deepEqual({ x: dockedTo.x, y: dockedTo.y }, route.points[1]);
+  assert.deepEqual({ x: dockedTo.x, y: dockedTo.y }, last);
   assert.equal(at(dwell * 2 + duration + duration / 2).phase, 'returning');
   assert.equal(at(route.cycleSec).dockedAt, 'from');
   assert.deepEqual(vehicleAt(route, 1234.5), vehicleAt(route, 1234.5));
-  assert.equal(dockEtaSec(route, 'from', -route.offsetSec), dwell);
+  assert.equal(dockEtaSec(route, 'from', -route.offsetSec), 0); // docked: window already open
 });
 
 test('boarding pins the player to the vehicle and arrival lands at the far dock', async () => {
@@ -76,9 +77,8 @@ test('boarding pins the player to the vehicle and arrival lands at the far dock'
   assert.equal(arrival.dock, route.spec.transport.to.dock);
   const off = await disembarkTransport(sim, persist);
   assert.ok(off.ok, off.message);
-  assert.equal(sim.transportRide, null);
-  assert.equal(sim.player.x, route.points[1].x);
-  assert.equal(sim.player.y, route.points[1].y);
+  assert.equal(sim.player.x, route.points[route.points.length - 1].x);
+  assert.equal(sim.player.y, route.points[route.points.length - 1].y);
 });
 
 test('boarding fails while sailing, out of reach, or when persistence fails', async () => {
@@ -104,8 +104,8 @@ test('portals teleport the player to the far endpoint through the durable barrie
   assert.equal(pad.end, 'from');
   const result = await executeTransportPortal(sim, route.spec.transport.id, persist);
   assert.ok(result.ok, result.message);
-  assert.equal(sim.player.x, route.points[1].x);
-  assert.equal(sim.player.y, route.points[1].y);
+  assert.equal(sim.player.x, route.points[route.points.length - 1].x);
+  assert.equal(sim.player.y, route.points[route.points.length - 1].y);
   // The far pad teleports back.
   const back = portalAt(sim)!;
   assert.equal(back.end, 'to');

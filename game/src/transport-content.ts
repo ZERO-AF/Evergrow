@@ -26,6 +26,77 @@ const ENDPOINT_OVERRIDES: Readonly<Record<string, { nx: number; ny: number }>> =
   'blasted-lands:The Dark Portal': Object.freeze({ nx: 0.5, ny: 0.85 }),
   'hellfire:The Dark Portal': Object.freeze({ nx: 0.85, ny: 0.5 }),
 });
+
+// ── Sea lanes ────────────────────────────────────────────────────────────────
+/** Authored waypoint polylines for ship/turtle routes (wayfinder world-t13).
+ * Atlas dock positions are settlement points inland; vessels instead anchor
+ * just off the nearest coast and follow open-water lanes between continents.
+ * Each entry is the full from→to polyline: `{zone,nx,ny}` resolves through the
+ * zone rect (values slightly outside 0..1 sit offshore), `{x,y}` is raw world
+ * space. Verified ≥90% over water by scripts/route-water-coverage.ts. */
+type LanePoint = { readonly zone: string; readonly nx: number; readonly ny: number }
+  | { readonly x: number; readonly y: number };
+const lane = (...points: readonly LanePoint[]): readonly LanePoint[] => Object.freeze(points);
+const SEA_LANES: Readonly<Record<string, readonly LanePoint[]>> = Object.freeze({
+  // Rut'theran → Auberdine: anchor off Teldrassil's south shore, then east
+  // through the channel to the Darkshore coast.
+  'ship-teldrassil-darkshore-ruttheranvillage-auberdine': lane(
+    { x: 33000, y: 60072 }, { x: 70000, y: 63000 }, { x: 79930, y: 43200 }),
+  // Auberdine → Valaar's Berth: south down the Kalimdor channel, then west
+  // around Azuremyst's south cape to the west-coast anchorage.
+  'ship-darkshore-azuremyst-auberdine-valaarsberth': lane(
+    { x: 79930, y: 43200 }, { x: 70000, y: 64000 }, { x: 70000, y: 210000 },
+    { x: -15000, y: 205000 }, { x: -70, y: 173000 }),
+  // Auberdine → Stormwind Harbor: the long southern run — down Kalimdor's west
+  // coast, around the southern ocean, then up the Eastern Kingdoms' west coast
+  // to the harbor mouth north of Stormwind.
+  'ship-darkshore-elwynn-auberdine-stormwindharbor': lane(
+    { x: 79930, y: 43200 }, { x: 70000, y: 64000 }, { x: 70000, y: 470000 },
+    { x: 70000, y: 790000 }, { x: 990000, y: 765000 }, { x: 990000, y: 393000 },
+    { x: 1068000, y: 559930 }),
+  // Menethil → Theramore: west through the channel between Loch Modan and
+  // Dun Morogh, around the southern ocean, to the isle's east anchorage.
+  'ship-wetlands-dustwallow-menethilharbor-theramoreisle': lane(
+    { x: 1219930, y: 393000 }, { x: 1000000, y: 370000 }, { x: 990000, y: 765000 },
+    { x: 380070, y: 304800 }),
+  // Menethil → Valiance Keep: west, then north past the Eastern Kingdoms' west
+  // coast, east along Northrend's south shore to the keep's anchorage.
+  'ship-wetlands-borean-tundra-menethilharbor-valiancekeep': lane(
+    { x: 1219930, y: 393000 }, { x: 990000, y: 393000 }, { x: 990000, y: -20000 },
+    { x: 340000, y: 1310000 }, { x: 40000, y: 1310000 }, { x: 46400, y: 1240070 }),
+  // Stormwind Harbor → Valiance Keep: north past Tirisfal, then the same
+  // Northrend south-shore run.
+  'ship-elwynn-borean-tundra-stormwindharbor-valiancekeep': lane(
+    { x: 1068000, y: 559930 }, { x: 990000, y: 393000 }, { x: 990000, y: -20000 },
+    { x: 340000, y: 1310000 }, { x: 40000, y: 1310000 }, { x: 46400, y: 1240070 }),
+  // Booty Bay → Ratchet: around the southern ocean and up Kalimdor's east
+  // coast; the Ratchet anchorage sits off the Barrens shore south of the town.
+  'ship-stranglethorn-barrens-north-bootybay-ratchet': lane(
+    { x: 1039200, y: 780070 }, { x: 70000, y: 790000 }, { x: 70000, y: 470000 },
+    { x: 360000, y: 470000 }, { x: 390000, y: 300000 }, { x: 280800, y: 260070 }),
+  // Menethil → Valgarde: the Northrend run, ending at the fjord's south mouth.
+  'ship-wetlands-howling-fjord-menethilharbor-valgarde': lane(
+    { x: 1219930, y: 393000 }, { x: 990000, y: 393000 }, { x: 990000, y: -20000 },
+    { x: 340000, y: 1310000 }, { x: 284400, y: 1300070 }),
+  // Unu'pe → Moa'ki: east along the Northrend south shore.
+  'turtle-borean-tundra-dragonblight-unupe-moakiharbor': lane(
+    { x: 64000, y: 1240070 }, { x: 79940, y: 1310000 }, { x: 156800, y: 1300070 }),
+  // Moa'ki → Kamagua: east along the south shore to the fjord mouth.
+  'turtle-dragonblight-howling-fjord-moakiharbor-kamagua': lane(
+    { x: 156800, y: 1300070 }, { x: 258400, y: 1300070 }),
+});
+/** Resolve a sea lane to world space; null when any point fails to resolve. */
+function seaLane(id: string): readonly AtlasPoint[] | null {
+  const lanePoints = SEA_LANES[id];
+  if (!lanePoints) return null;
+  const points: AtlasPoint[] = [];
+  for (const point of lanePoints) {
+    const resolved = 'zone' in point ? zonePoint(point.zone, point.nx, point.ny) : point;
+    if (!resolved) return null;
+    points.push(resolved);
+  }
+  return Object.freeze(points);
+}
 /** A route endpoint names a dock, flight master, city or dungeon inside its
  * zone; the atlas carries normalized positions for all of them. */
 function endpointPoint(zone: AtlasZone, name: string): { nx: number; ny: number; faction: FactionId } | null {
@@ -62,6 +133,8 @@ function routeOffset(id: string): number {
   return hash % 997;
 }
 /** Resolve a TRANSPORTS id to world-space endpoints, length and schedule.
+ * Ship/turtle routes follow authored SEA_LANES polylines (anchorage → open
+ * water → anchorage); other kinds stay straight endpoint-to-endpoint.
  * Returns null when an endpoint name has no authored position in its zone. */
 export function transportRoute(id: string): ResolvedRoute | null {
   if (routeCache.has(id)) return routeCache.get(id)!;
@@ -75,8 +148,15 @@ export function transportRoute(id: string): ResolvedRoute | null {
     const b = to && zonePoint(t.to.zone, to.nx, to.ny);
     if (a && b) {
       const spec: RouteSpec = Object.freeze({ transport: t, from: a, to: b, fromFaction: from!.faction, toFaction: to!.faction });
+      // Ship/turtle routes follow authored SEA_LANES: the polyline runs
+      // anchorage → open water → anchorage. Anchorages sit ~70u off the zone
+      // coast — inside TRANSPORT_RULES.reach of the shore, so boarding and the
+      // dockLanding spiral both work — while the settlement dock point stays
+      // on the spec for labels.
+      const lane = (t.kind === 'ship' || t.kind === 'turtle') ? seaLane(id) : null;
+      const points = lane ?? Object.freeze([a, b]);
       resolved = Object.freeze({
-        spec, points: Object.freeze([a, b]), length: Math.hypot(b.x - a.x, b.y - a.y),
+        spec, points, length: polylineLength(points),
         cycleSec: TRANSPORT_RULES.dwellSec * 2 + t.durationSec * 2, offsetSec: routeOffset(id),
       });
     }
@@ -128,31 +208,43 @@ export interface VehicleState {
   /** Seconds until the next phase change. */
   readonly nextInSec: number;
 }
-/** Pure schedule lookup: where the vehicle on a route is at sim time `time`. */
-export function vehicleAt(route: ResolvedRoute, time: number): VehicleState {
+/** Pure schedule lookup: where the vehicle on a route is at sim time `time`.
+ * Sailing follows the route polyline (sea lanes keep vessels over water).
+ * Pass `scratch` — a mutable VehicleState reused across calls — from hot
+ * per-frame loops to avoid allocating; the scratch object is returned, so
+ * callers must consume it immediately and never retain it. */
+export function vehicleAt(route: ResolvedRoute, time: number, scratch?: VehicleState): VehicleState {
   const dwell = TRANSPORT_RULES.dwellSec, duration = route.spec.transport.durationSec;
   const t = ((time + route.offsetSec) % route.cycleSec + route.cycleSec) % route.cycleSec;
-  const [a, b] = route.points;
+  const points = route.points, a = points[0], b = points[points.length - 1];
+  const draft = (scratch ?? {}) as { -readonly [K in keyof VehicleState]: VehicleState[K] };
+  draft.route = route;
   const state = (phase: VehiclePhase, dockedAt: VehicleState['dockedAt'], x: number, y: number,
-    progress: number, nextInSec: number): VehicleState => ({
-    route, phase, dockedAt, x, y, progress, nextInSec,
-    angle: phase === 'returning' ? Math.atan2(a.y - b.y, a.x - b.x) : Math.atan2(b.y - a.y, b.x - a.x),
-  });
-  if (t < dwell) return state('docked-from', 'from', a.x, a.y, 0, dwell - t);
+    angle: number, progress: number, nextInSec: number): VehicleState => {
+    draft.phase = phase; draft.dockedAt = dockedAt; draft.x = x; draft.y = y;
+    draft.angle = angle; draft.progress = progress; draft.nextInSec = nextInSec;
+    return draft;
+  };
+  const depart = points[1] ?? a, arrive = points[points.length - 2] ?? b;
+  const departAngle = Math.atan2(depart.y - a.y, depart.x - a.x);
+  const arriveAngle = Math.atan2(b.y - arrive.y, b.x - arrive.x);
+  if (t < dwell) return state('docked-from', 'from', a.x, a.y, departAngle, 0, dwell - t);
   if (t < dwell + duration) {
-    const k = (t - dwell) / duration;
-    return state('sailing', null, a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, k, dwell + duration - t);
+    const k = (t - dwell) / duration, pose = polylinePose(points, k * route.length, POSE_SCRATCH);
+    return state('sailing', null, pose.x, pose.y, pose.angle, k, dwell + duration - t);
   }
-  if (t < dwell * 2 + duration) return state('docked-to', 'to', b.x, b.y, 1, dwell * 2 + duration - t);
-  const k = (t - dwell * 2 - duration) / duration;
-  return state('returning', null, b.x + (a.x - b.x) * k, b.y + (a.y - b.y) * k, k, route.cycleSec - t);
+  if (t < dwell * 2 + duration) return state('docked-to', 'to', b.x, b.y, arriveAngle, 1, dwell * 2 + duration - t);
+  const k = (t - dwell * 2 - duration) / duration, pose = polylinePose(points, (1 - k) * route.length, POSE_SCRATCH);
+  return state('returning', null, pose.x, pose.y, pose.angle + Math.PI, k, route.cycleSec - t);
 }
-/** Seconds until the vehicle next docks at the given endpoint (for UI labels). */
+/** Seconds until the vehicle next docks at the given endpoint (for UI labels).
+ * Targets the START of the docking window; 0 while the vehicle is docked. */
 export function dockEtaSec(route: ResolvedRoute, end: 'from' | 'to', time: number): number {
   const dwell = TRANSPORT_RULES.dwellSec, duration = route.spec.transport.durationSec;
   const t = ((time + route.offsetSec) % route.cycleSec + route.cycleSec) % route.cycleSec;
-  const target = end === 'from' ? dwell : dwell * 2 + duration;
-  return t <= target ? target - t : route.cycleSec - t + target;
+  const start = end === 'from' ? 0 : dwell + duration;
+  if (t >= start && t < start + dwell) return 0;
+  return t < start ? start - t : route.cycleSec - t + start;
 }
 
 /** Position at `distance` units along a polyline. */
@@ -168,6 +260,29 @@ export function polylineAt(points: readonly AtlasPoint[], distance: number): Atl
   }
   return points[points.length - 1];
 }
+/** Position plus travel heading at `distance` along a polyline. `out` is an
+ * optional mutable result object for allocation-free hot paths. */
+export function polylinePose(points: readonly AtlasPoint[], distance: number,
+  out?: { x: number; y: number; angle: number }): AtlasPoint & { angle: number } {
+  const result = out ?? { x: 0, y: 0, angle: 0 };
+  let remaining = Math.max(0, distance);
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i], b = points[i + 1], seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (remaining <= seg || i + 2 === points.length) {
+      const k = seg > 0 ? Math.min(1, remaining / seg) : 0;
+      result.x = a.x + (b.x - a.x) * k; result.y = a.y + (b.y - a.y) * k;
+      result.angle = Math.atan2(b.y - a.y, b.x - a.x);
+      return result;
+    }
+    remaining -= seg;
+  }
+  const last = points[points.length - 1], prev = points[Math.max(0, points.length - 2)];
+  result.x = last.x; result.y = last.y; result.angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+  return result;
+}
+/** Shared pose scratch for vehicleAt — safe because vehicleAt is synchronous
+ * and consumes the pose before returning. */
+const POSE_SCRATCH = { x: 0, y: 0, angle: 0 };
 export function polylineLength(points: readonly AtlasPoint[]): number {
   let length = 0;
   for (let i = 0; i + 1 < points.length; i++) length += Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
@@ -218,15 +333,20 @@ export function flightPoint(id: string): FlightPoint | null {
   return resolved;
 }
 /** Every flight master in the atlas: zone flightpaths plus any endpoint the
- * flightpath routes reference (a few masters live at dungeons/cities). */
+ * flightpath routes reference (a few masters live at dungeons/cities).
+ * Memoized like flightEdges — the table is static and transportPrompt calls
+ * this per frame. */
+let flightListCache: readonly FlightPoint[] | null = null;
 export function flightPoints(): readonly FlightPoint[] {
+  if (flightListCache) return flightListCache;
   const ids = new Set<string>();
   for (const zone of Object.values(ZONES)) for (const f of zone.flightpaths) ids.add(`${zone.id}:${f.name}`);
   for (const t of TRANSPORTS) if (t.kind === 'flightpath') {
     ids.add(`${t.from.zone}:${t.from.dock}`);
     ids.add(`${t.to.zone}:${t.to.dock}`);
   }
-  return [...ids].map(id => flightPoint(id)).filter((p): p is FlightPoint => p !== null);
+  flightListCache = Object.freeze([...ids].map(id => flightPoint(id)).filter((p): p is FlightPoint => p !== null));
+  return flightListCache;
 }
 export function isFlightPointId(id: unknown): id is string {
   return typeof id === 'string' && id.indexOf(':') > 0 && flightPoint(id) !== null;

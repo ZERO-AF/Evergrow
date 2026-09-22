@@ -4,15 +4,21 @@
  * unchanged. Ocean (no zone) is impassable deep water with no spawns. */
 
 import { World } from './world.ts';
-import { hash, random, type Prop } from './world-landscape.ts';
+import { AUTHORED_GENERATION_VERSION, hash, MAX_PROP_RADIUS, random, type Prop } from './world-landscape.ts';
 import { CONTINENTS, ZONES, zoneAt, type AtlasZone } from './world-atlas.ts';
-import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect, type TownSpec, type WaterSpec } from './zone-content.ts';
+import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect, type TownSpec, type WaterSpec, type ZonePropWeight } from './zone-content.ts';
 import { authoredBiomeSample, zoneBiome, type BiomeId, type BiomeSample, type BiomeWeights } from './biomes.ts';
-import { propDefinition, type PropKind } from './biome-props.ts';
+import { terrainTint } from './zone-palettes.ts';
+import { propDefinition } from './biome-props.ts';
+import { landscapePropProbability } from './natural-landscape.ts';
 import { circleHitsRect, freezeSettlement, generateSettlement, intersects, settlementPOIs, type POI, type Settlement } from './settlements.ts';
 import { authoredSite, wildernessPOI, type WildernessSite } from './wilderness-sites.ts';
 import { DUNGEON_THEME_IDS, dungeonTheme } from './dungeon-content.ts';
 import type { DungeonEntrance } from './dungeon.ts';
+import { RAID_ENTRANCE_ID } from './raid-boss-content.ts';
+import { RAID2_ENTRANCE_ID } from './raid2-boss-content.ts';
+import { RAID3_ENTRANCE_ID } from './raid3-boss-content.ts';
+import { RAID4_ENTRANCE_ID } from './raid4-boss-content.ts';
 import { ElevationField, type ElevationRegion } from './elevation.ts';
 import { DRY_WATER, type WaterSample } from './hydrology.ts';
 import { isWorldCoordinate, validWorldRectangle, WORLD_QUERY_LIMITS } from './world-query.ts';
@@ -20,7 +26,7 @@ import { townPortalAnchor, type PortalAnchor } from './travel.ts';
 import type { Place } from './world-geography.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import type { MaterialId } from './material-content.ts';
-// Continent content packs self-register into ZONE_CONTENT on import (T06–T09).
+import type { PlayerFaction } from './wow-types.ts';
 import './zone-content-kalimdor.ts';
 import './zone-content-eastern-kingdoms.ts';
 import './zone-content-northrend.ts';
@@ -36,14 +42,24 @@ const ZONE_INDEX: Record<string, number> = Object.freeze(Object.fromEntries(ZONE
 const emptyWeights = (): BiomeWeights => ({ deadwood: 0, verdant: 0, swamp: 0, frostpine: 0, emberfall: 0, autumn: 0, highlands: 0, steppe: 0, sunscar: 0 });
 const oceanSample = (): BiomeSample => ({ id: OCEAN_BIOME, name: 'The Great Sea', weights: { ...emptyWeights(), swamp: 1 } });
 
-/** Pick a prop kind from a zone weight table; null when the table is empty. */
-function pickFromTable(table: readonly { kind: PropKind; weight: number }[], roll: number): PropKind | null {
+/** Pick a prop entry from a zone weight table; null when the table is empty. */
+function pickFromTable(table: readonly ZonePropWeight[], roll: number): ZonePropWeight | null {
   const total = table.reduce((sum, entry) => sum + entry.weight, 0);
   if (total <= 0) return null;
   let choice = Math.max(0, Math.min(1 - Number.EPSILON, roll)) * total;
-  for (const entry of table) { if (choice < entry.weight) return entry.kind; choice -= entry.weight; }
-  return table[table.length - 1].kind;
+  for (const entry of table) { if (choice < entry.weight) return entry; choice -= entry.weight; }
+  return table[table.length - 1];
 }
+
+/** Authored raid names that map onto the dedicated arena floors the raid gates
+ * recognize (dungeon.ts routes by entrance id). Other authored raids keep a
+ * `dungeon:atlas:` id plus kind:'raid' and generate a themed floor. */
+const AUTHORED_RAID_IDS: Readonly<Record<string, string>> = Object.freeze({
+  "onyxia's lair": RAID_ENTRANCE_ID,
+  'molten core': RAID2_ENTRANCE_ID,
+  'naxxramas': RAID3_ENTRANCE_ID,
+  'icecrown citadel': RAID4_ENTRANCE_ID,
+});
 
 /** Authored water mask for a point inside a zone: lakes (normalized ellipses)
  * and rivers (normalized polylines). Deep water blocks movement. */
@@ -58,7 +74,7 @@ function authoredWater(zone: AtlasZone, spec: readonly WaterSpec[] | undefined, 
       const rx = Math.max(40, (w.nrx ?? .05) * rect.w), ry = Math.max(40, (w.nry ?? .05) * rect.h);
       edge = (Math.hypot((x - cx) / rx, (y - cy) / ry) - 1) * Math.min(rx, ry);
     } else if (w.points && w.points.length > 1) {
-      const half = Math.max(24, (w.width ?? 90) / 2);
+      const half = Math.max(24, w.width ?? 90);
       for (let i = 1; i < w.points.length; i++) {
         const ax = rect.x + w.points[i - 1][0] * rect.w, ay = rect.y + w.points[i - 1][1] * rect.h;
         const bx = rect.x + w.points[i][0] * rect.w, by = rect.y + w.points[i][1] * rect.h;
@@ -78,15 +94,26 @@ function authoredWater(zone: AtlasZone, spec: readonly WaterSpec[] | undefined, 
  * the atlas and zone registry are importable modules. */
 export class AuthoredWorld extends World {
   /** Authored geography replaces the procedural layout; old saves stay preserved. */
-  override readonly generationVersion = 11;
+  override readonly generationVersion = AUTHORED_GENERATION_VERSION;
   private readonly elevation = new ElevationField(id => zoneContent(id).elevation);
   private authoredProps = new Map<string, Prop | null>();
   private authoredSites = new Map<string, readonly WildernessSite[]>();
   private authoredTowns = new Map<number, Settlement>();
   private townBands = new Map<number, { zone: AtlasZone; spec: TownSpec }>();
+  /** Last zone hit: ground tiles sample thousands of points inside one zone. */
+  private lastZone: { zone: AtlasZone; x: number; y: number; w: number; h: number } | null = null;
   private spawn: { x: number; y: number } | null = null;
 
-  constructor(seed = 7319) { super(seed); }
+  constructor(seed = 7319) {
+    super(seed);
+    // Pre-warm the spawn zones' towns so the first settlement query never
+    // hitches on synchronous generateSettlement inside a frame.
+    for (const id of ['elwynn', 'durotar']) {
+      const zone = ZONES[id]; if (!zone) continue;
+      const towns = zoneContent(id).towns;
+      for (let i = 0; i < towns.length && i < TOWN_BANDS_PER_ZONE - 1; i++) this.authoredSettlement(zone, towns[i], i);
+    }
+  }
 
   override get cacheStats() {
     return { ...super.cacheStats, authoredProps: this.authoredProps.size, authoredSites: this.authoredSites.size, authoredTowns: this.authoredTowns.size };
@@ -94,6 +121,18 @@ export class AuthoredWorld extends World {
   override dispose() {
     this.authoredProps.clear(); this.authoredSites.clear(); this.authoredTowns.clear(); this.townBands.clear();
     super.dispose();
+  }
+  /** zoneAt with a one-zone memo: consecutive samples inside the same zone rect
+   * skip the continent/grid lookup entirely. */
+  private zoneAtFast(x: number, y: number): AtlasZone | null {
+    const last = this.lastZone;
+    if (last && x >= last.x && x < last.x + last.w && y >= last.y && y < last.y + last.h) return last.zone;
+    const zone = zoneAt(x, y);
+    if (zone) {
+      const rect = zoneWorldRect(zone.id)!;
+      this.lastZone = { zone, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+    }
+    return zone;
   }
 
   // ── Identity / spawn ───────────────────────────────────────────────────────
@@ -118,11 +157,20 @@ export class AuthoredWorld extends World {
 
   // ── Biome / terrain ────────────────────────────────────────────────────────
   override sampleBiome(x: number, y: number): BiomeSample {
+    const zone = this.zoneAtFast(x, y);
+    if (zone) {
+      const rect = zoneWorldRect(zone.id)!;
+      const d = Math.min(x - rect.x, rect.x + rect.w - x, y - rect.y, rect.y + rect.h - y);
+      if (d >= 480) {
+        const id = zoneBiome(zone.terrain);
+        return { id, name: zone.name, weights: { ...emptyWeights(), [id]: 1 }, tint: terrainTint(zone.terrain) };
+      }
+    }
     return authoredBiomeSample(x, y) ?? oceanSample();
   }
 
   protected override terrainWater(x: number, y: number): WaterSample {
-    const zone = zoneAt(x, y);
+    const zone = this.zoneAtFast(x, y);
     if (!zone) return OCEAN_WATER;
     return authoredWater(zone, zoneContent(zone.id).water, x, y);
   }
@@ -135,8 +183,7 @@ export class AuthoredWorld extends World {
       const biome = zoneBiome(zone.terrain);
       sites = Object.freeze(zoneContent(zone.id).camps.map((camp, i) =>
         authoredSite(this.seed, `atlas:${zone.id}:site:${i}`, camp.kind ?? 'camp',
-          rect.x + camp.nx * rect.w, rect.y + camp.ny * rect.h, biome, camp.name, camp.members)));
-      this.authoredSites.set(zone.id, sites);
+          rect.x + camp.nx * rect.w, rect.y + camp.ny * rect.h, biome, camp.name, camp.members, camp.faction)));
     }
     return sites;
   }
@@ -163,23 +210,45 @@ export class AuthoredWorld extends World {
     const tier = spec.tier ?? 'town';
     let townSeed = hash(ZONE_INDEX[zone.id], index, this.seed, 7331);
     // generateSettlement derives kind from the place: id 0 or seed%3===0 is a
-    // settlement, city needs the flag, everything else is a village.
+    // settlement, city needs the flag, everything else is a village. Authored
+    // towns are never the seed%3 camp, so 'outpost' stamps the settlement kind
+    // after generation instead of relying on the procedural roll.
     if (tier === 'village' || tier === 'outpost') townSeed = townSeed % 3 === 0 ? townSeed + 1 : townSeed;
     const place: Place = { id: band, cx: 0, cy: 0, x, y, seed: townSeed >>> 0, city: tier === 'capital' };
     const generated = generateSettlement(this.seed, place);
-    town = freezeSettlement(Object.assign(generated, { id: `town:atlas:${band}`, name: spec.name }));
+    if (tier === 'outpost') generated.kind = 'settlement';
+    // Authored towns keep their spec faction so factionAt() can tag the area.
+    town = freezeSettlement(Object.assign(generated, { id: `town:atlas:${band}`, name: spec.name, faction: spec.faction }));
     this.authoredTowns.set(band, town);
     this.townBands.set(band, { zone, spec });
     return town;
   }
 
+  /** Authored town nearest a world point (spec positions, no materialization). */
+  private nearestTown(x: number, y: number): { zone: AtlasZone; spec: TownSpec; index: number } | null {
+    let best: { zone: AtlasZone; spec: TownSpec; index: number } | null = null, distance = Infinity;
+    for (const id of ZONE_IDS) {
+      const zone = ZONES[id], rect = zoneWorldRect(id)!, towns = zoneContent(id).towns;
+      for (let i = 0; i < towns.length && i < TOWN_BANDS_PER_ZONE - 1; i++) {
+        const d = Math.hypot(rect.x + towns[i].nx * rect.w - x, rect.y + towns[i].ny * rect.h - y);
+        if (d < distance) { distance = d; best = { zone, spec: towns[i], index: i }; }
+      }
+    }
+    return best;
+  }
   override getSettlements(x: number, y: number, width: number, height: number): Settlement[] {
     if (!validWorldRectangle(x, y, width, height)) return [];
     const query = { x, y, width, height }, result: Settlement[] = [];
     for (const zone of zonesIn(x, y, width, height, 1100)) {
-      const towns = zoneContent(zone.id).towns;
+      const rect = zoneWorldRect(zone.id)!, towns = zoneContent(zone.id).towns;
       for (let i = 0; i < towns.length && i < TOWN_BANDS_PER_ZONE - 1; i++) {
-        const town = this.authoredSettlement(zone, towns[i], i);
+        const spec = towns[i];
+        // Cheap spec-position reject before the heavy generateSettlement: a town
+        // can only intersect the query when its center is within the query plus
+        // the largest possible settlement radius.
+        const sx = rect.x + spec.nx * rect.w, sy = rect.y + spec.ny * rect.h;
+        if (sx + 1000 < x || sx - 1000 > x + width || sy + 1000 < y || sy - 1000 > y + height) continue;
+        const town = this.authoredSettlement(zone, spec, i);
         if (intersects(query, { x: town.x - town.radius, y: town.y - town.radius, width: town.radius * 2, height: town.radius * 2 }))
           result.push(town);
       }
@@ -189,22 +258,19 @@ export class AuthoredWorld extends World {
 
   override getNearestSettlement(x: number, y: number): Settlement {
     // Resolve by spec position first so distant towns never materialize.
-    let best: { zone: AtlasZone; spec: TownSpec; index: number } | null = null, distance = Infinity;
-    for (const id of ZONE_IDS) {
-      const zone = ZONES[id], rect = zoneWorldRect(id)!, towns = zoneContent(id).towns;
-      for (let i = 0; i < towns.length && i < TOWN_BANDS_PER_ZONE - 1; i++) {
-        const d = Math.hypot(rect.x + towns[i].nx * rect.w - x, rect.y + towns[i].ny * rect.h - y);
-        if (d < distance) { distance = d; best = { zone, spec: towns[i], index: i }; }
-      }
-    }
+    const best = this.nearestTown(x, y);
     return best ? this.authoredSettlement(best.zone, best.spec, best.index) : super.getNearestSettlement(x, y);
   }
-  override getPortalAnchor(band: number): PortalAnchor {
-    // Band 0 is the home anchor: the spawn town, not the procedural origin town
-    // (which sits in ocean under the authored atlas).
+
+  override getPortalAnchor(band: number, faction?: PlayerFaction): PortalAnchor {
+    // Band 0 is the home anchor: the player's faction capital (Horde → Orgrimmar
+    // in Durotar, Alliance/default → Goldshire in Elwynn), not the procedural
+    // origin town (which sits in ocean under the authored atlas). Keep band:0
+    // so freshTravel().homeTown=0 round-trips instead of failing the lookup.
     if (band === 0) {
-      const home = ZONES['elwynn'], towns = home ? zoneContent('elwynn').towns : [];
-      if (towns.length) return townPortalAnchor(this.authoredSettlement(home, towns[0], 0));
+      const homeId = faction === 'horde' ? 'durotar' : 'elwynn';
+      const home = ZONES[homeId], towns = home ? zoneContent(homeId).towns : [];
+      if (towns.length) return { ...townPortalAnchor(this.authoredSettlement(home, towns[0], 0)), band: 0 };
     }
     const known = this.townBands.get(band);
     if (known) return townPortalAnchor(this.authoredSettlement(known.zone, known.spec, (band - 1) % TOWN_BANDS_PER_ZONE));
@@ -216,18 +282,24 @@ export class AuthoredWorld extends World {
     return super.getPortalAnchor(band);
   }
 
+
+
   override getDungeonEntrances(x: number, y: number, w: number, h: number): DungeonEntrance[] {
     if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0 || w > 100000 || h > 100000) return [];
     const out: DungeonEntrance[] = [];
-    for (const zone of zonesIn(x, y, w, h)) {
+    for (const zone of zonesIn(x, y, w, h, 80)) {
       const rect = zoneWorldRect(zone.id)!, biome = zoneBiome(zone.terrain);
       for (const [i, spec] of zoneContent(zone.id).entrances.entries()) {
         const px = rect.x + spec.nx * rect.w, py = rect.y + spec.ny * rect.h;
         if (px < x || py < y || px >= x + w || py >= y + h) continue;
         const seed = hash(ZONE_INDEX[zone.id], i, this.seed, 0xd0e7) >>> 0;
         const theme = spec.theme ?? DUNGEON_THEME_IDS[seed % DUNGEON_THEME_IDS.length];
-        out.push({ id: `atlas:${zone.id}:entrance:${i}`, theme, name: spec.name ?? dungeonTheme(seed, theme).name,
-          x: px, y: py, seed, level: spec.levelMin ?? zone.levelMin, biome });
+        const name = spec.name ?? dungeonTheme(seed, theme).name;
+        // Dedicated raid arenas are routed by entrance id; other authored raids
+        // keep kind:'raid' so the gate opens a themed raid floor, not a dungeon.
+        const raidId = spec.kind === 'raid' ? AUTHORED_RAID_IDS[name.toLowerCase()] : undefined;
+        const id = raidId ?? (spec.kind === 'raid' ? `dungeon:atlas:${zone.id}:${i}` : `atlas:${zone.id}:entrance:${i}`);
+        out.push({ id, theme, name, x: px, y: py, seed, level: spec.levelMin ?? zone.levelMin, biome });
       }
     }
     return out;
@@ -279,14 +351,18 @@ export class AuthoredWorld extends World {
   private generateAuthoredCellProp(cx: number, cy: number): Prop | null {
     const x = (cx + .18 + random(cx, cy, this.seed, 1) * .64) * PROP_CELL;
     const y = (cy + .18 + random(cx, cy, this.seed, 2) * .64) * PROP_CELL;
-    const zone = zoneAt(x, y);
+    const zone = this.zoneAtFast(x, y);
     if (!zone) return null; // ocean carries no props
+    const biome = this.sampleBiome(x, y);
     const content = zoneContent(zone.id);
     if (authoredRoadDistance(x, y) < 76) return null;
     if (this.terrainWater(x, y).coverage > .12) return null;
     if (this.getWildernessSites(x - 18, y - 18, 36, 36).some(site => Math.hypot(x - site.x, y - site.y) < site.radius + 18)) return null;
-    const kind = pickFromTable(content.props, random(cx, cy, this.seed, 4));
-    if (kind === null) return null;
+    const entry = pickFromTable(content.props, random(cx, cy, this.seed, 4));
+    if (entry === null) return null;
+    const kind = entry.kind;
+    // Same density gate as the procedural field so authored zones don't flood.
+    if (random(cx, cy, this.seed, 3) > landscapePropProbability(x, y, this.seed, kind, biome.id)) return null;
     const definition = propDefinition(kind);
     const scale = definition.scale[0] + random(cx, cy, this.seed, 5) * (definition.scale[1] - definition.scale[0]);
     const towns = this.getSettlements(x - 180, y - 180, 360, 360), clearance = definition.radius[1] + 22;
@@ -310,9 +386,8 @@ export class AuthoredWorld extends World {
       if (this.getWildernessSites(crownX - margin, crownY - margin, margin * 2, margin * 2)
         .some(site => Math.hypot(crownX - site.x, crownY - site.y) < site.radius + margin)) return null;
     }
-    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome: this.sampleBiome(x, y).id, seed: hash(cx, cy, this.seed, 7), scale };
+    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome: biome.id, seed: hash(cx, cy, this.seed, 7), scale, occluder: entry.occluder };
   }
-
   // ── Collision / movement ───────────────────────────────────────────────────
   /** Non-elevation collision: ocean, deep authored water, props, sites, buildings. */
   private groundBlocked(x: number, y: number, radius: number): boolean {
@@ -343,6 +418,33 @@ export class AuthoredWorld extends World {
     for (let i = 0; i <= steps; i++) {
       const px = ax + (bx - ax) * i / steps, py = ay + (by - ay) * i / steps;
       if (this.blocked(px, py, radius + (i > 0 && i < steps ? 4 : 0)) || this.isSanctuary(px, py)) return false;
+    }
+    return true;
+  }
+
+  /** Prop-only fast path: authored sites/buildings still take the sampled path,
+   * but open terrain answers from one broad-phase query instead of ~100. */
+  protected override segmentPropClear(ax: number, ay: number, bx: number, by: number, radius: number, steps: number, first: number, last: number): boolean | undefined {
+    if (first > last) return true;
+    if (![ax, ay, bx, by].every(isWorldCoordinate) || radius < 0 || radius > WORLD_QUERY_LIMITS.collisionRadius || Math.hypot(bx - ax, by - ay) > 4000) return undefined;
+    const extent = radius + MAX_PROP_RADIUS;
+    const left = Math.min(ax, bx) - extent, top = Math.min(ay, by) - extent, width = Math.abs(bx - ax) + extent * 2, height = Math.abs(by - ay) + extent * 2;
+    if (!validWorldRectangle(left, top, width, height)) return undefined;
+    const region = this.collisionRegion(left, top, width, height);
+    if (region.buildings.length || region.sites.length) return undefined;
+    const dx = bx - ax, dy = by - ay, lengthSquared = dx * dx + dy * dy;
+    const hit = (p: { x: number; y: number; radius: number }) => {
+      const nearest = lengthSquared ? Math.round(((p.x - ax) * dx + (p.y - ay) * dy) / lengthSquared * steps) : first;
+      const index = Math.max(first, Math.min(last, nearest)), x = ax + dx * index / steps, y = ay + dy * index / steps;
+      return (x - p.x) ** 2 + (y - p.y) ** 2 < (radius + p.radius) ** 2 - 1e-7;
+    };
+    if (region.props.some(hit)) return false;
+    // Ocean/deep water still blocks; sample the water mask at the same steps.
+    for (let i = first; i <= last; i++) {
+      const px = ax + dx * i / steps, py = ay + dy * i / steps;
+      if (!this.zoneAtFast(px, py)) return false;
+      const water = this.terrainWater(px, py);
+      if (water.coverage > .5 && water.depth >= .75) return false;
     }
     return true;
   }

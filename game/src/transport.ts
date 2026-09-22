@@ -14,8 +14,14 @@ import type { AtlasPoint } from './world-atlas.ts';
 import {
   TRANSPORT_RULES, VEHICLE_DEFS, dockEtaSec, factionAllowed, flightPoint, flightPoints,
   isVehicleKind, planFlight, playerFaction, polylineAt, transportRoute, transportRoutes, vehicleAt,
-  type FlightPlan, type FlightPoint, type ResolvedRoute, type VehicleDef,
+  type FlightPlan, type FlightPoint, type ResolvedRoute, type VehicleDef, type VehicleState,
 } from './transport-content.ts';
+
+/** Shared vehicle-state scratch for synchronous per-frame queries (vehiclesNear,
+ * transportPrompt, advanceTransport). vehicleAt mutates and returns it; callers
+ * here consume the fields immediately and never retain the object. Async paths
+ * (board/disembark) allocate fresh states instead. */
+const VEHICLE_SCRATCH = {} as VehicleState;
 
 export type TransportRide =
   | { readonly kind: 'route'; readonly routeId: string; readonly boardedAt: 'from' | 'to' }
@@ -54,7 +60,7 @@ export function advanceTransport(sim: TransportHost, dt: number): void {
   }
   const route = transportRoute(ride.routeId);
   if (!route) { sim.transportRide = null; sim.transportArrival = null; return; }
-  const state = vehicleAt(route, sim.time);
+  const state = vehicleAt(route, sim.time, VEHICLE_SCRATCH);
   p.x = state.x; p.y = state.y; p.vx = p.vy = 0;
   const destination = ride.boardedAt === 'from' ? 'to' : 'from';
   sim.transportArrival = state.dockedAt === destination
@@ -90,7 +96,7 @@ export function boardableVehicle(sim: TransportHost): { route: ResolvedRoute; en
   for (const route of transportRoutes()) {
     const kind = route.spec.transport.kind;
     if (!isVehicleKind(kind)) continue;
-    const state = vehicleAt(route, sim.time);
+    const state = vehicleAt(route, sim.time, VEHICLE_SCRATCH);
     if (!state.dockedAt) continue;
     if (Math.hypot(p.x - state.x, p.y - state.y) <= TRANSPORT_RULES.reach)
       return { route, end: state.dockedAt, vehicle: VEHICLE_DEFS[kind] };
@@ -161,7 +167,7 @@ export async function disembarkTransport(sim: TransportHost, persist: Persist): 
 export function portalAt(sim: TransportHost): { route: ResolvedRoute; end: 'from' | 'to' } | null {
   const p = sim.player;
   for (const route of transportRoutes('portal')) {
-    const [a, b] = route.points;
+    const a = route.points[0], b = route.points[route.points.length - 1];
     if (Math.hypot(p.x - a.x, p.y - a.y) <= TRANSPORT_RULES.reach) return { route, end: 'from' };
     if (Math.hypot(p.x - b.x, p.y - b.y) <= TRANSPORT_RULES.reach) return { route, end: 'to' };
   }
@@ -179,7 +185,7 @@ export async function executeTransportPortal(sim: TransportHost, routeId: string
     return { ok: false, message: 'The portal is not attuned to your faction.' };
   const near = portalAt(sim);
   if (!near || near.route.spec.transport.id !== routeId) return { ok: false, message: 'The portal is out of reach.' };
-  const target = route.points[near.end === 'from' ? 1 : 0];
+  const target = route.points[near.end === 'from' ? route.points.length - 1 : 0];
   const landing = dockLanding(sim.world, target, sim.player.radius);
   if (!landing) return { ok: false, message: 'The far side is blocked.' };
   const checkpoint = sim.captureCheckpoint();
@@ -273,7 +279,7 @@ export function vehiclesNear(sim: TransportHost, x: number, y: number, width: nu
   for (const route of transportRoutes()) {
     const kind = route.spec.transport.kind;
     if (!isVehicleKind(kind)) continue;
-    const state = vehicleAt(route, sim.time);
+    const state = vehicleAt(route, sim.time, VEHICLE_SCRATCH);
     if (state.x < x || state.x > x + width || state.y < y || state.y > y + height) continue;
     const spec = route.spec.transport;
     out.push({
@@ -310,7 +316,7 @@ export function transportPrompt(sim: TransportHost): TransportPrompt | null {
     if (ride.kind === 'flight')
       return sim.transportArrival ? { kind: 'disembark', label: 'Land', x: p.x, y: p.y, id: 'flight' } : null;
     const route = transportRoute(ride.routeId)!;
-    const state = vehicleAt(route, sim.time);
+    const state = vehicleAt(route, sim.time, VEHICLE_SCRATCH);
     if (state.dockedAt) {
       const dock = route.spec.transport[state.dockedAt];
       return { kind: 'disembark', label: `Disembark at ${dock.dock}`, x: state.x, y: state.y, id: ride.routeId };
@@ -320,13 +326,13 @@ export function transportPrompt(sim: TransportHost): TransportPrompt | null {
   const board = boardableVehicle(sim);
   if (board) {
     const destination = board.route.spec.transport[board.end === 'from' ? 'to' : 'from'];
-    const state = vehicleAt(board.route, sim.time);
+    const state = vehicleAt(board.route, sim.time, VEHICLE_SCRATCH);
     return { kind: 'board', label: `Board ${board.vehicle.name} — ${destination.dock}`, x: state.x, y: state.y, id: board.route.spec.transport.id };
   }
   const portal = portalAt(sim);
   if (portal) {
     const destination = portal.route.spec.transport[portal.end === 'from' ? 'to' : 'from'];
-    const point = portal.route.points[portal.end === 'from' ? 0 : 1];
+    const point = portal.route.points[portal.end === 'from' ? 0 : portal.route.points.length - 1];
     return { kind: 'portal', label: `Portal to ${destination.dock}`, x: point.x, y: point.y, id: portal.route.spec.transport.id };
   }
   const master = flightMasterAt(sim);
@@ -338,7 +344,7 @@ export function transportPrompt(sim: TransportHost): TransportPrompt | null {
   for (const route of transportRoutes()) {
     if (!isVehicleKind(route.spec.transport.kind)) continue;
     for (const end of ['from', 'to'] as const) {
-      const point = route.points[end === 'from' ? 0 : 1];
+      const point = route.points[end === 'from' ? 0 : route.points.length - 1];
       if (Math.hypot(p.x - point.x, p.y - point.y) > TRANSPORT_RULES.reach) continue;
       const eta = Math.ceil(dockEtaSec(route, end, sim.time));
       const vehicle = VEHICLE_DEFS[route.spec.transport.kind as VehicleDef['kind']];

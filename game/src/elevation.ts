@@ -396,16 +396,30 @@ export function elevationMove(site: ElevationSite | SiteResolver | null,
 export class ElevationField {
   private readonly sites = new Map<string, { spec: ElevationSpec | undefined; site: ElevationSite }>();
   private readonly specOf: (zoneId: string) => ElevationSpec | undefined;
+  /** One-zone memo: movement/LOS queries sample thousands of points inside the
+   * same zone rect, so the last hit answers without a zoneAt + map lookup. */
+  private last: { zone: AtlasZone; rect: { x: number; y: number; w: number; h: number }; spec: ElevationSpec | undefined; site: ElevationSite } | null = null;
   constructor(specOf: (zoneId: string) => ElevationSpec | undefined) { this.specOf = specOf; }
 
   siteAt(x: number, y: number): ElevationSite | null {
+    const last = this.last;
+    if (last && x >= last.rect.x && x < last.rect.x + last.rect.w && y >= last.rect.y && y < last.rect.y + last.rect.h) {
+      // Spec identity can change under test overrides; verify before serving.
+      if (this.specOf(last.zone.id) === last.spec) return last.site;
+    }
     const zone = zoneAt(x, y);
     if (!zone) return null;
     const spec = this.specOf(zone.id);
     const cached = this.sites.get(zone.id);
-    if (cached && cached.spec === spec) return cached.site;
+    if (cached && cached.spec === spec) {
+      const origin = CONTINENTS[zone.continent].origin;
+      this.last = { zone, rect: { x: zone.rect.x + origin.x, y: zone.rect.y + origin.y, w: zone.rect.w, h: zone.rect.h }, spec, site: cached.site };
+      return cached.site;
+    }
     const site = new ElevationSite(zone, spec);
     this.sites.set(zone.id, { spec, site });
+    const origin = CONTINENTS[zone.continent].origin;
+    this.last = { zone, rect: { x: zone.rect.x + origin.x, y: zone.rect.y + origin.y, w: zone.rect.w, h: zone.rect.h }, spec, site };
     return site;
   }
 

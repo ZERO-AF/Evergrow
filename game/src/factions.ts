@@ -9,6 +9,7 @@
  * This module owns the *entity* tag (`FactionTag`, no 'contested') and the
  * player axis (`PlayerFaction` from wow-types). */
 import { zoneAt, zonePoint, type AtlasPoint, type AtlasZone, type FactionId as AtlasFactionId } from './world-atlas.ts';
+import { zoneContent, zoneWorldRect } from './zone-content.ts';
 import { WOW_RACES } from './wow-races.ts';
 import type { WowRaceId, PlayerFaction } from './wow-types.ts';
 import { FACTION_BY_ID, type FactionId as ReputationFactionId } from './reputation-content.ts';
@@ -45,11 +46,11 @@ export interface RaceStart {
 export const RACE_STARTS: Readonly<Record<WowRaceId, RaceStart>> = Object.freeze({
   human:    Object.freeze({ zone: 'elwynn',     area: 'Northshire Abbey',   nx: 0.50, ny: 0.35 }),
   dwarf:    Object.freeze({ zone: 'dun-morogh', area: 'Coldridge Valley',   nx: 0.28, ny: 0.72 }),
-  gnome:    Object.freeze({ zone: 'dun-morogh', area: 'Gnomeregan',         nx: 0.27, ny: 0.45 }),
+  gnome:    Object.freeze({ zone: 'dun-morogh', area: 'Coldridge Valley',   nx: 0.28, ny: 0.72 }),
   nightElf: Object.freeze({ zone: 'teldrassil', area: 'Shadowglen',         nx: 0.62, ny: 0.30 }),
   draenei:  Object.freeze({ zone: 'azuremyst',  area: 'Ammen Vale',         nx: 0.72, ny: 0.42 }),
   orc:      Object.freeze({ zone: 'durotar',    area: 'Valley of Trials',   nx: 0.45, ny: 0.72 }),
-  troll:    Object.freeze({ zone: 'durotar',    area: 'Sen\'jin Village',   nx: 0.55, ny: 0.80 }),
+  troll:    Object.freeze({ zone: 'durotar',    area: 'Valley of Trials',   nx: 0.45, ny: 0.72 }),
   tauren:   Object.freeze({ zone: 'mulgore',    area: 'Red Cloud Mesa',     nx: 0.45, ny: 0.82 }),
   undead:   Object.freeze({ zone: 'tirisfal',   area: 'Deathknell',         nx: 0.30, ny: 0.62 }),
   bloodElf: Object.freeze({ zone: 'eversong',   area: 'Sunstrider Isle',    nx: 0.38, ny: 0.20 }),
@@ -73,11 +74,20 @@ export interface StartingZone {
   /** World-space spawn point inside the zone rect. */
   readonly spawn: AtlasPoint;
 }
-
-/** The race's authored starting zone + world-space spawn point. */
-export function startingZone(raceId: WowRaceId): StartingZone {
+/** The race's authored starting zone + world-space spawn point. When `world` is
+ * given, a spawn that lands inside a prop/deep water is nudged to the nearest
+ * walkable ring so a hero never wakes inside a tree. */
+export function startingZone(raceId: WowRaceId, world?: { blocked(x: number, y: number, radius: number): boolean }): StartingZone {
   const start = RACE_STARTS[raceId];
   const spawn = zonePoint(start.zone, start.nx, start.ny)!;
+  if (world?.blocked(spawn.x, spawn.y, 18)) {
+    for (let ring = 64; ring <= 4096; ring += 64)
+      for (let i = 0; i < 24; i++) {
+        const a = i * Math.PI / 12, x = spawn.x + Math.cos(a) * ring, y = spawn.y + Math.sin(a) * ring;
+        if (!world.blocked(x, y, 18))
+          return { faction: raceFaction(raceId), zone: zoneAt(x, y) ?? zoneAt(spawn.x, spawn.y)!, area: start.area, spawn: { x, y } };
+      }
+  }
   return { faction: raceFaction(raceId), zone: zoneAt(spawn.x, spawn.y)!, area: start.area, spawn };
 }
 
@@ -85,14 +95,28 @@ export function startingZone(raceId: WowRaceId): StartingZone {
 /** Radius (units) around an atlas city anchor where its faction tags entities —
  * city guards patrol their walls, not the whole zone. */
 export const CITY_FACTION_RADIUS = 3000;
+/** Radius around an authored town anchor where its spec faction tags entities —
+ * smaller than a city aura: a village tags its own streets, not the zone. */
+export const TOWN_FACTION_RADIUS = 800;
 
-/** Faction tag for a world point: the nearest city anchor inside its radius wins
- * (enemy cities in contested zones are dangerous); otherwise the zone's
- * territorial faction, with 'contested' resolving to 'neutral'. Ocean/unmapped
- * points are 'neutral'. */
+/** Faction tag for a world point: the nearest authored town inside its radius
+ * wins first (a Horde outpost inside an Alliance zone stays Horde), then the
+ * nearest city anchor inside its radius; otherwise the zone's territorial
+ * faction, with 'contested' resolving to 'neutral'. Ocean/unmapped points are
+ * 'neutral'. */
 export function factionAt(x: number, y: number): FactionTag {
   const zone = zoneAt(x, y);
   if (!zone) return 'neutral';
+  const rect = zoneWorldRect(zone.id);
+  if (rect) {
+    let best = Infinity, tag: FactionTag | null = null;
+    for (const town of zoneContent(zone.id).towns) {
+      if (!town.faction) continue;
+      const d = Math.hypot(rect.x + town.nx * rect.w - x, rect.y + town.ny * rect.h - y);
+      if (d <= TOWN_FACTION_RADIUS && d < best) { best = d; tag = town.faction === 'contested' ? 'neutral' : town.faction; }
+    }
+    if (tag) return tag;
+  }
   let best = Infinity, tag: FactionTag | null = null;
   for (const city of zone.cities) {
     const p = zonePoint(zone.id, city.nx, city.ny)!;

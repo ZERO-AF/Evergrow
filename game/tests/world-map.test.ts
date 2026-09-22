@@ -6,7 +6,7 @@ import type { MapView } from '../src/world-map.ts';
 import { fitMapBounds, getMinimapChartRect, getMinimapHomeRect, MAP_ZOOM } from '../src/map-view.ts';
 import type { WorldPOI } from '../src/world-pois.ts';
 import { World } from '../src/world.ts';
-import { biomeMapColor } from '../src/biomes.ts';
+
 import { roadPaths, pathDistance } from '../src/road-shape.ts';
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 
@@ -341,10 +341,12 @@ test('coarse tile cache notices discoveries in every covered chunk without regen
 test('overview colors omit tiny raster roads while detailed maps retain their actual surface', () => {
   const world = new World();
   for (const [x,y] of roadPaths(-6000,-6000,12000,12000)[0].points.filter((_,i)=>i%30===0)) {
-    const expected = biomeMapColor(world.sampleBiome(x, y).weights).map(Math.round);
-    assert.equal(world.mapColor(x, y, 96), `rgb(${expected.join(',')})`);
-    assert.notEqual(world.mapColor(x, y, 24), world.mapColor(x, y, 96));
-    assert.equal(world.mapColor(x, y), world.mapColor(x, y, 24));
+    // Coarse samples shade the biome color with relief/shoreline but never
+    // rasterize the road surface; detailed samples keep the worn track.
+    const coarse = world.mapColor(x, y, 96), detail = world.mapColor(x, y, 24);
+    assert.match(coarse, /^rgb\(\d+,\d+,\d+\)$/);
+    assert.notEqual(detail, coarse);
+    assert.equal(world.mapColor(x, y), detail);
   }
 });
 

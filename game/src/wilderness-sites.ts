@@ -227,18 +227,22 @@ export function generateWildernessSite(worldSeed: number, cx: number, cy: number
 /** Authored atlas content places a site at an exact world position (T02).
  * `members` replaces the biome roster; `name` replaces the generated label. */
 export function authoredSite(worldSeed: number, id: string, kind: WildernessKind, x: number, y: number, biome: BiomeId,
-  name?: string, members?: readonly EnemyKind[]): WildernessSite {
+  name?: string, members?: readonly EnemyKind[], faction?: FactionTag | 'contested'): WildernessSite {
   const seed = siteHash(Math.floor(x), Math.floor(y), worldSeed, 0xa71a5);
   const site = makeSite(seed, id, kind, x, y, false, biome, worldSeed);
+  const tag = faction === 'contested' ? 'neutral' : faction;
   const roster = members?.length
     ? Object.freeze(members.map((kind, i) => Object.freeze({
         id: `${id}:member:${i}`, kind, rank: 'normal' as const,
         dx: Math.cos(i * Math.PI * 2 / members.length) * 90,
         dy: Math.sin(i * Math.PI * 2 / members.length) * 90,
+        faction: tag,
       })))
     : site.members;
-  const renamed = name === undefined || name === site.name ? site : { ...site, name };
-  return Object.freeze(roster === site.members ? renamed : { ...renamed, members: roster });
+  let out = name === undefined || name === site.name ? site : { ...site, name };
+  if (roster !== site.members) out = { ...out, members: roster };
+  if (tag !== undefined && tag !== out.faction) out = { ...out, faction: tag };
+  return Object.freeze(out);
 }
 
 export function wildernessPOI(site: WildernessSite): WorldPOI {

@@ -24,7 +24,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
   }),
   nightElf: Object.freeze({
     id: 'nightElf', name: 'Night Elf', faction: 'alliance',
-    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage', 'druid']),
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'deathKnight', 'druid']),
     racial: 'shadowmeld', racialName: 'Shadowmeld',
     racialDescription: 'Fade into shadow for 6 sec, hidden from distant enemies. 2 min cooldown.',
     passives: Object.freeze({ moveSpeedPercent: 2, lightningResistance: 3 }),
@@ -34,7 +34,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
   }),
   gnome: Object.freeze({
     id: 'gnome', name: 'Gnome', faction: 'alliance',
-    classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
+    classes: Object.freeze<WowClassId[]>(['warrior', 'rogue', 'deathKnight', 'mage', 'warlock']),
     racial: 'escapeArtist', racialName: 'Escape Artist',
     racialDescription: 'Slip free of roots and slows, moving 30% faster for 3 sec. 1.75 min cooldown.',
     passives: Object.freeze({ intelligence: 5, arcaneResistance: 3 }),
@@ -84,7 +84,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
   }),
   troll: Object.freeze({
     id: 'troll', name: 'Troll', faction: 'horde',
-    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'druid', 'deathKnight']),
+    classes: Object.freeze<WowClassId[]>(['warrior', 'hunter', 'rogue', 'priest', 'shaman', 'mage', 'deathKnight']),
     racial: 'berserking', racialName: 'Berserking',
     racialDescription: 'Enter a frenzy: +20% attack and cast speed for 10 sec. 3 min cooldown.',
     passives: Object.freeze({ lifeRegen: 0.5 }),
@@ -94,7 +94,7 @@ export const WOW_RACES: Readonly<Record<WowRaceId, WowRaceDef>> = Object.freeze(
   }),
   bloodElf: Object.freeze({
     id: 'bloodElf', name: 'Blood Elf', faction: 'horde',
-    classes: Object.freeze<WowClassId[]>(['paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage']),
+    classes: Object.freeze<WowClassId[]>(['paladin', 'hunter', 'rogue', 'priest', 'deathKnight', 'mage', 'warlock']),
     racial: 'arcaneTorrent', racialName: 'Arcane Torrent',
     racialDescription: 'Silence nearby enemies for 2 sec and restore 15 resource. 2 min cooldown.',
     passives: Object.freeze({ arcaneResistance: 5, critChance: 2 }),

@@ -2,7 +2,7 @@ import { sampleBiome } from './biomes.ts';
 import { geoHash, parentPlace, queryPlaces, settlementPlace, type Place } from './world-geography.ts';
 import { validWorldRectangle } from './world-query.ts';
 import { zoneAt } from './world-atlas.ts';
-import { authoredRoadDistance, zoneContent, zonesIn } from './zone-content.ts';
+import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect } from './zone-content.ts';
 export interface RoadPath {
   id: string;
   main: boolean;
@@ -194,6 +194,37 @@ export interface RoadAnchor {
   seed: number;
 }
 const anchors = new Map<string, RoadAnchor | null>();
+const authoredAnchors = new Map<string, RoadAnchor[]>();
+/** Roadside anchors along a zone's authored road polylines: one candidate every
+ * ~2200 units of path, offset 84 to a deterministic side, hash-gated like the
+ * procedural cells so reliquaries/shrines appear along authored routes too. */
+function authoredRoadAnchors(zoneId: string, seed: number, salt: number): RoadAnchor[] {
+  const key = `${seed}:${salt}:${zoneId}`, cached = authoredAnchors.get(key);
+  if (cached) return cached;
+  const rect = zoneWorldRect(zoneId), out: RoadAnchor[] = [];
+  if (rect) for (const [ri, road] of zoneContent(zoneId).roads.entries()) {
+    // Road points are already world coordinates (see zone-content.ts RoadSpec).
+    const pts = road.points;
+    for (let i = 1, carry = 0; i < pts.length; i++) {
+      const ax = pts[i - 1][0], ay = pts[i - 1][1];
+      const bx = pts[i][0], by = pts[i][1];
+      const length = Math.hypot(bx - ax, by - ay);
+      if (length < 1) continue;
+      for (let d = 1100 - carry; d < length; d += 2200) {
+        const t = d / length, px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
+        const hash = geoHash(Math.floor(px / 2200), Math.floor(py / 2200), seed + salt + ri * 131 + i);
+        if (hash % 4 === 0) continue;
+        const side = hash % 2 ? 1 : -1;
+        out.push({ id: `${key}:${ri}:${i}:${Math.round(d)}`, seed: hash,
+          x: px - (by - ay) / length * 84 * side, y: py + (bx - ax) / length * 84 * side });
+      }
+      carry = (carry + length) % 2200;
+    }
+  }
+  if (authoredAnchors.size >= 256) authoredAnchors.delete(authoredAnchors.keys().next().value!);
+  authoredAnchors.set(key, out);
+  return out;
+}
 /** Roadside objects own two-dimensional cells and follow the actual local route. */
 export function roadAnchors(x: number, y: number, width: number, height: number, seed: number, salt: number): RoadAnchor[] {
   if (!validWorldRectangle(x, y, width, height))
@@ -224,5 +255,8 @@ export function roadAnchors(x: number, y: number, width: number, height: number,
       if (a && !zoneAt(a.x, a.y) && a.x >= x && a.x < x + width && a.y >= y && a.y < y + height)
         result.push(a);
     }
+  for (const zone of zonesIn(x, y, width, height, 2400))
+    for (const a of authoredRoadAnchors(zone.id, seed, salt))
+      if (a.x >= x && a.x < x + width && a.y >= y && a.y < y + height) result.push(a);
   return result;
 }

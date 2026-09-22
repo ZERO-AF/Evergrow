@@ -1,4 +1,4 @@
-import { generateSettlement, type Settlement } from './settlements.ts';
+import { generateSettlement, type POI, type Settlement } from './settlements.ts';
 import { settlementPlace, placeCell } from './world-geography.ts';
 import type { CharacterSave } from './character-save.ts';
 import type { Item } from './character-types.ts';
@@ -8,8 +8,10 @@ import { settlementPOIs } from './settlements.ts';
 import { townPortalAnchor } from './travel.ts';
 import { PLAYER_DEFAULTS, ENEMY_DEFINITIONS } from './combat-content.ts';
 
-/** This is a single supported geography upgrade, not permission to load arbitrary generations. */
-export const canUpgradeWorld = (from:number,to:number):boolean => from===9 && to===10;
+
+/** Supported geography upgrades: 9→10 (procedural relayout) and 10→11 (authored
+ * atlas). This is not permission to load arbitrary generations. */
+export const canUpgradeWorld = (from:number,to:number):boolean => (from===9 && to===10) || (from===10 && to===11);
 export const canLoadWorld = (from:number,to:number):boolean => from===to || canUpgradeWorld(from,to);
 
 export interface UpgradeWorld { blocked(x:number,y:number,radius:number):boolean;getNearestSettlement(x:number,y:number):Settlement;dispose():void; }
@@ -72,15 +74,28 @@ export function upgradeWorldSave(source:CharacterSave,target:number,createWorld:
   }finally{world.dispose();}
 }
 
-/** Preserve explored terrain and unrelated discoveries; rebuild known town markers from current geometry. */
-export function upgradeWorldChart(chart:DecodedExploration,seed:number):DecodedExploration{
+/** Preserve explored terrain and unrelated discoveries; rebuild known town markers from current geometry.
+ * `target` is the world version being upgraded to; `world` (required for the
+ * authored atlas, target ≥ 11) resolves each stale town marker to the nearest
+ * current settlement so authored `town:atlas:*` ids rebuild correctly. */
+export function upgradeWorldChart(chart:DecodedExploration,seed:number,target=10,world?:UpgradeWorld):DecodedExploration{
   const result:DecodedExploration={chunks:chart.chunks.map(c=>({...c,words:Uint32Array.from(c.words)})),pois:chart.pois.map(p=>({...p}))},seen=new Set<string>();
-  const towns=new Map<number,ReturnType<typeof settlementPOIs>>();
+  const towns=new Map<string,POI[]>(),legacy=new Map<number,POI[]>();
+  const authoredWorld=()=>{if(!world)throw new Error('upgradeWorldChart needs the target world for the authored atlas.');return world;};
   result.pois=result.pois.flatMap(p=>{
-      if(!p.id.startsWith('town:'))return [p];
-      const match=/^town:[0-9]+:([0-9]+)(?::|$)/.exec(p.id);if(!match)return [];
-      const id=Number(match[1]);let pois=towns.get(id);
-      if(!pois){pois=settlementPOIs(generateSettlement(seed,settlementPlace(seed,...placeCell(id))));towns.set(id,pois);}
+      // Town markers carry `town:<seed>:<place>` (procedural) or
+      // `town:atlas:<band>` (authored) ids; both rebuild by position.
+      const atlas=/^town:atlas:/.test(p.id);
+      if(!atlas&&!p.id.startsWith('town:'))return [p];
+      let pois:POI[]|undefined;
+      if(atlas||target>=11){
+        const town=authoredWorld().getNearestSettlement(p.x,p.y);
+        pois=towns.get(town.id);if(!pois){pois=settlementPOIs(town);towns.set(town.id,pois);}
+      }else{
+        const match=/^town:[0-9]+:([0-9]+)(?::|$)/.exec(p.id);if(!match)return [];
+        const id=Number(match[1]);pois=legacy.get(id);
+        if(!pois){pois=settlementPOIs(generateSettlement(seed,settlementPlace(seed,...placeCell(id))));legacy.set(id,pois);}
+      }
       const replacement=pois.find(q=>q.kind===p.kind);
       if(!replacement||seen.has(replacement.id))return [];
       seen.add(replacement.id);return [{...replacement,...(p.sighted===undefined?{}:{sighted:p.sighted})}];

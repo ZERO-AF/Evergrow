@@ -113,10 +113,10 @@ defineZoneContent({
   id: 'zangarmarsh',
   palette: 'giant mushroom swamp',
   props: [
-    { kind: 'mushrooms', weight: 34 }, { kind: 'reeds', weight: 22 },
-    { kind: 'willow', weight: 14 }, { kind: 'lilies', weight: 12 },
-    { kind: 'fern', weight: 8 }, { kind: 'stump', weight: 6 },
-    { kind: 'deadTree', weight: 4 },
+    { kind: 'giantMushroom', weight: 26 }, { kind: 'mushrooms', weight: 22 },
+    { kind: 'reeds', weight: 18 }, { kind: 'willow', weight: 12 },
+    { kind: 'lilies', weight: 10 }, { kind: 'fern', weight: 6 },
+    { kind: 'stump', weight: 4 }, { kind: 'deadTree', weight: 2 },
   ],
   elevation: {
     features: [

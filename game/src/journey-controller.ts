@@ -8,6 +8,7 @@ import { JourneySearch, reconcileJourneys, journeyNeedsRefresh, type JourneyFact
 import { publicJourneyMarker, type JourneyMarker } from './journey-marker.ts';
 import { currentDungeon } from './dungeon-state.ts';
 import { getZoneAt } from './zone-progression.ts';
+import { playerFaction } from './factions.ts';
 import type { Simulation } from './simulation.ts';
 import type { World } from './world.ts';
 import type { Exploration } from './exploration.ts';
@@ -174,7 +175,7 @@ export class JourneyController {
         if (goal && !run && this.host.world.isSanctuary(p.x, p.y)) {
             const back = this.host.sim.travel.returnTo;
             if (back && (back.dungeon === goal.id || !back.dungeon && Math.hypot(back.x - goal.x, back.y - goal.y) + 500 < Math.hypot(p.x - goal.x, p.y - goal.y))) {
-                const portal = this.host.overworld.getPortalAnchor(this.host.sim.travel.homeTown);
+                const portal = this.host.overworld.getPortalAnchor(this.host.sim.travel.homeTown, playerFaction(this.host.sim.player));
                 marker = { x: portal.x, y: portal.y, known: true, name: 'Return portal' };
             }
         }

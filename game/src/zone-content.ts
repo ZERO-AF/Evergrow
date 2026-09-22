@@ -12,6 +12,7 @@ import { BIOME_PROP_TABLES, type PropWeight } from './biome-props.ts';
 import type { BiomeId } from './biomes.ts';
 import type { ElevationSpec } from './elevation.ts';
 import type { EnemyKind } from './model.ts';
+import { ENEMY_DEFINITIONS, type EnemyDefinition } from './combat-content.ts';
 import type { POIKind } from './world-pois.ts';
 import type { WildernessKind } from './wilderness-sites.ts';
 import type { DungeonThemeId } from './dungeon-content.ts';
@@ -19,8 +20,12 @@ import type { DungeonThemeId } from './dungeon-content.ts';
 // ── Spec types ───────────────────────────────────────────────────────────────
 /** Ground color recipe key — the zone's atlas `terrain` string. */
 export type PaletteId = string;
-/** Relative prop abundance; same shape as BIOME_PROP_TABLES rows. */
-export type PropWeightTable = readonly PropWeight[];
+/** Relative prop abundance; same shape as BIOME_PROP_TABLES rows, plus the
+ * authored-only occluder override carried through to the emitted Prop. */
+export interface ZonePropWeight extends PropWeight {
+  readonly occluder?: { height: number; radius: number; offsetX?: number } | null;
+}
+export type PropWeightTable = readonly ZonePropWeight[];
 
 export interface WaterSpec {
   readonly kind: 'lake' | 'river';
@@ -30,7 +35,7 @@ export interface WaterSpec {
   readonly nrx?: number; readonly nry?: number;
   /** River: normalized polyline through the zone. */
   readonly points?: readonly (readonly [number, number])[];
-  /** River half-width in world units. */
+  /** River half-width in world units (the bank-to-centerline distance). */
   readonly width?: number;
   /** 0..1; >= .75 reads as deep water and blocks movement. */
   readonly depth?: number;
@@ -58,6 +63,9 @@ export interface CampSpec {
   readonly nx: number; readonly ny: number;
   /** Optional roster override; defaults to the zone biome's camp roster. */
   readonly members?: readonly EnemyKind[];
+  /** Faction tag stamped on the site and its spawned members (guard posts,
+   * faction camps). 'contested' resolves to 'neutral' at consumption. */
+  readonly faction?: FactionId;
 }
 
 export interface SpawnEntry {
@@ -122,29 +130,82 @@ export function zoneWorldRect(id: string): { x: number; y: number; w: number; h:
 }
 
 const ZONE_LIST = Object.freeze(Object.values(ZONES));
+/** Coarse world-space index: zonesIn answers from the cells a query touches
+ * instead of scanning every zone each call. */
+const ZONE_CELL = 16384;
+const zoneGrid = new Map<number, AtlasZone[]>();
+for (const zone of ZONE_LIST) {
+  const r = zoneWorldRect(zone.id)!;
+  const x0 = Math.floor(r.x / ZONE_CELL), x1 = Math.floor((r.x + r.w - 1) / ZONE_CELL);
+  const y0 = Math.floor(r.y / ZONE_CELL), y1 = Math.floor((r.y + r.h - 1) / ZONE_CELL);
+  for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
+    const key = (cx + 8192) + (cy + 8192) * 16384;
+    let list = zoneGrid.get(key); if (!list) zoneGrid.set(key, list = []);
+    list.push(zone);
+  }
+}
 /** Zones whose world rect intersects the query rect (margin expands it). */
 export function zonesIn(x: number, y: number, width: number, height: number, margin = 0): AtlasZone[] {
-  const result: AtlasZone[] = [];
-  for (const zone of ZONE_LIST) {
-    const r = zoneWorldRect(zone.id)!;
-    if (r.x - margin < x + width && r.x + r.w + margin > x && r.y - margin < y + height && r.y + r.h + margin > y)
-      result.push(zone);
+  const seen = new Set<AtlasZone>(), result: AtlasZone[] = [];
+  const x0 = Math.floor((x - margin) / ZONE_CELL), x1 = Math.floor((x + width + margin) / ZONE_CELL);
+  const y0 = Math.floor((y - margin) / ZONE_CELL), y1 = Math.floor((y + height + margin) / ZONE_CELL);
+  for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
+    const cell = zoneGrid.get((cx + 8192) + (cy + 8192) * 16384);
+    if (!cell) continue;
+    for (const zone of cell) {
+      if (seen.has(zone)) continue;
+      seen.add(zone);
+      const r = zoneWorldRect(zone.id)!;
+      if (r.x - margin < x + width && r.x + r.w + margin > x && r.y - margin < y + height && r.y + r.h + margin > y)
+        result.push(zone);
+    }
   }
   return result;
 }
 
 /** Distance to the nearest authored road polyline near a world point. */
+
+// Per-zone road segments bucketed into 1024px cells so a point query only tests
+// the handful of segments near it instead of every polyline within 4000u.
+const ROAD_BUCKET = 1024;
+const roadIndex = new Map<string, Map<string, { ax: number; ay: number; bx: number; by: number; half: number }[]>>();
+function zoneRoadIndex(zoneId: string): Map<string, { ax: number; ay: number; bx: number; by: number; half: number }[]> {
+  let index = roadIndex.get(zoneId);
+  if (index) return index;
+  index = new Map();
+  const rect = zoneWorldRect(zoneId);
+  if (rect) for (const road of zoneContent(zoneId).roads) {
+    const pts = road.points, half = (road.width ?? 28);
+    for (let i = 1; i < pts.length; i++) {
+      const ax = pts[i - 1][0], ay = pts[i - 1][1], bx = pts[i][0], by = pts[i][1];
+      const seg = { ax, ay, bx, by, half };
+      const x0 = Math.floor((Math.min(ax, bx) - half) / ROAD_BUCKET), x1 = Math.floor((Math.max(ax, bx) + half) / ROAD_BUCKET);
+      const y0 = Math.floor((Math.min(ay, by) - half) / ROAD_BUCKET), y1 = Math.floor((Math.max(ay, by) + half) / ROAD_BUCKET);
+      for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
+        const key = `${cx}:${cy}`, cell = index.get(key);
+        if (cell) cell.push(seg); else index.set(key, [seg]);
+      }
+    }
+  }
+  roadIndex.set(zoneId, index);
+  return index;
+}
+
 export function authoredRoadDistance(x: number, y: number): number {
   let best = Infinity;
   for (const zone of zonesIn(x, y, 0, 0, 4000)) {
-    for (const road of zoneContent(zone.id).roads) {
-      const pts = road.points;
-      for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1], b = pts[i];
-        const dx = b[0] - a[0], dy = b[1] - a[1];
-        const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
-        const px = x - a[0] - dx * t, py = y - a[1] - dy * t;
-        const d = Math.sqrt(px * px + py * py) - (road.width ?? 28);
+    const index = zoneRoadIndex(zone.id);
+    // Probe the 3×3 neighborhood of buckets around the point; a segment can only
+    // be nearer than ~1024+half if it was bucketed into an adjacent cell.
+    const cx = Math.floor(x / ROAD_BUCKET), cy = Math.floor(y / ROAD_BUCKET);
+    for (let gy = cy - 1; gy <= cy + 1; gy++) for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      const cell = index.get(`${gx}:${gy}`);
+      if (!cell) continue;
+      for (const s of cell) {
+        const dx = s.bx - s.ax, dy = s.by - s.ay;
+        const t = Math.max(0, Math.min(1, ((x - s.ax) * dx + (y - s.ay) * dy) / (dx * dx + dy * dy || 1)));
+        const px = x - s.ax - dx * t, py = y - s.ay - dy * t;
+        const d = Math.sqrt(px * px + py * py) - s.half;
         if (d < best) best = d;
       }
     }
@@ -227,4 +288,25 @@ export function zoneContent(id: string): ZoneContent {
   const zone = ZONES[id];
   if (!zone) throw new Error(`Unknown atlas zone: ${id}`);
   return defaultZoneContent(zone);
+}
+
+// ── Spawn tables ─────────────────────────────────────────────────────────────
+/** Weighted pick from a zone's authored `spawns` table. `preferred` wins when
+ * the table lists it (roaming pack recipes); `role` narrows the pool like
+ * chooseEncounterEnemy. Returns null for an empty/zero-weight table so callers
+ * can fall back to the biome mix. */
+export function chooseZoneSpawn(spawns: readonly SpawnEntry[], random: () => number,
+  preferred?: EnemyKind, role?: EnemyDefinition['role']): SpawnEntry | null {
+  const eligible = spawns.filter(entry => entry.weight > 0);
+  if (!eligible.length) return null;
+  const matching = role ? eligible.filter(entry => ENEMY_DEFINITIONS[entry.kind].role === role) : eligible;
+  const entries = matching.length ? matching : eligible;
+  if (preferred) {
+    const hit = entries.find(entry => entry.kind === preferred);
+    if (hit) return hit;
+  }
+  const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.max(0, Math.min(1 - Number.EPSILON, random())) * total;
+  for (const entry of entries) { if (roll < entry.weight) return entry; roll -= entry.weight; }
+  return entries[entries.length - 1];
 }

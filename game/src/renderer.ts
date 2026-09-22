@@ -131,7 +131,7 @@ import { transportPrompt, vehiclesNear } from './transport.ts';
 import { drawTransport } from './transport-art.ts';
 
 import { GAME_FEATURES } from './game-features.ts';
-import { OcclusionField, occluderBlocks, propOccluder } from './occlusion.ts';
+import { OcclusionField } from './occlusion.ts';
 import { drawElevationRegion } from './elevation-art.ts';
 import type { ElevationQueries } from './elevation.ts';
 import { EnemyDeaths } from './death-presentation.ts';
@@ -618,7 +618,10 @@ export class Renderer {
     c.restore();
 
     const weights = biome.weights, inside = this.indoorBlend;
-    const ambientChannels = biomeAmbient(weights).map((value, channel) =>
+    // Authored zones tint ambient fog/light toward their palette (Teldrassil
+    // violet, Hellfire fel-red) instead of the shared biome ambient.
+    const ambientBase = biome.tint ? biome.tint.ambient.map((v, i) => biomeAmbient(weights)[i] * .45 + v * .55) : biomeAmbient(weights);
+    const ambientChannels = ambientBase.map((value, channel) =>
       Math.round(value * this.sky.ambient[channel] * (1 - inside) + [116, 119, 141][channel] * inside));
     const ambient = this.cryptFloor ? dungeonTheme(this.cryptFloor.seed,this.cryptFloor.theme).ambient : `rgb(${ambientChannels.join(',')})`;
     const lightingStart = this.profiler?.start() ?? 0;
@@ -889,11 +892,35 @@ export class Renderer {
       // Generalized occluder fade: any tall prop (canopy kind or authored
       // `occluder` metadata) whose silhouette covers the focus→player segment
       // turns translucent. Foliage layers fade alone so trunks stay rooted.
-      const occluder = propOccluder(prop);
-      const occludes = !!occluder && occluderBlocks(occluder, this.cameraX, this.cameraY, px, py);
-      const occluderAlpha = occluder
-        ? this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion)
-        : (this.occlusion.delete(prop.id), 1);
+      // The volume + slab test are inlined so this per-frame path allocates
+      // nothing (propOccluder/occluderBlocks both allocate per call).
+      const meta = prop.occluder === undefined ? definition.canopy : prop.occluder;
+      let occluderAlpha = 1;
+      if (meta === null) this.occlusion.delete(prop.id);
+      else {
+        const radius = meta.radius * prop.scale, cx = prop.x + (meta.offsetX ?? 0) * prop.scale;
+        const vx = cx - radius, vy = prop.y - (meta.height + meta.radius) * prop.scale;
+        const vw = radius * 2, vh = meta.height * prop.scale + radius + 8;
+        const dx = px - this.cameraX, dy = py - this.cameraY;
+        let t0 = 0, t1 = 1, occludes = true;
+        if (Math.abs(dx) < 1e-12) { if (this.cameraX < vx || this.cameraX > vx + vw) occludes = false; }
+        else {
+          let ta = (vx - this.cameraX) / dx, tb = (vx + vw - this.cameraX) / dx;
+          if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+          t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+          if (t0 > t1) occludes = false;
+        }
+        if (occludes) {
+          if (Math.abs(dy) < 1e-12) { if (this.cameraY < vy || this.cameraY > vy + vh) occludes = false; }
+          else {
+            let ta = (vy - this.cameraY) / dy, tb = (vy + vh - this.cameraY) / dy;
+            if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+            t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+            if (t0 > t1) occludes = false;
+          }
+        }
+        occluderAlpha = this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion);
+      }
       c.save(); c.translate(prop.x, prop.y); c.scale(prop.scale, prop.scale);
       // Trunks stay rooted and opaque. Only the obstructing canopy becomes translucent.
       if (!sprite.foliage && definition.radius[1] === 0) {

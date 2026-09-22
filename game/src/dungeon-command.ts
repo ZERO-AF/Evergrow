@@ -162,7 +162,7 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
         run.contents = contents;
         run.x = p.x;
         run.y = p.y;
-        const desired = action.kind === 'town' ? { x: action.anchor.x, y: action.anchor.y + 35 } : action.kind === 'death' && !run.rift && !run.entrance.pvp ? { x: 0, y: 0 } : run.entrance.pvp ? { x: run.entrance.x, y: run.entrance.y } : { x: run.entrance.x, y: run.entrance.y + 42 };
+        const desired = action.kind === 'town' ? { x: action.anchor.x, y: action.anchor.y + 35 } : run.entrance.pvp ? { x: run.entrance.x, y: run.entrance.y } : { x: run.entrance.x, y: run.entrance.y + 42 };
         const landing = portalLanding(surface, desired, p.radius);
         if (!landing)
             return { ok: false, message: 'Exit is blocked.' };

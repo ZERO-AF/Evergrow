@@ -1,7 +1,7 @@
 import { buildWallSegments, type WallSegment } from './settlement-walls.ts';
 import { sampleBiome, type BiomeId } from './biomes.ts';
 import { settlementBenefits, type SettlementTier } from './settlement-services.ts';
-import type { Place } from './world-geography.ts';
+import { placeId, type Place } from './world-geography.ts';
 import type { WorldPOI } from './world-pois.ts';
 export type POI = WorldPOI;
 
@@ -119,7 +119,11 @@ function building(id: string, seed: number, kind: BuildingKind, rect: Rect): Bui
 /** Seeded plots surround an open commons. Walkways are routed around the actual footprints. */
 export function generateSettlement(seed: number, place: Place): Settlement {
   const random = rng(place.seed), { x, y } = place, id = `town:${seed}:${place.id}`;
-  const kind: Settlement['kind'] = place.id === 0 ? 'settlement' : place.city ? 'city' : place.seed % 3 === 0 ? 'settlement' : 'village';
+  // Authored atlas towns carry band ids (id !== placeId(cx,cy)); they are named
+  // towns and must never downgrade to a tent camp. Procedural places always
+  // satisfy id === placeId(cx,cy), so the seed%3 camp roll still applies there.
+  const authored = place.id !== placeId(place.cx, place.cy);
+  const kind: Settlement['kind'] = place.id === 0 ? 'settlement' : place.city ? 'city' : !authored && place.seed % 3 === 0 ? 'settlement' : 'village';
   const layout = (['crescent', 'fork', 'commons'] as const)[Math.floor(random()*3)];
   const city = kind === 'city', small = kind === 'settlement';
   const radius = city ? 960 : small ? 500 : 770;
@@ -288,8 +292,13 @@ export function generateSettlement(seed: number, place: Place): Settlement {
     table.door.y+=12;
     break;
   }
-  for(let i=0;i<256;i++) {
-    const angle=i*2.39996,dist=140+Math.floor(i/32)*28,dx=Math.cos(angle)*dist,dy=Math.sin(angle)*dist;
+  // The rift portal never sits in the town commons: it anchors in a band near
+  // the settlement rim — outside the commons and the gate roads, still inside
+  // the boundary wall. Towns with no clear rim plot simply get no rift.
+  for(let i=0;i<512;i++) {
+    const angle=i*2.39996,dist=Math.min(radius*.62,radius-140)+i%64*Math.max(0,(radius-170-Math.min(radius*.62,radius-140))/64),dx=Math.cos(angle)*dist,dy=Math.sin(angle)*dist;
+    if(dist+70>radius-30)continue;
+    if(Math.abs(dx)<95||Math.abs(dy)<95)continue; // clear of the north/south gate roads
     if(circleHitsRect(x+dx,y+dy,65,portalClear)||buildings.some(b=>circleHitsRect(x+dx,y+dy,75,b)))continue;
     if(paths.some(path=>path.points.slice(1).some((q,j)=>{const a=path.points[j],vx=q[0]-a[0],vy=q[1]-a[1],t=Math.max(0,Math.min(1,((x+dx-a[0])*vx+(y+dy-a[1])*vy)/(vx*vx+vy*vy||1)));return Math.hypot(x+dx-a[0]-t*vx,y+dy-a[1]-t*vy)<75;})))continue;
     const portal=fixture('rift',dx,dy,58,32);portal.door.y+=18;break;
