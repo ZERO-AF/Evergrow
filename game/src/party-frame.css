@@ -1,0 +1,39 @@
+/* Party frames: compact unit list under the buff frame, WoW five-man style. */
+.party-frame {
+  position: absolute; z-index: 12; left: 12px; top: calc(150px + var(--buff-frame-inset, 0px));
+  display: flex; flex-direction: column; gap: 4px; pointer-events: none;
+  width: 168px;
+}
+.party-frame[hidden] { display: none; }
+.party-frame-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 6px;
+  border: 1px solid #829da955; border-radius: 4px; background: #0d1821cc;
+  box-shadow: inset 0 0 8px #c7dce50f, 0 2px 6px #0006;
+}
+.party-frame-row.dead { opacity: .55; filter: grayscale(.7); }
+.pf-role {
+  flex: none; width: 16px; height: 16px; border-radius: 3px;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 700; line-height: 1; color: #0a0f14;
+}
+.pf-role-tank { background: #4a7ab5; }
+.pf-role-healer { background: #5aa86a; }
+.pf-role-dps { background: #a84a4a; }
+.pf-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pf-name {
+  font-size: 12px; font-weight: 600; line-height: 1.1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pf-class { font-size: 9px; color: #a9b8be; line-height: 1; letter-spacing: .4px; }
+.pf-bar {
+  height: 5px; margin-top: 2px; border-radius: 2px; overflow: hidden;
+  background: #060b10; box-shadow: inset 0 0 0 1px #829da933;
+}
+.pf-fill { display: block; height: 100%; width: 100%; transition: width .12s linear; }
+.pf-hp { flex: none; min-width: 30px; text-align: right; font-size: 10px; color: #c8d4da; }
+.party-frame-row.dead .pf-hp { color: #e05a4d; }
+@media (forced-colors: active) {
+  .party-frame-row { border-color: ButtonText; background: Canvas; }
+  .pf-role { background: ButtonText; color: Canvas; }
+  .pf-name, .pf-class, .pf-hp { color: CanvasText; }
+}

@@ -27,3 +27,6 @@
 .rdf-difficulty .ui-button{border-radius:0;border:none;padding:5px 18px}
 .rdf-difficulty .ui-button.active{background:#7ed9f226;color:#bfe9f7;box-shadow:inset 0 -2px 0 #7ed9f2}
 .rdf-heroic-badge{margin-left:6px;font-size:10px;letter-spacing:1px;color:#e8c96a;border-color:#e8c96a55}
+.rdf-actions{display:flex;gap:6px;flex:none}
+.rdf-group{min-width:96px;white-space:nowrap}
+@media(max-width:650px){.rdf-group{min-width:0}}

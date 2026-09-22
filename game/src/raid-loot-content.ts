@@ -11,7 +11,9 @@
  *   name/flavor is stamped on (the pvp-vendor stock pattern).
  * - `unique` — an authored UNIQUES id (unique-content.ts).
  * `bonus` is an independent per-chest roll (the Lich King's mount chance).
- */
+ * `hardmode` is Sartharion's '3D' payout: when the caller reports drakes alive
+ *   at the kill, the chest adds `rolls` extra draws from `drops` and the
+ *   guaranteed Twilight Drake (the 'drake' mount stands in). */
 import type { Item, ItemKind } from './character-types.ts';
 import type { MountId } from './mount-content.ts';
 import type { WowClassId } from './wow-types.ts';
@@ -21,8 +23,11 @@ import { RAID_ENTRANCE_ID, ONYXIA_RULES } from './raid-boss-content.ts';
 import { RAID2_ENTRANCE_ID, RAGNAROS_RULES } from './raid2-boss-content.ts';
 import { RAID3_ENTRANCE_ID, KELTHUZAD_RULES } from './raid3-boss-content.ts';
 import { RAID4_ENTRANCE_ID, LICHKING_RULES } from './raid4-boss-content.ts';
+import { RAID5_ENTRANCE_ID, MALYGOS_RULES } from './raid5-boss-content.ts';
+import { RAID6_ENTRANCE_ID, SARTH_RULES } from './raid6-boss-content.ts';
 
-export type RaidLootTableId = 'onyxia' | 'ragnaros' | 'kelthuzad' | 'lichking';
+export type RaidLootTableId = 'onyxia' | 'ragnaros' | 'kelthuzad' | 'lichking' | 'malygos' | 'sartharion';
+
 type ArmorSlot = 'head' | 'chest' | 'gloves' | 'legs' | 'boots';
 const ARMOR_SLOTS: readonly ArmorSlot[] = Object.freeze(['head', 'chest', 'gloves', 'legs', 'boots']);
 
@@ -40,6 +45,10 @@ export interface RaidLootTable {
   readonly drops: readonly RaidLootDrop[];
   /** Independent bonus roll — the mount chance. */
   readonly bonus?: { readonly mount: MountId; readonly chance: number };
+  /** Hardmode payout (Sartharion '3D'): when the caller reports at least
+   * `minDrakes` drakes alive at the kill, the chest adds `rolls` extra draws
+   * from `drops` and the guaranteed `mount`. */
+  readonly hardmode?: { readonly minDrakes: number; readonly rolls: number; readonly drops: readonly RaidLootDrop[]; readonly mount?: MountId };
 }
 
 const drop = (d: RaidLootDrop): RaidLootDrop => Object.freeze(d);
@@ -110,8 +119,58 @@ const LICHKING_LOOT: RaidLootTable = Object.freeze({
   bonus: Object.freeze({ mount: 'drake' as MountId, chance: .02 }),
 });
 
+/** Malygos's cache: Tier-7 chests plus the Spell-Weaver's signature spell weapons and trinkets. */
+const MALYGOS_LOOT: RaidLootTable = Object.freeze({
+  id: 'malygos', name: 'Cache of the Spell-Weaver', rolls: 3,
+  drops: Object.freeze([
+    drop({ kind: 'setPiece', slot: 'chest', weight: 55 }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'star-wand', weight: 12,
+      name: 'Azure Spellblade', flavor: 'A blade of pure ley energy, drawn from the Nexus itself.' }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'ember-staff', weight: 10,
+      name: 'Staff of Restraint', flavor: 'The Spell-Weaver\'s leash, turned against him.' }),
+    drop({ kind: 'epic', itemKind: 'orb', profile: 'astral-orb', weight: 10,
+      name: 'Illustration of the Dragon Soul', flavor: 'Every dragon\'s death, catalogued in arcane ink.' }),
+    drop({ kind: 'epic', itemKind: 'amulet', profile: 'sage-pendant', weight: 9,
+      name: 'Favor of the Dragon Queen', flavor: 'Alexstrasza\'s gratitude, bound in living gold.' }),
+    drop({ kind: 'epic', itemKind: 'ring', profile: 'sapphire-ring', weight: 9,
+      name: 'Signet of the Malevolent', flavor: 'It hums with the ley lines\' stolen power.' }),
+  ]),
+  // Reins of the Blue Drake — the Nether Drake stands in as the achievement-gated mount.
+  bonus: Object.freeze({ mount: 'drake' as MountId, chance: .03 }),
+});
+
+/** Sartharion's satchel: Tier-7 gloves plus the Onyx Guardian's hoard. The '3D'
+ * hardmode (three drakes alive at the kill) adds a bonus roll and the
+ * guaranteed Twilight Drake. */
+const SARTH_LOOT: RaidLootTable = Object.freeze({
+  id: 'sartharion', name: 'Satchel of Spoils', rolls: 3,
+  drops: Object.freeze([
+    drop({ kind: 'setPiece', slot: 'gloves', weight: 55 }),
+    drop({ kind: 'epic', itemKind: 'charm', weight: 12,
+      name: 'Satchel of Spoils', flavor: 'The Onyx Guardian\'s tribute, still warm from the lava.' }),
+    drop({ kind: 'epic', itemKind: 'weapon', profile: 'vanguard-halberd', weight: 12,
+      name: 'Black Ice', flavor: 'A polearm of frozen twilight, sharp enough to cut a shadow.' }),
+    drop({ kind: 'epic', itemKind: 'cloak', weight: 11,
+      name: 'Gale-Proof Cloak', flavor: 'Woven to weather a dragon\'s wingbeat.' }),
+    drop({ kind: 'epic', itemKind: 'ring', profile: 'garnet-band', weight: 10,
+      name: 'Circle of Arcane Streams', flavor: 'The sanctum\'s lava, bound in a band of gold.' }),
+  ]),
+  hardmode: Object.freeze({
+    minDrakes: 3, rolls: 1,
+    drops: Object.freeze([
+      drop({ kind: 'epic', itemKind: 'amulet', profile: 'sage-pendant', weight: 10,
+        name: 'Twilight Drake\'s Favor', flavor: 'The twilight flight\'s blessing, earned the hard way.' }),
+      drop({ kind: 'epic', itemKind: 'orb', profile: 'cinder-orb', weight: 10,
+        name: 'Essence of the Obsidian Sanctum', flavor: 'A coal that never cools.' }),
+    ]),
+    // Reins of the Twilight Drake — guaranteed on a three-drake kill.
+    mount: 'drake' as MountId,
+  }),
+});
+
 export const RAID_LOOT_TABLES: Readonly<Record<RaidLootTableId, RaidLootTable>> = Object.freeze({
   onyxia: ONYXIA_LOOT, ragnaros: RAGNAROS_LOOT, kelthuzad: KELTHUZAD_LOOT, lichking: LICHKING_LOOT,
+  malygos: MALYGOS_LOOT, sartharion: SARTH_LOOT,
 });
 
 /** Entrance id → the boss's named table, keyed off each content file's `lootTable` field. */
@@ -120,6 +179,8 @@ export const RAID_BOSS_LOOT: Readonly<Record<string, RaidLootTableId>> = Object.
   [RAID2_ENTRANCE_ID, RAGNAROS_RULES.lootTable],
   [RAID3_ENTRANCE_ID, KELTHUZAD_RULES.lootTable],
   [RAID4_ENTRANCE_ID, LICHKING_RULES.lootTable],
+  [RAID5_ENTRANCE_ID, MALYGOS_RULES.lootTable],
+  [RAID6_ENTRANCE_ID, SARTH_RULES.lootTable],
 ]));
 
 export const raidLootTable = (entranceId: string | undefined | null): RaidLootTable | undefined =>
@@ -160,18 +221,25 @@ function rollDrop(drop: RaidLootDrop, seed: number, itemLevel: number, random: (
  * Roll a raid boss's chest: `rolls` weighted draws from the boss's named table
  * plus the independent bonus (mount) roll. `random` is the caller's seeded
  * stream — same entrance seed, same haul. `bossId` is the entrance id.
+ * `context.drakesAlive` is Sartharion's kill-time drake count (the caller reads
+ * `sartharionDrakesAlive(run)`); at `hardmode.minDrakes` the chest adds the
+ * hardmode rolls and the guaranteed mount.
  */
-export function raidBossLoot(bossId: string, random: () => number, itemLevel: number, classId?: WowClassId): RaidBossLoot | undefined {
+export function raidBossLoot(bossId: string, random: () => number, itemLevel: number, classId?: WowClassId,
+  context?: { drakesAlive?: number }): RaidBossLoot | undefined {
   const table = raidLootTable(bossId);
   if (!table) return undefined;
-  const total = table.drops.reduce((sum, d) => sum + d.weight, 0);
   const items: Item[] = [];
-  for (let i = 0; i < table.rolls; i++) {
+  const rollFrom = (drops: readonly RaidLootDrop[]) => {
+    const total = drops.reduce((sum, d) => sum + d.weight, 0);
     let roll = random() * total;
-    const picked = table.drops.find(d => (roll -= d.weight) < 0) ?? table.drops[table.drops.length - 1];
+    const picked = drops.find(d => (roll -= d.weight) < 0) ?? drops[drops.length - 1];
     const seed = Math.floor(random() * 4294967296);
     items.push(rollDrop(picked, seed, itemLevel, random, classId));
-  }
-  const mount = table.bonus && random() < table.bonus.chance ? table.bonus.mount : undefined;
+  };
+  for (let i = 0; i < table.rolls; i++) rollFrom(table.drops);
+  const hardmode = table.hardmode && (context?.drakesAlive ?? 0) >= table.hardmode.minDrakes ? table.hardmode : undefined;
+  if (hardmode) for (let i = 0; i < hardmode.rolls; i++) rollFrom(hardmode.drops);
+  const mount = hardmode?.mount ?? (table.bonus && random() < table.bonus.chance ? table.bonus.mount : undefined);
   return { items, ...(mount ? { mount } : {}) };
 }

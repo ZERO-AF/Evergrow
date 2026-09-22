@@ -25,6 +25,7 @@ export interface ProfessionProgress {
   gatherSeq?: number;
   crafted?: number;
   disenchanted?: number;
+  enchanted?: number;
 }
 export interface FishingProgress { level: number; xp: number; materials?: Record<string, number> }
 /** Anything carrying the two bags: the live player or a staged checkpoint. */

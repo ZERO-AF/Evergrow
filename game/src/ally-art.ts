@@ -174,6 +174,10 @@ const ALLY_ART: Readonly<Record<AllyKind, AllyArt>> = Object.freeze({
   groundingTotem: { shape: 'totem',     accent: '#8aa8e0', glow: .26, crown: 'horn' },
   spiritWolf:     { shape: 'quadruped', accent: '#8ee7ff', glow: .26, spectral: true },
   infernal:       { shape: 'brute',     accent: '#ff9a4e', glow: .34, flames: true },
+  // Dungeon Finder party: humanoid adventurers; the ally's `tint` carries the class color.
+  partyTank:      { shape: 'humanoid',  accent: '#7ed9f2', glow: .22 },
+  partyHealer:    { shape: 'humanoid',  accent: '#ffe8a0', glow: .26 },
+  partyDps:       { shape: 'humanoid',  accent: '#c0acf0', glow: .2 },
 });
 
 /** Pulsing emblem at a totem's tip; local space, ~10 units across. */
@@ -226,7 +230,7 @@ function totemCrown(c: CanvasRenderingContext2D, crown: TotemCrown, accent: stri
 export function drawAlly(c: CanvasRenderingContext2D, ally: Ally, x: number, y: number,
   time: number, reducedMotion = false): void {
   const art = ALLY_ART[ally.kind];
-  const tint = ALLY_TEMPLATES[ally.kind].color;
+  const tint = (ally as { tint?: string }).tint ?? ALLY_TEMPLATES[ally.kind].color;
   const dark = mixColor(tint, '#0a0d12', .55);
   const t = reducedMotion ? 0 : time;
   const fade = ally.remaining !== undefined ? clamp(ally.remaining / .8) : 1;

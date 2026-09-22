@@ -117,6 +117,9 @@ import { drawLootBeams } from './loot-beam-art.ts';
 import { MOUNTS } from './mount-content.ts';
 import { drawMount, mountPose, MOUNT_SEAT_HEIGHT } from './mount-art.ts';
 import { drawAlly } from './ally-art.ts';
+import { COMPANIONS } from './companion-content.ts';
+import { activeCompanion, advanceCompanionFollower, freshCompanionFollower, type CompanionFollower } from './companion-state.ts';
+import { drawCompanion } from './companion-art.ts';
 
 import { summonCast, summonProgress } from './mount-state.ts';
 import { gatherNodesIn, focusGatherNode, gatherNodeLabel, gatherChannelOf, type GatherNode } from './gather-node.ts';
@@ -168,6 +171,9 @@ export class Renderer {
   readonly vfx = new VfxPack();
   private bossWarnings = new BossWarnings();
   private lootBeams: LootBeamAnchor[] = [];
+  /** Vanity companion follower; presentation-only, reset when the pick changes. */
+  private companionFollower: CompanionFollower | null = null;
+  private companionId: string | null = null;
   private gatherNodes: GatherNode[] = [];
   private focusedGatherNode: GatherNode | null = null;
   /** Live fishing session owned by game.ts; null clears the bobber art. */
@@ -1108,6 +1114,22 @@ export class Renderer {
       drawnAllies++;
       entries.push({ y, stage: 'characters', draw: () => drawAlly(c, ally, x, y, this.visualTime, settings.reducedMotion) });
     }
+    // Vanity companion: a cosmetic follower that trails the player. Its state
+    // is presentation-only — the sim never sees it.
+    const companionId = settings.phase === 'ready' || p.dead ? null : activeCompanion(p);
+    if (companionId !== this.companionId) {
+      this.companionId = companionId;
+      this.companionFollower = companionId ? freshCompanionFollower(px, py) : null;
+    }
+    if (companionId && this.companionFollower) {
+      const follower = advanceCompanionFollower(this.companionFollower, p, dt, settings.reducedMotion);
+      const def = COMPANIONS[companionId];
+      entries.push({ y: follower.y, stage: 'characters', draw: () => {
+        this.drawContactShadow(follower.x, follower.y, 5, 2.4);
+        drawCompanion(c, def, follower, follower.x, follower.y, this.visualTime, settings.reducedMotion);
+      } });
+    }
+
     if (settings.phase !== 'ready') entries.push({ y: py, draw: () => {
       const pose = playerPose(p, sim.time);
       pose.effectTime = settings.reducedMotion ? 0 : sim.time;

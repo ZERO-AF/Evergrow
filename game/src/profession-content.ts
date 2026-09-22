@@ -2,14 +2,15 @@
  * recipes are adapted only where a reagent has no source in this world (vials, coal, spices). */
 import type { BiomeId } from './biomes.ts';
 import type { ItemKind, ItemTier, StatModifiers } from './character-types.ts';
+import type { DotSchool } from './wow-types.ts';
 
-export type ProfessionId = 'herbalism' | 'mining' | 'skinning' | 'alchemy' | 'blacksmithing' | 'enchanting' | 'cooking';
+export type ProfessionId = 'herbalism' | 'mining' | 'skinning' | 'alchemy' | 'blacksmithing' | 'enchanting' | 'jewelcrafting' | 'engineering' | 'cooking';
 export type ProfessionKind = 'gather' | 'craft';
 
 /** Where a count-based material lives on the player: the owning profession's progress bag,
  * or the fishing bag. Bags are `progress.materials` — extra keys beside {level, xp}. */
 export type MaterialBag = ProfessionId | 'fishing';
-export type MaterialKind = 'herb' | 'ore' | 'stone' | 'bar' | 'leather' | 'meat' | 'fish' | 'essence' | 'product';
+export type MaterialKind = 'herb' | 'ore' | 'stone' | 'bar' | 'leather' | 'meat' | 'fish' | 'essence' | 'gem' | 'part' | 'product';
 
 /** Consumable/enchant use effect. `buff` rides the WowBuff pipeline (stats feed derived stats). */
 export interface MaterialUse {
@@ -30,6 +31,11 @@ export interface MaterialUse {
     /** 'wellFed' / 'elixir' / 'enchantScroll' / 'weaponImbue' groups replace same-group buffs. */
     readonly exclusiveGroup?: string;
   };
+  /** Engineering bombs: a thrown AoE — flat damage per second for one second
+   * (a single blast tick) plus an optional stun, applied to enemies in radius. */
+  readonly blast?: { readonly damage: number; readonly radius: number; readonly stun?: number; readonly school?: DotSchool };
+  /** Engineering repair bots: restore this much durability to every equipped slot. */
+  readonly repair?: number;
 }
 
 export interface MaterialDef {
@@ -174,6 +180,35 @@ export const PROFESSION_MATERIALS: Readonly<Record<string, Readonly<MaterialDef>
   dreamDust: mat('dreamDust', 'Dream Dust', 'enchanting', 'essence'),
   smallBrilliantShard: mat('smallBrilliantShard', 'Small Brilliant Shard', 'enchanting', 'essence'),
   largeBrilliantShard: mat('largeBrilliantShard', 'Large Brilliant Shard', 'enchanting', 'essence'),
+  // ── Jewelcrafting (prospected raw gems; cut gems are real gem items) ──────
+  rawScarletRuby: mat('rawScarletRuby', 'Raw Scarlet Ruby', 'jewelcrafting', 'gem'),
+  rawCardinalRuby: mat('rawCardinalRuby', 'Raw Cardinal Ruby', 'jewelcrafting', 'gem'),
+  rawAzureMoonstone: mat('rawAzureMoonstone', 'Raw Azure Moonstone', 'jewelcrafting', 'gem'),
+  rawSkySapphire: mat('rawSkySapphire', 'Raw Sky Sapphire', 'jewelcrafting', 'gem'),
+  rawKingsAmber: mat('rawKingsAmber', "Raw King's Amber", 'jewelcrafting', 'gem'),
+  rawSunCrystal: mat('rawSunCrystal', 'Raw Sun Crystal', 'jewelcrafting', 'gem'),
+  rawAutumnGlow: mat('rawAutumnGlow', "Raw Autumn's Glow", 'jewelcrafting', 'gem'),
+  rawMonarchTopaz: mat('rawMonarchTopaz', 'Raw Monarch Topaz', 'jewelcrafting', 'gem'),
+  rawTwilightOpal: mat('rawTwilightOpal', 'Raw Twilight Opal', 'jewelcrafting', 'gem'),
+  rawForestEmerald: mat('rawForestEmerald', 'Raw Forest Emerald', 'jewelcrafting', 'gem'),
+  rawNightmareTear: mat('rawNightmareTear', 'Raw Nightmare Tear', 'jewelcrafting', 'gem'),
+  // ── Engineering (parts and gadgets; bombs blast, the repair bot mends gear) ──
+  copperBolts: mat('copperBolts', 'Handful of Copper Bolts', 'engineering', 'part'),
+  copperTube: mat('copperTube', 'Copper Tube', 'engineering', 'part'),
+  whirringBronzeGizmo: mat('whirringBronzeGizmo', 'Whirring Bronze Gizmo', 'engineering', 'part'),
+  bronzeTube: mat('bronzeTube', 'Bronze Tube', 'engineering', 'part'),
+  unstableTrigger: mat('unstableTrigger', 'Unstable Trigger', 'engineering', 'part'),
+  gyrochronatom: mat('gyrochronatom', 'Gyrochronatom', 'engineering', 'part'),
+  fusedWiring: mat('fusedWiring', 'Fused Wiring', 'engineering', 'part'),
+  roughCopperBomb: mat('roughCopperBomb', 'Rough Copper Bomb', 'engineering', 'product',
+    { blast: { damage: 30, radius: 3, school: 'fire' } }),
+  largeCopperBomb: mat('largeCopperBomb', 'Large Copper Bomb', 'engineering', 'product',
+    { blast: { damage: 60, radius: 3.5, stun: 1, school: 'fire' } }),
+  ironGrenade: mat('ironGrenade', 'Iron Grenade', 'engineering', 'product',
+    { blast: { damage: 150, radius: 4, stun: 1.5, school: 'fire' } }),
+  thoriumGrenade: mat('thoriumGrenade', 'Thorium Grenade', 'engineering', 'product',
+    { blast: { damage: 400, radius: 4.5, stun: 2, school: 'fire' } }),
+  fieldRepairBot: mat('fieldRepairBot', 'Field Repair Bot 74A', 'engineering', 'product', { repair: 100 }),
   // ── Alchemy products ─────────────────────────────────────────────────────
   minorHealingPotion: mat('minorHealingPotion', 'Minor Healing Potion', 'alchemy', 'product', { heal: 80 }),
   lesserHealingPotion: mat('lesserHealingPotion', 'Lesser Healing Potion', 'alchemy', 'product', { heal: 220 }),
@@ -393,6 +428,58 @@ const MINING_RECIPES: readonly RecipeDef[] = Object.freeze([
   recipe({ id: 'smeltThorium', name: 'Smelt Thorium', materials: { thoriumOre: 1 }, result: 'thoriumBar', resultCount: 1, skill: [250, 275, 300, 325] }),
 ]);
 
+/** Jewelcrafting: prospect ore into raw gems, then cut them into socketable gem
+ * items (gem-content.ts). Cut recipes carry the gem id as item.profileId — the
+ * craft command builds them with createGem, not generateItem. */
+const JEWELCRAFTING_RECIPES: readonly RecipeDef[] = Object.freeze([
+  // ── Prospecting (5 ore → 1 raw gem; WoW prospecting yields) ──
+  recipe({ id: 'prospectCopperMalachite', name: 'Prospect Copper (Sun Crystal)', materials: { copperOre: 5 }, result: 'rawSunCrystal', resultCount: 1, skill: [20, 50, 70, 90] }),
+  recipe({ id: 'prospectCopperMoonstone', name: 'Prospect Copper (Moonstone)', materials: { copperOre: 5 }, result: 'rawAzureMoonstone', resultCount: 1, skill: [20, 50, 70, 90] }),
+  recipe({ id: 'prospectTinTopaz', name: 'Prospect Tin (Monarch Topaz)', materials: { tinOre: 5 }, result: 'rawMonarchTopaz', resultCount: 1, skill: [50, 80, 100, 120] }),
+  recipe({ id: 'prospectTinOpal', name: 'Prospect Tin (Twilight Opal)', materials: { tinOre: 5 }, result: 'rawTwilightOpal', resultCount: 1, skill: [50, 80, 100, 120] }),
+  recipe({ id: 'prospectIronRuby', name: 'Prospect Iron (Scarlet Ruby)', materials: { ironOre: 5 }, result: 'rawScarletRuby', resultCount: 1, skill: [125, 155, 175, 195] }),
+  recipe({ id: 'prospectIronAmber', name: "Prospect Iron (King's Amber)", materials: { ironOre: 5 }, result: 'rawKingsAmber', resultCount: 1, skill: [125, 155, 175, 195] }),
+  recipe({ id: 'prospectMithrilSapphire', name: 'Prospect Mithril (Sky Sapphire)', materials: { mithrilOre: 5 }, result: 'rawSkySapphire', resultCount: 1, skill: [175, 205, 225, 245] }),
+  recipe({ id: 'prospectMithrilGlow', name: "Prospect Mithril (Autumn's Glow)", materials: { mithrilOre: 5 }, result: 'rawAutumnGlow', resultCount: 1, skill: [175, 205, 225, 245] }),
+  recipe({ id: 'prospectThoriumRuby', name: 'Prospect Thorium (Cardinal Ruby)', materials: { thoriumOre: 5 }, result: 'rawCardinalRuby', resultCount: 1, skill: [250, 280, 300, 320] }),
+  recipe({ id: 'prospectThoriumEmerald', name: 'Prospect Thorium (Forest Emerald)', materials: { thoriumOre: 5 }, result: 'rawForestEmerald', resultCount: 1, skill: [250, 280, 300, 320] }),
+  recipe({ id: 'prospectThoriumTear', name: 'Prospect Thorium (Nightmare Tear)', materials: { thoriumOre: 5, denseStone: 2 }, result: 'rawNightmareTear', resultCount: 1, skill: [300, 330, 350, 370] }),
+  // ── Cuts (raw gem → socketable gem item; itemLevel scales the stats) ──
+  recipe({ id: 'cutSunCrystal', name: 'Smooth Sun Crystal', materials: { rawSunCrystal: 1 }, result: 'cutSunCrystal', resultCount: 1, skill: [30, 60, 80, 100], item: gear('amulet', 20, 'rare', 'smooth-sun-crystal') }),
+  recipe({ id: 'cutAzureMoonstone', name: 'Solid Azure Moonstone', materials: { rawAzureMoonstone: 1 }, result: 'cutAzureMoonstone', resultCount: 1, skill: [30, 60, 80, 100], item: gear('amulet', 20, 'rare', 'solid-azure-moonstone') }),
+  recipe({ id: 'cutMonarchTopaz', name: 'Etched Monarch Topaz', materials: { rawMonarchTopaz: 1 }, result: 'cutMonarchTopaz', resultCount: 1, skill: [60, 90, 110, 130], item: gear('amulet', 30, 'rare', 'etched-monarch-topaz') }),
+  recipe({ id: 'cutTwilightOpal', name: 'Purified Twilight Opal', materials: { rawTwilightOpal: 1 }, result: 'cutTwilightOpal', resultCount: 1, skill: [60, 90, 110, 130], item: gear('amulet', 30, 'rare', 'purified-twilight-opal') }),
+  recipe({ id: 'cutScarletRuby', name: 'Bold Scarlet Ruby', materials: { rawScarletRuby: 1 }, result: 'cutScarletRuby', resultCount: 1, skill: [135, 165, 185, 205], item: gear('amulet', 40, 'rare', 'bold-scarlet-ruby') }),
+  recipe({ id: 'cutKingsAmber', name: "Brilliant King's Amber", materials: { rawKingsAmber: 1 }, result: 'cutKingsAmber', resultCount: 1, skill: [135, 165, 185, 205], item: gear('amulet', 40, 'rare', 'brilliant-kings-amber') }),
+  recipe({ id: 'cutSkySapphire', name: 'Lustrous Sky Sapphire', materials: { rawSkySapphire: 1 }, result: 'cutSkySapphire', resultCount: 1, skill: [185, 215, 235, 255], item: gear('amulet', 50, 'rare', 'lustrous-skysapphire') }),
+  recipe({ id: 'cutAutumnGlow', name: "Quick Autumn's Glow", materials: { rawAutumnGlow: 1 }, result: 'cutAutumnGlow', resultCount: 1, skill: [185, 215, 235, 255], item: gear('amulet', 50, 'rare', 'quick-autumn-glow') }),
+  recipe({ id: 'cutCardinalRuby', name: 'Bright Cardinal Ruby', materials: { rawCardinalRuby: 1 }, result: 'cutCardinalRuby', resultCount: 1, skill: [260, 290, 310, 330], item: gear('amulet', 60, 'rare', 'bright-cardinal-ruby') }),
+  recipe({ id: 'cutForestEmerald', name: 'Jagged Forest Emerald', materials: { rawForestEmerald: 1 }, result: 'cutForestEmerald', resultCount: 1, skill: [260, 290, 310, 330], item: gear('amulet', 60, 'rare', 'jagged-forest-emerald') }),
+  recipe({ id: 'cutNightmareTear', name: 'Nightmare Tear', materials: { rawNightmareTear: 1 }, result: 'cutNightmareTear', resultCount: 1, skill: [310, 340, 360, 380], item: gear('amulet', 70, 'rare', 'nightmare-tear') }),
+]);
+
+/** Engineering: machined parts from mining materials, then gadgets — thrown
+ * bombs (MaterialUse.blast), a field repair bot (MaterialUse.repair) and
+ * stat-bearing goggles (real head items through generateItem). */
+const ENGINEERING_RECIPES: readonly RecipeDef[] = Object.freeze([
+  recipe({ id: 'copperBolts', name: 'Handful of Copper Bolts', materials: { copperBar: 1 }, result: 'copperBolts', resultCount: 2, skill: [30, 60, 80, 100] }),
+  recipe({ id: 'copperTube', name: 'Copper Tube', materials: { copperBar: 2 }, result: 'copperTube', resultCount: 1, skill: [50, 80, 100, 120] }),
+  recipe({ id: 'roughCopperBomb', name: 'Rough Copper Bomb', materials: { copperBolts: 2, roughStone: 2 }, result: 'roughCopperBomb', resultCount: 2, skill: [30, 60, 80, 100] }),
+  recipe({ id: 'flyingTigerGoggles', name: 'Flying Tiger Goggles', materials: { copperTube: 2, lightLeather: 2 }, result: 'flyingTigerGoggles', resultCount: 1, skill: [100, 130, 150, 170], item: gear('head', 20, 'magic') }),
+  recipe({ id: 'whirringBronzeGizmo', name: 'Whirring Bronze Gizmo', materials: { bronzeBar: 2, coarseStone: 1 }, result: 'whirringBronzeGizmo', resultCount: 1, skill: [115, 145, 165, 185] }),
+  recipe({ id: 'bronzeTube', name: 'Bronze Tube', materials: { bronzeBar: 2 }, result: 'bronzeTube', resultCount: 1, skill: [105, 135, 155, 175] }),
+  recipe({ id: 'largeCopperBomb', name: 'Large Copper Bomb', materials: { copperBolts: 4, coarseStone: 2, copperBar: 1 }, result: 'largeCopperBomb', resultCount: 2, skill: [105, 135, 155, 175] }),
+  recipe({ id: 'unstableTrigger', name: 'Unstable Trigger', materials: { bronzeBar: 1, coarseStone: 1 }, result: 'unstableTrigger', resultCount: 1, skill: [125, 155, 175, 195] }),
+  recipe({ id: 'greenTintedGoggles', name: 'Green Tinted Goggles', materials: { bronzeTube: 2, whirringBronzeGizmo: 2, mediumLeather: 2 }, result: 'greenTintedGoggles', resultCount: 1, skill: [150, 180, 200, 220], item: gear('head', 32, 'magic') }),
+  recipe({ id: 'ironGrenade', name: 'Iron Grenade', materials: { ironBar: 2, heavyStone: 2, unstableTrigger: 1 }, result: 'ironGrenade', resultCount: 2, skill: [175, 205, 225, 245] }),
+  recipe({ id: 'gyrochronatom', name: 'Gyrochronatom', materials: { ironBar: 1, goldBar: 1 }, result: 'gyrochronatom', resultCount: 1, skill: [170, 200, 220, 240] }),
+  recipe({ id: 'spellpowerGogglesXtreme', name: 'Spellpower Goggles Xtreme', materials: { gyrochronatom: 2, bronzeTube: 2, heavyLeather: 2 }, result: 'spellpowerGogglesXtreme', resultCount: 1, skill: [215, 245, 265, 285], item: gear('head', 46, 'rare') }),
+  recipe({ id: 'fusedWiring', name: 'Fused Wiring', materials: { copperBar: 3, mithrilBar: 1 }, result: 'fusedWiring', resultCount: 1, skill: [275, 295, 315, 335] }),
+  recipe({ id: 'thoriumGrenade', name: 'Thorium Grenade', materials: { thoriumBar: 3, denseStone: 3, unstableTrigger: 1 }, result: 'thoriumGrenade', resultCount: 2, skill: [260, 290, 310, 330] }),
+  recipe({ id: 'fieldRepairBot', name: 'Field Repair Bot 74A', materials: { thoriumBar: 8, fusedWiring: 2, gyrochronatom: 1, ruggedLeather: 2 }, result: 'fieldRepairBot', resultCount: 1, skill: [300, 330, 350, 370] }),
+  recipe({ id: 'ultraSpectropicGoggles', name: 'Ultra-Spectropic Detection Goggles', materials: { thoriumBar: 8, fusedWiring: 2, gyrochronatom: 2 }, result: 'ultraSpectropicGoggles', resultCount: 1, skill: [300, 330, 350, 370], item: gear('head', 58, 'rare') }),
+]);
+
 export const PROFESSIONS: Readonly<Record<ProfessionId, ProfessionDef>> = Object.freeze({
   herbalism: Object.freeze({ id: 'herbalism', name: 'Herbalism', kind: 'gather', nodes: Object.freeze(['peacebloom', 'silverleaf', 'earthroot', 'mageroyal', 'briarthorn', 'kingsblood', 'wildSteelbloom', 'goldthorn', 'sungrass']) }),
   mining: Object.freeze({ id: 'mining', name: 'Mining', kind: 'gather', nodes: Object.freeze(['copperVein', 'tinVein', 'silverVein', 'ironVein', 'goldVein', 'mithrilVein', 'thoriumVein']), recipes: MINING_RECIPES }),
@@ -400,6 +487,8 @@ export const PROFESSIONS: Readonly<Record<ProfessionId, ProfessionDef>> = Object
   alchemy: Object.freeze({ id: 'alchemy', name: 'Alchemy', kind: 'craft', recipes: ALCHEMY_RECIPES }),
   blacksmithing: Object.freeze({ id: 'blacksmithing', name: 'Blacksmithing', kind: 'craft', recipes: BLACKSMITHING_RECIPES }),
   enchanting: Object.freeze({ id: 'enchanting', name: 'Enchanting', kind: 'craft', recipes: ENCHANTING_RECIPES }),
+  jewelcrafting: Object.freeze({ id: 'jewelcrafting', name: 'Jewelcrafting', kind: 'craft', recipes: JEWELCRAFTING_RECIPES }),
+  engineering: Object.freeze({ id: 'engineering', name: 'Engineering', kind: 'craft', recipes: ENGINEERING_RECIPES }),
   cooking: Object.freeze({ id: 'cooking', name: 'Cooking', kind: 'craft', recipes: COOKING_RECIPES }),
 });
 export const PROFESSION_IDS: readonly ProfessionId[] = Object.freeze(Object.keys(PROFESSIONS) as ProfessionId[]);

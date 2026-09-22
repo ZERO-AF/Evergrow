@@ -36,6 +36,9 @@ export type AchievementCriterion =
   | { readonly kind: 'mounts' }
   /** A specific mount summoned. */
   | { readonly kind: 'mount'; readonly mount: MountId }
+  /** Distinct vanity companions collected (companion-state.ts keeps the
+   * progress counter synced from `seen:companion:` markers). */
+  | { readonly kind: 'companions' }
   /** Dungeon boss clears (total). */
   | { readonly kind: 'dungeons' }
   /** Distinct dungeons cleared. */
@@ -118,8 +121,10 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = Object.freeze([
   def('the-old-gnome-and-the-sea', 'The Old Gnome and the Sea', 'Professions', 'Catch 100 fish.', 'center', { kind: 'fish' }, 100),
   // ── Mounts ──
   def('stable-keeper', 'Stable Keeper', 'Mounts', 'Obtain 2 mounts.', 'dodge', { kind: 'mounts' }, 2),
-  def('leading-the-cavalry', 'Leading the Cavalry', 'Mounts', 'Obtain every mount in the stable.', 'dodge', { kind: 'mounts' }, 4),
+  def('leading-the-cavalry', 'Leading the Cavalry', 'Mounts', 'Obtain 8 mounts.', 'dodge', { kind: 'mounts' }, 8),
+  def('mountain-o-mounts', "Mountain o' Mounts", 'Mounts', 'Summon 10 different mounts.', 'dodge', { kind: 'mounts' }, 10),
   def('awake-the-drakes', 'Awake the Drakes', 'Mounts', 'Take to the skies on the Nether Drake.', 'diamond', { kind: 'mount', mount: 'drake' }, 1),
+  def('lil-game-hunter', "Lil' Game Hunter", 'Mounts', 'Collect 6 companion pets.', 'star', { kind: 'companions' }, 6),
   // ── Dungeons & raids ──
   def('deadmines', 'Deadmines', 'Dungeons', 'Defeat a dungeon boss.', 'skull', { kind: 'dungeons' }, 1),
   def('classic-dungeonmaster', 'Classic Dungeonmaster', 'Dungeons', 'Clear 3 different dungeons.', 'map', { kind: 'distinctDungeons' }, 3),

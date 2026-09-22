@@ -7,13 +7,16 @@ import { refreshBuffStats } from './player-skill-effects.ts';
 import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
 import { generateItem, randomSource } from './items.ts';
+import { createGem, isGemId } from './gem-content.ts';
 import { pushChatMessage } from './chat-log.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Player, WowBuff } from './model.ts';
+import type { Item } from './character-types.ts';
 import type { Simulation } from './simulation.ts';
 import {
   PROFESSIONS, PROFESSION_MATERIALS, PROFESSION_RULES, findRecipe, skillDifficulty,
+  type RecipeDef,
 } from './profession-content.ts';
 import {
   awardSkill, canDisenchant, disenchantYield, ensureProfession, grantMaterial, markGathered,
@@ -24,29 +27,30 @@ import {
   GATHER_RULES, cancelGatherChannel, focusGatherNode, gatherChannelOf, gatherProblem, rollNodeYields, startGather, type GatherNode,
 } from './gather-node.ts';
 import { guildProfessionChanceFactor } from './guild-state.ts';
+import { DURABLE_SLOTS, DURABILITY_RULES, type DurabilityMap } from './durability-state.ts';
 
 export interface ProfessionResult { ok: boolean; message: string }
 export type ProfessionPersist = (checkpoint: CharacterCheckpoint) => ProfessionResult | Promise<ProfessionResult>;
 
 /** The checkpoint fields this feature stages; the integrator also persists them on save. */
-export type CheckpointWithProfessions = CharacterCheckpoint & ProfessionsCarrier & { buffs?: WowBuff[] };
+export type CheckpointWithProfessions = CharacterCheckpoint & ProfessionsCarrier & { buffs?: WowBuff[]; durability?: DurabilityMap };
 
 const fail = (message: string): ProfessionResult => ({ ok: false, message });
 const ok = (message: string): ProfessionResult => ({ ok: true, message });
 
 /** Stage the two bags onto a fresh checkpoint clone (absent until the integrator wires them). */
-function stageBags(sim: Simulation, checkpoint: CheckpointWithProfessions): ProfessionsCarrier {
+export function stageBags(sim: Simulation, checkpoint: CheckpointWithProfessions): ProfessionsCarrier {
   checkpoint.professions = cloneData(sim.player.professions) as CheckpointWithProfessions['professions'];
   checkpoint.fishing = cloneData(sim.player.fishing) as CheckpointWithProfessions['fishing'];
   return checkpoint;
 }
 /** Publish staged bags (+ optional character/buff/hp changes) after a successful persist. */
-function commitBags(sim: Simulation, checkpoint: CheckpointWithProfessions): void {
+export function commitBags(sim: Simulation, checkpoint: CheckpointWithProfessions): void {
   const p = sim.player;
   p.professions = checkpoint.professions as Player['professions'];
   p.fishing = checkpoint.fishing as Player['fishing'];
 }
-function commitCharacter(sim: Simulation, checkpoint: CheckpointWithProfessions): void {
+export function commitCharacter(sim: Simulation, checkpoint: CheckpointWithProfessions): void {
   sim.player.character = checkpoint.character;
   refreshCharacter(sim.player);
 }
@@ -57,8 +61,18 @@ const hashText = (value: string): number => {
   return n >>> 0;
 };
 /** Deterministic skill-up roll: stable per (recipe/node, attempt) across save/load. */
-const attemptRoll = (seedText: string, attempt: number): number =>
+export const attemptRoll = (seedText: string, attempt: number): number =>
   randomSource((hashText(seedText) ^ Math.imul(attempt + 1, 0x9E3779B9)) >>> 0)();
+
+/** Build a recipe's gear result. Jewelcrafting cuts carry a gem id as
+ * item.profileId — those are gem tokens (gem-content.ts), not generateItem gear. */
+function craftResultItem(recipe: RecipeDef, seed: number): Item {
+  const spec = recipe.item!;
+  if (isGemId(spec.profileId)) return createGem(spec.profileId, seed, spec.itemLevel);
+  const item = generateItem(seed, spec.itemLevel, spec.kind, spec.profileId, spec.tier);
+  item.name = recipe.name; item.baseName = recipe.name;
+  return item;
+}
 
 // ── Gathering ────────────────────────────────────────────────────────────────
 
@@ -114,7 +128,7 @@ export function craftProblem(player: Player, recipeId: string): string | null {
   const first = Object.keys(missing)[0];
   if (first) return `Missing ${PROFESSION_MATERIALS[first]?.name ?? first} ×${missing[first]}.`;
   if (found.recipe.item) {
-    const preview = generateItem(1, found.recipe.item.itemLevel, found.recipe.item.kind, found.recipe.item.profileId, found.recipe.item.tier);
+    const preview = craftResultItem(found.recipe, 1);
     if (!canPackItem(player.character, preview)) return 'Your bags are full.';
   }
   return null;
@@ -132,8 +146,7 @@ export async function executeCraft(sim: Simulation, recipeId: string, persist: P
   let crafted = '';
   if (recipe.item) {
     const seed = (hashText(recipe.id) ^ Math.imul((progress.crafted ?? 0) + 1, 0x9E3779B9)) >>> 0;
-    const item = generateItem(seed, recipe.item.itemLevel, recipe.item.kind, recipe.item.profileId, recipe.item.tier);
-    item.name = recipe.name; item.baseName = recipe.name;
+    const item = craftResultItem(recipe, seed);
     if (item.kind === 'consumable') item.stack = Math.max(1, recipe.resultCount);
     if (!addInventoryItem(checkpoint.character, item)) return fail('Your bags are full.');
     crafted = item.kind === 'consumable' && (item.stack ?? 1) > 1 ? `${item.name} ×${item.stack}` : item.name;
@@ -206,6 +219,8 @@ export function useProblem(player: Player, materialId: string): string | null {
   const def = PROFESSION_MATERIALS[materialId];
   if (!def?.use) return 'That cannot be used.';
   if (materialCount(player, materialId) < 1) return `No ${def.name} left.`;
+  if (def.use.repair !== undefined && DURABLE_SLOTS.every(slot => (player.durability?.[slot] ?? DURABILITY_RULES.max) >= DURABILITY_RULES.max))
+    return 'Your gear is already fully repaired.';
   return null;
 }
 
@@ -217,7 +232,7 @@ export async function executeUse(sim: Simulation, materialId: string, persist: P
   const checkpoint = sim.captureCheckpoint() as CheckpointWithProfessions;
   const staged = stageBags(sim, checkpoint);
   if (!spendMaterials(staged, { [materialId]: 1 })) return fail(`No ${def.name} left.`);
-  let buffed = false, healed = 0;
+  let buffed = false, healed = 0, blasted = 0, repaired = false;
   if (use.heal || use.healFraction) {
     healed = Math.min(sim.player.maxHp, checkpoint.hp + (use.heal ?? 0) + sim.player.maxHp * (use.healFraction ?? 0)) - checkpoint.hp;
     checkpoint.hp += healed;
@@ -232,12 +247,33 @@ export async function executeUse(sim: Simulation, materialId: string, persist: P
       manaPerSecond: spec.manaPerSecond, healPerSecond: spec.healPerSecond, exclusiveGroup: spec.exclusiveGroup });
     buffed = true;
   }
+  if (use.repair !== undefined) {
+    const durability = (checkpoint.durability = { ...sim.player.durability });
+    for (const slot of DURABLE_SLOTS) durability[slot] = Math.min(DURABILITY_RULES.max, (durability[slot] ?? DURABILITY_RULES.max) + use.repair);
+    repaired = true;
+  }
   const result = await persist(checkpoint);
   if (!result.ok) return result;
   commitBags(sim, checkpoint);
   const p = sim.player;
   if (healed) p.hp = checkpoint.hp;
   if (buffed) { p.buffs = checkpoint.buffs; refreshBuffStats(p); }
-  pushChatMessage(p, 'system', `You use ${def.name}.`, sim.time);
-  return ok(healed ? `${def.name} restores ${Math.round(healed)} health.` : `${def.name} applied.`);
+  if (repaired) { p.durability = checkpoint.durability; refreshCharacter(p); }
+  // The blast lands on live enemies after the spend commits — combat state is
+  // not transactional, so the bomb always detonates once the charge is gone.
+  if (use.blast) {
+    const blast = use.blast;
+    for (const enemy of sim.enemies) {
+      if (enemy.state === 'dead' || Math.hypot(enemy.x - p.x, enemy.y - p.y) > blast.radius) continue;
+      sim.applyDot(enemy, { school: blast.school ?? 'fire', flatDps: blast.damage, duration: 1 }, blast.damage);
+      if (blast.stun) sim.applyCc(enemy, 'stun', blast.stun);
+      blasted++;
+    }
+  }
+  pushChatMessage(p, 'system', use.blast ? `${def.name} detonates${blasted ? `, hitting ${blasted} ${blasted === 1 ? 'enemy' : 'enemies'}` : ' harmlessly'}.` : `You use ${def.name}.`, sim.time);
+  return ok(healed ? `${def.name} restores ${Math.round(healed)} health.`
+    : blasted ? `${def.name} hits ${blasted} ${blasted === 1 ? 'enemy' : 'enemies'}.`
+    : use.blast ? `${def.name} detonates harmlessly.`
+    : repaired ? `${def.name} restores your gear's durability.`
+    : `${def.name} applied.`);
 }

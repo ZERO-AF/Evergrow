@@ -19,6 +19,8 @@ import { RAID_ENTRANCE_ID } from './raid-boss-content.ts';
 import { RAID2_ENTRANCE_ID } from './raid2-boss-content.ts';
 import { RAID3_ENTRANCE_ID } from './raid3-boss-content.ts';
 import { RAID4_ENTRANCE_ID } from './raid4-boss-content.ts';
+import { RAID5_ENTRANCE_ID } from './raid5-boss-content.ts';
+import { RAID6_ENTRANCE_ID } from './raid6-boss-content.ts';
 import { ElevationField, type ElevationRegion } from './elevation.ts';
 import { DRY_WATER, type WaterSample } from './hydrology.ts';
 import { isWorldCoordinate, validWorldRectangle, WORLD_QUERY_LIMITS } from './world-query.ts';
@@ -59,6 +61,8 @@ const AUTHORED_RAID_IDS: Readonly<Record<string, string>> = Object.freeze({
   'molten core': RAID2_ENTRANCE_ID,
   'naxxramas': RAID3_ENTRANCE_ID,
   'icecrown citadel': RAID4_ENTRANCE_ID,
+  'eye of eternity': RAID5_ENTRANCE_ID,
+  'obsidian sanctum': RAID6_ENTRANCE_ID,
 });
 
 /** Authored water mask for a point inside a zone: lakes (normalized ellipses)

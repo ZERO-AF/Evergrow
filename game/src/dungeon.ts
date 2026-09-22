@@ -13,6 +13,8 @@ import { buildPvpFloor, pvpMapIdFromEntranceId } from './pvp-floor.ts';
 import { isRaid2EntranceId, raid2ArenaFloor } from './raid2-boss-content.ts';
 import { isRaid3EntranceId, raid3ArenaFloor } from './raid3-boss-content.ts';
 import { isRaid4EntranceId, raid4ArenaFloor } from './raid4-boss-content.ts';
+import { isRaid5EntranceId, raid5ArenaFloor } from './raid5-boss-content.ts';
+import { isRaid6EntranceId, raid6ArenaFloor } from './raid6-boss-content.ts';
 import { isBlackrockTheme, BLACKROCK_PROP_KINDS, BLACKROCK_EVENT_KINDS, BLACKROCK_RETINUE } from './dungeon2-content.ts';
 import type { BiomeId } from './biomes.ts';
 export const DUNGEON_RULES = Object.freeze({ version: 4, minimumRooms: 7, maximumRooms: 9, cell: 64, corridor: 192 });
@@ -112,6 +114,8 @@ export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<
     if(isRaid2EntranceId(options.id))return raid2ArenaFloor(seed,_level);
     if(isRaid3EntranceId(options.id))return raid3ArenaFloor(seed,_level);
     if(isRaid4EntranceId(options.id))return raid4ArenaFloor(seed,_level);
+    if(isRaid5EntranceId(options.id))return raid5ArenaFloor(seed,_level);
+    if(isRaid6EntranceId(options.id))return raid6ArenaFloor(seed,_level);
     if(isRaidEntranceId(options.id))return raidArenaFloor(seed,_level);
     const theme=dungeonTheme(seed,options.theme), random=dungeonRandom(seed);
     const {rooms,edges,corridors,treasureIds,bossId}=buildDungeonLayout(random,theme.id,!!options.expedition);

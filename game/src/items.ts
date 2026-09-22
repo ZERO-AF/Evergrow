@@ -24,6 +24,7 @@ import { createConsumableItem, isConsumableId } from './consumable-content.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import type { CharacterSheet, EquipmentSlot, Item, ItemAffix, ItemKind, ItemTier, SkillId, StatKey, StatModifiers } from './character-types.ts';
 import { isGemId, rollSockets, socketedModifiers } from './gem-content.ts';
+import { enchantDefinition } from './enchant-content.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { setPiecesFor, setPiece, setPieceSet, SET_PIECE_PREFIX, SET_PIECE_ROLL, type SetPieceDef, type SetPieceId } from './item-set-content.ts';
 
@@ -419,6 +420,12 @@ function deriveEquipment(item: Item): Item {
   if (item.sockets?.length) for (const [stat, value] of Object.entries(socketedModifiers(item))) {
     next.implicit[stat as StatKey] = (next.implicit[stat as StatKey] ?? 0) + value!;
   }
+  // Permanent enchants (enchant-content.ts) fold into implicit like socketed gems;
+  // the kinds guard keeps a corrupted save from applying a weapon enchant to boots.
+  const enchant = enchantDefinition(item.enchant);
+  if (enchant?.kinds.includes(item.kind)) for (const [stat, value] of Object.entries(enchant.stats)) {
+    next.implicit[stat as StatKey] = (next.implicit[stat as StatKey] ?? 0) + value!;
+  }
   if (weapon && item.weapon) next.weapon = { ...item.weapon, damage: Math.round(weapon.damage * growth * (r.starter ? 1 : weaponBaseBudget(baseScale, item.tier === 'unique') / baseScale)) };
   if (shield && item.shield) next.shield = { ...item.shield,
     blockChance: shield.blockChance * enhance,
@@ -480,7 +487,16 @@ export function estimateItemPower(item: Item): number {
       ? itemAffixGrowthLevel(item.itemLevel) : item.itemLevel - 1;
     return total + Math.max(0, value!) / Math.max(1, (definition.base + level * definition.growth) * affixPotency(item.kind, stat as StatKey, item.tier === 'unique'));
   }, 0);
-  return Math.max(1, Math.round((item.itemLevel + 5) * 10 * (.65 * base + .12 * (rolled + socketed))));
+  // Permanent enchant stats count like rolled affixes too.
+  const enchantDef = enchantDefinition(item.enchant);
+  const enchanted = Object.entries(enchantDef?.kinds.includes(item.kind) ? enchantDef.stats : {}).reduce((total, [stat, value]) => {
+    const definition = definitions.find(a => a.stat === stat);
+    if (!definition) return total;
+    const level = PERCENT_STATS.has(stat as StatKey) || isManaBudgetStat(stat) || isOffensiveAttribute(stat)
+      ? itemAffixGrowthLevel(item.itemLevel) : item.itemLevel - 1;
+    return total + Math.max(0, value!) / Math.max(1, (definition.base + level * definition.growth) * affixPotency(item.kind, stat as StatKey, item.tier === 'unique'));
+  }, 0);
+  return Math.max(1, Math.round((item.itemLevel + 5) * 10 * (.65 * base + .12 * (rolled + socketed + enchanted))));
 }
 
 /** Apply current random weapon/glove budgets on a validated save copy. Keep

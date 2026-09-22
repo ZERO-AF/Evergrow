@@ -194,7 +194,8 @@ export type AllyKind = 'imp' | 'felhunter' | 'felguard' | 'voidwalker' | 'succub
   | 'searingTotem' | 'healingTotem' | 'earthbindTotem' | 'magmaTotem' | 'manaSpringTotem' | 'totemOfWrath'
   | 'wrathOfAirTotem' | 'windfuryTotem' | 'strengthOfEarthTotem' | 'stoneskinTotem' | 'flametongueTotem'
   | 'tremorTotem' | 'cleansingTotem' | 'groundingTotem'
-  | 'spiritWolf' | 'infernal';
+  | 'spiritWolf' | 'infernal'
+  | 'partyTank' | 'partyHealer' | 'partyDps';
 
 /** Tab-target tuning (world units; ~14 units per yard). */
 export const TAB_TARGETING = Object.freeze({

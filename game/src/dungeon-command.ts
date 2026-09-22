@@ -14,6 +14,7 @@ import type { CharacterCheckpoint } from './character-save.ts';
 import { dungeonRandom, type DungeonEntrance } from './dungeon.ts';
 import { isRaidEntranceAny, raidLockedOut, raidLockoutMessage, recordRaidLockout, resetRaidRun } from './raid-lockout.ts';
 import { raidBossLoot } from './raid-loot-content.ts';
+import { sartharionDrakesAlive } from './raid6-boss-content.ts';
 import { MOUNT_RULES } from './mount-state.ts';
 import { MOUNTS } from './mount-content.ts';
 import { currentDungeon, createDungeonRun, compactExpeditions, type LocationContents } from './dungeon-state.ts';
@@ -225,7 +226,7 @@ export async function claimDungeonChest(sim: Simulation, index: number, persist:
     const floor = sim.dungeonFloor!, chest = dungeonRunChest(floor,run,index);
     const rewardLevel = run.entrance.scaling ? encounterRewardLevel(run.entrance.scaling, index === 2 ? 3 : 1) : run.entrance.level;
     const ranks = index === 2 ? ['normal', 'veteran', 'elite'] as const : ['veteran'] as const;
-    const raidLoot = index === 2 ? raidBossLoot(run.entrance.id, dungeonRandom(run.entrance.seed), rewardLevel, sim.player.character.classId) : undefined;
+    const raidLoot = index === 2 ? raidBossLoot(run.entrance.id, dungeonRandom(run.entrance.seed), rewardLevel, sim.player.character.classId, { drakesAlive: sartharionDrakesAlive(run) }) : undefined;
     const items = raidLoot?.items ?? (run.entrance.rift ? riftRewardItems(run.entrance,sim.player.level,run.rift?.elapsed) : index===2 && run.entrance.expedition ? expeditionRewardItems(run.entrance,sim.player.level) : ranks.map((rank, i) => rollEnemyLoot({ playerLevel:sim.player.level, seed: (run.entrance.seed + index * 1777 + i * 97) >>> 0, level: rewardLevel, biome: run.entrance.biome, kind: 'stalker', rank, firstKill: true, tierWeights: index === 2 ? BOSS_CHEST_LOOT_TABLES.dungeon[i] : undefined, encounter:index===2?'bossChest':'chest' })[0]));
     const gold = Math.round((run.entrance.rift ? RIFT_RULES.goldMultiplier*(1+riftBonus(run.entrance.rift,'gold')/100) : 1)*(index === 2 ? 45 + run.entrance.seed % 26 : 18) * (1 + .1 * (rewardLevel - 1)));
     const goldBit=run.entrance.rift ? 1 << items.length : index===2 && run.entrance.expedition?.stage===9 ? 64 : 8;

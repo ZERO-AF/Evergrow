@@ -17,6 +17,8 @@ import { RAID_ENTRANCE_ID, ONYXIA_RULES } from '../src/raid-boss-content.ts';
 import { RAID2_ENTRANCE_ID, RAGNAROS_RULES } from '../src/raid2-boss-content.ts';
 import { RAID3_ENTRANCE_ID, KELTHUZAD_RULES } from '../src/raid3-boss-content.ts';
 import { RAID4_ENTRANCE_ID, LICHKING_RULES } from '../src/raid4-boss-content.ts';
+import { RAID5_ENTRANCE_ID, MALYGOS_RULES } from '../src/raid5-boss-content.ts';
+import { RAID6_ENTRANCE_ID, SARTH_RULES } from '../src/raid6-boss-content.ts';
 import { setPieceOf } from '../src/item-set-content.ts';
 import { MOUNT_RULES } from '../src/mount-state.ts';
 import { createCharacterSheet } from '../src/items.ts';
@@ -30,13 +32,14 @@ const WEEK_MS = 7 * 86400000;
 
 const raidEntrance = (id: string, seed = 4242): DungeonEntrance =>
   ({ id, name: 'Test Raid', seed, level: 30, biome: 'emberfall', x: 500, y: 500 });
-
 test('every raid entrance maps to a named loot table via its content lootTable field', () => {
-  assert.deepEqual([...RAID_ENTRANCE_IDS], [RAID_ENTRANCE_ID, RAID2_ENTRANCE_ID, RAID3_ENTRANCE_ID, RAID4_ENTRANCE_ID]);
+  assert.deepEqual([...RAID_ENTRANCE_IDS], [RAID_ENTRANCE_ID, RAID2_ENTRANCE_ID, RAID3_ENTRANCE_ID, RAID4_ENTRANCE_ID, RAID5_ENTRANCE_ID, RAID6_ENTRANCE_ID]);
   assert.equal(RAID_BOSS_LOOT[RAID_ENTRANCE_ID], ONYXIA_RULES.lootTable);
   assert.equal(RAID_BOSS_LOOT[RAID2_ENTRANCE_ID], RAGNAROS_RULES.lootTable);
   assert.equal(RAID_BOSS_LOOT[RAID3_ENTRANCE_ID], KELTHUZAD_RULES.lootTable);
   assert.equal(RAID_BOSS_LOOT[RAID4_ENTRANCE_ID], LICHKING_RULES.lootTable);
+  assert.equal(RAID_BOSS_LOOT[RAID5_ENTRANCE_ID], MALYGOS_RULES.lootTable);
+  assert.equal(RAID_BOSS_LOOT[RAID6_ENTRANCE_ID], SARTH_RULES.lootTable);
   for (const id of RAID_ENTRANCE_IDS) assert.ok(raidLootTable(id), `table for ${id}`);
   assert.equal(raidLootTable('dungeon:ordinary'), undefined);
   assert.ok(isRaidEntranceAny(RAID4_ENTRANCE_ID) && !isRaidEntranceAny('dungeon:expedition:1:0:0'));

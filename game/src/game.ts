@@ -122,6 +122,9 @@ import { ZoneBanner } from './minimap-zone.ts';
 import { ProfessionPanel } from './profession-panel.ts';
 import { findRecipe } from './profession-content.ts';
 import { gatherInteract, executeGather, executeCraft, executeDisenchant, executeUse } from './profession-command.ts';
+import { executeEnchant, type EnchantTarget } from './enchant-command.ts';
+import { COMPANION_IDS, COMPANIONS } from './companion-content.ts';
+import { companionOwned, activeCompanion, summonCompanion } from './companion-state.ts';
 import { gatherChannelOf, gatherChannelReady, gatherNodeBlips } from './gather-node.ts';
 import { hearthstoneCast, executeHearthstone, hearthstoneHome, bindInteract, focusedInnkeeper, innkeepersNear } from './hearthstone.ts';
 import { freshFishing, fishingBite, fishingCast, fishingCatch, fishingCancel, fishingZoneAt, type FishingSession } from './fishing.ts';
@@ -142,6 +145,8 @@ import { isRaidEntranceId } from './raid-boss-content.ts';
 import { isRaid2EntranceId } from './raid2-boss-content.ts';
 import { isRaid3EntranceId } from './raid3-boss-content.ts';
 import { isRaid4EntranceId } from './raid4-boss-content.ts';
+import { isRaid5EntranceId } from './raid5-boss-content.ts';
+import { isRaid6EntranceId } from './raid6-boss-content.ts';
 import { TransmogPanel } from './transmog-panel.ts';
 import { executeTransmogApply, executeTransmogClear } from './transmog-command.ts';
 import { executeDualSpecUnlock, executeSpecSwap, executeSpecRename } from './dual-spec-command.ts';
@@ -155,6 +160,9 @@ import { AuctionHousePanel } from './auction-panel.ts';
 import { GuildPanel } from './guild-panel.ts';
 import { BuffFrame } from './buff-frame-art.ts';
 import { queueForDungeon, leaveQueue } from './dungeon-finder-command.ts';
+import { spawnDungeonParty } from './party-state.ts';
+import { tickDungeonParty } from './party-ai.ts';
+import { PartyFrame } from './party-frame.ts';
 import { postAuction, buyoutAuction, cancelAuction, collectAuctionProceeds, tickAuctions } from './auction-command.ts';
 import { foundGuild, guildVaultDeposit, guildVaultWithdraw } from './guild-command.ts';
 import { cancelBuff } from './buff-frame.ts';
@@ -272,6 +280,7 @@ export class Game {
   private auctionPanel!: AuctionHousePanel;
   private guildPanel!: GuildPanel;
   private buffFrame!: BuffFrame;
+  private partyFrame!: PartyFrame;
   private zoneBanner = new ZoneBanner();
   private minimapTracking = new MinimapTracking();
   private fishing: FishingSession = freshFishing();
@@ -481,6 +490,7 @@ export class Game {
         craft: recipeId => this.professionCommand('craft', recipeId),
         disenchant: index => this.professionCommand('disenchant', index),
         use: materialId => this.professionCommand('use', materialId),
+        enchant: (enchantId, target) => this.professionCommand('enchant', { enchantId, target }),
       }));
       this.achievementPanel = this.lifetime.own(new AchievementPanel(this.shell.panelMount, { close: () => this.resume() }));
       this.achievementToasts = this.lifetime.own(new AchievementToasts(this.canvas.parentElement!));
@@ -518,14 +528,19 @@ export class Game {
       // Wave-2 WoW panels: RDF, Auction House, Guild. Each rides the shared
       // persist-before-commit wrapper; the sheet persist builds a checkpoint.
       this.dungeonFinderPanel = this.lifetime.own(new DungeonFinderPanel(this.shell.panelMount, {
-        queue: (id, heroic) => this.durable(async () => {
-          const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c), heroic);
+        queue: (id, heroic, group) => this.durable(async () => {
+          const r = await queueForDungeon(this.sim, id, this.overworld, c => this.persistTravel(c), heroic, group);
           if (!r.ok) { this.notify(r.message ?? 'Could not queue.'); return false; }
           // Complete the travel transition like LocationController.dungeon.
           this.setLocationWorld(r.checkpoint);
           this.sim.restoreCheckpoint(r.checkpoint);
           this.sim.relocate(this.sim.player.x, this.sim.player.y);
           this.finishTravel();
+          // 'Find Group' fills the party with AI members at the dungeon entrance.
+          if (group) {
+            const members = spawnDungeonParty(this.sim, currentDungeon(this.sim.expeditions)?.entrance.seed ?? this.overworld.seed ?? 0);
+            if (members.length) this.notify(`Your party: ${members.map(m => m.party.name).join(', ')}.`);
+          }
           this.notify(r.message);
           return true;
         }, false),
@@ -550,6 +565,8 @@ export class Game {
       this.buffFrame = this.lifetime.own(new BuffFrame());
       this.buffFrame.mount(this.canvas.parentElement!);
       this.buffFrame.onCancel = key => { const r = cancelBuff(this.sim.player, key); if (!r.ok) this.notify(r.message ?? ''); };
+      this.partyFrame = this.lifetime.own(new PartyFrame());
+      this.partyFrame.mount(this.canvas.parentElement!);
       this.uiLayoutPanel = this.lifetime.own(new UiLayoutPanel(this.shell.panelMount, { close: () => this.canvas.focus() }));
       registerPanelFrames();
       registerHotbarFrames();
@@ -1543,7 +1560,7 @@ export class Game {
       const ok = await this.locations.dungeon(action);
       if (ok && action.kind === 'enter') {
         const entrance = action.entrance;
-        this.trackAchievement(isRaidEntranceId(entrance.id) || isRaid2EntranceId(entrance.id) || isRaid3EntranceId(entrance.id) || isRaid4EntranceId(entrance.id)
+        this.trackAchievement(isRaidEntranceId(entrance.id) || isRaid2EntranceId(entrance.id) || isRaid3EntranceId(entrance.id) || isRaid4EntranceId(entrance.id) || isRaid5EntranceId(entrance.id) || isRaid6EntranceId(entrance.id)
           ? { type: 'raid', id: entrance.id }
           : { type: 'dungeon', id: entrance.id, theme: entrance.theme });
       }
@@ -1680,6 +1697,20 @@ export class Game {
           return { ok: true, message: `Summoning ${MOUNTS[id].name}…` };
         }
         return { ok: true, message: `${MOUNTS[id].name} selected.` };
+      }, { ok: false, message: 'A save is already in progress.' }),
+      companions: () => COMPANION_IDS.map(id => ({
+        id, owned: companionOwned(this.sim.player, id), active: activeCompanion(this.sim.player) === id,
+      })),
+      summonCompanion: id => this.durable(async () => {
+        const p = this.sim.player;
+        const err = summonCompanion(p, id);
+        if (err) return { ok: false, message: err };
+        const checkpoint = this.sim.captureCheckpoint();
+        checkpoint.achievements = { ...p.achievements };
+        const saved = await this.persistTravel(checkpoint);
+        if (!saved.ok) return { ok: false, message: saved.message ?? 'Could not save. Your companion is unchanged.' };
+        p.achievements = checkpoint.achievements;
+        return { ok: true, message: id ? `Summoned ${COMPANIONS[id].name}.` : 'Companion dismissed.' };
       }, { ok: false, message: 'A save is already in progress.' }),
     };
   }
@@ -1822,10 +1853,11 @@ export class Game {
     }, undefined);
   }
 
-  private professionCommand(kind: 'craft' | 'disenchant' | 'use', arg: string | number) {
+  private professionCommand(kind: 'craft' | 'disenchant' | 'use' | 'enchant', arg: string | number | { enchantId: string; target: EnchantTarget }) {
     void this.durable(async () => {
       const result = kind === 'craft' ? await executeCraft(this.sim, String(arg), c => this.persistTravel(c))
         : kind === 'disenchant' ? await executeDisenchant(this.sim, Number(arg), c => this.persistTravel(c))
+        : kind === 'enchant' ? await executeEnchant(this.sim, (arg as { enchantId: string; target: EnchantTarget }).enchantId, (arg as { enchantId: string; target: EnchantTarget }).target, c => this.persistTravel(c))
         : await executeUse(this.sim, String(arg), c => this.persistTravel(c));
       if (result.ok && kind === 'craft') {
         const found = findRecipe(String(arg));
@@ -1933,6 +1965,8 @@ export class Game {
       if (livePvp && this.pvpScorePanel.opened) this.pvpScorePanel.update(livePvp, pvpScoreboard(this.sim), this.pendingPvpEnd ? { winner: this.pendingPvpEnd.winner, exitAt: this.pvpExitAt } : undefined);
       if (this.pendingPvpEnd && now >= this.pvpExitAt) this.leavePvpMatch();
       const simulationStart = this.performance.start();
+      // AI dungeon party: role targeting, tank threat, healer triage, exit despawn.
+      tickDungeonParty(this.sim);
       const previousWeave = this.sim.player.affixBuffs?.spent;
       this.sim.update(dt, this.readInput());
       const spentWeave = this.sim.player.affixBuffs?.spent;
@@ -2093,6 +2127,7 @@ export class Game {
     this.questPanel.update(this.sim.player, this.phase === 'playing' || this.phase === 'questLog', this.renderer.width, this.renderer.height);
     this.spellbookPanel.update(this.sim.player);
     this.statsPanel.update(this.sim.player, this.sim.time);
+    this.partyFrame.render(this.sim);
     this.reputationPanel.update(this.sim.player);
     this.buffFrame.render(this.sim.player);
     this.dungeonFinderPanel.render();

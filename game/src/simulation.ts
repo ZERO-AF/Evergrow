@@ -102,6 +102,10 @@ import { updateRaid3Boss } from './raid3-boss.ts';
 import { isRaid3Boss } from './raid3-boss-content.ts';
 import { updateRaid4Boss } from './raid4-boss.ts';
 import { isRaid4Boss } from './raid4-boss-content.ts';
+import { updateRaid5Boss } from './raid5-boss.ts';
+import { isRaid5Boss } from './raid5-boss-content.ts';
+import { updateRaid6Boss } from './raid6-boss.ts';
+import { isRaid6Boss } from './raid6-boss-content.ts';
 import { advanceWorldEvents, freshWorldEvents, recordWorldEventKill, worldEventTrialContext, type WorldEventState } from './world-event-state.ts';
 import { DEMON_FAMILIES, PET_SKILLS, PET_RULES, adoptPet, adjustPetLoyalty, createPetRecord, demonFamilyForAlly, freshPetStable,
   petFamilyForAlly, petStatsFor, stableActivePet, tameableFamily, type PetRecord, type PetSkill } from './pet-content.ts';
@@ -1625,7 +1629,7 @@ export class Simulation {
       enemy.rallyTime=Math.max(0,(enemy.rallyTime??0)-dt);
       if (!advanceEnemyStatuses(enemy, dt,
         (actor, amount, school) => this.damageEnemy(actor, amount, 0, false, true, schoolProjectileStyle(school ?? 'fire')))) continue;
-      if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
+      if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
       this.enemyNeighbors.update(enemy);
       if (p.dead) break;
     }

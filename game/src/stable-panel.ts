@@ -7,6 +7,7 @@
 import { attachPanelFrame } from './panel-frames.ts';
 import { PET_FAMILIES, DEMON_FAMILIES, PET_SKILLS, PET_RULES, petXpForLevel, type PetRecord } from './pet-content.ts';
 import { MOUNTS, type MountId } from './mount-content.ts';
+import { COMPANIONS, type CompanionId } from './companion-content.ts';
 import { NPC_NAMES, NPC_COLORS, type StableMaster } from './npcs.ts';
 import { npcEmblem } from './npc-art.ts';
 import { escapeUI, trapDialogFocus } from './ui-components.ts';
@@ -35,6 +36,10 @@ export interface StableActions {
   mounts(): readonly StableMount[];
   /** Pick a mount as the X-toggle preference and ride out (summons when possible). */
   selectMount(id: MountId): Promise<{ ok: boolean; message: string }>;
+  /** Every companion with its collection state and which is summoned. */
+  companions(): readonly StableCompanion[];
+  /** Summon a collected companion, or dismiss the active one with `null`. */
+  summonCompanion(id: CompanionId | null): Promise<{ ok: boolean; message: string }>;
 }
 
 /** One row of the stable's mount list; `MOUNTS[id]` carries name/speed/colors. */
@@ -42,6 +47,13 @@ export interface StableMount {
   readonly id: MountId;
   readonly unlocked: boolean;
   readonly selected: boolean;
+}
+
+/** One row of the companion collection; `COMPANIONS[id]` carries name/source. */
+export interface StableCompanion {
+  readonly id: CompanionId;
+  readonly owned: boolean;
+  readonly active: boolean;
 }
 
 interface FocusTrap { dispose(): void }
@@ -117,19 +129,24 @@ export class StablePanel {
     if (!this.element.hidden) this.render();
   }
 
-
   private click(event: MouseEvent): void {
-    const control = (event.target as HTMLElement).closest<HTMLElement>('[data-close],[data-swap],[data-stable-active],[data-rename],[data-rename-cancel],[data-dismiss],[data-mount]');
+    const control = (event.target as HTMLElement).closest<HTMLElement>('[data-close],[data-swap],[data-stable-active],[data-rename],[data-rename-cancel],[data-dismiss],[data-mount],[data-companion]');
     if (!control) return;
+
     if (control.dataset.close !== undefined) { this.actions.close(); return; }
     if (this.busy) return;
     if (control.dataset.dismiss !== undefined) { void this.run(this.actions.dismissPet(Number(control.dataset.dismiss))); return; }
     if (control.dataset.swap !== undefined) { void this.run(this.actions.swapPet(Number(control.dataset.swap))); return; }
-    if (control.dataset.stableActive !== undefined) { void this.run(this.actions.stableActive()); return; }
     if (control.dataset.mount !== undefined) { void this.run(this.actions.selectMount(control.dataset.mount as MountId)); return; }
+    if (control.dataset.companion !== undefined) {
+      const id = control.dataset.companion;
+      void this.run(this.actions.summonCompanion(id === 'dismiss' ? null : id as CompanionId));
+      return;
+    }
     if (control.dataset.rename !== undefined) { this.renaming = Number(control.dataset.rename); this.message = ''; this.render(); return; }
     if (control.dataset.renameCancel !== undefined) { this.renaming = null; this.render(); }
   }
+
 
   private skillChips(pet: PetRecord): string {
     const known = new Set(pet.skills);
@@ -176,10 +193,23 @@ export class StablePanel {
     const speed = `+${Math.round((def.speed - 1) * 100)}% speed`;
     return `<article class="stable-mount${mount.selected ? ' is-selected' : ''}${mount.unlocked ? '' : ' is-locked'}" style="--mount-color:${def.tint}">
       <span class="stable-mount-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-linecap="round"><path d="M6.5 20a8.5 8.5 0 1 1 11 0" stroke="${def.tint}" stroke-width="3.4"/><path d="M4.5 16.5 2.6 19.4M12 3.2V.8M19.5 16.5l1.9 2.9" stroke="${def.accent}" stroke-width="1.8"/></svg></span>
-      <div class="stable-mount-info"><h3 class="stable-pet-name">${e(def.name)}${mount.selected ? ' <span class="stable-mount-current">Current</span>' : ''}</h3><span class="stable-mount-speed">${speed}</span></div>
+      <div class="stable-mount-info"><h3 class="stable-pet-name">${e(def.name)}${mount.selected ? ' <span class="stable-mount-current">Current</span>' : ''}</h3><span class="stable-mount-speed">${speed}</span><span class="stable-mount-source">${e(def.source)}</span></div>
       ${mount.unlocked
         ? `<button class="ui-button ui-button--quiet" data-mount="${mount.id}">Ride</button>`
         : '<span class="stable-mount-lock">Locked</span>'}
+    </article>`;
+  }
+
+  private companionCard(companion: StableCompanion): string {
+    const def = COMPANIONS[companion.id];
+    return `<article class="stable-mount stable-companion${companion.active ? ' is-selected' : ''}${companion.owned ? '' : ' is-locked'}" style="--mount-color:${def.tint}" title="${e(def.flavor)}">
+      <span class="stable-mount-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke-linecap="round"><circle cx="12" cy="13" r="6.5" stroke="${def.tint}" stroke-width="3"/><path d="M8.5 8.5 7 5.5M15.5 8.5 17 5.5" stroke="${def.accent}" stroke-width="1.8"/><circle cx="10" cy="12.5" r=".9" fill="${def.accent}"/><circle cx="14" cy="12.5" r=".9" fill="${def.accent}"/></svg></span>
+      <div class="stable-mount-info"><h3 class="stable-pet-name">${e(def.name)}${companion.active ? ' <span class="stable-mount-current">Summoned</span>' : ''}</h3><span class="stable-mount-source">${e(def.sourceLabel)}</span></div>
+      ${companion.owned
+        ? companion.active
+          ? '<button class="ui-button ui-button--quiet" data-companion="dismiss">Dismiss</button>'
+          : `<button class="ui-button ui-button--quiet" data-companion="${companion.id}">Summon</button>`
+        : '<span class="stable-mount-lock">Not collected</span>'}
     </article>`;
   }
 
@@ -200,6 +230,8 @@ export class StablePanel {
           <div class="stable-grid">${slots.join('')}</div></section>
         <section class="stable-mounts" aria-label="Mounts"><div class="service-section-heading"><h3>Mounts</h3><span>Pick your ride — X summons it</span></div>
           <div class="stable-mount-grid">${this.actions.mounts().map(mount => this.mountCard(mount)).join('')}</div></section>
+        <section class="stable-companions" aria-label="Companions"><div class="service-section-heading"><h3>Companions</h3><span>${this.actions.companions().filter(c => c.owned).length} collected — one follows you</span></div>
+          <div class="stable-mount-grid">${this.actions.companions().map(companion => this.companionCard(companion)).join('')}</div></section>
       </div>
       <footer class="ui-window-footer"><span class="stable-message" role="status">${e(this.message)}</span><span>Esc <span>Close</span></span></footer>`;
     if (this.renaming !== null) this.element.querySelector<HTMLInputElement>('input[name="pet-name"]')?.select();

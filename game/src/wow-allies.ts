@@ -63,4 +63,10 @@ export const ALLY_TEMPLATES: Readonly<Record<AllyKind, AllyTemplate>> = Object.f
   groundingTotem: Object.freeze({ kind: 'groundingTotem', name: 'Grounding Totem', hpFraction: 0.1, damageFraction: 0, stationary: true, radius: 8, attackInterval: 99, attackRange: 0, color: '#7a9ad0', aura: { kind: 'absorb' as const, amount: 0.06, radius: 140 } }),
   spiritWolf: Object.freeze({ kind: 'spiritWolf', name: 'Spirit Wolf', hpFraction: 0.45, damageFraction: 0.55, stationary: false, radius: 11, attackInterval: 1.3, attackRange: 0, color: '#7ab8e0' }),
   infernal: Object.freeze({ kind: 'infernal', name: 'Infernal', hpFraction: 0.9, damageFraction: 0.8, stationary: false, radius: 16, attackInterval: 1.8, attackRange: 0, color: '#4ae07a' }),
+  // Dungeon Finder AI party (party-content.ts): adventurers, not summons.
+  // hp/damage fractions scale off the player's sheet like every summon; the
+  // tank is a durable melee body, healer and dps stand at range.
+  partyTank: Object.freeze({ kind: 'partyTank', name: 'Party Tank', hpFraction: 1.7, damageFraction: 0.5, stationary: false, radius: 13, attackInterval: 1.6, attackRange: 0, color: '#8fa8c0', ability: 'Taunt · Defensive Stance' }),
+  partyHealer: Object.freeze({ kind: 'partyHealer', name: 'Party Healer', hpFraction: 0.8, damageFraction: 0.35, stationary: false, radius: 11, attackInterval: 2.2, attackRange: 260, color: '#e8d9a0', ability: 'Heal · Smite' }),
+  partyDps: Object.freeze({ kind: 'partyDps', name: 'Party DPS', hpFraction: 0.9, damageFraction: 0.75, stationary: false, radius: 11, attackInterval: 1.5, attackRange: 240, color: '#b09ad0', ability: 'Class nuke' }),
 });

@@ -27,7 +27,7 @@ export type DungeonFinderResult = DungeonResult;
  * The caller completes the transition like LocationController.dungeon —
  * restoreWorld(result.checkpoint), sim.restoreCheckpoint, relocate, arrived.
  */
-export async function queueForDungeon(sim: Simulation, dungeonId: string, surface: WorldQuery, persist: PersistDungeon, heroic = false): Promise<DungeonFinderResult> {
+export async function queueForDungeon(sim: Simulation, dungeonId: string, surface: WorldQuery, persist: PersistDungeon, heroic = false, group = false): Promise<DungeonFinderResult> {
   const p = sim.player;
   if (!dungeonFinderEnabled()) return { ok: false, message: 'The Dungeon Finder is not available.' };
   const entry = dungeonFinderDungeon(dungeonId);
@@ -38,7 +38,7 @@ export async function queueForDungeon(sim: Simulation, dungeonId: string, surfac
 
   // Stage the queue marker before the entry travel persist: a failed entry
   // leaves the character queued so the panel can retry or leave cleanly.
-  const marker = { queued: entry.id, queuedAt: Date.now(), ...(heroic ? { heroic: true } : {}) };
+  const marker = { queued: entry.id, queuedAt: Date.now(), ...(heroic ? { heroic: true } : {}), ...(group ? { party: true } : {}) };
   const staged = sim.captureCheckpoint();
   (staged.character as DungeonFinderSheet).dungeonFinder = marker;
   const queued = await persist(staged);

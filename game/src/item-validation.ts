@@ -9,6 +9,7 @@ import { isSkillStat, skillAffixRank } from './equipment-affix-content.ts';
 import { isElementalAffix, meleeEnchantment } from './elemental-weapon.ts';
 import { FOCUS_PROFILES } from './focus-content.ts';
 import { isGemId, validGemItem, validItemSockets } from './gem-content.ts';
+import { validItemEnchant } from './enchant-content.ts';
 import type { Item } from './character-types.ts';
 import { isWowClassId } from './wow-types.ts';
 import { ITEM_KINDS, TIER_NAMES, STAT_LABELS, itemAffixCount, itemAffixPool, deriveItem } from './items.ts';
@@ -33,7 +34,7 @@ export function validItem(v: unknown): v is Item {
     || (v.stack !== undefined && !integer(v.stack, 1, 20))
     || (v.classId !== undefined && !isWowClassId(v.classId))
     || !v.affixes.every(a => object(a) && text(a.name) && Object.hasOwn(STAT_LABELS, String(a.stat)) && number(a.value, -1e9, 1e9))) return false;
-  if (!validItemSockets(v.sockets, v.kind as Item['kind'])) return false;
+  if (!validItemSockets(v.sockets, v.kind as Item['kind']) || !validItemEnchant(v.enchant, v.kind as Item['kind'])) return false;
   const r = v.recipe;
   if (!object(r) || typeof r.starter !== 'boolean' || !integer(r.enhancement, 0, 10) || !integer(r.revision)
     || !integer(r.targetedRolls) || !integer(r.fullRolls) || !Array.isArray(r.rolls) || r.rolls.length !== v.affixes.length

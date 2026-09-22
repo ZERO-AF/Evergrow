@@ -8,6 +8,7 @@ import type { PetStable } from './pet-content.ts';
 import type { GuildMembership } from './guild-state.ts';
 import type { DungeonFinderState } from './dungeon-finder-state.ts';
 import type { AuctionHouseState } from './auction-state.ts';
+import type { EnchantId } from './enchant-content.ts';
 
 export type Attribute = 'strength' | 'dexterity' | 'intelligence' | 'vitality';
 export type StatKey = Attribute | ResistanceStat | 'goldFindPercent' | 'xpGainPercent' | 'maxHp' | 'maxHpPercent' | 'maxMana' | 'armor' | 'armorPercent' | 'damagePercent' | 'attackSpeedPercent' | 'castSpeedPercent'
@@ -61,6 +62,8 @@ export interface Item {
   stack?: number;
   /** Rolled sockets (gem-content.ts); absent = none. Socketed gems fold into implicit via deriveItem. */
   sockets?: ItemSocket[];
+  /** Permanent enchant id (enchant-content.ts); stats fold into implicit via deriveItem. */
+  enchant?: EnchantId;
   appearance: { surface?: GearMaterial; base: string; shadow: string; edge: string; trim: string; style: 'plate' | 'leather' | 'cloth' };
 }
 export type WowSkillId =

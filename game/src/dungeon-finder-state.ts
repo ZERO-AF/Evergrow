@@ -19,6 +19,8 @@ export interface DungeonFinderState {
    * rank tier and doubles boss health. Persisted so a resumed queue re-enters
    * the same difficulty. */
   heroic?: boolean;
+  /** 'Find Group' queues fill the party with AI members on entry (party-state.ts). */
+  party?: boolean;
 }
 
 /** CharacterSheet carrying the queue marker until the field lands on the interface. */
@@ -43,6 +45,7 @@ export function queuedDungeon(sheet: CharacterSheet): DungeonFinderEntry | undef
 export function validDungeonFinder(v: unknown): v is DungeonFinderState {
   if (!object(v)) return false;
   const s = v as ObjectValue;
-  if (s.queued === undefined && s.queuedAt === undefined && s.heroic === undefined) return true;
-  return text(s.queued, 64) && integer(s.queuedAt, 0) && (s.heroic === undefined || s.heroic === true);
+  if (s.queued === undefined && s.queuedAt === undefined && s.heroic === undefined && s.party === undefined) return true;
+  return text(s.queued, 64) && integer(s.queuedAt, 0) && (s.heroic === undefined || s.heroic === true)
+    && (s.party === undefined || s.party === true);
 }
