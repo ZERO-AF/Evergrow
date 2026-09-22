@@ -1,6 +1,7 @@
 import type { CombatEvent, Enemy, HitSnapshot, Player, ProjectileStyle } from './model.ts';
 import type { SkillId } from './character-types.ts';
 import { applyCc, applyDot, applySlow, applySunder } from './combat-status.ts';
+import { tauntThreat } from './enemy-threat.ts';
 import { chainLifeOnHitMultiplier, type SkillExecution } from './skill-execution-content.ts';
 
 export const CHAIN_FLIGHT_LIMIT = 24;
@@ -54,7 +55,7 @@ export function advanceChains(flights: ChainFlight[], dt: number, context: Chain
       if (r.cc) applyCc(target, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
       if (r.slow) applySlow(target, r.slow);
       if (r.sunder) applySunder(target, r.sunder, 15);
-      if (r.taunt) { target.taunted = { remaining: r.taunt }; target.awareness = Math.max(target.awareness, 1); }
+      if (r.taunt) { target.taunted = { remaining: r.taunt }; target.awareness = Math.max(target.awareness, 1); tauntThreat(target, 'player'); }
     }
     flight.hitIds.add(flight.targetId); flight.contact++;
     flight.x = flight.toX; flight.y = flight.toY; flight.damage *= flight.recipe.falloff;

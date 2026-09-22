@@ -293,16 +293,44 @@ function resourcePips(c: CanvasRenderingContext2D, p: Player, cls: WowClassDef |
   }
 }
 
+/** Non-mana orbs must never read as a second health orb: rage deepens to dried-blood
+ * crimson, runic power pales to ice, and each resource etches its own glyph. */
+const ORB_TINTS: Partial<Record<keyof typeof RESOURCE_COLORS, string>> = Object.freeze({
+  rage: '#8e2318', energy: '#e8c93a', runicPower: '#8fd8f0',
+});
+
+/** Small engraved emblem inside the resource glass, drawn over the liquid. */
+function resourceGlyph(c: CanvasRenderingContext2D, resource: keyof typeof RESOURCE_COLORS) {
+  const tint = ORB_TINTS[resource] ?? RESOURCE_COLORS[resource];
+  c.save(); c.translate(0, 1.5);
+  c.beginPath();
+  if (resource === 'rage') {
+    c.moveTo(0, -7); c.bezierCurveTo(4.6, -3.4, 6.4, -.4, 6.4, 2.6);
+    c.bezierCurveTo(6.4, 6.4, 3.6, 8.6, 0, 8.6);
+    c.bezierCurveTo(-3.6, 8.6, -6.4, 6.4, -6.4, 2.6);
+    c.bezierCurveTo(-6.4, -.4, -4.6, -3.4, 0, -7);
+  } else if (resource === 'energy') {
+    c.moveTo(2.4, -8); c.lineTo(-3.6, 1.4); c.lineTo(-.4, 1.4); c.lineTo(-2.4, 8);
+    c.lineTo(3.6, -1.4); c.lineTo(.4, -1.4); c.closePath();
+  } else {
+    c.moveTo(0, -8); c.lineTo(5.4, 0); c.lineTo(0, 8); c.lineTo(-5.4, 0); c.closePath();
+    c.moveTo(0, -3.4); c.lineTo(2.3, 0); c.lineTo(0, 3.4); c.lineTo(-2.3, 0); c.closePath();
+  }
+  c.fillStyle = '#04070bcc'; c.fill('evenodd');
+  c.translate(0, -.7); c.fillStyle = `${shade(tint, .55)}5e`; c.fill('evenodd');
+  c.restore();
+}
 export function drawHUDContents(c: CanvasRenderingContext2D, p: Player, time: number, options: HUDOptions = {}) {
   const t = options.reducedMotion ? 0 : time;
   const orb = HUD_ART.orb, cls = wowClass(p);
-  const resourceTint = cls ? RESOURCE_COLORS[cls.resource] : undefined;
+  const resourceTint = cls ? ORB_TINTS[cls.resource] ?? RESOURCE_COLORS[cls.resource] : undefined;
   for (const mana of [false, true]) {
     c.save(); c.translate(mana ? orb.right : orb.left, orb.y); c.scale(orb.scale, orb.scale);
     drawHUDOrb(c, 0, 0, mana ? p.mana / Math.max(1, p.maxMana) : p.hp / Math.max(1, p.maxHp),
       t + (mana && !options.reducedMotion ? 7 : 0), mana, mana ? undefined : options.healthTrail,
       mana ? 0 : (options.hitPulse ?? 0) * (options.reducedMotion ? .4 : 1),mana?(p.auras?.reservation??0)/100:0,
       mana ? resourceTint : undefined);
+    if (mana && cls && cls.resource !== 'mana') resourceGlyph(c, cls.resource);
     c.restore();
   }
   skills(c, p, t, options.gamepad, options.groundEffects, options.inventory, options.simTime);
@@ -326,7 +354,8 @@ function drawTouchResources(c: CanvasRenderingContext2D, p: Player, time: number
     drawHUDOrb(c, 0, 0, mana ? p.mana / Math.max(1, p.maxMana) : p.hp / Math.max(1, p.maxHp),
       t + (mana && !options.reducedMotion ? 7 : 0), mana, mana ? undefined : options.healthTrail,
       mana ? 0 : (options.hitPulse ?? 0) * (options.reducedMotion ? .4 : 1),mana?(p.auras?.reservation??0)/100:0,
-      mana && cls ? RESOURCE_COLORS[cls.resource] : undefined);
+      mana && cls ? ORB_TINTS[cls.resource] ?? RESOURCE_COLORS[cls.resource] : undefined);
+    if (mana && cls && cls.resource !== 'mana') resourceGlyph(c, cls.resource);
     c.restore();
     // Keep the numeric plate larger than the scaled instrument for phone readability.
     chamfer(c, x - 44, 129, 88, 18, 4);

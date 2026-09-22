@@ -226,6 +226,8 @@ test('minimap chart keeps detailed terrain when its display size grows', () => {
     previewTile: () => null,
   }) as unknown as { chart(context: unknown, view: MapView, mini: boolean, features: unknown): void };
   const context = { save() {}, beginPath() {}, rect() {}, clip() {}, fillRect() {}, restore() {},
+    fillStyle: '', globalCompositeOperation: 'source-over',
+    createRadialGradient: () => ({ addColorStop() {} }),
     getTransform: () => ({ a: 1, b: 0 }) };
   const view: MapView = { x: 0, y: 0, width: 320, height: 210, centerX: -380, centerY: 770, zoom: .08 };
   map.chart(context, view, true, { pois: [], labels: [] });
@@ -294,16 +296,16 @@ test('large atlas detail is isolated from minimap tiles and stays clipped to rev
     base: { width: number }; charted: { getContext(): { painted: number } }; roads: unknown;
   } };
   const mini = map.tile(0, 0, 768);
-  assert.equal(miniSamples, 1024); assert.equal(propQueries, 0); assert.equal(atlasSamples, 0);
+  assert.equal(miniSamples, 4096); assert.equal(propQueries, 0); assert.equal(atlasSamples, 0);
   const atlas = map.tile(0, 0, 768, true);
-  assert.notEqual(atlas, mini); assert.equal(mini.base.width, 32); assert.equal(atlas.base.width, 128);
-  assert.equal(atlasSamples, 4096); assert.equal(propQueries, 1); assert.equal(atlas.roads, null, 'road ink is flattened into the masked atlas surface');
-  assert.equal(atlas.charted.getContext().painted, 8192, 'unknown half stays completely hidden');
+  assert.notEqual(atlas, mini); assert.equal(mini.base.width, 64); assert.equal(atlas.base.width, 160);
+  assert.equal(atlasSamples, 9216); assert.equal(propQueries, 1); assert.equal(atlas.roads, null, 'road ink is flattened into the masked atlas surface');
+  assert.equal(atlas.charted.getContext().painted, 12800, 'unknown half stays completely hidden');
   hole = true; revision++;
   assert.equal(map.tile(0, 0, 768, true), atlas);
-  assert.equal(atlas.charted.getContext().painted, 8192 - 64, 'even an internal unknown cell masks all eight-by-eight detail pixels');
-  assert.equal(atlasSamples, 4096); assert.equal(propQueries, 1, 'fog revisions reuse stable world art');
-  assert.equal(map.tile(0, 0, 768), mini); assert.equal(miniSamples, 1024);
+  assert.equal(atlas.charted.getContext().painted, 12800 - 100, 'even an internal unknown cell masks its ten-by-ten detail pixels');
+  assert.equal(atlasSamples, 9216); assert.equal(propQueries, 1, 'fog revisions reuse stable world art');
+  assert.equal(map.tile(0, 0, 768), mini); assert.equal(miniSamples, 4096);
 });
 
 test('coarse tile cache notices discoveries in every covered chunk without regenerating terrain colors', t => {
@@ -327,13 +329,13 @@ test('coarse tile cache notices discoveries in every covered chunk without regen
   const exploration = { getChunkRevision: (x: number, y: number) => x >= 1536 && y >= 1536 ? revision : 1,
     isCellRevealed: (x: number, y: number) => x < 32 && y < 32 || revealSecond && x >= 32 && y >= 32 };
   const map = Object.assign(Object.create(WorldMap.prototype), { exploration, tiles: new Map(), world: {
-    mapColor(_x: number, _y: number, sampleSize: number) { assert.equal(sampleSize, 96); colors++; return '#456754'; },
+    mapColor(_x: number, _y: number, sampleSize: number) { assert.equal(sampleSize, 48); colors++; return '#456754'; },
   } }) as unknown as { tile(tx: number, ty: number, size: number): unknown };
   const tile = map.tile(0, 0, 3072) as { charted: unknown };
-  assert.ok(tile); assert.equal(colors, 1024); assert.equal(contexts[1].painted, 256);
-  map.tile(0, 0, 3072); assert.equal(colors, 1024); assert.equal(contexts[1].painted, 256);
+  assert.ok(tile); assert.equal(colors, 4096); assert.equal(contexts[1].painted, 1024);
+  map.tile(0, 0, 3072); assert.equal(colors, 4096); assert.equal(contexts[1].painted, 1024);
   revealSecond = true; revision = 2;
-  assert.equal(map.tile(0, 0, 3072), tile); assert.equal(colors, 1024); assert.equal(contexts[1].painted, 512);
+  assert.equal(map.tile(0, 0, 3072), tile); assert.equal(colors, 4096); assert.equal(contexts[1].painted, 2048);
   assert.equal(contexts[3].maskSource, tile.charted, 'fine vector roads use the exact same conservative fog mask as terrain');
 });
 
@@ -407,7 +409,7 @@ test('progressive atlas tiles yield, finish each terrain sample once, and keep a
   assert.equal(map.tile(0,0,768,true), null); assert.equal(samples,0); assert.equal(map.pendingTerrain,true);
   map.buildBudget = 128;
   let tile = map.tile(0,0,768,true);
-  assert.equal(tile.nextRow, 2); assert.equal(tile.decorated,false); assert.equal(samples,128);
+  assert.equal(tile.nextRow, 2); assert.equal(tile.decorated,false); assert.equal(samples,192);
   assert.equal(tile.charted.getContext().painted,0, "partial detailed rows are never presented");
   // Fog changes are applied even while geometry is still being built.
   revealed = false; revision++; map.buildBudget = 128;
@@ -415,9 +417,9 @@ test('progressive atlas tiles yield, finish each terrain sample once, and keep a
   revealed = true; revision++;
   let frames = 0;
   while (!tile.decorated && frames++ < 100) { map.buildBudget = 128; tile = map.tile(0,0,768,true); }
-  assert.ok(tile.decorated); assert.equal(samples,4096); assert.equal(props,1);
-  assert.equal(tile.charted.getContext().painted,16384);
-  map.tile(0,0,768,true); assert.equal(samples,4096); assert.equal(props,1);
+  assert.ok(tile.decorated); assert.equal(samples,9216); assert.equal(props,1);
+  assert.equal(tile.charted.getContext().painted,25600);
+  map.tile(0,0,768,true); assert.equal(samples,9216); assert.equal(props,1);
 });
 
 
@@ -442,7 +444,8 @@ test('a zero detail budget still paints every revealed preview and refreshes its
     exploration:{getChunkRevision:()=>revision,isCellRevealed:()=>revealed},
     world:{mapColor(){samples++;return '#445544';},getBuildings:()=>[]},
   });
-  const c={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){},getTransform:()=>({a:1,b:0}),drawImage(){copies++;}};
+  const c={save(){},restore(){},beginPath(){},rect(){},clip(){},fillRect(){},getTransform:()=>({a:1,b:0}),drawImage(){copies++;},
+    fillStyle:'',globalCompositeOperation:'source-over',createRadialGradient:()=>({addColorStop(){}})};
   const view={x:0,y:0,width:128,height:128,centerX:0,centerY:0,zoom:.25};
   map.chart(c,view,false,{pois:[],labels:[],zones:[]});
   assert.equal(map.tiles.size,0); assert.equal(copies,4,'all four tiles have an immediate preview even with no detailed tiles');

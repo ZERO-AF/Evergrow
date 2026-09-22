@@ -95,6 +95,31 @@ function drawFormSilhouette(ctx: CanvasRenderingContext2D, pose: StatusPose, col
   drawFormAura(ctx, accent, t);
 }
 
+/** Saturated armor reads at distance; skin and cloth keep their authored tones. */
+const vividCache = new Map<string, string>();
+function vividColor(value: string): string {
+  let out = vividCache.get(value);
+  if (out) return out;
+  const hex = value[0] === '#' ? Number.parseInt(value.slice(1), 16) : NaN;
+  if (!Number.isFinite(hex)) return value;
+  const r = (hex >>> 16) & 255, g = (hex >>> 8) & 255, b = hex & 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 510;
+  const d = max - min, s = d === 0 ? 0 : d / (255 - Math.abs(max + min - 255));
+  const boost = Math.min(1, s * 1.35 + .06), lift = Math.min(1, l * 1.08 + .02);
+  // HSL round-trip with boosted saturation.
+  const hue = d === 0 ? 0 : max === r ? ((g - b) / d + (g < b ? 6 : 0)) / 6 : max === g ? ((b - r) / d + 2) / 6 : ((r - g) / d + 4) / 6;
+  const a = boost * Math.min(lift, 1 - lift) * 2;
+  const channel = (n: number) => {
+    const h = (hue + n / 3 + 1) % 1;
+    const v = h < 1 / 6 ? lift + a * h * 6 : h < .5 ? lift + a : h < 2 / 3 ? lift + a * (2 / 3 - h) * 6 : lift;
+    return Math.round(Math.max(0, Math.min(255, v * 255)));
+  };
+  out = `rgb(${channel(0)},${channel(1)},${channel(2)})`;
+  if (vividCache.size > 256) vividCache.clear();
+  vividCache.set(value, out);
+  return out;
+}
+
 export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: Color): void {
   // Stealth renders the whole rig translucent; the save/restore keeps the alpha scoped.
   if (pose.stealthed) { ctx.save(); ctx.globalAlpha *= .55; }
@@ -111,6 +136,9 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     drawFormAura(ctx, '#a06ad8', pose.effectTime ?? pose.time);
   }
   const outfit: CharacterOutfit = { ...STARTER_OUTFIT, ...pose.outfit };
+  // Equipment reads in saturated metal/cloth tones; skin, fur and hair keep the
+  // authored palette through the plain resolver.
+  const gear: Color = value => color(vividColor(value));
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
     weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
   const rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
@@ -172,16 +200,19 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
       polygon(ctx, [[tipX - 1, tipY - .9], [tipX + 1.1, tipY - .6], [tipX + .9, tipY + 1], [tipX - .9, tipY + .8]], color(skin.shadow));
     }
   }
+  // A faint warm halo behind the torso keeps the small figure readable against
+  // dark ground without touching the authored palette.
+  drawGlow(ctx, 0, -18, 24, '#ffe9b8', .14);
   for (const leg of legs) {
     const hip = projectLegPoint(leg.hip), knee = projectLegPoint(leg.knee), ankle = projectLegPoint(leg.ankle);
     taper(ctx, hip, knee, fur ? 4.6 : 3.8, fur ? 3.6 : 2.8, color(fur ? skin.shadow : '#293d39'));
     taper(ctx, knee, ankle, fur ? 3.6 : 2.8, fur ? 2.8 : 2.1, color(fur ? skin.base : '#4d5a4c'));
     if (outfit.legs) {
       const m = outfit.legs.material;
-      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,color,'thigh',.65+.35*Math.abs(Math.sin(pose.angle)));
+      armorSegment(ctx,hip,[knee[0],knee[1]-.5],outfit.legs,gear,'thigh',.65+.35*Math.abs(Math.sin(pose.angle)));
       if (outfit.legs.style === 'plate') {
-        taper(ctx, [hip[0], hip[1] - 0.5], [hip[0] + step * 0.25, hip[1] + 3.4], 4.6, 4.1, color(m.shadow));
-        line(ctx, [[hip[0] - 1.8, hip[1] + 2], [hip[0] + 1.8, hip[1] + 2.4]], color(m.trim), 0.65);
+        taper(ctx, [hip[0], hip[1] - 0.5], [hip[0] + step * 0.25, hip[1] + 3.4], 4.6, 4.1, gear(m.shadow));
+        line(ctx, [[hip[0] - 1.8, hip[1] + 2], [hip[0] + 1.8, hip[1] + 2.4]], gear(m.trim), 0.65);
       }
     }
     const foot = projectLegPoint(leg.foot);
@@ -191,9 +222,9 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
       polygon(ctx, [[foot[0] - 2.3, foot[1] - 2.6], [foot[0] + 2.3, foot[1] - 2.6], [foot[0] + 2.7 + dir, foot[1] + .6], [foot[0] - 2.7 + dir, foot[1] + .6]], color('#2b2119'));
       line(ctx, [[foot[0] + dir * .5, foot[1] - .6], [foot[0] + dir * .5, foot[1] + .6]], color('#171008'), .7);
       if (fur) polygon(ctx, [[foot[0] - 2.6, foot[1] - 4.6], [foot[0] + 2.6, foot[1] - 4.6], [foot[0] + 2.4, foot[1] - 2.2], [foot[0] - 2.4, foot[1] - 2.2]], color(skin.base));
-    } else armorBoot(ctx, foot, outfit.boots, color, leg.facing, ankle, knee);
+    } else armorBoot(ctx, foot, outfit.boots, gear, leg.facing, ankle, knee);
     // The knee cap overlaps the boot cuff when the lower leg is foreshortened.
-    if (outfit.legs) kneeArmor(ctx,knee,outfit.legs,color,pose.angle);
+    if (outfit.legs) kneeArmor(ctx,knee,outfit.legs,gear,pose.angle);
   }
 
   ctx.save();
@@ -203,45 +234,45 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     const hand = projectArmPoint(weaponArm.hand);
     if (pose.weapon?.kind === 'unarmed') {
       const elbow = projectArmPoint(weaponArm.elbow);
-      gauntlet(ctx, hand, outfit.hands, color, -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]), pose.attack > 0);
+      gauntlet(ctx, hand, outfit.hands, gear, -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]), pose.attack > 0);
       return;
     }
-    heldWeapon(ctx, weaponOrigin, weaponAngle, color, pose.weapon, rangedDraw, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? 0 : weaponCharge, weaponScale, pose.imbueElement);
-    gauntlet(ctx, hand, outfit.hands, color, weaponAngle);
-    if (supportHolding) gauntlet(ctx, projectArmPoint(offArm.hand), outfit.hands, color, weaponAngle);
+    heldWeapon(ctx, weaponOrigin, weaponAngle, gear, pose.weapon, rangedDraw, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? 0 : weaponCharge, weaponScale, pose.imbueElement);
+    gauntlet(ctx, hand, outfit.hands, gear, weaponAngle);
+    if (supportHolding) gauntlet(ctx, projectArmPoint(offArm.hand), outfit.hands, gear, weaponAngle);
     // Fingers cross the grip, keeping the weapon seated in the animated gauntlet.
     ctx.save(); ctx.translate(hand[0], hand[1]); ctx.rotate(weaponAngle);
-    line(ctx, [[-0.6, -1.2], [-0.6, 1.3]], color(outfit.hands?.material.edge ?? '#baa078'), 0.7);
+    line(ctx, [[-0.6, -1.2], [-0.6, 1.3]], gear(outfit.hands?.material.edge ?? '#baa078'), 0.7);
     ctx.restore();
     if (supportHolding && !bow) {
       const support = projectArmPoint(offArm.hand);
       ctx.save(); ctx.translate(support[0], support[1]); ctx.rotate(weaponAngle);
-      line(ctx, [[-.6, -1.2], [-.6, 1.3]], color(outfit.hands?.material.edge ?? '#baa078'), .7);
+      line(ctx, [[-.6, -1.2], [-.6, 1.3]], gear(outfit.hands?.material.edge ?? '#baa078'), .7);
       ctx.restore();
     }
   };
   const offEquipment = () => {
     const offHand = projectArmPoint(offArm.hand);
     if (pose.offHand?.kind === 'focus') {
-      heldFocus(ctx, offHand, pose.offHand.visual, color, pose.effectTime ?? pose.time, pose.angle, weaponCharge);
-      gauntlet(ctx, offHand, outfit.hands, color, -.2, false);
+      heldFocus(ctx, offHand, pose.offHand.visual, gear, pose.effectTime ?? pose.time, pose.angle, weaponCharge);
+      gauntlet(ctx, offHand, outfit.hands, gear, -.2, false);
     }
-    if (pose.offHand?.kind === 'shield') heldShield(ctx, offHand, pose.angle, pose.offHand.visual, color, pose.guard);
+    if (pose.offHand?.kind === 'shield') heldShield(ctx, offHand, pose.angle, pose.offHand.visual, gear, pose.guard);
     if (pose.offHand?.kind === 'weapon') {
-      heldWeapon(ctx, offWeaponOrigin, offWeaponAngle, color, pose.offHand.visual, 0, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? weaponCharge : 0, offWeaponScale, pose.imbueElement);
-      gauntlet(ctx, offHand, outfit.hands, color, offWeaponAngle);
+      heldWeapon(ctx, offWeaponOrigin, offWeaponAngle, gear, pose.offHand.visual, 0, pose.effectTime ?? pose.time, pose.attackHand === 'off' ? weaponCharge : 0, offWeaponScale, pose.imbueElement);
+      gauntlet(ctx, offHand, outfit.hands, gear, offWeaponAngle);
     }
   };
   const armLayers = [weaponArm, offArm].flatMap(arm => [
     { depth: (arm.shoulder[1] + arm.elbow[1]) / 2,
-      draw: () => upperArm(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), color) },
+      draw: () => upperArm(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), gear) },
     { depth: supportHolding ? (weaponBehind ? -1 : 1) : (arm.elbow[1] + arm.hand[1]) / 2,
-      draw: () => forearm(ctx, projectArmPoint(arm.elbow), projectArmPoint(arm.hand), outfit.hands, color) },
+      draw: () => forearm(ctx, projectArmPoint(arm.elbow), projectArmPoint(arm.hand), outfit.hands, gear) },
   ]).sort((a, b) => a.depth - b.depth);
   if (!supportHolding) {
     const hand = projectArmPoint(offArm.hand), elbow = projectArmPoint(offArm.elbow);
     const relaxed = pose.weapon?.kind === 'unarmed' && !pose.offHand;
-    armLayers.push({ depth: offArm.hand[1], draw: () => gauntlet(ctx, hand, outfit.hands, color,
+    armLayers.push({ depth: offArm.hand[1], draw: () => gauntlet(ctx, hand, outfit.hands, gear,
       relaxed ? -Math.atan2(hand[0] - elbow[0], hand[1] - elbow[1]) : -.5, false) });
     armLayers.sort((a, b) => a.depth - b.depth);
   }
@@ -252,7 +283,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   ctx.translate(0, PLAYER_ATTACHMENTS.chest[1]);
   ctx.transform(1 - Math.abs(torsoTurn) * 0.08, torsoTurn * 0.12, 0, 1, 0, 0);
   ctx.translate(0, -PLAYER_ATTACHMENTS.chest[1]);
-  chestArmor(ctx, outfit.chest, color, bodyAngle);
+  chestArmor(ctx, outfit.chest, gear, bodyAngle);
   if (outfit.cloak && !back) {
     ctx.save(); const turn = torsoFacing(bodyAngle); ctx.translate(turn.surfaceOffset, 0); ctx.scale(turn.surface, 1);
     const trim = outfit.cloak.trim;
@@ -267,11 +298,18 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   for (const layer of armLayers) if (layer.depth >= 0) layer.draw();
   const caps = [weaponArm, offArm].sort((a, b) => a.shoulder[1] - b.shoulder[1]);
   for (const arm of caps) {
-    shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, color);
+    shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, gear);
   }
-  // The neck counterbalances the moving torso; small facial features stay legible.
+  // The neck counterbalances the moving torso; the head reads ~18% larger with
+  // a warm rim arc so the silhouette separates from dark terrain.
   ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
-  headArmor(ctx, outfit.head, color, pose.angle, pose.appearance, pose.raceId);
+  ctx.scale(1.18, 1.18);
+  headArmor(ctx, outfit.head, gear, pose.angle, pose.appearance, pose.raceId);
+  ctx.restore();
+  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
+  ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3;
+  ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = .9;
+  ctx.beginPath(); ctx.arc(0, -31, 6.4, -Math.PI * .92, -Math.PI * .08); ctx.stroke();
   ctx.restore();
   const equipmentLayers = [
     ...(!weaponBehind ? [{ depth: weaponArm.hand[1], draw: mainWeapon }] : []),

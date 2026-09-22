@@ -54,8 +54,8 @@ test('melee and freeze share elite immunity without blocking damage or spending 
 });
 test('rank tuning preserves normal life, rewards, windups and immutable source stats',()=>{
   const ordinary=scaledEnemyStats('stalker',32,'normal'),elite=scaledEnemyStats('stalker',32,'elite');
-  assert.deepEqual(ordinary,{maxHp:653,damage:42,xpReward:132});
-  assert.equal(elite.maxHp,3635);assert.equal(elite.damage,79);assert.equal(elite.xpReward,658);
+  assert.deepEqual(ordinary,{maxHp:653,damage:51,xpReward:132});
+  assert.equal(elite.maxHp,3635);assert.equal(elite.damage,95);assert.equal(elite.xpReward,658);
   const {sim,enemy}=fixture('elite'),before={damage:enemy.damage,hp:enemy.maxHp,lootSeed:enemy.lootSeed,level:enemy.level};
   sim.player.level=99;assert.deepEqual({damage:enemy.damage,hp:enemy.maxHp,lootSeed:enemy.lootSeed,level:enemy.level},before);
   assert.equal(ENEMY_DEFINITIONS.stalker.windup,.42);
@@ -85,5 +85,5 @@ test('reloading a pre-tuning actor preserves wounds, identity and level while de
   const saved=sim.captureCheckpoint();sim.restoreCheckpoint(saved);
   const restored=sim.enemies.find(e=>e.lootSeed===before.lootSeed)!;
   assert.ok(restored);assert.deepEqual({hp:restored.hp,level:restored.level,rank:restored.rank,lootSeed:restored.lootSeed},before);
-  assert.equal(restored.damage,87); // Current base 79 with the persisted Savage trait (+10%).
+  assert.equal(restored.damage,105); // Current base 95 with the persisted Savage trait (+10%).
 });

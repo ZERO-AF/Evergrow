@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { characterBounds, fitCharacter } from '../src/character-framing.ts';
 import { playerFootCycle } from '../src/player-leg-rig.ts';
+import { getGripLength } from '../src/equipment.ts';
 import { playerMotion } from '../src/character-motion.ts';
 import { getActiveSwingOffset } from '../src/attack-motion.ts';
 import { WEAPON_PROFILES, SHIELD_PROFILES } from '../src/weapon-content.ts';
@@ -26,8 +27,11 @@ test('one-handed sword and dagger palms stay on the lower middle of the hilt thr
       ] as const) {
         const palm = projectArmPoint(arm.hand), dx = palm[0] - origin[0], dy = palm[1] - origin[1];
         const along = (dx * Math.cos(rotation) + dy * Math.sin(rotation)) / scale;
-        assert.ok(along < -weapon.visual.gripLength! * .5 && along > -weapon.visual.gripLength! * .7,
-          'palm is below the midpoint and above the pommel');
+        // Weapon art draws 1.2× longer along its axis while the hand mount is
+        // unchanged, so the authored palm seat reads as .58/1.2 of the hilt.
+        const seat = -getGripLength(weapon.visual) * .58 / 1.2;
+        assert.ok(Math.abs(along - seat) < 1e-8,
+          'palm stays on the authored lower-middle grip seat of the hilt');
         assert.ok(Math.abs(-dx * Math.sin(rotation) + dy * Math.cos(rotation)) < 1e-8,
           'palm remains centered on the shaft');
       }

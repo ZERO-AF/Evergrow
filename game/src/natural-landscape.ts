@@ -23,12 +23,13 @@ const ROCKS=new Set<PropKind>(['rock','limestone','basalt','emberRock','iceCryst
 /** Shared seeded distribution used by gameplay, terrain workers and map studies. */
 export function landscapePropProbability(x:number,y:number,seed:number,kind:PropKind,biome:BiomeId):number {
     const {grove,rock,corridor}=landscapeFields(x,y,seed);
-    if(propDefinition(kind).canopy||kind==='stump') return Math.min(.95,(.15+grove*1.2)*TREE_DENSITY[biome]);
-    if(ROCKS.has(kind)) return (.025+rock*.9)*(1-corridor*.8);
-    if(kind==='thornBrush')return .05+grove*.45;
-    if(kind==='desertScrub')return .08+grove*.24;
-    if(kind==='dryGrass')return biome==='sunscar'?.12:.52+grove*.35;
-    return .4+grove*.45;
+    const d=propDefinition(kind).density;
+    if(propDefinition(kind).canopy||kind==='stump') return Math.min(.96,(.15+grove*1.2)*TREE_DENSITY[biome]*d);
+    if(ROCKS.has(kind)) return Math.min(.96,(.025+rock*.9)*(1-corridor*.8)*d);
+    if(kind==='thornBrush')return Math.min(.96,(.05+grove*.45)*d);
+    if(kind==='desertScrub')return Math.min(.96,(.08+grove*.24)*d);
+    if(kind==='dryGrass')return Math.min(.96,(biome==='sunscar'?.12:.52+grove*.35)*d);
+    return Math.min(.96,(.4+grove*.45)*d);
 }
 export function landscapeRelief(x:number,y:number,seed:number,w:BiomeWeights):number {
     if(w.sunscar+w.steppe<.001)return 0;

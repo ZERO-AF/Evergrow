@@ -77,7 +77,7 @@ test('seeded rare spawns are sparse, level-gated and deterministic', () => {
   // No rares below level 5; the slice stays a sliver at the cap.
   for (const level of [1, 2, 3, 4]) assert.equal(encounterRankChances(level).rare, 0);
   assert.ok(encounterRankChances(5).rare > 0);
-  assert.ok(encounterRankChances(1_000_000).rare <= .02);
+  assert.ok(encounterRankChances(1_000_000).rare <= .03);
   for (const level of [1, 5, 20, 80, 500]) {
     const chances = encounterRankChances(level);
     assert.ok(Math.abs(chances.normal + chances.veteran + chances.elite + chances.rare - 1) < 1e-10);

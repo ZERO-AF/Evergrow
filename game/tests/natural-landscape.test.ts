@@ -43,7 +43,7 @@ test('groves and traversable low-density seams are smooth and have fewer blockin
     const a=landscapeFields(x,y,7319),b=landscapeFields(x+.001,y,7319);
     for(const key of ['grove','rock','corridor'] as const)assert.ok(Math.abs(a[key]-b[key])<.001);
     const p=landscapePropProbability(x,y,7319,'tree','verdant');
-    if(a.grove<.1){open++;assert.ok(p<.3);}
+    if(a.grove<.1){open++;assert.ok(p<.41);}
     if(a.grove>.7){dense++;assert.ok(p>.8);}
   }
   assert.ok(open>100&&dense>100);

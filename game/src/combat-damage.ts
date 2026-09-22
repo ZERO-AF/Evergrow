@@ -24,11 +24,13 @@ import { demonFamilyForAlly } from './pet-content.ts';
 import { angleDifference } from './combat-geometry.ts';
 import { enemyDisplayName } from './zone-roster.ts';
 
-/** WoW melee attack table (docs/wow-transformation.md): a direct melee contact rolls
+/** WoW attack table (docs/wow-transformation.md): a direct contact rolls
  * miss → dodge → parry → glancing before the ordinary hit/crit resolution. Every
  * chance scales with the level gap (target − attacker), so equal-level fights are
  * unchanged; hit rating and expertise are the player's answers. Dodge and parry
- * require the target to face the blow — attacks from behind can only miss or glance. */
+ * require a melee blow the target faces — attacks from behind can only miss or
+ * glance. Arrows and bolts share the miss and glancing slices; spells trade
+ * glancing for a partial resist and are never dodged or parried. */
 export const ATTACK_TABLE = Object.freeze({
   /** Rating points that convert to one percentage point of avoidance reduction. */
   ratingPerPercent: 8,
@@ -47,22 +49,26 @@ export const ATTACK_TABLE = Object.freeze({
   /** Combined avoidance never exceeds this share of the table. */
   cap: .8,
 });
-export type AttackOutcome = 'miss' | 'dodge' | 'parry' | 'glancing' | 'hit';
+export type AttackChannel = 'melee' | 'ranged' | 'spell';
+export type AttackOutcome = 'miss' | 'dodge' | 'parry' | 'glancing' | 'resisted' | 'hit';
 /** One seeded roll over the attack table; consumes no randomness when nothing can fail. */
 export function attackTableRoll(random: () => number, attackerLevel: number, targetLevel: number,
-  targetFacing: number, hitAngle: number, hitRating = 0, expertise = 0): { outcome: AttackOutcome; damage: number } {
+  targetFacing: number, hitAngle: number, hitRating = 0, expertise = 0, channel: AttackChannel = 'melee'): { outcome: AttackOutcome; damage: number } {
   const delta = Math.max(0, targetLevel - attackerLevel);
-  const facing = Math.abs(angleDifference(targetFacing, hitAngle + Math.PI)) <= ATTACK_TABLE.facingArc;
+  const facing = channel === 'melee' && Math.abs(angleDifference(targetFacing, hitAngle + Math.PI)) <= ATTACK_TABLE.facingArc;
   const miss = Math.max(0, delta * ATTACK_TABLE.missPerLevel - hitRating / (ATTACK_TABLE.ratingPerPercent * 100));
   const dodge = facing ? Math.max(0, delta * ATTACK_TABLE.dodgePerLevel - expertise / (ATTACK_TABLE.ratingPerPercent * 100)) : 0;
   const parry = facing ? Math.max(0, delta * ATTACK_TABLE.parryPerLevel - expertise / (ATTACK_TABLE.ratingPerPercent * 100)) : 0;
-  const glance = Math.min(ATTACK_TABLE.cap, delta * ATTACK_TABLE.glancePerLevel);
-  if (miss + dodge + parry + glance <= 0) return { outcome: 'hit', damage: 1 };
+  // Physical hits glance off higher-level targets; spells partially resist instead.
+  const glance = channel === 'spell' ? 0 : Math.min(ATTACK_TABLE.cap, delta * ATTACK_TABLE.glancePerLevel);
+  const resist = channel === 'spell' ? Math.min(ATTACK_TABLE.cap, delta * ATTACK_TABLE.glancePerLevel) : 0;
+  if (miss + dodge + parry + glance + resist <= 0) return { outcome: 'hit', damage: 1 };
   const roll = random();
   if (roll < miss) return { outcome: 'miss', damage: 0 };
   if (roll < miss + dodge) return { outcome: 'dodge', damage: 0 };
   if (roll < miss + dodge + parry) return { outcome: 'parry', damage: 0 };
-  if (roll < miss + dodge + parry + glance) return { outcome: 'glancing', damage: ATTACK_TABLE.glanceDamage };
+  if (roll < miss + dodge + parry + glance + resist)
+    return channel === 'spell' ? { outcome: 'resisted', damage: ATTACK_TABLE.glanceDamage } : { outcome: 'glancing', damage: ATTACK_TABLE.glanceDamage };
   return { outcome: 'hit', damage: 1 };
 }
 
@@ -113,20 +119,25 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     return;
   }
   const hitStats = offense ?? context.player.derived;
-  // WoW attack table: a direct melee contact can miss, be dodged or parried by a
-  // facing target, or glance off a higher-level one. Periodic ticks, bolts and
-  // authored burns bypass the table; a whiff still alerts the target above.
+  // WoW attack table: a direct contact can miss a higher-level target; melee can
+  // also be dodged or parried by a facing one, arrows and bolts glance, and
+  // spells partially resist. Periodic ticks and authored burns bypass the table;
+  // a whiff still alerts the target above.
   let glancing = false;
-  if (melee && !periodic && GAME_FEATURES.attackTable) {
+  if (!periodic && GAME_FEATURES.attackTable) {
+    const channel: AttackChannel = melee ? 'melee'
+      : style !== undefined && projectileDamageType(style) !== 'physical' ? 'spell' : 'ranged';
     const roll = attackTableRoll(context.random, context.player.level, enemy.level, enemy.angle, angle,
-      hitStats.hitRating ?? 0, hitStats.expertise ?? 0);
-    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing') {
+      hitStats.hitRating ?? 0, hitStats.expertise ?? 0, channel);
+    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing' && roll.outcome !== 'resisted') {
       context.emit({ type: 'avoid', outcome: roll.outcome, x: enemy.x, y: enemy.y, angle,
         targetId: enemy.id, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), classId: context.player.character?.classId,
         ...(offense?.allyId !== undefined ? { allyId: offense.allyId } : {}) });
       return;
     }
     glancing = roll.outcome === 'glancing';
+    if (roll.outcome === 'resisted')
+      context.emit({ type: 'block', x: enemy.x, y: enemy.y, angle, value: Math.round(damage * (1 - roll.damage)), blocked: 'resist', enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy) });
     damage *= roll.damage;
     if (elementalDamage !== undefined) elementalDamage *= roll.damage;
   }
@@ -266,16 +277,22 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
   // Enraged enemies (dispellable buff) deal increased damage on every hit type.
   if (context.attacker && 'kind' in context.attacker) amount *= enemyBuffDamageMultiplier(context.attacker);
   // The same attack table guards the player: a facing combatant can dodge or
-  // parry a melee blow, and a lower-level attacker's hits glance off.
+  // parry a melee blow, a lower-level attacker's arrows glance off, and its
+  // spells can miss or partially resist.
   let glancingHit = false;
-  if (melee && !periodic && GAME_FEATURES.attackTable) {
+  if (!periodic && GAME_FEATURES.attackTable) {
+    const channel: AttackChannel = melee ? 'melee' : damageType === 'physical' ? 'ranged' : 'spell';
     const roll = attackTableRoll(context.random, sourceLevel, p.level, p.angle, angle,
-      context.offense?.hitRating ?? 0, context.offense?.expertise ?? 0);
-    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing') {
+      context.offense?.hitRating ?? 0, context.offense?.expertise ?? 0, channel);
+    if (roll.outcome !== 'hit' && roll.outcome !== 'glancing' && roll.outcome !== 'resisted') {
       context.emit({ type: 'avoid', outcome: roll.outcome, x: p.x, y: p.y, angle, incoming: true, enemyKind: kind, enemyName: sourceName });
       return false;
     }
     if (roll.outcome === 'glancing') { amount *= roll.damage; glancingHit = true; }
+    if (roll.outcome === 'resisted') {
+      context.emit({ type: 'block', x: p.x, y: p.y, angle, value: Math.round(amount * (1 - roll.damage)), blocked: 'resist', incoming: true, enemyKind: kind, enemyName: sourceName });
+      amount *= roll.damage;
+    }
   }
   const reduction = damageType === 'physical' ? armorReduction(effectiveArmor(p), sourceLevel) : p.derived.resistances[damageType];
   const preResist = amount;

@@ -7,8 +7,8 @@ import { creditGold, goldBalance } from './wallet.ts';
 export interface GroundGold { flight?: import('./treasure-flight.ts').TreasureFlight; id: number; x: number; y: number; amount: number; age: number; }
 export const GOLD_RULES = { maxPiles: 128, magnetRadius: 100, collectRadius: 15, settleTime: .3 } as const;
 const TABLE: Record<EnemyRank, { chance: number; min: number; max: number }> = {
-  normal: { chance: .55, min: 4, max: 10 }, veteran: { chance: .85, min: 12, max: 25 },
-  elite: { chance: 1, min: 35, max: 65 }, rare: { chance: 1, min: 55, max: 95 },
+  normal: { chance: .55, min: 4, max: 8 }, veteran: { chance: .85, min: 10, max: 20 },
+  elite: { chance: 1, min: 45, max: 80 }, rare: { chance: 1, min: 70, max: 120 },
 };
 /** Independent seed stream: currency tuning cannot change equipment rolls or encounter RNG. */
 export function rollEnemyGold(seed: number, level: number, rank: EnemyRank): number {
@@ -21,8 +21,10 @@ export function rollEnemyGold(seed: number, level: number, rank: EnemyRank): num
   };
   const row = TABLE[rank];
   if (random() >= row.chance) return 0;
+  // Copper economy (1g = 10_000c): level^1.5 growth lands a level-80 normal at
+  // ~30-60s and an elite at ~3-6g, keeping WotLK-nominal sinks reachable.
   return Math.round((row.min + Math.floor(random() * (row.max - row.min + 1)))
-    * (1 + .1 * (Math.max(1, Math.min(1_000_000, level)) - 1)));
+    * Math.pow(Math.max(1, Math.min(1_000_000, level)), 1.5));
 }
 export function dropGold(piles: GroundGold[], drop: GroundGold): void {
   if (piles.length < GOLD_RULES.maxPiles) { piles.push(drop); return; }

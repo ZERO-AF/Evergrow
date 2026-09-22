@@ -2,7 +2,7 @@
  * production over `player.combatLog`. Rendering lives in chat-frame.ts; this
  * module stays headless so commands can push lines from the core boundary.
  * Line phrasing follows real WotLK combat-log strings ("You have slain Hogger!"). */
-import type { CombatEvent, EnemyKind, Player } from './model.ts';
+import type { CombatEvent, EnemyKind, Player, SkillFailReason } from './model.ts';
 import type { SkillId } from './character-types.ts';
 import { pushCombatLog, type CombatLogEntry, type CombatLogKind } from './combat-log.ts';
 import { GAME_FEATURES } from './game-features.ts';
@@ -14,6 +14,25 @@ type ChatLine = Pick<CombatLogEntry, 'kind' | 'text'>;
 
 const enemyName = (kind: EnemyKind | undefined, name?: string): string =>
   name ?? (kind ? ENEMY_DEFINITIONS[kind]?.name ?? kind : 'Something');
+
+/** WoW-style error strings for rejected skill presses (skill-failed events). */
+export const SKILL_FAIL_TEXT: Record<SkillFailReason, string> = {
+  'cooldown': 'That ability is not ready yet.',
+  'gcd': 'Not ready yet.',
+  'no-target': 'You have no target.',
+  'out-of-range': 'Out of range.',
+  'requires-stealth': 'Requires Stealth.',
+  'requires-form': 'You are in the wrong form.',
+  'requires-frozen': 'Target must be frozen.',
+  'requires-ally': 'Requires an active minion.',
+  'requires-buff': 'Requires a stance or effect.',
+  'requires-behind': 'You must be behind your target.',
+  'execute-threshold': 'Target is not wounded enough.',
+  'no-combo': 'Requires combo points.',
+  'no-shards': 'Not enough soul shards.',
+  'no-runes': 'Runes are not ready.',
+  'unusable': 'You cannot use that yet.',
+};
 
 /** Map one drained CombatEvent to chat lines; purely visual events produce none. */
 export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
@@ -71,6 +90,8 @@ export function combatEventLines(event: CombatEvent): readonly ChatLine[] {
       return [{ kind: 'system', text: event.message }];
     case 'insufficient-mana':
       return [{ kind: 'system', text: 'Not enough mana.' }];
+    case 'skill-failed':
+      return [{ kind: 'system', text: SKILL_FAIL_TEXT[event.reason] }];
     default:
       return [];
   }

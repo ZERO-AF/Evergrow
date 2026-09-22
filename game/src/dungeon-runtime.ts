@@ -68,11 +68,10 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
                 const point=approaches.find(p=>sim.enemies.every(e=>e.hp<=0||Math.hypot(e.x-p.x,e.y-p.y)>e.radius+radius+10));
                 if(!point)continue;s.x=point.x;s.y=point.y;
             }
-            // PvP combatants are placed at fixed spawn pads, not streamed in off-screen.
-            if ((!run.entrance.pvp && !isSpawnHidden(s.x, s.y, view, radius)) || sim.world.blocked(s.x, s.y, radius)) continue;
+            // Admission mirrors spawnEnemy's contract: hidden off-screen (PvP combatants use fixed pads), outside sanctuary, unblocked.
+            if ((!run.entrance.pvp && !isSpawnHidden(s.x, s.y, view, radius)) || sim.world.isSanctuary?.(s.x, s.y) || sim.world.blocked(s.x, s.y, radius)) continue;
             const e = sim.spawnEnemy(m.kind, s.x, s.y, dungeonMemberRank(run.entrance, m), { campId: run.entrance.id, memberId: m.id, lootSeed: m.seed, level: dungeonMemberLevel(run.entrance, m) });
-            if (!e)
-                throw new Error('Validated dungeon spawn failed');
+            if (!e) continue;
             present.add(m.id);
             // First admission takes the spawn's full (heroic-scaled) health; the
             // state row was seeded from the authored rank before promotion.

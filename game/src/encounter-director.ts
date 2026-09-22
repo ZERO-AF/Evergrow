@@ -42,10 +42,13 @@ export function chooseEncounterEnemy(biome: BiomeId, random: () => number, prefe
 
 export function encounterRankChances(level: number): Readonly<Record<EnemyRank, number>> {
   level = normalizeLevel(level);
-  const veteran = level === 1 ? 0 : Math.min(.20, .12 + (level - 2) * .01);
-  const elite = level < 3 ? 0 : Math.min(.08, .04 + (level - 3) * .005);
+  // The authored ramp caps at 17; past it a slower tail keeps growing so
+  // high-level zones lean harder on champions, elites and named rares.
+  const tail = Math.max(0, level - 17);
+  const veteran = level === 1 ? 0 : Math.min(.26, Math.min(.20, .12 + (level - 2) * .01) + tail * .0015);
+  const elite = level < 3 ? 0 : Math.min(.12, Math.min(.08, .04 + (level - 3) * .005) + tail * .001);
   /** Named rares stay sparse at every level — a sighting, not a farm. */
-  const rare = level < 5 ? 0 : Math.min(.02, .008 + (level - 5) * .001);
+  const rare = level < 5 ? 0 : Math.min(.03, Math.min(.02, .008 + (level - 5) * .001) + tail * .0003);
   return { normal: 1 - veteran - elite - rare, veteran, elite, rare };
 }
 

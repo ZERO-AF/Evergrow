@@ -5,6 +5,7 @@ export class EnemyNeighbors {
   private membership=new Map<Enemy,string>();
   private order=new Map<Enemy,number>();
   private maxRadius=0;
+  private scratch:Enemy[]=[];
   private key(x:number,y:number){return `${Math.floor(x/96)}:${Math.floor(y/96)}`;}
   rebuild(enemies:readonly Enemy[]){
     this.cells.clear();this.membership.clear();this.order.clear();this.maxRadius=0;
@@ -16,8 +17,10 @@ export class EnemyNeighbors {
     if(old){const cell=this.cells.get(old)!;cell.splice(cell.indexOf(enemy),1);if(!cell.length)this.cells.delete(old);}
     let cell=this.cells.get(next);if(!cell){cell=[];this.cells.set(next,cell);}cell.push(enemy);this.membership.set(enemy,next);
   }
+  /** Result rides a reused scratch buffer; consume it before the next `around` call. */
   around(enemy:Enemy,padding:number):readonly Enemy[]{
-    const radius=enemy.radius+this.maxRadius+padding,out:Enemy[]=[];
+    const radius=enemy.radius+this.maxRadius+padding,out=this.scratch;
+    out.length=0;
     for(let y=Math.floor((enemy.y-radius)/96);y<=Math.floor((enemy.y+radius)/96);y++)for(let x=Math.floor((enemy.x-radius)/96);x<=Math.floor((enemy.x+radius)/96);x++){
       const cell=this.cells.get(`${x}:${y}`);if(cell)out.push(...cell);
     }

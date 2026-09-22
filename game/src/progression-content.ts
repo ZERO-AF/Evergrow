@@ -26,7 +26,7 @@ export const itemAffixGrowthLevel = (level: number): number => {
 };
 export const itemPercentageScale = (level: number): number => 1 + .65 * itemAffixGrowthLevel(level) / 25;
 export const monsterHealthScale = (level: number): number => itemPowerScale(level) * (1 + .055 * (normalizeLevel(level) - 1));
-export const monsterDamageScale = (level: number): number => 1.2 * (1 + .11 * (normalizeLevel(level) - 1));
+export const monsterDamageScale = (level: number): number => { const n = normalizeLevel(level) - 1; return 1.2 * (1 + .11 * n + .0009 * n * n); };
 export const monsterExperienceScale = (level: number): number => 1 + .18 * (normalizeLevel(level) - 1);
 
 /** Armor is relative to the attacking monster's level, including projectiles already in flight. */

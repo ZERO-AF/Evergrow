@@ -95,9 +95,12 @@ export function awardKillRewards(enemy: Enemy, kills: number, recharge: number, 
   // Mana-on-kill only refills mana classes; rage/energy/runic pools use their own rules.
   if (!player.dead && WOW_CLASSES[player.character.classId].resource === 'mana')
     player.mana = Math.min(manaCapacity(player), player.mana + player.derived.manaOnKill);
-  const reward = Math.max(1, Math.round(enemy.xpReward * xpLevelFactor(player.level, enemy.level) * player.derived.xpGainMultiplier
-    * (1 + ((player.killStreak?.count ?? 0) >= 2 ? streakBonusFraction(player.killStreak!.count) : 0))));
-  const levels = awardCharacterExperience(player, reward + (GAME_FEATURES.hearthstone ? restedBonus(player, reward) : 0), context.time);
+  // Streak and rested bonuses stack additively on the same base reward: the
+  // streak never inflates the rested spend, so the pool's authored tail holds.
+  const base = Math.max(1, Math.round(enemy.xpReward * xpLevelFactor(player.level, enemy.level) * player.derived.xpGainMultiplier));
+  const streakBonus = (player.killStreak?.count ?? 0) >= 2 ? Math.round(base * streakBonusFraction(player.killStreak!.count)) : 0;
+  const reward = base + streakBonus;
+  const levels = awardCharacterExperience(player, reward + (GAME_FEATURES.hearthstone ? restedBonus(player, base) : 0), context.time);
   context.emit({ type: 'experience', x: enemy.x, y: enemy.y, amount: reward });
   // The active pet earns a share of kill XP while its ally is live; level-ups rescale it.
   const pet = player.character.pets?.active;

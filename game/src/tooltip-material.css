@@ -4,9 +4,20 @@
   border: 1px solid #abc7d242;
   border-radius: 0;
   background-color: #0d1821;
-  background-image: radial-gradient(ellipse at 0 0, #a9d4e012, transparent 65%),
+  /* Corner filigree rides the surface: carved L-ticks over the glass gradients. */
+  background-image:
+    linear-gradient(#c8dcea66, #c8dcea66) left 3px top 3px / 9px 1px no-repeat,
+    linear-gradient(#c8dcea66, #c8dcea66) left 3px top 3px / 1px 9px no-repeat,
+    linear-gradient(#c8dcea66, #c8dcea66) right 3px top 3px / 9px 1px no-repeat,
+    linear-gradient(#c8dcea66, #c8dcea66) right 3px top 3px / 1px 9px no-repeat,
+    linear-gradient(#9fb9c655, #9fb9c655) left 3px bottom 3px / 7px 1px no-repeat,
+    linear-gradient(#9fb9c655, #9fb9c655) left 3px bottom 3px / 1px 7px no-repeat,
+    linear-gradient(#9fb9c655, #9fb9c655) right 3px bottom 3px / 7px 1px no-repeat,
+    linear-gradient(#9fb9c655, #9fb9c655) right 3px bottom 3px / 1px 7px no-repeat,
+    radial-gradient(ellipse at 0 0, #a9d4e012, transparent 65%),
     linear-gradient(155deg, #bedde509, transparent 48%, #03080d24);
-  box-shadow: 0 12px 32px #0007, 0 0 18px #a8d7e008, inset 0 0 18px #c5e7ef06;
+  box-shadow: 0 12px 32px #0007, 0 0 18px #a8d7e008,
+    inset 0 1px #e5f4fa30, inset 0 -1px #00000066, inset 0 0 18px #c5e7ef06;
 }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ui-tooltip:not(.ui-item-tooltip-group), .ui-item-tooltip, .ui-item-hover-card,
@@ -71,8 +82,18 @@
 .ui-item-hover-card.ui-item-hover-card {
   border-radius: 0; border-color: #b8d7e666;
   background-color: #101d2d;
-  background-image: linear-gradient(135deg, #e0f7ff12, #d9e3ff04 40%, #02071230);
-  box-shadow: 0 18px 38px #0009, inset 0 1px #edfcff52, inset 1px 0 #d7edff24;
+  /* Rarity-tinted corner filigree over the glass gradient. */
+  background-image:
+    linear-gradient(var(--item-color, #b8d7e6), var(--item-color, #b8d7e6)) left 3px top 3px / 9px 1px no-repeat,
+    linear-gradient(var(--item-color, #b8d7e6), var(--item-color, #b8d7e6)) left 3px top 3px / 1px 9px no-repeat,
+    linear-gradient(var(--item-color, #b8d7e6), var(--item-color, #b8d7e6)) right 3px top 3px / 9px 1px no-repeat,
+    linear-gradient(var(--item-color, #b8d7e6), var(--item-color, #b8d7e6)) right 3px top 3px / 1px 9px no-repeat,
+    linear-gradient(var(--item-color, #9fb9c6), var(--item-color, #9fb9c6)) left 3px bottom 3px / 7px 1px no-repeat,
+    linear-gradient(var(--item-color, #9fb9c6), var(--item-color, #9fb9c6)) left 3px bottom 3px / 1px 7px no-repeat,
+    linear-gradient(var(--item-color, #9fb9c6), var(--item-color, #9fb9c6)) right 3px bottom 3px / 7px 1px no-repeat,
+    linear-gradient(var(--item-color, #9fb9c6), var(--item-color, #9fb9c6)) right 3px bottom 3px / 1px 7px no-repeat,
+    linear-gradient(135deg, #e0f7ff12, #d9e3ff04 40%, #02071230);
+  box-shadow: 0 18px 38px #0009, inset 0 1px #edfcff52, inset 1px 0 #d7edff24, inset 0 -1px #00000066;
   color: #e4eef0;
 }
 .ui-item-hover-card.ui-item-hover-card::before {

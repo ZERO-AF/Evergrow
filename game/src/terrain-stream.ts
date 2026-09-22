@@ -10,6 +10,8 @@ export class TerrainStream {
   private serial = 0;
   private seed = 0;
   private wildernessOnly = false;
+  private centerX = 0;
+  private centerY = 0;
   private riftTerrain = false;
   private authored = false;
   failed = false;
@@ -34,16 +36,27 @@ export class TerrainStream {
     this.authored = authored;
     this.seed = seed;
     this.wanted.clear();
-    for (const p of coordinates.slice(0, 256)) this.wanted.set(`${seed}:${wildernessOnly}:${riftTerrain}:${authored}:${p.x}:${p.y}`, p);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of coordinates.slice(0, 256)) {
+      this.wanted.set(`${seed}:${wildernessOnly}:${riftTerrain}:${authored}:${p.x}:${p.y}`, p);
+      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    }
+    this.centerX = (minX + maxX) / 2; this.centerY = (minY + maxY) / 2;
     for (const [key, tile] of this.tiles) if (!this.wanted.has(key)) { tile.bitmap.close(); this.tiles.delete(key); }
     this.pump();
   }
   get(x: number, y: number) { return this.tiles.get(`${this.seed}:${this.wildernessOnly}:${this.riftTerrain}:${this.authored}:${x}:${y}`); }
   private pump() {
     if (this.failed || this.pending) return;
+    // Nearest to the view center first; `wanted` insertion order is scan order, not priority.
+    let next: { key: string; p: TerrainCoordinate } | null = null, best = Infinity;
     for (const [key, p] of this.wanted) if (!this.tiles.has(key)) {
-      this.pending = { id: ++this.serial, key }; this.port.postMessage({ id: this.serial, seed: this.seed, wildernessOnly: this.wildernessOnly, riftTerrain: this.riftTerrain, authored: this.authored, ...p }); return;
+      const d = (p.x - this.centerX) ** 2 + (p.y - this.centerY) ** 2;
+      if (d < best) { best = d; next = { key, p }; }
     }
+    if (!next) return;
+    this.pending = { id: ++this.serial, key: next.key }; this.port.postMessage({ id: this.serial, seed: this.seed, wildernessOnly: this.wildernessOnly, riftTerrain: this.riftTerrain, authored: this.authored, ...next.p });
   }
   dispose() { this.port.terminate(); for (const tile of this.tiles.values()) tile.bitmap.close(); this.tiles.clear(); this.wanted.clear(); this.pending = null; }
 }

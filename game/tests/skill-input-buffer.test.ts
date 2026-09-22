@@ -43,15 +43,15 @@ for (const [slot, skill] of [[1, 'meteor'], [2, 'cataclysm']] as const) {
   });
 }
 
-test('a pressed skill takes priority over held basics after their existing recovery', () => {
+test('a pressed skill fires on the GCD without waiting out the swing', () => {
   const f = fixture(); f.tick({ attack: true });
   const attack = f.p.attack!;
   assert.ok(attack.duration - attack.elapsed > .11);
   f.tick({ attack: true, skillSlot: 1 });
-  f.advance(.12, { attack: true });
-  assert.equal(f.casts('meteor'), 0, 'does not interrupt the current action');
-  f.advance(attack.duration, { attack: true });
+  // WoW rule: the swing timer is independent of the GCD — an instant fires
+  // mid-swing and the in-flight swing keeps its contact window.
   assert.equal(f.casts('meteor'), 1);
+  assert.ok(f.p.attack, 'the in-flight swing continues');
 });
 
 test('a more recent explicit press replaces the one pending skill', () => {

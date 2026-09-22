@@ -194,7 +194,7 @@ Every Technique is **one optional point directly beside its skill**. Potency/eff
 
 ## Doctrines
 
-A Doctrine family has three mutually exclusive nodes, connected to the same road. Buy one for one point. Once purchased, its detail panel offers free switching within that family; it replaces the owned choice, preserving node count, connectivity and the point ledger. Switching clears temporary affix/skill buffs, retains cooldowns and does not heal. This prevents keeping a temporary benefit from the previous choice. The full enchanter skill respec remains available at 25 gold per refunded node/rank point; attributes are separate.
+A Doctrine family has three mutually exclusive nodes, connected to the same road. Buy one for one point. Once purchased, its detail panel offers free switching within that family; it replaces the owned choice, preserving node count, connectivity and the point ledger. Switching clears temporary affix/skill buffs, retains cooldowns and does not heal. This prevents keeping a temporary benefit from the previous choice. The full enchanter skill respec remains available at a quadratic price (`respecCost(points) = min(50g, 80c·points²)`); attributes are separate.
 
 - **Guard Doctrine** (bastion): Deflect — Shield block chance +5%. / Absorb — Shield block reduction +10%. / Recover — Life regeneration +1 per second.
 - **Impact Doctrine** (forge): Weight — Weapon damage +28%. / Reach — Area of effect +24%. / Rhythm — Attack speed +12%.

@@ -62,7 +62,7 @@ import { deriveCharacterStats } from './character-stats.ts';
 import { tryProc, tryTriggerProc, tryDefensiveProc, type ProcContext } from './legendary-combat.ts';
 import { awardKillRewards } from './combat-rewards.ts';
 import { advanceEnemyStatuses, applyDot as applyDotStatus, applyCc as applyCcStatus, applySunder as applySunderStatus, applyStun, applySlow } from './combat-status.ts';
-import { recordHealThreat } from './enemy-threat.ts';
+import { recordHealThreat, tauntThreat } from './enemy-threat.ts';
 import type { HitSnapshot } from './model.ts';
 import { scheduleGroundEffect, advanceGroundEffects, type ActiveGroundEffect } from './ground-effects.ts';
 import { activateSkill, schoolProjectileStyle, type SkillContext } from './skill-combat.ts';
@@ -234,7 +234,7 @@ export class Simulation {
   groundEffects: ActiveGroundEffect[] = [];
   chains: ChainFlight[] = [];
   readonly groundPickup = new GroundItemPickup();
-  private skillBuffer: { slot: number; until: number; pressed?:boolean } | null = null;
+  private skillBuffer: { slot: number; until: number; pressed?: boolean; reported?: boolean } | null = null;
   private blockedDrawSlot: number | null = null;
   time = 0;
   kills = 0;
@@ -334,11 +334,14 @@ export class Simulation {
   captureContents(): LocationContents {
       return cloneData({ encounterScales: this.camps.captureScales(), campWounds: this.camps.captureWounds(this.enemies), actors: this.enemies.filter(e => e.hp > 0).map(storedActor), groundItems: this.groundItems, groundGold: this.groundGold, pickups: this.pickups, clearedCamps: this.camps.clearedIds(), defeatedCampMembers: this.camps.defeatedMembers() });
   }
-  captureCheckpoint(): WowCheckpoint {
+  /** Snapshot the checkpoint. The default deep clone protects staged-mutation
+   * callers (restore paths mutate the payload); `clone: false` returns live
+   * references for callers that only serialize it immediately. */
+  captureCheckpoint(options?: { clone?: boolean }): WowCheckpoint {
     const p = this.player;
     const run = currentDungeon(this.expeditions); if (run) syncDungeon(run,this.enemies,p.x,p.y);
     syncTrial(this.eventState, this.enemies);
-    const checkpoint = cloneData({ chronicle:p.chronicle, brokenContainers: [...this.brokenContainers], journeys:this.journeys, encounterScales:this.camps.captureScales(), campWounds:this.camps.captureWounds(this.enemies), roaming:this.roaming.capture(), expeditions: this.expeditions, actors: this.enemies.filter(e=>e.hp>0).map(e=>Object.assign(storedActor(e),{dots:e.dots,cc:e.cc,sundered:e.sundered,taunted:e.taunted})), pickups: this.pickups, events: this.eventState, travel: this.travel, character: p.character, level: p.level, xp: p.xp,
+    const snapshot = { chronicle:p.chronicle, brokenContainers: [...this.brokenContainers], journeys:this.journeys, encounterScales:this.camps.captureScales(), campWounds:this.camps.captureWounds(this.enemies), roaming:this.roaming.capture(), expeditions: this.expeditions, actors: this.enemies.filter(e=>e.hp>0).map(e=>Object.assign(storedActor(e),{dots:e.dots,cc:e.cc,sundered:e.sundered,taunted:e.taunted})), pickups: this.pickups, events: this.eventState, travel: this.travel, character: p.character, level: p.level, xp: p.xp,
       x: p.x, y: p.y, angle: p.angle, hp: p.hp, mana: p.mana, dead: p.dead || this.ghost !== null,
       flasks: p.flasks, healCooldown: p.healCooldown, dodgeCharges: p.dodgeCharges, dodgeRecharge: p.dodgeRecharge,
       skillCooldowns: p.skillCooldowns, time: this.time, kills: this.kills,
@@ -349,7 +352,8 @@ export class Simulation {
       randomState: this.randomState, spawnOrdinal: this.spawnOrdinal, killRecharge: this.killRecharge,
       allies: p.allies, buffs: p.buffs, comboPoints: p.comboPoints, runes: p.runes, soulShards: p.soulShards, petCommand: p.petCommand,
       stealthed: p.stealthed, autoAttack: p.autoAttack,
-      clearedCamps: this.camps.clearedIds(), defeatedCampMembers: this.camps.defeatedMembers(), groundItems: this.groundItems, groundGold: this.groundGold }) as CharacterCheckpoint;
+      clearedCamps: this.camps.clearedIds(), defeatedCampMembers: this.camps.defeatedMembers(), groundItems: this.groundItems, groundGold: this.groundGold };
+    const checkpoint = (options?.clone === false ? snapshot : cloneData(snapshot)) as CharacterCheckpoint;
     // Optional WoW fields stay absent (not undefined) so the in-memory checkpoint
     // matches its persisted JSON form byte-for-byte.
     for (const key of Object.keys(checkpoint) as (keyof CharacterCheckpoint)[]) if (checkpoint[key] === undefined) delete checkpoint[key];
@@ -552,10 +556,13 @@ export class Simulation {
     return this.turnHostiles ?? (this.pvpPlayer ? this.hostileTargets(this.pvpPlayer) : this.enemies);
   }
 
-  /** Runs fn with the sim's per-actor state swapped to `actor`: player, hostile
-   * list, input buffers, movement steering and ally cooldowns. */
+  /** Runs fn with the sim's per-actor state swapped to `actor`: player, turn
+   * hostiles, input buffers, movement steering and ally cooldowns. `this.enemies`
+   * always denotes the real world list — combatant targeting reads the
+   * turnHostiles/activeTargets() projection so spawns and splices inside fn()
+   * land on the live list. */
   private withActor<T>(actor: Combatant, fn: () => T): T {
-    const savedPlayer = this.player, savedEnemies = this.enemies;
+    const savedPlayer = this.player;
     const savedSkillBuffer = this.skillBuffer, savedBlockedDraw = this.blockedDrawSlot;
     const savedAttack = this.attackBuffer, savedDodge = this.dodgeBuffer, savedHeal = this.healBuffer;
     const savedHurtGuard = this.hurtGuard, savedCombatUntil = this.combatUntil;
@@ -564,7 +571,7 @@ export class Simulation {
     const savedTurnHostiles = this.turnHostiles;
     const control = actor.ai.control;
     this.player = actor;
-    this.enemies = this.turnHostiles = this.hostileTargets(actor);
+    this.turnHostiles = this.hostileTargets(actor);
     this.skillBuffer = control.skillBuffer; this.blockedDrawSlot = control.blockedDrawSlot;
     this.attackBuffer = control.attackBuffer; this.dodgeBuffer = control.dodgeBuffer; this.healBuffer = control.healBuffer;
     this.hurtGuard = control.hurtGuard; this.combatUntil = control.combatUntil;
@@ -577,7 +584,7 @@ export class Simulation {
       control.attackBuffer = this.attackBuffer; control.dodgeBuffer = this.dodgeBuffer; control.healBuffer = this.healBuffer;
       control.hurtGuard = this.hurtGuard; control.combatUntil = this.combatUntil;
       control.resourceInitialized = this.resourceInitialized;
-      this.player = savedPlayer; this.enemies = savedEnemies;
+      this.player = savedPlayer;
       this.skillBuffer = savedSkillBuffer; this.blockedDrawSlot = savedBlockedDraw;
       this.attackBuffer = savedAttack; this.dodgeBuffer = savedDodge; this.healBuffer = savedHeal;
       this.hurtGuard = savedHurtGuard; this.combatUntil = savedCombatUntil;
@@ -984,7 +991,12 @@ export class Simulation {
   private invokeSkillSlot(slot: number, input: Input): boolean {
     const p = this.player, id = this.skillIdForSlot(slot);
     if (!id) return false;
-    if (!activateSkill(this.skillContext(input), slot)) return false;
+    const context = this.skillContext(input);
+    context.reportFailures = !this.skillBuffer?.reported;
+    if (!activateSkill(context, slot)) {
+      if (context.failReported && this.skillBuffer) this.skillBuffer.reported = true;
+      return false;
+    }
     if (this.pvpCombatants) for (const flight of this.chains) if (!this.chainSources.has(flight)) this.chainSources.set(flight, p);
     tryTriggerProc(p, 'onCast', this.procContext());
     const kind = SKILL_EXECUTION[id]?.kind;
@@ -1059,8 +1071,9 @@ export class Simulation {
       // Keep one deliberate press through the action already underway. Held repeats
       // cannot overwrite it or extend its lifetime while waiting on mana/cooldown.
       const recovery = pressed ? Math.max(0, p.castTime, p.cast?.remaining ?? 0, p.dodgeTime, p.dash?.remaining ?? 0,
-        (p.gcdReady ?? 0) - this.time, p.attack ? p.attack.duration - p.attack.elapsed : 0) : 0;
-      this.skillBuffer = { slot: input.skillSlot, until: this.time + recovery + COMBAT_TIMING.inputBuffer, pressed };
+        (p.gcdReady ?? 0) - this.time, p.attack?.skill ? p.attack.duration - p.attack.elapsed : 0) : 0;
+      this.skillBuffer = { slot: input.skillSlot, until: this.time + recovery + COMBAT_TIMING.inputBuffer, pressed,
+        ...(pressed ? {} : { reported: this.skillBuffer?.reported }) };
     }
     if (input.heal) this.healBuffer = this.time + COMBAT_TIMING.inputBuffer;
   }
@@ -1649,7 +1662,6 @@ export class Simulation {
     for (const enemy of this.enemies) {
       if (isCombatant(enemy)) continue;
       this.updateKnockback(enemy, dt);
-      this.enemyNeighbors.update(enemy);
       enemy.stateTime += dt;
       if (enemy.state === 'dead') continue;
       enemy.rallyTime=Math.max(0,(enemy.rallyTime??0)-dt);
@@ -1797,7 +1809,7 @@ export class Simulation {
     switch (effect.kind) {
       case 'strike': {
         const arc = effect.arc ?? 0;
-        for (const enemy of this.enemies) {
+        for (const enemy of this.activeTargets()) {
           if (enemy.state !== 'dead' && (enemy === target || (arc > 0 && circleIntersectsSector(enemy.x, enemy.y, enemy.radius, ally.x, ally.y, ally.angle, ally.radius + 48, arc)))) {
             this.damageEnemy(enemy, ally.damage * effect.damageMultiplier * allyDamage, Math.atan2(enemy.y - ally.y, enemy.x - ally.x), skill.range === 0, false, schoolProjectileStyle(effect.school), undefined, { ...ALLY_OFFENSE, allyId: ally.id });
             if (effect.stun) applyStun(enemy, effect.stun);
@@ -1811,6 +1823,7 @@ export class Simulation {
       case 'taunt':
         target.taunted = { remaining: effect.duration, allyId: ally.id };
         target.awareness = Math.max(target.awareness, 1);
+        tauntThreat(target, `ally:${ally.id}`);
         break;
       case 'cc': applyCcStatus(target, effect.cc, effect.duration, effect.cc === 'incapacitate' || effect.cc === 'polymorph', effect.factor); break;
       case 'projectile':

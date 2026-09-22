@@ -126,7 +126,7 @@ test('petShare redirects into the pet or demon before totems', () => {
 });
 
 test('allyLeash covers ranged standoff: a staying pet inside the leash is not recalled', () => {
-  assert.equal(WOW_COMBAT.allyLeash, 70, 'spec leash is 70u (wow-transformation §5)');
+  assert.equal(WOW_COMBAT.allyLeash, 700, 'combat-radius leash (wow-transformation §5)');
   const sim = new Simulation(world, { spawn: false });
   const p = sim.player;
   p.character.pets = { active: createPetRecord(3, 'stalker', 5), stabled: [] };
@@ -138,7 +138,10 @@ test('allyLeash covers ranged standoff: a staying pet inside the leash is not re
   assert.equal(Math.hypot(pet.x - 50, pet.y), 0, 'pet inside the leash holds its stay position');
   p.allies = [ally('wolf', { petId: 3, x: 200, y: 0 })];
   sim.update(0.05, input);
-  assert.ok(p.allies[0]!.x < 200, 'pet beyond the leash is recalled');
+  assert.equal(p.allies[0]!.x, 200, 'a staying pet inside the combat leash is not recalled');
+  p.allies = [ally('wolf', { petId: 3, x: 900, y: 0 })];
+  sim.update(0.05, input);
+  assert.ok(p.allies[0]!.x < 900, 'pet beyond the leash is recalled');
 });
 
 test('totem auras tick mana, wards, stat buffs, cc-break and cleanse on the player in radius', () => {

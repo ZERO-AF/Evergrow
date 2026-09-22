@@ -1,8 +1,9 @@
 import { vendorIdentity, vendorEmblem } from './vendor-identity.ts';
-import { type TownNPC } from './npcs.ts';
+import { type TownNPC, NPC_NAMES, NPC_COLORS } from './npcs.ts';
 import { drawHumanoid } from './art.ts';
 import { UNARMED_WEAPON } from './equipment.ts';
 import { SKIN_PALETTES, HAIR_PALETTES, HAIR_STYLES, FACIAL_HAIR, ACCESSORIES } from './appearance-content.ts';
+import { text } from './font.ts';
 import type { CharacterPose, ArmorPiece } from './art-types.ts';
 import type { Resident } from './settlement-residents.ts';
 const looks=new Map<number,Pick<CharacterPose,'appearance'|'outfit'>>();
@@ -26,6 +27,15 @@ export function drawNPC(c:CanvasRenderingContext2D,npc:TownNPC|Resident,time:num
   drawHumanoid(c,{kind:'player',...look,appearance:resident&&npc.child?{...look.appearance!,facialHair:'none'}:look.appearance,
     angle:npc.angle??Math.PI/2,time:reduced?0:time+npc.seed%37,moving:reduced?0:(npc.moving??0),
     gaitPhase:time*2.2,attack:0,attackAngle:Math.PI/2,weapon:UNARMED_WEAPON.visual,offHand:null,hitFlash:0,dodging:false});
+  c.restore();
+  // WoW-style always-on nameplates: service NPCs carry their title, residents a dimmer name.
+  c.save();c.translate(npc.x,npc.y);c.scale(scale,scale);
+  if(resident){
+    c.globalAlpha=.62;text(c,npc.name,0,-64,.78,'#d8dccb','center');
+  }else{
+    text(c,npc.name,0,-66,.85,'#ece7d2','center');
+    text(c,NPC_NAMES[(npc as TownNPC).role],0,-57,.68,NPC_COLORS[(npc as TownNPC).role],'center');
+  }
   c.restore();
 }
 export function npcEmblem(role:TownNPC['role']):string{return vendorEmblem(role);}

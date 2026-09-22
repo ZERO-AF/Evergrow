@@ -11,13 +11,14 @@
   background: none; border-radius: 0; border-color: #c3e9ef66;
   -webkit-backdrop-filter: none; backdrop-filter: none;
   box-shadow: 0 32px 90px #0009, 0 0 0 1px #040d1866,
-    inset 0 1px #e5fbff4d, inset 1px 0 #c3efff25, inset 0 -1px #aad2ec38;
+    inset 0 1px #e5fbff4d, inset 1px 0 #c3efff25, inset 0 -2px 8px #00000052, inset 0 -1px #aad2ec38;
 }
 .ui-window:not(.home-embedded > .ui-window)::after {
   content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background-color: #10202b;
   background-image: radial-gradient(ellipse at 6% 0%, #b2e9ff1a, transparent 46%),
     radial-gradient(ellipse at 100% 90%, #9585e810, transparent 55%),
+    radial-gradient(ellipse at 50% 0%, #e8dcbe08, transparent 58%),
     repeating-linear-gradient(112deg, #e6f1fa02 0 1px, transparent 1px 7px),
     linear-gradient(125deg, #d3f8ff09, transparent 38%, #050d172e);
 }
@@ -31,7 +32,7 @@
 .ui-window > :is(.ui-window-header, .ui-window__header) {
   padding: 12px 26px;
   background: linear-gradient(110deg, #d5f7ff12, #b4c7ff03 62%, #d5f7ff06);
-  box-shadow: inset 0 -1px #070c1655;
+  box-shadow: inset 0 -1px #070c1655, inset 0 1px #ffffff0a;
   border-bottom-color: #c6ecff33;
 }
 .ui-window > :is(.ui-window-footer, .ui-window__footer) { background: #07121c26; }

@@ -50,10 +50,11 @@ export function durabilityLoss(player: Player, cause: DurabilityCause, now?: num
   return broken;
 }
 
-/** Gold to restore one item to full: twice vendor value at 0, scaled by missing durability. */
+/** Gold to restore one item to full: vendor value per item level, scaled by missing
+ * durability — a 10% death on level-80 gear runs ~1-3g for the equipped set. */
 export function repairCost(item: Item, current: number): number {
   const missing = Math.max(0, Math.min(DURABILITY_RULES.max, DURABILITY_RULES.max - current));
-  return Math.max(1, Math.ceil(itemPrice(item, 'sell') * 2 * missing / DURABILITY_RULES.max));
+  return Math.max(1, Math.ceil(itemPrice(item, 'sell') * Math.max(1, item.itemLevel) * missing / DURABILITY_RULES.max));
 }
 
 export type RepairQuote = { ok: true; slots: EquipmentSlot[]; cost: number } | { ok: false; message: string };

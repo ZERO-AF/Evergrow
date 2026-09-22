@@ -179,7 +179,7 @@ test('sustained feedback outlives cast recovery and skill audio distinguishes im
 });
 
 test('every meteor in a barrage deals full damage to each overlapping target',()=>{
-  const h=setup('cataclysm'),enemies=[h.target(100),h.target(105)];h.cast();
+  const h=setup('cataclysm'),enemies=[h.target(100),h.target(105)];enemies.forEach(e=>Object.assign(e,{level:1}));h.cast();
   const impacts=h.sim.groundEffects.filter(e=>e.kind==='meteor');assert.equal(impacts.length,7);
   const base=impacts[0].damage,totals=new Map<number,number>(),counts=new Map<number,number>();
   for(let i=0;i<360;i++){

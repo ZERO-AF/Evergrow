@@ -38,7 +38,17 @@ export function drawGroundLoot(c: CanvasRenderingContext2D, drops: readonly Grou
     }
     const color = TIER_COLORS[drop.item.tier];
     const precious = ['rare', 'epic', 'legendary','unique'].includes(drop.item.tier);
+    const glowTier = drop.item.tier !== 'common';
     c.fillStyle = '#040a10b0'; c.beginPath(); c.ellipse(flight.landed?x:flight.x, (flight.landed?y:flight.y) + 2, 12, 4, -.12, 0, Math.PI * 2); c.fill();
+    // Rarity glow pools under the drop so loot reads at distance even without beams.
+    if (glowTier) {
+      const radius = precious ? 30 : 20;
+      const glow = c.createRadialGradient(x, y, 1, x, y, radius);
+      glow.addColorStop(0, color + (precious ? '66' : '40'));
+      glow.addColorStop(.55, color + (precious ? '2e' : '1a'));
+      glow.addColorStop(1, color + '00');
+      c.fillStyle = glow; c.beginPath(); c.ellipse(x, y, radius, radius * .48, 0, 0, Math.PI * 2); c.fill();
+    }
     if(drop.item.tier==='unique'){
       const glow=c.createRadialGradient(x,y,2,x,y,36);glow.addColorStop(0,'#e04b8970');glow.addColorStop(.5,'#9e60cf35');glow.addColorStop(1,'#9e60cf00');
       c.fillStyle=glow;c.beginPath();c.ellipse(x,y,36,17,0,0,Math.PI*2);c.fill();
@@ -58,6 +68,21 @@ export function drawGroundLoot(c: CanvasRenderingContext2D, drops: readonly Grou
       c.save(); c.globalAlpha = glint * .8; c.strokeStyle = color; c.lineWidth = .8;
       c.beginPath(); c.moveTo(x + 6, y - 10); c.lineTo(x + 6, y - 4);
       c.moveTo(x + 3, y - 7); c.lineTo(x + 9, y - 7); c.stroke(); c.restore();
+    }
+    // Uncommon-and-up drops shed a few slow rising sparks in their tier color.
+    if (glowTier) {
+      const motes = precious ? 3 : 2;
+      for (let i = 0; i < motes; i++) {
+        const phase = reducedMotion ? (i + 1) / (motes + 1) : (time * .22 + drop.id * .13 + i * .37) % 1;
+        const mx = x + Math.sin(drop.id * 1.7 + i * 2.4) * 8;
+        const my = y - 3 - phase * 16;
+        const fade = Math.sin(phase * Math.PI);
+        c.save(); c.globalAlpha = fade * (precious ? .75 : .45);
+        c.translate(mx, my); c.rotate(Math.PI / 4);
+        c.fillStyle = i === 0 ? '#ffffff' : color;
+        const s = precious ? 1.5 : 1.1;
+        c.fillRect(-s / 2, -s / 2, s, s); c.restore();
+      }
     }
   }
   c.restore();

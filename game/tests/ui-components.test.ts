@@ -16,7 +16,9 @@ test('UI token installation is idempotent and shares exact colors with Canvas co
     assert.equal(values.get(`--ui-${key}`), value);
   }
   assert.equal(values.get('--ui-control'), '44px');
-  assert.ok(values.get('--ui-font')?.includes('Pixelify Sans'));
+  assert.equal(values.get('--ui-font'), UI_THEME.typography.font);
+  assert.ok(values.get('--ui-font')?.includes('Evergrow Interface'));
+  assert.equal(values.get('--ui-font-display'), UI_THEME.typography.display);
 });
 
 test('UI markup helpers preserve labels as text and only return fixed decorative icons', () => {

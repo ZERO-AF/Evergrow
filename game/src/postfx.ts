@@ -130,13 +130,18 @@ export class PostFX {
   };
   private readonly onRestored = () => {
     if (this.disposed) return;
-    this.setup(); this.lost = false;
+    // A failed rebuild keeps the context marked lost instead of throwing into the frame loop.
+    try { this.setup(); this.lost = false; }
+    catch (error) { console.warn('Display effects could not be restored; post-processing stays off.', error); this.lost = true; }
   };
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.gl = canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, preserveDrawingBuffer: false });
-    if (this.gl) this.setup();
+    if (this.gl) {
+      try { this.setup(); }
+      catch (error) { console.warn('Display effects unavailable; post-processing is disabled.', error); this.lost = true; }
+    }
     else this.fallback = canvas.getContext('2d', { alpha: false });
     canvas.addEventListener('webglcontextlost', this.onLost);
     canvas.addEventListener('webglcontextrestored', this.onRestored);
@@ -245,7 +250,14 @@ export class PostFX {
     if (this.lost || this.disposed || !source.width || !source.height) return;
     const gl = this.gl;
     if (gl && this.scene && this.bright && this.blur && this.composite) {
-      this.resizeStorage(source.width, source.height);
+      try { this.resizeStorage(source.width, source.height); }
+      catch (error) {
+        // The bloom targets cannot be rebuilt (e.g. driver limits); degrade to a
+        // lost-context state — the world canvas keeps its last frame — rather
+        // than throwing into the frame loop.
+        console.warn('Display effects failed; post-processing is disabled.', error);
+        this.release(); this.lost = true; return;
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
       gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.scene);

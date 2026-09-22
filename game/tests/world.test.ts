@@ -24,7 +24,7 @@ test('partitioned queries have exactly the same identities and values at negativ
     world.getProps(-512, 0, 512, 512), world.getProps(0, 0, 512, 512),
   ].flat().sort((a, b) => a.y - b.y || a.x - b.x || a.id.localeCompare(b.id));
   assert.deepEqual(quadrants, whole);
-  const negativeTree = whole.find(prop => prop.x < -180 && prop.y < -140 && prop.kind !== 'rock');
+  const negativeTree = whole.find(prop => prop.x < -180 && prop.y < -140 && prop.radius > 0);
   assert.ok(negativeTree);
   assert.equal(world.blocked(negativeTree.x, negativeTree.y, 1), true);
   assert.equal(world.blocked(0, 0, 12), false);

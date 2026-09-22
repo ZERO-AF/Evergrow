@@ -93,7 +93,8 @@ test('both shoulder mounts rotate on one anatomical axis without collapsing at s
       near(right[0] + left[0], 0, 'shoulder horizontal midpoint stays on torso');
       near(right[1] + left[1], 0, 'shoulder depth midpoint stays on torso');
       near(right[2] + left[2], 52, 'gait offsets remain balanced around the same shoulder height');
-      near(Math.hypot(right[0] - left[0], right[1] - left[1]), 13, 'anatomical shoulder span survives side-facing foreshortening');
+      // Heroic silhouette: mounts sit 1.18× wider, so the span foreshortens from 15.34.
+      near(Math.hypot(right[0] - left[0], right[1] - left[1]), 13 * 1.18, 'anatomical shoulder span survives side-facing foreshortening');
     }
   }
   const side = getPlayerArmRig({ ...rest, angle: 0, attackAngle: 0 });
@@ -112,7 +113,9 @@ test('a single weapon keeps both hands attached to its grip throughout facing, g
       const along = (dx * Math.cos(rig.weaponAngle) + dy * Math.sin(rig.weaponAngle)) / rig.weaponScale;
       const across = dx * -Math.sin(rig.weaponAngle) + dy * Math.cos(rig.weaponAngle);
       near(across, 0, 'both gauntlets sit on the visible sword axis');
-      near(along, getSupportGripOffset(weapon), 'support hand uses the weapon attachment offset');
+      // Weapon art draws 1.2× longer along its axis while the hand mount is
+      // unchanged, so the authored support offset reads as offset/1.2 locally.
+      near(along, getSupportGripOffset(weapon) / 1.2, 'support hand uses the weapon attachment offset');
       assert.ok(along < -4 && along > -getGripLength(weapon) + 1,
         'support hand stays behind the lead hand and ahead of the pommel');
     }

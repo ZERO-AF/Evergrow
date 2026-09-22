@@ -136,6 +136,7 @@ import { companionOwned, activeCompanion, summonCompanion } from './companion-st
 import { gatherChannelOf, gatherChannelReady, gatherNodeBlips } from './gather-node.ts';
 import { hearthstoneCast, executeHearthstone, hearthstoneHome, bindInteract, focusedInnkeeper, innkeepersNear } from './hearthstone.ts';
 import { freshFishing, fishingBite, fishingCast, fishingCatch, fishingCancel, fishingZoneAt, type FishingSession } from './fishing.ts';
+import { randomSource } from './random-source.ts';
 import { GlyphPanel } from './glyph-panel.ts';
 import { executeGlyphSocket, executeGlyphUnsocket, executeGlyphBuy } from './glyph-command.ts';
 import { buyBag } from './bag-state.ts';
@@ -281,6 +282,7 @@ export class Game {
   readonly performance = new FrameProfiler(new URLSearchParams(location.search).has('profile'));
   private last = performance.now();
   private animation = 0;
+  private nextFrameErrorNotice = 0;
   private framePacer = new FramePacer(60);
   private performanceMonitor: PerformanceMonitor;
   private nextPerformanceCounters = 0;
@@ -1317,7 +1319,7 @@ export class Game {
       let saved = false;
       do {
         this.saveAgain = false;
-        saved = await this.session.save(this.sim.captureCheckpoint(), Date.now());
+        saved = await this.session.save(this.sim.captureCheckpoint({ clone: false }), Date.now());
         const message = saved ? '' : this.session.error;
         if (!this.disposed) {
           if (message && message !== this.saveError) this.notify(message);
@@ -1406,7 +1408,7 @@ export class Game {
           return true;
       }
       if (this.fishing.bobber) {
-          const catchResult = fishingCatch(this.fishing, p, this.sim.time, Math.random);
+          const catchResult = fishingCatch(this.fishing, p, this.sim.time, this.fishingRandom());
           if (catchResult.kind !== 'none') {
               if (catchResult.message) this.notify(catchResult.message);
               if (catchResult.kind === 'fish' || catchResult.kind === 'treasure') this.trackAchievement({ type: 'fish' });
@@ -1565,7 +1567,7 @@ export class Game {
           const site = focusEvent(eventInteractionSites(this.world.getEventSites(p.x - 100, p.y - 100, 200, 200), this.sim.eventState), p, this.world, pointer);
           if (!site) {
               const cast = fishingCast(this.fishing, p, (x, y) => this.world.sampleWater(x, y),
-                  fishingZoneAt(this.world, p.x, p.y, p.level), this.sim.time, Math.random, pointer);
+                  fishingZoneAt(this.world, p.x, p.y, p.level), this.sim.time, this.fishingRandom(), pointer);
               if (cast.ok) return true;
               if (pointer) this.notify(cast.problem);
               return false;
@@ -1641,7 +1643,7 @@ export class Game {
   /** Sheet-level persist for the commerce commands (auction house, guild): the
    * staged character rides a fresh checkpoint so hp/mana stay consistent. */
   private persistSheet = async (character: CharacterSheet, hp: number, mana: number) => {
-    const saved = await this.session.save({ ...this.sim.captureCheckpoint(), character, hp, mana }, Date.now());
+    const saved = await this.session.save({ ...this.sim.captureCheckpoint({ clone: false }), character, hp, mana }, Date.now());
     if (!saved) this.shell.setSaveStatus(this.session.error, true);
     return { ok: saved, message: this.session.error };
   };
@@ -1743,7 +1745,7 @@ export class Game {
     const result = await executeService(p, npc, this.world, quote, async (character, hp, mana) => {
       progress=structuredClone(p.chronicle);
       trackCommerce(progress,p.character.gold??0,character.gold??0,Math.max(0,...Object.values(character.equipped).filter(Boolean).map(i=>i!.recipe?.enhancement??0),...character.inventory.filter(Boolean).map(i=>i!.recipe?.enhancement??0)));
-      const saved = await this.session.save({ ...this.sim.captureCheckpoint(), character, hp, mana, skillCooldowns: quote.request.type==='respec'?{}:p.skillCooldowns, chronicle:progress }, Date.now());
+      const saved = await this.session.save({ ...this.sim.captureCheckpoint({ clone: false }), character, hp, mana, skillCooldowns: quote.request.type==='respec'?{}:p.skillCooldowns, chronicle:progress }, Date.now());
       if (!saved) this.shell.setSaveStatus(this.session.error, true);
       return { ok: saved, message: this.session.error };
     });
@@ -2084,6 +2086,21 @@ export class Game {
 
   private frame = (now: number) => {
     if (this.disposed) return;
+    try {
+      this.frameBody(now);
+    } catch (error) {
+      // A fault in sim/render/UI must not kill the loop: reschedule first, then report.
+      this.animation = requestAnimationFrame(this.frame);
+      console.error('Frame fault; the game loop continues.', error);
+      if (now >= this.nextFrameErrorNotice) {
+        this.nextFrameErrorNotice = now + 10_000;
+        this.notify('A rendering or simulation error was recovered. If it repeats, reload the page — your save is safe.');
+      }
+    }
+  };
+
+  private frameBody = (now: number) => {
+    if (this.disposed) return;
     if (document.hidden || this.nativeBackground) {
       this.animation = 0;
       return;
@@ -2165,7 +2182,7 @@ export class Game {
           this.notify(result.message);
         }, undefined);
       }
-      fishingBite(this.fishing, this.sim.player, this.sim.time, Math.random);
+      fishingBite(this.fishing, this.sim.player, this.sim.time, this.fishingRandom());
       if (this.sim.eventChannel.ready) this.finishEvent();
       else if(!this.savingAction&&!this.sim.player.dead&&!this.sim.dungeonFloor&&(!this.sim.portal.ready)&&now>=this.nextEventClaim) {
         this.nextEventClaim=now+250;
@@ -2494,6 +2511,11 @@ export class Game {
   private savePreferences() {
     try { localStorage.setItem('evergrow-preferences', JSON.stringify({ muted: this.muted, groundLootNames: this.groundLootNames, lootFilter: this.lootFilter, ...this.audio.getVolumes() })); } catch { /* Storage may be disabled. */ }
   }
+  /** Fishing rolls ride a seeded stream (world seed ^ fixed-step tick) so checkpoints replay identically. */
+  private fishingRandom(): () => number {
+    return randomSource((this.overworld.seed ^ Math.imul(Math.floor(this.sim.time * 120) + 1, 0x9e3779b9)) >>> 0);
+  }
+
 
   private notify(message: string) {
     if (this.disposed) return;

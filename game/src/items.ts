@@ -39,10 +39,11 @@ export const RELIC_CLASSES: readonly WowClassId[] = Object.freeze(['shaman', 'pa
 /** Classes trained to equip shields in the offhand (WoW proficiency). */
 export const SHIELD_CLASSES: readonly WowClassId[] = Object.freeze(['warrior', 'paladin', 'shaman']);
 export const TIER_COLORS: Readonly<Record<ItemTier, string>> = Object.freeze({
-  common: '#c5ccc8', magic: '#76b9ee', rare: '#e0c17a', epic: '#b895ef', legendary: '#f0a16b', unique: UNIQUE_COLOR,
+  common: '#c5ccc8', magic: '#4fd35c', rare: '#5e9de0', epic: '#b895ef', legendary: '#f0a16b', unique: UNIQUE_COLOR,
 });
+/** Display labels only: the 'magic' enum key renders as WoW's Uncommon tier. */
 export const TIER_NAMES: Readonly<Record<ItemTier, string>> = Object.freeze({
-  common: 'Common', magic: 'Magic', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', unique: 'Unique',
+  common: 'Common', magic: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', unique: 'Unique',
 });
 export const STAT_LABELS: Readonly<Record<StatKey, string>> = Object.freeze({
   ...SPECIAL_AFFIX_LABELS, ...SKILL_STATS, ...RESISTANCE_LABELS, goldFindPercent: 'Gold found', xpGainPercent: 'Experience gained',

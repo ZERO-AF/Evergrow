@@ -4,8 +4,8 @@ import { xpForNextLevel } from './progression.ts';
 
 /** WoW rested XP: time in a settlement banks a pool worth up to 1.5 levels (30 bubbles); kills spend it for double XP. */
 export const RESTED_RULES = Object.freeze({
-  /** One level of rested pool per five minutes inside a sanctuary (WoW accrues 5% of a level per 8h offline/resting). */
-  levelsPerSecond: 1 / 300,
+  /** One level of rested pool per ~8 hours inside a sanctuary (accelerated WoW pacing: 5% of a level per 8h offline/resting). */
+  levelsPerSecond: 1 / 30000,
   capLevels: 1.5,
 });
 /** Suggested rail color for the rested overlay — the WoW blue that trails the violet fill. */

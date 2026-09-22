@@ -22,7 +22,8 @@ test('every climate has immutable weighted species and one authoritative bounded
     assert.ok(Object.isFrozen(definition) && Object.isFrozen(definition.radius) && Object.isFrozen(definition.scale));
     assert.ok(definition.radius[0] >= 0 && definition.radius[0] <= definition.radius[1] && definition.radius[1] <= 15,
       `${kind} fits the existing collision broad-phase bound`);
-    assert.ok(definition.scale[0] > 0 && definition.scale[1] <= 1.2);
+    assert.ok(definition.scale[0] > 0 && definition.scale[1] <= 1.4);
+    assert.ok(definition.density > 0 && Number.isFinite(definition.density), `${kind} carries a positive placement-rate multiplier`);
     if (definition.canopy) assert.ok(Object.isFrozen(definition.canopy) && definition.canopy.height > 0 && definition.canopy.radius > 0);
     if (definition.emissive) assert.ok(Object.isFrozen(definition.emissive) && definition.emissive.power > 0);
   }

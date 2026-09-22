@@ -60,6 +60,8 @@ test('Thunderfury procs chain nature damage, slow and exposure on direct hits', 
   const sim = createWowSim('warrior');
   equip(sim, 'thunderfury');
   const enemy = target(sim), near = target(sim, 90, 0), far = target(sim, 400, 0);
+  // The attack table now covers proc hits; pin equal levels so the roll can't miss.
+  for (const e of [enemy, near, far]) Object.assign(e, { level: 1 });
   enemy.hp = enemy.maxHp = near.hp = near.maxHp = far.hp = far.maxHp = 100000;
   damageEnemy(enemy, 100, 0, true, context(sim, () => 0));
   assert.ok(enemy.hp < 100000 - 100, 'proc dealt extra damage to the target');
@@ -126,6 +128,7 @@ test('Shadowmourne gathers souls and erupts at ten stacks', () => {
   const sim = createWowSim('warrior'), p = sim.player;
   const item = equip(sim, 'shadowmourne');
   const enemy = target(sim), near = target(sim, 80, 0);
+  for (const e of [enemy, near]) Object.assign(e, { level: 1 });
   enemy.hp = enemy.maxHp = near.hp = near.maxHp = 1000000;
   const ctx = context(sim, () => 0);
   const procs = () => p.skillEffects!.procs![item.id];
@@ -155,6 +158,7 @@ test('projectile procs launch through the sim and fall back to direct damage hea
   const sim = createWowSim('hunter'), p = sim.player;
   equip(sim, 'thoridal');
   const enemy = target(sim, 300, 0);
+  Object.assign(enemy, { level: 1 });
   enemy.hp = enemy.maxHp = 100000;
   // Headless context without a projectile owner: direct arcane hit.
   damageEnemy(enemy, 100, 0, false, context(sim, () => 0));
@@ -172,6 +176,7 @@ test('projectile procs launch through the sim and fall back to direct damage hea
   equip(sim2, 'thoridal');
   (sim2 as unknown as { random: () => number }).random = () => 0;
   const enemy2 = target(sim2, 300, 0);
+  Object.assign(enemy2, { level: 1 });
   enemy2.hp = enemy2.maxHp = 100000;
   let arcaneHits = 0, arrowHits = 0;
   for (let i = 0; i < 240; i++) {

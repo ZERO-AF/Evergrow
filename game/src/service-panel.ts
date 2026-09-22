@@ -11,7 +11,7 @@ import type { Player } from './model.ts';
 import type { Item, ItemKind, ItemTier, EquipmentSlot } from './character-types.ts';
 import { NPC_NAMES, NPC_COLORS, type TownNPC } from './npcs.ts';
 import { npcEmblem } from './npc-art.ts';
-import { RESPEC_GOLD_PER_POINT, respecPoints, attributeResetPoints, GAMBLE_KINDS, gambleOdds, vendorRefreshPrice, gamblePrice, STASH_CAPACITY, vendorStock, vendorStockLevel, quoteService, sourceItem, itemPrice, stockEpoch, type ServiceQuote, type ServiceRequest, type ItemSource, type SaleItem } from './commerce.ts';
+import { respecCost, respecPoints, attributeResetPoints, GAMBLE_KINDS, gambleOdds, vendorRefreshPrice, gamblePrice, STASH_CAPACITY, vendorStock, vendorStockLevel, quoteService, sourceItem, itemPrice, stockEpoch, type ServiceQuote, type ServiceRequest, type ItemSource, type SaleItem } from './commerce.ts';
 import { improveItem, rerollPool, affixCategory, AFFIX_FOCUSES, type AffixFocus, type Improvement } from './item-improvement.ts';
 import { updateItemSlot } from './item-ui.ts';
 import { ItemTooltip } from './item-tooltip.ts';
@@ -229,14 +229,14 @@ export class ServicePanel {
     const attributes = this.respecKind === 'attributes', sheet = this.player.character;
     const request: ServiceRequest = {type:attributes?'resetAttributes':'respec'};
     const points = attributes ? attributeResetPoints(sheet) : respecPoints(sheet);
-    const result = quoteService(sheet,this.npc,this.player.level,request,this.player,this.worldSeed), price = attributes ? 0 : points*RESPEC_GOLD_PER_POINT;
+    const result = quoteService(sheet,this.npc,this.player.level,request,this.player,this.worldSeed), price = attributes ? 0 : respecCost(points);
     this.quote=result.ok?result.quote:null;this.selected=request;
     this.element.style.setProperty('--service-color',NPC_COLORS.enchanter);
     this.element.innerHTML=`${this.headerMarkup()}${this.tabsMarkup()}<div class="service-respec ui-scroll-area">
       <nav class="service-tabs" aria-label="Reset type">${(['skills','attributes'] as const).map(kind=>`<button class="ui-button ui-button--quiet" data-respec-kind="${kind}" aria-pressed="${this.respecKind===kind}">${kind==='skills'?'Skills':'Attributes'}</button>`).join('')}</nav>
       <div class="service-respec-sigil">${npcEmblem('enchanter')}</div><h3>Choose a new path</h3>
       <p>${attributes?'Redistribute your assigned attributes. One free reset per character.':'Return every spent skill point, including purchased ranks.'}</p>
-      <div class="service-respec-values"><div><strong>${points}</strong><span>Points refunded</span></div><div><strong>${attributes?'Free':formatWalletCompact(price)}</strong><span>${attributes?'Once per character':`Gold · ${RESPEC_GOLD_PER_POINT} per point`}</span></div></div>
+      <div class="service-respec-values"><div><strong>${points}</strong><span>Points refunded</span></div><div><strong>${attributes?'Free':formatWalletCompact(price)}</strong><span>${attributes?'Once per character':'Gold · grows with points'}</span></div></div>
       <p class="ui-muted">${attributes?'Returns all four attributes to 10 and refunds their assigned points.':'Clears your skill tree, ranks, specializations and skill bindings.<br>Attributes and equipment stay yours.'}</p>
       </div><footer class="ui-window-footer"><span class="service-message" role="status">${!result.ok?escapeUI(result.message):goldBalance(sheet)<price?'Not enough gold.':''}</span><button class="ui-button ui-button--primary" data-confirm ${!result.ok||goldBalance(sheet)<price?'disabled':''}>${attributes?'Reset attributes · Free':`Reset skills · ${formatWalletCompact(price)}`}</button></footer>`;
   }

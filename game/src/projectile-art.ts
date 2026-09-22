@@ -18,9 +18,9 @@ export function projectileLight(shot: Projectile, alpha = 1): PointLight {
 /** Projectile art follows the simulation's snapshotted payload, never current gear. */
 export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x: number, y: number, time: number, reducedMotion = false): void {
   const style = projectileStyle(shot), color = PROJECTILE_COLORS[style];
-  const flicker = Math.sin(time * 21 + shot.id * 1.7), radius = Math.max(2, shot.radius);
+  const flicker = Math.sin(time * 21 + shot.id * 1.7), radius = Math.max(2, shot.radius) * 1.35;
   const wake = shot.launch ? Math.min(1, Math.max(0, shot.maxLife - shot.life) / .08) : 1;
-  if (style !== 'arrow') drawGlow(c, x, y, style === 'fire' ? 58 : style === 'radiant' || style === 'holy' ? 24 : 37, color, .65);
+  if (style !== 'arrow') drawGlow(c, x, y, style === 'fire' ? 92 : style === 'radiant' || style === 'holy' ? 44 : 58, color, .75);
   c.save(); c.translate(x, y); c.rotate(shot.angle);
   if(shot.effects?.fissureWidth){
     const width=shot.effects.fissureWidth;c.strokeStyle='#c4a17c';c.lineWidth=3;
@@ -49,7 +49,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
   } else if (style === 'fire') {
     c.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 3; i++) {
-      const spread = (i - 1) * 3, tail = (-34 - Math.sin(time * 25 + i * 3 + shot.id) * 9) * wake;
+      const spread = (i - 1) * 3, tail = (-48 - Math.sin(time * 25 + i * 3 + shot.id) * 12) * wake;
       polygon(c, [[radius, 0], [-5, -radius - spread], [tail * .5, -3 + spread], [tail, spread + flicker * 3],
         [tail * .45, 4 + spread], [-5, radius + spread]], i === 0 ? '#8f2e17' : i === 1 ? '#eb5727' : '#ef9338');
     }
@@ -58,7 +58,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     line(c, [[-22 * wake, -2], [-13 * wake, -4], [-5, -3]], '#ffd96f', 1);
   } else if (style === 'frost') {
     c.globalAlpha *= .35;
-    polygon(c, [[7, 0], [-11, -7], [-43 * wake, 0], [-11, 7]], '#7a9edf');
+    polygon(c, [[7, 0], [-11, -7], [-56 * wake, 0], [-11, 7]], '#7a9edf');
     c.globalAlpha /= .35;
     polygon(c, [[radius + 9, 0], [-9, -4.5], [-17, 0], [-9, 4.5]], '#70bedc');
     polygon(c, [[radius + 9, 0], [-9, -4.5], [-7, .5]], '#e6fcff');
@@ -73,7 +73,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     line(c, [points[4], [-7, 9], [-14, 12]], '#b7d5ff', .7);
   } else if (style === 'holy') {
     c.globalCompositeOperation = 'lighter';
-    const tail = 38 * wake;
+    const tail = 52 * wake;
     c.globalAlpha *= .5;
     polygon(c, [[radius + 4, 0], [-4, -3.5], [-tail, -1.5], [-tail - 6, 0], [-tail, 1.5], [-4, 3.5]], '#c9a44e');
     c.globalAlpha /= .5;
@@ -82,7 +82,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     c.strokeStyle = '#fff3c2'; c.lineWidth = 1;
     c.beginPath(); c.ellipse(1, 0, radius + 6.5, radius + 6.5, 0, 0, Math.PI * 2); c.stroke();
   } else if (style === 'shadow') {
-    const tail = 30 * wake;
+    const tail = 42 * wake;
     c.globalAlpha *= .55;
     for (const side of [-1, 1]) polygon(c, [[2, side * 1.5], [-tail * .5, side * 5], [-tail - 8, side * 2.5], [-tail * .45, side * .5]], '#4b3566');
     c.globalAlpha /= .55;
@@ -94,7 +94,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     c.beginPath(); c.arc(radius * .4, -radius * .3, Math.max(1, radius * .35), 0, Math.PI * 2); c.fill();
   } else if (style === 'nature') {
     c.globalCompositeOperation = 'lighter';
-    const tail = 34 * wake;
+    const tail = 46 * wake;
     c.globalAlpha *= .5;
     polygon(c, [[radius + 2, 0], [-5, -4], [-tail, -2], [-tail - 7, 0], [-tail, 2], [-5, 4]], '#3f7a3a');
     c.globalAlpha /= .5;
@@ -107,7 +107,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
     }
   } else {
     c.globalCompositeOperation = 'lighter';
-    polygon(c, [[radius + 2, 0], [-6, -5], [-31 * wake, flicker * 3], [-8, 5]], color);
+    polygon(c, [[radius + 2, 0], [-6, -5], [-44 * wake, flicker * 3], [-8, 5]], color);
     c.strokeStyle = color; c.lineWidth = 1;
     c.beginPath(); c.ellipse(-2, 0, radius + 6, radius + 2, Math.sin(time * 9) * .35, 0, Math.PI * 1.6); c.stroke();
     polygon(c, [[radius + 2, 0], [-2, -radius * .55], [-9, 0], [-2, radius * .55]], '#e6ffe4');

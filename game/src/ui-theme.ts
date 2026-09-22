@@ -1,4 +1,4 @@
-import { GAME_FONT_STACK } from './font.ts';
+import { GAME_FONT_STACK, INTERFACE_FONT_STACK } from './font.ts';
 import { TOOLTIP_MOTION } from './ui-tooltip-motion.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 
@@ -27,7 +27,7 @@ export const UI_THEME = Object.freeze({
     focus: '#c5d7b8',
   }),
   typography: Object.freeze({
-    font: GAME_FONT_STACK,
+    font: INTERFACE_FONT_STACK, display: GAME_FONT_STACK,
     body: '16px', small: '14px', kicker: '12px', title: '20px',
   }),
   geometry: Object.freeze({ control: '44px', slot: '56px', radius: '3px' }),
@@ -42,8 +42,9 @@ export function installUITheme(root: HTMLElement = document.documentElement): vo
   if (installed.has(root)) return;
   for (const [name, value] of Object.entries(UI_THEME.palette)) root.style.setProperty(`--ui-${kebab(name)}`, value);
   root.style.setProperty('--ui-font', UI_THEME.typography.font);
+  root.style.setProperty('--ui-font-display', UI_THEME.typography.display);
   for (const [name, value] of Object.entries(UI_THEME.typography)) {
-    if (name !== 'font') root.style.setProperty(`--ui-type-${name}`, value);
+    if (name !== 'font' && name !== 'display') root.style.setProperty(`--ui-type-${name}`, value);
   }
   for (const [name, value] of Object.entries(UI_THEME.geometry)) root.style.setProperty(`--ui-${name}`, value);
   for (const [name, value] of Object.entries(UI_THEME.motion)) root.style.setProperty(`--ui-motion-${name}`, value);

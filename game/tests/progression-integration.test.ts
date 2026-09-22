@@ -126,7 +126,7 @@ test('a caster bolt retains arcane damage through caster death and player level 
   const sourceDamage = caster.damage, sourceLevel = caster.level;
   caster.x = caster.prevX = caster.homeX = -150; caster.y = caster.prevY = 0;
   caster.state = 'windup'; caster.stateDuration = 0; caster.attackAngle = 0;
-  sim.player.character.equipped.chest!.implicit = { armor: 120, arcaneResistance: 25 }; refreshCharacter(sim.player);
+  sim.player.character.equipped.chest!.implicit = { armor: 120, arcaneResistance: 25, maxHp: 2000 }; refreshCharacter(sim.player);
   advance(sim, FIXED_STEP);
   const bolt = sim.projectiles.find(shot => shot.owner === 'enemy')!;
   assert.ok(bolt); assert.equal(bolt.sourceLevel, sourceLevel); assert.equal(bolt.damage, sourceDamage);
@@ -135,6 +135,7 @@ test('a caster bolt retains arcane damage through caster death and player level 
   assert.equal(caster.state, 'dead');
   assert.ok(sim.projectiles.includes(bolt));
   sim.player.level = 50; refreshCharacter(sim.player);
+  sim.player.hp = sim.player.maxHp; // Enough life to survive the bolt; the assertion measures the loss.
   const beforeHp = sim.player.hp;
   advance(sim, 1);
   assert.equal(bolt.sourceLevel, sourceLevel); assert.equal(bolt.damage, sourceDamage);

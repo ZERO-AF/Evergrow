@@ -25,7 +25,12 @@ test('veterans, elites and rares unlock by area level and are not blocked by exi
   assert.equal(encounterRankChances(2).veteran, .12);
   assert.equal(encounterRankChances(3).elite, .04);
   const deep = encounterRankChances(100000);
-  assert.equal(deep.veteran, .2); assert.equal(deep.elite, .08); assert.equal(deep.rare, .02);
+  assert.equal(deep.veteran, .26); assert.equal(deep.elite, .12); assert.equal(deep.rare, .03);
+  // Rank texture keeps growing past the level-17 ramp: rares reach 3% at 60+.
+  const mid = encounterRankChances(60);
+  assert.equal(mid.rare, .03);
+  assert.ok(mid.veteran > encounterRankChances(17).veteran, 'veteran odds grow past 17');
+  assert.ok(mid.elite > encounterRankChances(17).elite, 'elite odds grow past 17');
   assert.equal(chooseEncounterRank(3, .01), 'elite');
   assert.equal(chooseEncounterRank(3, .04), 'veteran');
   assert.equal(chooseEncounterRank(10, 0), 'rare');

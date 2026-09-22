@@ -16,6 +16,8 @@ installUITheme(); await loadGameFont();
 // Frozen presentation using real renderers: no simulation input, ticks or saved state.
 const life = new Lifetime(), world = life.own(new World(7319));
 const sim = new Simulation(world, { spawn: false });
+// Midday light: the default sim time lands near dawn and reads as a black screen.
+sim.time = 420;
 const root = document.querySelector<HTMLElement>('#app')!;
 root.innerHTML = '<div class="game-shell"><canvas id="review-world"></canvas><canvas id="game-ui"></canvas></div>';
 const shell = root.querySelector<HTMLElement>('.game-shell')!;
@@ -42,6 +44,12 @@ const draw = () => {
   context.setTransform(ui.width / renderer.width, 0, 0, ui.height / renderer.height, 0, 0);
   renderer.renderUI(context, sim, world, settings);
 };
-draw(); const abort = new AbortController();
+draw();
+// Ground tiles build incrementally inside a frame budget; a few warm-up frames
+// let the terrain finish instead of freezing on a half-painted first pass.
+let warmups = 0;
+const warmup = () => { if (warmups++ < 24) { draw(); requestAnimationFrame(warmup); } };
+requestAnimationFrame(warmup);
+const abort = new AbortController();
 window.addEventListener('resize', draw, { signal: abort.signal }); life.defer(() => abort.abort());
 if (import.meta.hot) import.meta.hot.dispose(() => life.dispose());

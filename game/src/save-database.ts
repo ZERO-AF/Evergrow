@@ -4,7 +4,7 @@ import { AuthoredWorld } from './authored-world.ts';
 import { AUTHORED_GENERATION_VERSION } from './world-landscape.ts';
 import { parseChronicleLedger, recordChronicle, forkChronicle } from './chronicle.ts';
 import { decodeSaveBundle, makeSaveBundle, chartKey, bundleChart, encodeChart } from './save-bundle.ts';
-import { CharacterRepository, type SaveSlot } from './character-storage.ts';
+import { CharacterRepository, characterSlotKey, type SaveSlot } from './character-storage.ts';
 import type { CharacterSave } from './character-save.ts';
 import { Exploration, type ChartResult } from './exploration.ts';
 import { decodeExploration, type DecodedExploration } from './exploration-save.ts';
@@ -61,59 +61,79 @@ async function execute(message: SaveRequest): Promise<unknown> {
   return new Promise<unknown>((resolve, reject) => {
     const writing = message.method === 'write' || message.method === 'remove';
     const tx = db.transaction(['characters', 'charts'], writing ? 'readwrite' : 'readonly');
-    const store = tx.objectStore('characters'), request = store.getAll();
+    const store = tx.objectStore('characters');
     let result: unknown;
-    request.onsuccess = () => {
-      try {
-        const values = new Map<string, string>(request.result as [string, string][]);
-        const repository = new CharacterRepository({ getItem: key => values.get(key) ?? null,
-          setItem: (key, value) => { values.set(key, value); store.put([key, value], key); } });
-        const token = (index: number) => values.get(`revision:${index}`) ?? null;
-        const publicSlot = (slot: SaveSlot): SaveSlot => ({ ...slot, token: token(slot.index) });
-        if (message.method === 'chronicle') {
-          let ledger=parseChronicleLedger(values.get('chronicle'));
-          for(const slot of repository.list())if(slot.record)ledger=recordChronicle(ledger,slot.record);
-          result=ledger;
-        } else if (message.method === 'list') result = repository.list().map(publicSlot);
-        else if (message.method === 'read') result = publicSlot(repository.read(message.index!));
-        else {
-          const index = message.index!, current = token(index);
-          if (message.method === 'write' && message.importing && repository.read(index).state !== 'empty') {
-            result = { ok: false, message: 'Choose an empty slot.' };
-          } else if ((message.expected ?? null) !== current) {
-            result = { ok: false, message: 'This character changed in another tab. Return to the character hall and reload it before saving.' };
-          } else {
-            const slot = repository.read(index);
-            const saved = message.method === 'write' ? repository.write(index, message.record!, slot.token) : repository.remove(index, slot.token);
-            result = saved;
-            if (saved.ok) {
-              let ledger=parseChronicleLedger(values.get('chronicle'));
-              if(slot.record)ledger=recordChronicle(ledger,slot.record,message.method==='remove');
-              if(message.method==='write')ledger=recordChronicle(ledger,message.record!);
-              const history=JSON.stringify(ledger);parseChronicleLedger(history);
-              store.put(['chronicle',history],'chronicle');
-              if (message.method === 'write' && message.chart) {
-                const bundle = { format: 'evergrow' as const, version: 1 as const, character: message.record!, chart: message.chart };
-                if (!bundleChart(bundle)) throw new Error('Invalid explored map.');
-                tx.objectStore('charts').put(message.chart, chartKey(message.record!));
-              }
-              if(message.method==='write'&&slot.record&&slot.record.id===message.record!.id&&slot.record.worldSeed===message.record!.worldSeed&&canUpgradeWorld(slot.record.worldVersion,message.record!.worldVersion)){
-                const old=slot.record,nextRecord=message.record!,charts=tx.objectStore('charts'),read=charts.get(chartKey(old));
-                read.onsuccess=()=>{try{
-                  const data=read.result===undefined?{chunks:[],pois:[]}:decodeExploration(read.result,{seed:old.worldSeed,generation:String(old.worldVersion)});
-                  const nextWorld:UpgradeWorld=nextRecord.worldVersion>=AUTHORED_GENERATION_VERSION?new AuthoredWorld(nextRecord.worldSeed):new World(nextRecord.worldSeed);
-                  if(!data)throw new Error('The explored map could not be upgraded. The previous save is untouched.');
-                  charts.put(encodeChart(nextRecord,upgradeWorldChart(data,nextRecord.worldSeed,nextRecord.worldVersion,nextWorld)),chartKey(nextRecord));
-                }catch(error){tx.abort();reject(error);}};
-              }
-              // Return a tiny revision token, never the serialized character, to the game thread.
-              const next = String(Number(current ?? 0) + 1), key = `revision:${index}`;
-              store.put([key, next], key); result = { ok: true, token: next };
+    const run = (values: Map<string, string>) => {
+      const repository = new CharacterRepository({ getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => { values.set(key, value); store.put([key, value], key); } });
+      const token = (index: number) => values.get(`revision:${index}`) ?? null;
+      const publicSlot = (slot: SaveSlot): SaveSlot => ({ ...slot, token: token(slot.index) });
+      if (message.method === 'chronicle') {
+        let ledger=parseChronicleLedger(values.get('chronicle'));
+        for(const slot of repository.list())if(slot.record)ledger=recordChronicle(ledger,slot.record);
+        result=ledger;
+      } else if (message.method === 'list') result = repository.list().map(publicSlot);
+      else if (message.method === 'read') result = publicSlot(repository.read(message.index!));
+      else {
+        const index = message.index!, current = token(index);
+        if (message.method === 'write' && message.importing && repository.read(index).state !== 'empty') {
+          result = { ok: false, message: 'Choose an empty slot.' };
+        } else if ((message.expected ?? null) !== current) {
+          result = { ok: false, message: 'This character changed in another tab. Return to the character hall and reload it before saving.' };
+        } else {
+          const slot = repository.read(index);
+          const saved = message.method === 'write' ? repository.write(index, message.record!, slot.token) : repository.remove(index, slot.token);
+          result = saved;
+          if (saved.ok) {
+            let ledger=parseChronicleLedger(values.get('chronicle'));
+            if(slot.record)ledger=recordChronicle(ledger,slot.record,message.method==='remove');
+            if(message.method==='write')ledger=recordChronicle(ledger,message.record!);
+            const history=JSON.stringify(ledger);parseChronicleLedger(history);
+            store.put(['chronicle',history],'chronicle');
+            if (message.method === 'write' && message.chart) {
+              const bundle = { format: 'evergrow' as const, version: 1 as const, character: message.record!, chart: message.chart };
+              if (!bundleChart(bundle)) throw new Error('Invalid explored map.');
+              tx.objectStore('charts').put(message.chart, chartKey(message.record!));
             }
+            if(message.method==='write'&&slot.record&&slot.record.id===message.record!.id&&slot.record.worldSeed===message.record!.worldSeed&&canUpgradeWorld(slot.record.worldVersion,message.record!.worldVersion)){
+              const old=slot.record,nextRecord=message.record!,charts=tx.objectStore('charts'),read=charts.get(chartKey(old));
+              read.onsuccess=()=>{try{
+                const data=read.result===undefined?{chunks:[],pois:[]}:decodeExploration(read.result,{seed:old.worldSeed,generation:String(old.worldVersion)});
+                const nextWorld:UpgradeWorld=nextRecord.worldVersion>=AUTHORED_GENERATION_VERSION?new AuthoredWorld(nextRecord.worldSeed):new World(nextRecord.worldSeed);
+                if(!data)throw new Error('The explored map could not be upgraded. The previous save is untouched.');
+                charts.put(encodeChart(nextRecord,upgradeWorldChart(data,nextRecord.worldSeed,nextRecord.worldVersion,nextWorld)),chartKey(nextRecord));
+              }catch(error){tx.abort();reject(error);}};
+            }
+            // Return a tiny revision token, never the serialized character, to the game thread.
+            const next = String(Number(current ?? 0) + 1), key = `revision:${index}`;
+            store.put([key, next], key); result = { ok: true, token: next };
           }
         }
-      } catch (error) { tx.abort(); reject(error); }
+      }
     };
+    if (message.method === 'list' || message.method === 'chronicle') {
+      // Slot scans need every row; single-slot work fetches only the keys it reads.
+      const request = store.getAll();
+      request.onsuccess = () => {
+        try { run(new Map<string, string>(request.result as [string, string][])); }
+        catch (error) { tx.abort(); reject(error); }
+      };
+    } else {
+      const index = message.index!, slot = characterSlotKey(index);
+      const keys = [slot, `${slot}:backup`, `revision:${index}`, ...(writing ? ['chronicle'] : [])];
+      const values = new Map<string, string>();
+      let remaining = keys.length;
+      for (const key of keys) {
+        const request = store.get(key);
+        request.onsuccess = () => {
+          try {
+            const row = request.result as [string, string] | undefined;
+            if (row !== undefined) values.set(key, row[1]);
+            if (--remaining === 0) run(values);
+          } catch (error) { tx.abort(); reject(error); }
+        };
+      }
+    }
     tx.oncomplete = () => resolve(result);
     tx.onabort = tx.onerror = () => reject(tx.error ?? new Error('Local storage transaction failed.'));
   });

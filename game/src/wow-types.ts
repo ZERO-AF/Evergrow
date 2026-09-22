@@ -217,6 +217,8 @@ export const WOW_COMBAT = Object.freeze({
   maxComboPoints: 5,
   maxSoulShards: 4,
   maxAllies: 6,
-  allyLeash: 70,
+  /** Recall radius: a real combat leash so ranged pets (attackRange 240-300)
+   * reach standoff instead of ping-ponging, and melee pets survive kiting. */
+  allyLeash: 700,
   stealthSenseRadius: 25,
 });

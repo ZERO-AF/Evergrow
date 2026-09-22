@@ -1,10 +1,12 @@
 /*
- * Pixelify Sans and Barlow numerals are registered once by loadGameFont() in font.ts. Keeping the
- * FontFace loader as the single source avoids a second CSS face/download.
+ * Evergrow Display (Metamorphous), Evergrow Interface (Marcellus) and Barlow numerals are
+ * registered once by loadGameFont() in font.ts. Keeping the FontFace loader as the single
+ * source avoids a second CSS face/download.
  * Import after style.css; await loadGameFont() before the first game render.
  */
 :root {
-  --font-game: "Evergrow Numerals", "Pixelify Sans", ui-monospace, monospace;
+  --font-game: "Evergrow Numerals", "Evergrow Interface", Georgia, "Times New Roman", serif;
+  --font-display: "Evergrow Numerals", "Evergrow Display", Georgia, "Times New Roman", serif;
   font-family: var(--font-game);
   font-synthesis: none;
   font-kerning: normal;

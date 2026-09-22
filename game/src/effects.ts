@@ -35,6 +35,14 @@ interface Flash { x: number; y: number; life: number; max: number; radius: numbe
 interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
+/** Short floating cue per rejected-skill reason (skill-failed events). */
+const SKILL_FAIL_FLOAT: Record<string, string> = {
+  cooldown: 'Not Ready Yet', gcd: 'Not Ready Yet', 'no-target': 'No Target', 'out-of-range': 'Out of Range',
+  'requires-stealth': 'Requires Stealth', 'requires-form': 'Wrong Form', 'requires-ally': 'Needs an Ally',
+  'requires-buff': 'Missing Aura', 'requires-behind': 'Must Be Behind', 'execute-threshold': 'Not Wounded Enough',
+  'no-combo': 'No Combo Points', 'no-shards': 'No Soul Shards', 'no-runes': 'Runes Not Ready',
+  frozen: 'Cannot While Frozen', unusable: 'Cannot Use That', tame: 'Cannot Tame That',
+};
 const LOOT_MOMENT_TIERS: Partial<Record<ItemTier, true>> = { epic: true, legendary: true, unique: true };
 const LOOT_PULSE_TIERS: Partial<Record<ItemTier, true>> = { legendary: true, unique: true };
 const LOOT_PULSE_DURATION = .9;
@@ -49,6 +57,7 @@ export class CombatEffects {
   private impacts: Impact[] = [];
   private popups: CombatPopup[] = [];
   private manaWarningLife = 0;
+  private skillFailText = 'Not Enough Mana';
   private emitterTime = 0;
   private sword = new SwordTrail();
   private skillEffects = new SkillEffects();
@@ -162,7 +171,11 @@ export class CombatEffects {
     for (const event of events) {
       if (event.type === 'insufficient-mana') {
         // Buffered/held attempts share one cue; never stack or restart its fade.
-        if (this.manaWarningLife <= 0) this.manaWarningLife = MANA_WARNING_DURATION;
+        if (this.manaWarningLife <= 0) { this.manaWarningLife = MANA_WARNING_DURATION; this.skillFailText = 'Not Enough Mana'; }
+        continue;
+      }
+      if (event.type === 'skill-failed') {
+        if (this.manaWarningLife <= 0) { this.manaWarningLife = MANA_WARNING_DURATION; this.skillFailText = SKILL_FAIL_FLOAT[event.reason] ?? 'Cannot use that yet.'; }
         continue;
       }
       this.skillEffects.handle(event);
@@ -176,14 +189,16 @@ export class CombatEffects {
       const seal = event.style === 'radiant' || event.style === 'holy';
       const color = event.color ?? (event.style ? PROJECTILE_COLORS[event.style] : undefined) ?? (event.type === 'hurt' ? '#ff5e4e' : restoring || enemyCast ? MINT
         : event.type === 'dodge' ? BLUE : event.type === 'cast' ? FIRE : GOLD);
-      const count = event.type === 'blast' ? 46 : event.type === 'block' ? 22 : event.type === 'hit' ? 30 : event.type === 'kill' ? 16
-        : event.type === 'hurt' ? 32 : event.type === 'cast' ? seal ? 6 : 18 : restoring ? 30
+      const blastRadius = event.type === 'blast' && Number.isFinite(event.radius) ? event.radius! : 0;
+      const count = event.type === 'blast' ? Math.min(96, 46 + Math.round(blastRadius * .28)) : event.type === 'block' ? 22 : event.type === 'hit' ? 30 : event.type === 'kill' ? 16
+        : event.type === 'hurt' ? 32 : event.type === 'cast' ? seal ? 10 : 26 : restoring ? 30
         : event.type === 'loot' ? 8 : event.type === 'pickup' ? 10 : event.type === 'dodge' ? 14 : 0;
       // MaterialResponses owns solid debris. Retain the short luminous contact accents here.
       for (let i = 0; i < (contact ? event.type === 'kill' ? 0 : 8 : count); i++) {
         const radial = ['heal', 'potion', 'pickup', 'level', 'blast'].includes(event.type) || event.skill === 'iceNova';
         const angle = radial ? Math.random() * Math.PI * 2 : eventAngle + (Math.random() - .5) * 2.8;
-        this.spark(event.x + (tip?.x ?? 0), event.y + (tip ? tip.y + 15 : 0), angle, i % 4 === 0 ? '#fff7db' : color, contact ? 1.2 : 1);
+        this.spark(event.x + (tip?.x ?? 0), event.y + (tip ? tip.y + 15 : 0), angle, i % 4 === 0 ? '#fff7db' : color,
+          contact ? 1.2 : event.type === 'blast' ? 1 + Math.min(1.4, blastRadius / 130) : 1);
       }
       const contactY = event.y - (event.type === 'hurt' ? 24 : enemyKind === 'brute' ? 25 : 18);
       if (contact) this.impacts.push({ x: event.x, y: contactY, angle: eventAngle,
@@ -191,10 +206,15 @@ export class CombatEffects {
         max: event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : .22,
         color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: seal, style: event.style, cls: classStyle(event.classId) });
       if (count > 5) {
-        const max = restoring ? .55 : event.type === 'kill' && GAME_FEATURES.combatJuice ? .24 : event.type === 'kill' ? .16 : .22;
+        const max = restoring ? .55 : event.type === 'kill' && GAME_FEATURES.combatJuice ? .24 : event.type === 'kill' ? .16 : event.type === 'blast' ? .34 : .22;
+        // Blasts scale with their real gameplay radius; WoW bursts dominate the
+        // frame instead of reading as a small contact glow.
+        const radius = seal ? 58 : event.type === 'kill' ? (GAME_FEATURES.combatJuice ? 96 : 62)
+          : event.type === 'blast' ? Math.max(120, blastRadius * 1.15)
+          : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : event.type === 'cast' ? 110 : 90;
         this.flashes.push({ x: event.x + (tip?.x ?? 0), y: tip ? event.y + tip.y : contact ? contactY : event.y - 10, life: max, max,
-          radius: seal ? 58 : event.type === 'kill' ? (GAME_FEATURES.combatJuice ? 96 : 62) : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : 90, color,
-          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' || (event.type === 'kill' && GAME_FEATURES.combatJuice) });
+          radius, color,
+          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' || event.type === 'blast' || (event.type === 'kill' && GAME_FEATURES.combatJuice) });
       }
       // WoW floating combat text: labels/colors/sizes live in combat-text.ts.
       this.popups.push(...combatTextForEvent(event));
@@ -293,9 +313,16 @@ export class CombatEffects {
         drawRadiantSeal(c, reducedMotion ? 7 : 5 + (1 - t) * 5, .8); c.restore();
       }
       if (flash.ring) {
+        // Ground decal: the shockwave ring tracks the flash's real radius so
+        // large blasts scorch the terrain they actually cover.
+        const spread = Math.min(4, Math.max(1, flash.radius / 55));
         c.globalAlpha = t * .65;
         c.strokeStyle = flash.color; c.lineWidth = 1 + t * 2;
-        c.beginPath(); c.ellipse(flash.x, flash.y + 14, 8 + (1 - t) * 47, 4 + (1 - t) * 24, 0, 0, Math.PI * 2); c.stroke();
+        c.beginPath(); c.ellipse(flash.x, flash.y + 14, (8 + (1 - t) * 47) * spread, (4 + (1 - t) * 24) * spread, 0, 0, Math.PI * 2); c.stroke();
+        if (spread > 1.4) {
+          c.globalAlpha = t * .3;
+          c.beginPath(); c.ellipse(flash.x, flash.y + 14, (8 + (1 - t) * 47) * spread * .62, (4 + (1 - t) * 24) * spread * .62, 0, 0, Math.PI * 2); c.stroke();
+        }
       }
     }
     this.skillEffects.draw(c, reducedMotion);
@@ -321,7 +348,7 @@ export class CombatEffects {
   }
 
   private drawImpact(c: CanvasRenderingContext2D, impact: Impact, reducedMotion: boolean) {
-    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 1.3 : impact.hurt ? .8 : 1, reducedMotion, impact.cls)) return;
+    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 2 : impact.hurt ? 1.2 : 1.5, reducedMotion, impact.cls)) return;
     const t = Math.max(0, impact.life / impact.max), elapsed = impact.radiant && reducedMotion ? .4 : 1 - t;
     c.save(); c.translate(impact.x, impact.y); c.rotate(impact.angle);
     c.globalCompositeOperation = 'lighter';
@@ -361,12 +388,10 @@ export class CombatEffects {
     c.globalAlpha = .85 * smooth(fadeIn) * (1 - smooth(fadeOut));
     c.font = `400 11px ${GAME_FONT_STACK}`;
     c.textAlign = 'center'; c.textBaseline = 'bottom';
-    c.lineJoin = 'round'; c.lineWidth = 2;
-    c.strokeStyle = '#07172e';
-    c.strokeText('Not Enough Mana', head.x, y);
+    c.strokeText(this.skillFailText, head.x, y);
     c.shadowColor = '#3289ff'; c.shadowBlur = 6;
     c.fillStyle = '#94d0ff';
-    c.fillText('Not Enough Mana', head.x, y);
+    c.fillText(this.skillFailText, head.x, y);
     c.restore();
   }
 

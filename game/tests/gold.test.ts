@@ -25,8 +25,12 @@ test('gold rolls are repeatable, partial for normal enemies, richer by rank and 
   for (let seed = 0; seed < 10_000; seed++) {
     const amount = rollEnemyGold(seed, 1, 'normal'); dropped += Number(amount > 0); normal += amount;
     assert.equal(amount, rollEnemyGold(seed, 1, 'normal'));
-    assert.equal(rollEnemyGold(seed, 11, 'normal'), amount * 2);
-    const precious = rollEnemyGold(seed, 1, 'elite'); assert.ok(precious >= 35 && precious <= 65); elite += precious;
+    assert.equal(rollEnemyGold(seed, 80, 'normal'), Math.round(amount * Math.pow(80, 1.5)));
+    const precious = rollEnemyGold(seed, 1, 'elite'); assert.ok(precious >= 45 && precious <= 80); elite += precious;
+    // Copper economy: a level-80 normal pays ~30-60s and an elite ~3-6g.
+    const capNormal = rollEnemyGold(seed, 80, 'normal');
+    assert.ok(capNormal === 0 || (capNormal >= 2_800 && capNormal <= 5_800));
+    const capElite = rollEnemyGold(seed, 80, 'elite'); assert.ok(capElite >= 30_000 && capElite <= 60_000);
   }
   assert.ok(dropped > 5200 && dropped < 5800); assert.ok(elite > normal * 8);
 });

@@ -2,10 +2,23 @@ import { drawCharacterPortrait } from '../src/character-portrait.ts';
 import { initialPlayer } from '../src/simulation.ts';
 import { playerPose } from '../src/character-pose.ts';
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { ArtLibrary, drawHumanoid, type CharacterPose } from '../src/art.ts';
 import { WEAPON_PROFILES, SHIELD_PROFILES } from '../src/weapon-content.ts';
 import { HAIR_STYLES, SKIN_PALETTES, ACCESSORIES, FACIAL_HAIR, DEFAULT_APPEARANCE } from '../src/appearance-content.ts';
+
+// drawGlow caches a code-generated light stamp on a real canvas; the stamp
+// context only needs a radial gradient and a fill.
+const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+  createElement: () => ({ width: 0, height: 0, getContext: () => ({
+    createRadialGradient: () => ({ addColorStop() {} }), fillRect() {}, set fillStyle(_v: string) {},
+  }) }),
+} });
+after(() => {
+  if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+  else Reflect.deleteProperty(globalThis, 'document');
+});
 
 interface DrawingState {
   globalCompositeOperation: string; globalAlpha: number; fillStyle: string; strokeStyle: string;
@@ -56,9 +69,11 @@ class ArtContext implements DrawingState {
   lineTo(...values: number[]) { this.record(...values); }
   clearRect(...values: number[]) { this.record(...values); }
   ellipse(...values: number[]) { this.record(...values); }
+  arc(...values: number[]) { this.record(...values); }
   fillRect(...values: number[]) { this.fillColors.add(this.fillStyle); this.record(...values); }
   fill() { this.fillColors.add(this.fillStyle); this.fillOrder.push(this.fillStyle); this.record(); }
   stroke() { this.record(this.lineWidth); }
+  drawImage(_image: unknown, ...values: number[]) { this.record(...values); }
 }
 
 test('all character layers emit finite geometry and restore the caller state across poses and equipment', () => {
@@ -143,7 +158,11 @@ test('inventory and hall portraits retain saved armor colors and helmet visibili
   player.character.look.armorTints={chest:'teal',head:'violet'};
   player.character.look.showHelmet=true;
   const outfit=playerPose(player,0).outfit!;
-  const chest=outfit.chest!.material.base,helmet=outfit.head!.material.base;
+  // Equipment fills are vivid-graded before they reach the canvas, so the
+  // portrait carries the graded form of each saved material color.
+  const chest='rgb(200,115,218)',helmet='rgb(144,185,210)';
+  assert.equal(outfit.chest!.material.base,'#497983');
+  assert.equal(outfit.head!.material.base,'#866b97');
   for(const visible of [false,true]){
     player.character.look.showHelmet=visible;
     const ctx=new ArtContext();
@@ -160,11 +179,11 @@ test('front-facing cape renders behind the legs; rear-facing cape covers them', 
     drawHumanoid(ctx as unknown as CanvasRenderingContext2D, {
       kind: 'player', angle, attackAngle: angle, time: 0, moving: 0, attack: 0, hitFlash: 0, dodging: false,
       outfit: {
-        cloak: { base: '#a11233', shadow: '#443322', highlight: '#b13355', trim: '#ccbb99', seed: 1 },
-        legs: { style: 'leather', seed: 2, material: { base: '#617231', shadow: '#334422', edge: '#aabb88', trim: '#998877' } },
+        cloak: { base: 'rgb(162,18,51)', shadow: '#443322', highlight: '#b13355', trim: '#ccbb99', seed: 1 },
+        legs: { style: 'leather', seed: 2, material: { base: 'rgb(97,114,49)', shadow: '#334422', edge: '#aabb88', trim: '#998877' } },
       },
     });
-    const cape = ctx.fillOrder.indexOf('#a11233'), leg = ctx.fillOrder.indexOf('#617231');
+    const cape = ctx.fillOrder.indexOf('rgb(162,18,51)'), leg = ctx.fillOrder.indexOf('rgb(97,114,49)');
     assert.ok(cape >= 0 && leg >= 0);
     assert.equal(cape < leg, angle > 0);
     assert.equal(ctx.depth, 0);

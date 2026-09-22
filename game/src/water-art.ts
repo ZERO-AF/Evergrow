@@ -76,10 +76,10 @@ export class WaterArt {
   drawSurface(c: CanvasRenderingContext2D, f: WaterSimulation, lights: readonly PointLight[], reduced: boolean, age = 0, sky?: SkyState) {
     if (!this.active) return;
     if (this.shader.draw(c, f, this.reflections, this.view, lights, reduced, age, sky)) return;
-    this.drawFallback(c, f);
+    this.drawFallback(c, f, reduced ? 0 : f.time + age);
   }
-  private drawFallback(c: CanvasRenderingContext2D, f: WaterSimulation) {
-    const { columns: n, rows, cell, left, top, wet, height: h } = f;
+  private drawFallback(c: CanvasRenderingContext2D, f: WaterSimulation, time: number) {
+    const { columns: n, rows, cell, left, top, wet, height: h, depth } = f;
     if (this.surface.width !== n || this.surface.height !== rows) {
       this.surface.width = this.mask.width = n; this.surface.height = this.mask.height = rows;
       this.image = this.surface.getContext('2d')!.createImageData(n, rows); this.maskImage = this.mask.getContext('2d')!.createImageData(n, rows);
@@ -90,13 +90,28 @@ export class WaterArt {
       const nx = h[i + (x < n - 1 ? 1 : 0)] - h[i - (x > 0 ? 1 : 0)];
       const ny = h[i + (y < rows - 1 ? n : 0)] - h[i - (y > 0 ? n : 0)];
       const crest = Math.max(0, nx - ny);
-      pixels[p] = 28 + crest * 90; pixels[p + 1] = 66 + crest * 135; pixels[p + 2] = 79 + crest * 145; pixels[p + 3] = wet[i] * 130;
+      // Animated surface ripple: two crossing sine bands plus the fluid crest.
+      const wx = left + x * cell, wy = top + y * cell;
+      const ripple = (Math.sin(wx * .11 + time * 1.9) + Math.sin(wy * .13 - time * 1.4 + wx * .05)) * .5;
+      const glint = Math.max(0, ripple) * (0.35 + crest * 1.4);
+      // Shore foam: a bright band where the wet mask thins, broken by a
+      // deterministic hash so the edge reads as foam flecks, not a stripe.
+      const shore = Math.max(0, 1 - (depth?.[i] ?? 0) / .5) * Math.min(1, wet[i] * 2.4);
+      const fleck = ((x * 73856093 ^ y * 19349663 ^ 7319) >>> 0) % 100 / 100;
+      const foam = shore * (fleck > .55 ? .5 : .18) * (0.7 + 0.3 * Math.sin(time * 2.4 + fleck * 9));
+      pixels[p] = Math.min(255, 28 + crest * 90 + glint * 60 + foam * 190);
+      pixels[p + 1] = Math.min(255, 66 + crest * 135 + glint * 95 + foam * 195);
+      pixels[p + 2] = Math.min(255, 79 + crest * 145 + glint * 80 + foam * 175);
+      pixels[p + 3] = wet[i] * 130;
       mask[p] = mask[p + 1] = mask[p + 2] = 255; mask[p + 3] = wet[i] * 255;
     }
     this.surface.getContext('2d')!.putImageData(this.image!, 0, 0); this.mask.getContext('2d')!.putImageData(this.maskImage!, 0, 0);
     c.drawImage(this.surface, left, top, n * cell, rows * cell);
     const r = this.reflections.getContext('2d')!; r.save(); r.globalCompositeOperation = 'destination-in'; r.drawImage(this.mask, left, top, n * cell, rows * cell); r.restore();
-    c.drawImage(this.reflections, left, top, n * cell, rows * cell);
+    // Reflections wobble with the same ripple so the mirrored silhouettes feel wet.
+    c.save(); c.globalAlpha = .8;
+    c.drawImage(this.reflections, left, top + Math.sin(time * 1.6) * 1.5, n * cell, rows * cell);
+    c.restore();
   }
   drawFeet(c: CanvasRenderingContext2D, f: WaterSimulation, x: number, y: number, radius: number) {
     const wet = f.wetAt(x, y); if (wet < .5) return;

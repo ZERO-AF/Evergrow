@@ -68,7 +68,9 @@ test('dps focus the tank target and allies fight dungeon enemies', () => {
   inDungeon(sim);
   const members = spawnDungeonParty(sim, 99);
   const tank = members[0]!;
-  const enemy = sim.spawnEnemy('stalker', sim.player.x + 30, sim.player.y, 'elite', undefined, { base: 30, min: 30, max: 30, fixed: true })!;
+  // The attack table covers arrows and spells now, so the target must be at the
+  // party's own level or every allied hit misses outright.
+  const enemy = sim.spawnEnemy('stalker', sim.player.x + 30, sim.player.y, 'elite', undefined, { base: 1, min: 1, max: 1, fixed: true })!;
   enemy.awareness = 1; enemy.state = 'chase';
   tickDungeonParty(sim);
   assert.equal(tank.targetId, enemy.id, 'tank engages the aware enemy');

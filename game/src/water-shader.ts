@@ -46,7 +46,7 @@ void main(){
   vec2 slope=vec2(heightAt(q+vec2(texel.x,0.))-heightAt(q-vec2(texel.x,0.)),
                   heightAt(q+vec2(0.,texel.y))-heightAt(q-vec2(0.,texel.y)));
   vec3 ripple=microWaves(world,flow);
-  vec2 gradient=slope*.72+ripple.yz*4.2;
+  vec2 gradient=slope*.72+ripple.yz*5.6;
   vec3 normal=normalize(vec3(-gradient.x,-gradient.y,1.));
   vec3 eye=normalize(vec3(0.,-.65,1.));
   float fresnel=.18+.65*pow(1.-max(0.,dot(normal,eye)),3.);
@@ -80,11 +80,11 @@ void main(){
     color+=lightColor[i]*pow(falloff,2.5)*glint*light.w*.7;
   }
   float crest=smoothstep(.16,.8,length(slope))*smoothstep(-.12,.6,h);
-  float shore=(1.-smoothstep(.09,.36,depth))*.28;
+  float shore=(1.-smoothstep(.09,.36,depth))*.42;
   vec3 foamPhase=flowPhases(time);
   float foamNoise=mix(noise(world*.18-flow*foamPhase.y*.069+gradient),noise(world*.18-flow*foamPhase.x*.069+gradient),foamPhase.z);
-  float foam=(crest*.8+shore)*smoothstep(.45,.8,foamNoise);
-  color=mix(color,vec3(.69,.86,.78),clamp(foam,0.,.7));
+  float foam=(crest*.8+shore)*smoothstep(.38,.72,foamNoise);
+  color=mix(color,vec3(.82,.93,.86),clamp(foam,0.,.8));
   gl_FragColor=vec4(color,coverage*.96);
 }`;
 

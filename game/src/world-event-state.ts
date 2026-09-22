@@ -63,7 +63,7 @@ export interface WorldEventState {
   /** Monotonic schedule counter; seeds zone pick and rosters. */
   index: number;
   active: InvasionEvent | null;
-  /** Bounded receipts; 'won' entries stay claimable and are never evicted. */
+  /** Bounded receipts; 'won' entries stay claimable, newest WON_HISTORY_LIMIT kept. */
   history: InvasionEvent[];
 }
 
@@ -137,13 +137,24 @@ function startInvasion(state: WorldEventState, ctx: WorldEventContext): Invasion
 function archiveEvent(state: WorldEventState, event: InvasionEvent): void {
   state.history.push(event);
   state.active = null;
-  // Evict only settled receipts; an unclaimed war chest is never dropped.
+  // Evict settled receipts first; unclaimed war chests outlive them.
   const settled = state.history.filter(e => e.phase !== 'won');
   while (settled.length > WORLD_EVENT_RULES.historyLimit) {
     const drop = settled.shift()!;
     state.history.splice(state.history.indexOf(drop), 1);
   }
+  // 'won' history is still bounded: validWorldEvents rejects oversized history,
+  // and an unbounded ledger would let decodeCharacterSave wipe every chest.
+  // Beyond the cap the oldest unclaimed chest is forfeited, newest first kept.
+  const unclaimed = state.history.filter(e => e.phase === 'won');
+  while (unclaimed.length > WON_HISTORY_LIMIT) {
+    const drop = unclaimed.shift()!;
+    state.history.splice(state.history.indexOf(drop), 1);
+  }
 }
+
+/** Unclaimed 'won' receipts retained; matches the slack in validWorldEvents. */
+const WON_HISTORY_LIMIT = 4;
 
 /** Detach live actors so the normal roamer retirement rules reclaim them. */
 function releaseEventActors(event: InvasionEvent, enemies: readonly Enemy[]): void {
@@ -458,11 +469,23 @@ function validInvasion(v: unknown, active: boolean): v is InvasionEvent {
   return typeof v.announced === 'boolean' && typeof v.bossAnnounced === 'boolean' && typeof v.wonAnnounced === 'boolean';
 }
 
+/** Host console is optional in the headless core build; the reset notice degrades to silence there. */
+const hostConsole = globalThis as { console?: { warn(...args: unknown[]): void } };
+
 /** Checkpoint validator for `checkpoint.worldEvents`; wire into decodeCharacterSave. */
 export function validWorldEvents(v: unknown): v is WorldEventState {
+  if (!checkWorldEvents(v)) {
+    // decodeCharacterSave resets to freshWorldEvents on rejection — never silent.
+    if (v !== undefined) hostConsole.console?.warn('Stored world-event state failed validation; the invasion schedule resets and unclaimed war chests are lost.');
+    return false;
+  }
+  return true;
+}
+
+function checkWorldEvents(v: unknown): v is WorldEventState {
   if (!object(v) || !number(v.nextAt, 0, 1e9) || !integer(v.index, 0, 1e6)) return false;
   if (v.active !== null && !validInvasion(v.active, true)) return false;
-  if (!Array.isArray(v.history) || v.history.length > WORLD_EVENT_RULES.historyLimit + 4) return false;
+  if (!Array.isArray(v.history) || v.history.length > WORLD_EVENT_RULES.historyLimit + WON_HISTORY_LIMIT) return false;
   if (!v.history.every(e => validInvasion(e, false))) return false;
   const ids = new Set<string>();
   for (const e of [v.active, ...v.history] as InvasionEvent[]) {

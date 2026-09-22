@@ -25,11 +25,11 @@ export interface LootBeamSpec {
   readonly pulse: number;
 }
 
-/** Spec palette: white / blue / yellow / purple / orange / pink (unique keeps its item color). */
+/** Spec palette follows TIER_COLORS: white / green / blue / purple / orange / pink (unique keeps its item color). */
 export const LOOT_BEAMS: Readonly<Record<ItemTier, LootBeamSpec>> = Object.freeze({
   common:    { color: '#e8f0e9', core: '#ffffff', height: 56,  width: 4.5, glow: 20, motes: 2, alpha: .26, light: 0,   pulse: 0 },
-  magic:     { color: '#6fb4ff', core: '#d8ecff', height: 84,  width: 6,   glow: 30, motes: 3, alpha: .42, light: .18, pulse: 0 },
-  rare:      { color: '#ffd75e', core: '#fff3c4', height: 108, width: 7,   glow: 38, motes: 4, alpha: .54, light: .3,  pulse: 0 },
+  magic:     { color: '#5ee06e', core: '#dcffde', height: 84,  width: 6,   glow: 30, motes: 3, alpha: .42, light: .18, pulse: 0 },
+  rare:      { color: '#5e9de0', core: '#d8ecff', height: 108, width: 7,   glow: 38, motes: 4, alpha: .54, light: .3,  pulse: 0 },
   epic:      { color: '#c08bff', core: '#ecd9ff', height: 138, width: 8.5, glow: 50, motes: 6, alpha: .66, light: .48, pulse: 2.2 },
   legendary: { color: '#ff9e4f', core: '#ffe3bd', height: 172, width: 10,  glow: 62, motes: 8, alpha: .78, light: .7,  pulse: 1.6 },
   unique:    { color: '#ff8fb8', core: '#ffd9e8', height: 172, width: 10,  glow: 62, motes: 8, alpha: .78, light: .7,  pulse: 1.6 },

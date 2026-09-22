@@ -9,7 +9,7 @@ import type { CharacterPose } from './art-types.ts';
 import { bowStringOffset, weaponArtLength } from './weapon-shapes.ts';
 import { compose, transformPoint, clamp, smooth, type Point, type Affine } from './art-primitives.ts';
 
-export const PLAYER_ART_SCALE = 1.24;
+export const PLAYER_ART_SCALE = 1.42;
 
 /** Rest-space mounts; animated limbs carry their attached pieces with them. */
 export const PLAYER_ATTACHMENTS = {
@@ -278,7 +278,7 @@ export function playerMotion(pose: CharacterPose) {
     ? -getGripLength(pose.offHand.visual) * .58 : 0;
   let mainPalm = gripAt(mainHand3, weaponAngle, mainGrip);
   let offPalm = gripAt(offHand3, offWeaponAngle, offGrip);
-  let weaponScale = 1, offWeaponScale = 1, activeWeaponYaw = pose.attackAngle;
+  let weaponScale = 1.2, offWeaponScale = 1.2, activeWeaponYaw = pose.attackAngle;
   const strokeVisual = offAttacking && offVisual ? offVisual : pose.weapon ?? STARTING_SWORD.visual;
   const diagonal = swinging && !pose.gesture && meleeGuard(strokeVisual.kind);
   if (diagonal) {
@@ -290,9 +290,9 @@ export function playerMotion(pose: CharacterPose) {
     const mount: RigPoint = [stroke.palm[0] - stroke.axis[0] * offset,
       stroke.palm[1] - stroke.axis[1] * offset, stroke.palm[2] - stroke.axis[2] * offset];
     if (offAttacking) {
-      offHand3 = mount; offPalm = stroke.palm; offWeaponAngle = stroke.angle; offWeaponScale = stroke.scale;
+      offHand3 = mount; offPalm = stroke.palm; offWeaponAngle = stroke.angle; offWeaponScale = stroke.scale * 1.2;
     } else {
-      mainHand3 = mount; mainPalm = stroke.palm; weaponAngle = stroke.angle; weaponScale = stroke.scale;
+      mainHand3 = mount; mainPalm = stroke.palm; weaponAngle = stroke.angle; weaponScale = stroke.scale * 1.2;
       if (!independent) {
         offHand3 = [mount[0] + stroke.axis[0] * supportOffset,
           mount[1] + stroke.axis[1] * supportOffset, mount[2] + stroke.axis[2] * supportOffset];
@@ -304,8 +304,11 @@ export function playerMotion(pose: CharacterPose) {
   const weaponBehind = (staff || pose.weapon?.kind === 'wand') ? back : guardedMelee ? mainHand3[1] < -.5 : Math.sin(weaponAngle) < -0.18;
   // Relaxed unarmed limbs use a shorter anatomical span. Held equipment keeps
   // its existing reach; action targets still extend continuously when needed.
-  const weaponArm = solveArm(armShoulder(bodyAngle, 1, shoulderSway), mainPalm, bodyAngle, 1, elbowTuck, diagonal && independent && !offAttacking ? .55 * attackBlend : gripAmount, unarmed ? .86 : 1);
-  const offArm = solveArm(armShoulder(bodyAngle, -1, shoulderSway), offPalm, bodyAngle, -1, offAttacking ? elbowTuck : 0, restingStaffArm ? 0 : diagonal && offAttacking ? .55 * offBlend : gripAmount, unarmed && !pose.offHand ? .86 : 1);
+  // Heroic silhouette: shoulders sit wider and weapons carry ~20% more mass so
+  // the player reads at gameplay distance. Arm IK still solves to the same hands.
+  const shoulderScale = (mount: RigPoint): RigPoint => [mount[0] * 1.18, mount[1] * 1.18, mount[2]];
+  const weaponArm = solveArm(shoulderScale(armShoulder(bodyAngle, 1, shoulderSway)), mainPalm, bodyAngle, 1, elbowTuck, diagonal && independent && !offAttacking ? .55 * attackBlend : gripAmount, unarmed ? .86 : 1);
+  const offArm = solveArm(shoulderScale(armShoulder(bodyAngle, -1, shoulderSway)), offPalm, bodyAngle, -1, offAttacking ? elbowTuck : 0, restingStaffArm ? 0 : diagonal && offAttacking ? .55 * offBlend : gripAmount, unarmed && !pose.offHand ? .86 : 1);
   hand = projectArmPoint(mainHand3);
   const offWeaponActive = pose.attackHand === 'off' && pose.offHand?.kind === 'weapon';
   const offWeaponOrigin = projectArmPoint(offHand3);

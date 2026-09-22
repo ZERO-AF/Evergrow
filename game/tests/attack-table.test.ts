@@ -85,11 +85,39 @@ test('equal-level melee always connects and consumes no extra randomness', () =>
   damageEnemy(enemy, 100, 0, true, enemyContext(s, 0, events));
   assert.equal(enemy.hp, 9900);
   assert.deepEqual(events.map(e => e.type), ['hit']);
-  // Bolts and periodic ticks bypass the table even against higher-level targets.
+  // Periodic ticks bypass the table even against higher-level targets; bolts roll
+  // the ranged channel — a level-9 target can miss or glance a level-1 shot.
   Object.assign(enemy, { level: 9 }); enemy.hp = 10000; events.length = 0;
-  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0, events));
+  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0.05, events));
+  assert.equal(enemy.hp, 10000);
+  assert.deepEqual(outcomes(events), ['miss']);
+  events.length = 0;
+  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0.5, events));
+  assert.equal(enemy.hp, 10000 - Math.round(100 * ATTACK_TABLE.glanceDamage));
+  assert.ok(events.find(e => e.type === 'hit')?.glancing === true);
+  events.length = 0; enemy.hp = 10000;
   damageEnemy(enemy, 50, 0, true, enemyContext(s, 0, events), true);
-  assert.equal(enemy.hp, 9850);
+  assert.equal(enemy.hp, 9950);
+});
+
+test('spells miss or partially resist higher-level enemies', () => {
+  const s = sim(), events: CombatEvent[] = [];
+  const enemy = target(s, 9);
+  // Level 1 caster vs level 9 target: miss .40, partial resist .80 (capped).
+  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0.05, events), false, 'fire', 100);
+  assert.equal(enemy.hp, 10000);
+  assert.deepEqual(outcomes(events), ['miss']);
+  // Past the miss slice the spell lands partially resisted.
+  events.length = 0;
+  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0.5, events), false, 'fire', 100);
+  const hit = events.find(e => e.type === 'hit');
+  assert.ok(hit && hit.value < 100, 'partial resist shaves the hit');
+  assert.ok(events.some(e => e.type === 'block' && e.blocked === 'resist'), 'partial resist floats a resisted readout');
+  // Equal-level spells always connect and consume no randomness.
+  Object.assign(enemy, { level: 1 }); enemy.hp = 10000; events.length = 0;
+  damageEnemy(enemy, 100, 0, false, enemyContext(s, 0, events), false, 'fire', 100);
+  assert.equal(events.filter(e => e.type === 'avoid').length, 0);
+  assert.ok(events.some(e => e.type === 'hit'));
 });
 
 test('enemy melee can miss, glance or be dodged by a facing player', () => {
@@ -109,10 +137,15 @@ test('enemy melee can miss, glance or be dodged by a facing player', () => {
   p.hp = 10000; p.invulnerable = 0; p.angle = 0; events.length = 0;
   assert.equal(damageCombatant(100, Math.PI, 1, 'physical', playerContext(s, 0.25, events), 'stalker', false, undefined, undefined, true), false);
   assert.deepEqual(outcomes(events), ['dodge']);
-  // Non-melee physical damage (arrows, traps) never rolls the table.
+  // Non-melee physical damage (arrows, traps) rolls the ranged channel: the same
+  // level-1 attacker misses or glances off the level-5 player.
   p.invulnerable = 0; events.length = 0;
-  assert.equal(damageCombatant(100, Math.PI, 1, 'physical', playerContext(s, 0.1, events), 'stalker'), true);
-  assert.equal(p.hp, 9900);
+  assert.equal(damageCombatant(100, Math.PI, 1, 'physical', playerContext(s, 0.1, events), 'stalker'), false);
+  assert.equal(p.hp, 10000);
+  assert.deepEqual(outcomes(events), ['miss']);
+  p.invulnerable = 0; events.length = 0;
+  assert.equal(damageCombatant(100, Math.PI, 1, 'physical', playerContext(s, 0.5, events), 'stalker'), true);
+  assert.equal(p.hp, 10000 - Math.round(100 * ATTACK_TABLE.glanceDamage));
 });
 
 test('avoid and glancing events render as floating text', () => {

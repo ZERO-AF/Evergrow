@@ -19,7 +19,7 @@ import { freeNodeCount } from './skill-tree.ts';
 import { trainedNodeIds, trainedRankCount, trainedOf } from './trainer-state.ts';
 import type { SkillId } from './character-types.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
-import { formatWalletCompact } from './currency.ts';
+import { COPPER_PER_GOLD, formatWalletCompact } from './currency.ts';
 
 export const COMMERCE_LIMITS = { vendors: 2048, buyback: 12 } as const;
 const RARITY_COST: Record<ItemTier, number> = { common: 1, magic: 2, rare: 5, epic: 12, legendary: 30, unique: 30 };
@@ -87,7 +87,10 @@ function gambleItem(sheet:CharacterSheet,npc:TownNPC,level:number,kind:ItemKind)
   const item=generateItem(seed,vendorLevel(npc,level),kind,undefined,tier,undefined,{level:vendorLevel(npc,level),merchantBonus:servicePolicy(npc).materialBonus});item.id=id;
   if(item.weapon)item.weapon.id=id;if(item.shield)item.shield.id=id;if(item.focus)item.focus.id=id;return item;
 }
-export const RESPEC_GOLD_PER_POINT = 25;
+/** WotLK respec anchor: cost grows quadratically with refunded points and caps at 50g —
+ * a full level-80 build (~80 points) hits the cap, small early respecs stay trivial. */
+export const respecCost = (points: number): number =>
+  Math.min(50 * COPPER_PER_GOLD, Math.round(80 * Math.max(0, points) ** 2));
 export const respecPoints = (sheet: CharacterSheet) => sheet.allocatedNodes.length - freeNodeCount(sheet.allocatedNodes) - trainedNodeIds(sheet).length + Object.entries(sheet.skillRanks).reduce((sum, [id, rank]) => sum + rank - 1 - trainedRankCount(sheet, id as SkillId), 0);
 export const attributeResetPoints = (sheet: CharacterSheet) => Object.values(sheet.attributes).reduce((sum, value) => sum + value - 10, 0);
 export type ServiceRequest = {type:'refreshStock'} | {type:'resetAttributes'} | {type:'respec'} | {type:'gamble';kind:ItemKind} | {type:'store';bag:number;tab?:number} | {type:'unlockStorage';tab:number} | {type:'retrieve';slot:number} | { type: 'buy'; slot: number } | { type: 'sell'; source: ItemSource }
@@ -126,7 +129,7 @@ export function quoteService(sheet: CharacterSheet, npc: TownNPC, level: number,
     const points = respecPoints(sheet);
     if (points <= 0) return fail('No spent skill points to refund.');
     const signature = JSON.stringify([sheet.allocatedNodes, sheet.skillRanks, sheet.skillPoints]);
-    return {ok:true,item:null,quote:{npcId:npc.id,revision:sheet.commerce.revision,epoch:stockEpoch(level),itemId:signature,itemRevision:0,price:points*RESPEC_GOLD_PER_POINT,request:{type:'respec'}}};
+    return {ok:true,item:null,quote:{npcId:npc.id,revision:sheet.commerce.revision,epoch:stockEpoch(level),itemId:signature,itemRevision:0,price:respecCost(points),request:{type:'respec'}}};
   }
   if (request.type === 'unlockStorage') {
     if (npc.role !== 'stash') return fail('Visit a storage chest.');

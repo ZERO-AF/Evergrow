@@ -107,9 +107,9 @@ export class SkillMeleeArt {
         inner.push(skillSweepPoint(s.angle, s.arc, s.hand, progress, s.reach * (1 - .25 * taper * life)));
         edge.push(skillSweepPoint(s.angle, s.arc, s.hand, progress, s.reach * (1 - .025 * taper)));
       }
-      c.globalAlpha = life * .15; line(c, outer, s.color, 13);
-      c.globalAlpha = life * .62; polygon(c, [...outer, ...inner.reverse()], s.color);
-      c.globalAlpha = life * .95; line(c, edge, '#fff1ce', 1.8);
+      c.globalAlpha = life * .2; line(c, outer, s.color, 18);
+      c.globalAlpha = life * .68; polygon(c, [...outer, ...inner.reverse()], s.color);
+      c.globalAlpha = life * .95; line(c, edge, '#fff1ce', 2.2);
       // A second, tighter wake separates a full-circle spin from a broad crescent.
       if (s.arc > Math.PI * 1.5) {
         const wake = outer.map(([x,y]): Point => [x * .72, y * .72]);

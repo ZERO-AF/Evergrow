@@ -585,6 +585,11 @@ interface EventAppearance {
   readonly classId?: WowClassId;
   readonly reaction?: 'melt' | 'overload' | 'superconduct' | 'singularity' | 'combustion' | 'cascade';
 }
+/** Why a skill press was rejected; drives the HUD error cue and combat log. */
+export type SkillFailReason = 'cooldown' | 'gcd' | 'no-target' | 'out-of-range' | 'requires-stealth'
+  | 'requires-form' | 'requires-frozen' | 'requires-ally' | 'requires-buff' | 'requires-behind'
+  | 'execute-threshold' | 'no-combo' | 'no-shards' | 'no-runes' | 'unusable';
+
 export type CombatEvent = EventAppearance & (
   | { readonly type: 'insufficient-mana' }
   | { readonly type: 'surface-hit'; readonly angle: number; readonly material: MaterialId }
@@ -618,6 +623,7 @@ export type CombatEvent = EventAppearance & (
   | { readonly type: 'loot'; readonly item: Item }
   | { readonly type: 'level'; readonly level: number; readonly skillPoints: number; readonly statPoints: number }
   | { readonly type: 'notice'; readonly message: string }
+  | { readonly type: 'skill-failed'; readonly reason: SkillFailReason }
   | { readonly type: 'blast'; readonly groundKind?: GroundEffect['kind']; readonly radius: number; readonly duration?: number; readonly enemyKind?: EnemyKind }
   | { readonly type: 'chain'; readonly chainTargetId?: number; readonly travelDuration?: number; readonly toX: number; readonly toY: number; readonly duration?: number }
   | { readonly type: 'block'; readonly angle: number; readonly value: number;

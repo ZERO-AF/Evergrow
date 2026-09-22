@@ -1,13 +1,15 @@
-export const GAME_FONT_FAMILY = 'Pixelify Sans';
+export const GAME_FONT_FAMILY = 'Evergrow Display';
+export const INTERFACE_FONT_FAMILY = 'Evergrow Interface';
 export const NUMERIC_FONT_FAMILY = 'Evergrow Numerals';
-export const GAME_FONT_STACK = `"${NUMERIC_FONT_FAMILY}", "${GAME_FONT_FAMILY}", ui-monospace, monospace`;
-export const INTERFACE_FONT_STACK = `"${NUMERIC_FONT_FAMILY}", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
+export const GAME_FONT_STACK = `"${NUMERIC_FONT_FAMILY}", "${GAME_FONT_FAMILY}", Georgia, 'Times New Roman', serif`;
+export const INTERFACE_FONT_STACK = `"${NUMERIC_FONT_FAMILY}", "${INTERFACE_FONT_FAMILY}", Georgia, 'Times New Roman', serif`;
 // Restrict this face to figures and numeric punctuation, including mixed labels.
 const NUMERIC_RANGE = 'U+0025, U+002B-003A, U+00B1, U+00D7, U+00F7, U+2030, U+2212';
 /** 11px em gives 7.7px capitals and a typical 6.45px advance at the legacy size=1. */
 export const GAME_FONT_EM = 11;
 const FONT_WEIGHT = 400;
-const FONT_URL = new URL('./assets/fonts/PixelifySans-Variable.ttf', import.meta.url).href;
+const FONT_URL = new URL('./assets/fonts/Metamorphous-Regular.ttf', import.meta.url).href;
+const INTERFACE_FONT_URL = new URL('./assets/fonts/Marcellus-Regular.ttf', import.meta.url).href;
 const NUMERIC_FONT_URL = new URL('./assets/fonts/Barlow-Medium.ttf', import.meta.url).href;
 let loading: Promise<void> | null = null;
 let measuring: CanvasRenderingContext2D | null = null;
@@ -33,6 +35,7 @@ export function loadGameFont(): Promise<void> {
   };
   loading = Promise.all([
     register(GAME_FONT_FAMILY, FONT_URL),
+    register(INTERFACE_FONT_FAMILY, INTERFACE_FONT_URL),
     register(NUMERIC_FONT_FAMILY, NUMERIC_FONT_URL, NUMERIC_RANGE),
   ]).then(() => { measuring = null; }).catch(error => {
     loading = null;

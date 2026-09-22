@@ -12,6 +12,7 @@ import { gearShapesSVG, shieldShapes, weaponShapes, type GearShape } from './wea
 import { type Point } from './art-primitives.ts';
 import { consumableFor } from './consumable-content.ts';
 import { consumableShapes } from './consumable-art.ts';
+import { TIER_COLORS } from './items.ts';
 
 const safeColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value) ? value : '#798590';
 const escape = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
@@ -131,8 +132,16 @@ export function itemIconSVG(item: Item, size = 48): string {
       shape = `<g transform="translate(24 25) scale(2.3)">${detailed(itemDropShapes(item))}</g>`;
       break;
   }
+  const rarity = TIER_COLORS[item.tier];
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pixels}" height="${pixels}" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><title>${escape(item.name)}</title>
-    <ellipse cx="24" cy="42" rx="15" ry="3" fill="#05090e" opacity=".45"/>${shape}</svg>`;
+    <defs><radialGradient id="${prefix}-bg" cx=".5" cy=".38" r=".78"><stop offset="0" stop-color="#1d2c38"/><stop offset=".7" stop-color="#0c151d"/><stop offset="1" stop-color="#070d13"/></radialGradient>
+    <linearGradient id="${prefix}-sheen" x1="0" y1="0" x2=".6" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".16"/><stop offset=".42" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs>
+    <rect x="1" y="1" width="46" height="46" fill="url(#${prefix}-bg)"/>
+    <ellipse cx="24" cy="40" rx="15" ry="3.4" fill="#04070c" opacity=".5"/>${shape}
+    <rect x="1" y="1" width="46" height="46" fill="url(#${prefix}-sheen)"/>
+    <rect x="1" y="1" width="46" height="46" fill="none" stroke="#05090e" stroke-width="2.6"/>
+    <rect x="2.4" y="2.4" width="43.2" height="43.2" fill="none" stroke="${rarity}" stroke-width="1.7"/>
+    <rect x="4.6" y="4.6" width="38.8" height="38.8" fill="none" stroke="${rarity}" stroke-width=".7" opacity=".38"/></svg>`;
 }
 
 /** Upright, aspect-correct art for rectangular pack footprints. */
@@ -146,7 +155,7 @@ export function itemPackIconSVG(item: Item, width: number, height: number): stri
   const w = width * 40, h = height * 40;
   const scale = Math.min((w - 16) / Math.max(1, maxX - minX), (h - 18) / Math.max(1, maxY - minY));
   const prefix = iconPrefix('pack');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" aria-hidden="true" focusable="false"><g transform="translate(${w / 2} ${h / 2}) scale(${scale}) translate(${-(minX + maxX) / 2} ${-(minY + maxY) / 2})">${gearShapesSVG(shapes, true, prefix)}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" aria-hidden="true" focusable="false"><g transform="translate(${w / 2} ${h / 2}) scale(${scale}) translate(${-(minX + maxX) / 2} ${-(minY + maxY) / 2})">${gearShapesSVG(shapes, true, prefix)}</g><rect x="1" y="1" width="${w - 2}" height="${h - 2}" fill="none" stroke="${TIER_COLORS[item.tier]}" stroke-width="2" opacity=".8"/></svg>`;
 }
 
 function armor(item: Item | null): ArmorPiece | null {

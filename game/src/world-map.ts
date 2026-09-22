@@ -40,7 +40,7 @@ export interface MapWorld extends ExplorationWorld {
   /** Optional zone identity for map contours/labels; null marks unzoned ocean. */
   zoneKey?(x: number, y: number): string | null;
 }
-const TILE_PIXELS = 32;
+const TILE_PIXELS = 64;
 export const MAP_TERRAIN_RULES = Object.freeze({ cacheLimit: 384, maximumVisibleTiles: 256, baseWorldSize: 768 });
 /** Increase world coverage per tile at overview scales while retaining a bounded sample budget. */
 export function mapTerrainSize(zoom: number, width: number, height: number): number {
@@ -551,7 +551,7 @@ export class WorldMap {
   }
 
   private tile(tx: number, ty: number, size: number, detailed = false): TerrainTile | null {
-    const ox = tx * size, oy = ty * size, pixels = detailed ? 128 : TILE_PIXELS, sampleSize = size / pixels;
+    const ox = tx * size, oy = ty * size, pixels = detailed ? 160 : TILE_PIXELS;
     let revision = 0;
     for (let cy = Math.floor(oy / EXPLORATION_CHUNK_SIZE); cy < Math.ceil((oy + size) / EXPLORATION_CHUNK_SIZE); cy++)
       for (let cx = Math.floor(ox / EXPLORATION_CHUNK_SIZE); cx < Math.ceil((ox + size) / EXPLORATION_CHUNK_SIZE); cx++)
@@ -571,7 +571,7 @@ export class WorldMap {
     } else { this.tiles.delete(id); this.tiles.set(id, tile); }
     if (!tile.decorated) {
       const c = tile.base.getContext('2d')!;
-      const samples = detailed ? (size <= 3072 ? 64 : 128) : TILE_PIXELS, step = size / samples, pixelStep = pixels / samples;
+      const samples = detailed ? (size <= 3072 ? 96 : 160) : TILE_PIXELS, step = size / samples, pixelStep = pixels / samples;
       let changed = false;
       while (tile.nextRow < samples && performance.now() < deadline) {
         const y = tile.nextRow++;
@@ -586,7 +586,7 @@ export class WorldMap {
         if (detailed && size <= 3072 && this.world.getProps)
           drawMapProps(c, this.world.getProps(ox - 160, oy - 160, size + 320, size + 320), ox, oy, size, pixels);
         if (detailed) c.drawImage(createMapRoadLayer(ox, oy, size, this.world.seed), 0, 0);
-        tile.roads = !detailed && sampleSize > 48 ? createMapRoadLayer(ox, oy, size, this.world.seed) : null;
+        tile.roads = !detailed ? createMapRoadLayer(ox, oy, size, this.world.seed) : null;
         tile.chartedRoads = tile.roads ? document.createElement('canvas') : null;
         if (tile.chartedRoads) tile.chartedRoads.width = tile.chartedRoads.height = 128;
         tile.decorated = true; tile.readyAt = Number.isFinite(deadline) ? performance.now() : undefined; changed = true;
@@ -699,6 +699,20 @@ export class WorldMap {
     c.globalAlpha = opacity;
     c.imageSmoothingEnabled = true;
     for (const road of roadTiles) c.drawImage(road.tile.chartedRoads!, road.x, road.y, tileSize * view.zoom, tileSize * view.zoom);
+    if (!mini) {
+      // Parchment grade: warm sepia multiply, a faint paper lift and a soft
+      // vignette pull the chart toward a hand-drawn WoW atlas.
+      const cx = view.x + view.width / 2, cy = view.y + view.height / 2;
+      c.globalCompositeOperation = 'multiply';
+      c.fillStyle = '#d9c9a8'; c.fillRect(view.x, view.y, view.width, view.height);
+      c.globalCompositeOperation = 'screen';
+      c.fillStyle = '#2a2412'; c.fillRect(view.x, view.y, view.width, view.height);
+      c.globalCompositeOperation = 'multiply';
+      const vignette = c.createRadialGradient(cx, cy, Math.min(view.width, view.height) * .38, cx, cy, Math.max(view.width, view.height) * .78);
+      vignette.addColorStop(0, '#ffffff'); vignette.addColorStop(1, '#b8a67e');
+      c.fillStyle = vignette; c.fillRect(view.x, view.y, view.width, view.height);
+      c.globalCompositeOperation = 'source-over';
+    }
     c.imageSmoothingEnabled = false;
     for (const building of simple || view.zoom < .065 ? [] : this.world.getBuildings(region.x, region.y, region.width, region.height)) {
       const { x, y, width, height } = building;
@@ -776,7 +790,7 @@ export class WorldMap {
     enemies: readonly MinimapEnemy[] = []) {
     const r = getMinimapRect(width, height);
     const view: MapView = { ...getMinimapChartRect(r),
-      centerX: player.x, centerY: player.y, zoom: .05 };
+      centerX: player.x, centerY: player.y, zoom: .0625 };
     const active = this.minimapPointer && this.minimapPointer.x >= r.x && this.minimapPointer.y >= r.y
       && this.minimapPointer.x < r.x + r.width && this.minimapPointer.y < r.y + r.height;
     c.save();
