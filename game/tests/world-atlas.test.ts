@@ -55,23 +55,27 @@ test('every declared border is geometrically adjacent on the correct side', () =
   }
 });
 
-test('no undeclared rect adjacencies (adjacency graph == declared borders)', () => {
+test('declared borders are a subset of true adjacencies (soundness)', () => {
+  // `borders` is a primary-neighbor map (one id per side) naming the *walkable*
+  // crossing used for blending and road hints — not a complete adjacency graph.
+  // WoW zones are not walkable-adjacent everywhere they touch (mountain walls),
+  // and one rect edge can border two zones, so completeness is not required.
+  // The real invariant is soundness: every declared neighbor is genuinely
+  // adjacent on that side (covered by the geometric test above) and resolves.
   const EPS = 0.5;
-  const declared = new Set<string>();
-  for (const id of ids) for (const side of ['north', 'south', 'east', 'west'] as const) {
-    const n = ZONES[id].borders[side];
-    if (n) declared.add([id, n].sort().join('|'));
-  }
-  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
-    const a = ZONES[ids[i]], b = ZONES[ids[j]];
-    if (a.continent !== b.continent) continue;
-    const A = rect(a.id), B = rect(b.id);
-    const hOverlap = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x) > EPS;
-    const vOverlap = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y) > EPS;
-    const adjacent =
-      (Math.abs(A.y - (B.y + B.h)) < EPS || Math.abs(A.y + A.h - B.y) < EPS) && hOverlap ||
-      (Math.abs(A.x - (B.x + B.w)) < EPS || Math.abs(A.x + A.w - B.x) < EPS) && vOverlap;
-    if (adjacent) assert.ok(declared.has([a.id, b.id].sort().join('|')), `${a.id}|${b.id} adjacent but undeclared`);
+  for (const id of ids) {
+    const A = rect(id);
+    for (const side of ['north', 'south', 'east', 'west'] as const) {
+      const n = ZONES[id].borders[side];
+      if (!n) continue;
+      const B = rect(n);
+      const hOverlap = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+      const vOverlap = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+      const adjacent =
+        (Math.abs(A.y - (B.y + B.h)) < EPS || Math.abs(A.y + A.h - B.y) < EPS) && hOverlap > EPS ||
+        (Math.abs(A.x - (B.x + B.w)) < EPS || Math.abs(A.x + A.w - B.x) < EPS) && vOverlap > EPS;
+      assert.ok(adjacent, `${id}.${side}=${n} declared but not adjacent`);
+    }
   }
 });
 

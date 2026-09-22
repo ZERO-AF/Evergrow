@@ -17,7 +17,7 @@ import type { WowClassId, WowRaceId } from './wow-types.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import { durabilityFactor } from './durability-state.ts';
 import { transmoggedEquipment } from './transmog-state.ts';
-import { startingZone } from './factions.ts';
+import { startingZone, deathKnightStart } from './factions.ts';
 import { GAME_FEATURES } from './game-features.ts';
 
 /** Rebuild combat projections from the character's single source of truth. */
@@ -77,11 +77,20 @@ export function createCharacter(player: Player, name: string, classId: WowClassI
   if (!raceAllowsClass(raceId, classId)) return { ok: false, message: `${WOW_RACES[raceId].name} cannot be a ${WOW_CLASSES[classId].name}.` };
   player.character = createCharacterSheet(classId, raceId, look);
   player.name = name;
-  // World-t05: new heroes wake at their race's authored starting area.
+  // World-t05: new heroes wake at their race's authored starting area. Death
+  // knights are the WotLK hero class: they begin at level 55 in Acherus, the
+  // Ebon Hold necropolis above the Eastern Plaguelands, with the points a
+  // level-55 hero would have earned.
   if (GAME_FEATURES.factions) {
-    const start = startingZone(raceId);
+    const dk = classId === 'deathKnight';
+    const start = dk ? deathKnightStart(raceId) : startingZone(raceId);
     player.x = player.prevX = start.spawn.x;
     player.y = player.prevY = start.spawn.y;
+    if (dk) {
+      player.level = 55;
+      player.character.skillPoints += 54;
+      player.character.statPoints += 54 * 5;
+    }
   }
   refreshCharacter(player);
   player.hp = player.maxHp;

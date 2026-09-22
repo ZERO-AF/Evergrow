@@ -8,7 +8,7 @@
  * - `reputation-content.ts` `FactionId` — the standing ledger's factions.
  * This module owns the *entity* tag (`FactionTag`, no 'contested') and the
  * player axis (`PlayerFaction` from wow-types). */
-import { zoneAt, zonePoint, type AtlasPoint, type AtlasZone, type FactionId as AtlasFactionId } from './world-atlas.ts';
+import { zoneAt, zonePoint, ZONES, type AtlasPoint, type AtlasZone, type FactionId as AtlasFactionId } from './world-atlas.ts';
 import { zoneContent, zoneWorldRect } from './zone-content.ts';
 import { WOW_RACES } from './wow-races.ts';
 import type { WowRaceId, PlayerFaction } from './wow-types.ts';
@@ -89,6 +89,15 @@ export function startingZone(raceId: WowRaceId, world?: { blocked(x: number, y: 
       }
   }
   return { faction: raceFaction(raceId), zone: zoneAt(spawn.x, spawn.y)!, area: start.area, spawn };
+}
+
+/** Death knights are the WotLK hero class: they begin at level 55 in Acherus,
+ * the Ebon Hold necropolis above the Eastern Plaguelands, not a racial valley.
+ * They keep their race's faction. */
+export function deathKnightStart(raceId: WowRaceId): StartingZone {
+  const zone = ZONES['eastern-plaguelands'];
+  const spawn = zonePoint('eastern-plaguelands', 0.85, 0.35)!;
+  return { faction: raceFaction(raceId), zone, area: 'Acherus: The Ebon Hold', spawn };
 }
 
 // ── Territory ────────────────────────────────────────────────────────────────

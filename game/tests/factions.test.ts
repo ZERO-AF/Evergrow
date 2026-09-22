@@ -186,6 +186,16 @@ test('createCharacter places the hero at the racial starting spawn', () => {
   }
 });
 
+test('death knights start at level 55 in Acherus with earned points', () => {
+  const player = initialPlayer(0, 0);
+  const result = createCharacter(player, 'DK', 'deathKnight', 'human');
+  assert.ok(result.ok);
+  assert.equal(player.level, 55, 'hero class starts at 55');
+  assert.equal(zoneAt(player.x, player.y)?.id, 'eastern-plaguelands', 'Acherus sits in EPL');
+  assert.equal(player.character.skillPoints, 54, 'one point per level past 1');
+  assert.equal(player.character.statPoints, 54 * 5, 'five attribute points per level');
+});
+
 test('playerFaction reads the sheet race', () => {
   const player = initialPlayer(0, 0);
   player.character.raceId = 'tauren';
