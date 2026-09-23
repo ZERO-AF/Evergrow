@@ -22,7 +22,7 @@ const make = () => new Simulation(emptyWorld, { spawn: false, seed: 42 });
 /** Minimal AI context: player parked near the boss, world open, events captured. */
 function aiContext(sim: Simulation, events: CombatEvent[] = [], buffs: string[] = [], hurtTypes: string[] = [], now = { t: 0 }): EnemyAIContext {
   return {
-    player: sim.player, enemies: sim.enemies, world: emptyWorld, time: now.t, trial: null,
+    player: sim.player, players: [sim.player], enemies: sim.enemies, world: emptyWorld, time: now.t, trial: null,
     visible: () => true,
     move: (enemy, vx, vy, dt) => { enemy.x += vx * dt; enemy.y += vy * dt; },
     hurt: (amount, _angle, _actor, type) => { hurtTypes.push(type); sim.player.hp -= amount; },

@@ -23,7 +23,7 @@ const world: WorldQuery = { blocked: () => false, move: (x,y,dx,dy) => ({x:x+dx,
 function fixture(kind: EnemyKind, elite=false) {
   const sim=new Simulation(world,{spawn:false}),enemy=sim.spawnEnemy(kind,-20,0,elite?'elite':'normal')!;
   const damage:number[]=[],events:CombatEvent[]=[];
-  const context:EnemyAIContext={player:sim.player,enemies:sim.enemies,world,time:0,trial:null,visible:()=>true,
+  const context:EnemyAIContext={player:sim.player,players:[sim.player],enemies:sim.enemies,world,time:0,trial:null,visible:()=>true,
     move:(e,vx,vy,dt)=>{e.x+=vx*dt;e.y+=vy*dt;},hurt:(amount)=>damage.push(amount),
     shoot:(_e,_a,d)=>damage.push(d.damage),emit:e=>events.push(e)};
   return {sim,enemy,context,damage,events};

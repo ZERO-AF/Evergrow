@@ -9,7 +9,7 @@ import { freshExpeditions, createDungeonRun } from '../src/dungeon-state.ts';
 import type { CharacterSave } from '../src/character-save.ts';
 
 function fixture(world: WorldLandscape): CharacterSave {
-  return { version: 7, id: 'title-review', name: 'Wayfarer', createdAt: 0, updatedAt: 1,
+  return { version: 8, id: 'title-review', name: 'Wayfarer', createdAt: 0, updatedAt: 1,
     worldSeed: world.seed, worldVersion: world.generationVersion,
     checkpoint: new Simulation(world, { spawn: false }).captureCheckpoint() };
 }

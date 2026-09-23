@@ -4,7 +4,7 @@ import { getMinimapRect } from './map-view.ts';
 import { ALLY_TEMPLATES } from './wow-allies.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { text } from './font.ts';
-import { resolveThreatHolder, resetThreatTables, threatTable, tickThreat, THREAT_RULES, type ThreatSource } from './enemy-threat.ts';
+import { playerThreatSource, resolveThreatHolder, resetThreatTables, threatPlayer, threatTable, tickThreat, THREAT_RULES, type ThreatSource } from './enemy-threat.ts';
 import type { CombatEvent, Enemy, Player } from './model.ts';
 
 export { THREAT_RULES };
@@ -62,16 +62,20 @@ export class ThreatMeter {
   update(enemies: readonly Enemy[], player?: Player): void {
     if (!player) return;
     const allies = player.allies ?? [];
-    for (const enemy of enemies) tickThreat(enemy, 0, player, allies);
+    for (const enemy of enemies) tickThreat(enemy, 0, [player], allies);
   }
 
   /** The source the enemy is attacking: the taunter while taunted, else the
-   * threat holder under the pull rule. */
-  private holder(enemy: Enemy, player: Player): ThreatSource | null {
+   * threat holder under the pull rule. The roster resolves `player:<id>`
+   * buckets so a co-op partner's aggro reads correctly. */
+  private holder(enemy: Enemy, players: readonly Player[]): ThreatSource | null {
     const taunt = enemy.taunted;
-    if (taunt && taunt.remaining > 0) return taunt.allyId !== undefined ? `ally:${taunt.allyId}` : 'player';
-    return resolveThreatHolder(enemy, player, player.allies ?? []) ?? null;
+    if (taunt && taunt.remaining > 0)
+      return taunt.allyId !== undefined ? `ally:${taunt.allyId}` : `player:${taunt.playerId ?? 0}`;
+    return resolveThreatHolder(enemy, players, players.flatMap(p => p.allies ?? [])) ?? null;
   }
+
+
 
   private allyLabel(player: Player, id: number): string {
     const ally = player.allies?.find(a => a.id === id);
@@ -81,36 +85,46 @@ export class ThreatMeter {
   }
 
   /** Threat rows for one enemy, highest first; empty without a table. */
-  rows(enemy: Enemy, player: Player): ThreatRow[] {
+  rows(enemy: Enemy, player: Player, players: readonly Player[] = [player]): ThreatRow[] {
     const table = threatTable(enemy);
     if (!table || !table.entries.size) return [];
-    const holder = this.holder(enemy, player);
+    const holder = this.holder(enemy, players);
+    const holderPlayer = holder ? threatPlayer(players, holder) : undefined;
     const top = Math.max(...table.entries.values());
     return [...table.entries.entries()]
-      .map(([source, threat]): ThreatRow => ({
-        source, threat, tanking: source === holder, you: source === 'player',
-        label: source === 'player' ? 'You' : this.allyLabel(player, Number(source.slice(5))),
-        percent: top > 0 ? threat / top : 1,
-      }))
+      .map(([source, threat]): ThreatRow => {
+        const owner = threatPlayer(players, source);
+        return {
+          source, threat,
+          tanking: source === holder || (holderPlayer !== undefined && owner === holderPlayer),
+          you: owner === player,
+          label: owner ? (owner === player ? 'You' : `P${(owner.id ?? 0) + 1}`) : this.allyLabel(player, Number(source.slice(5))),
+          percent: top > 0 ? threat / top : 1,
+        };
+      })
       .sort((a, b) => b.threat - a.threat);
   }
 
   /** Player threat share of the table top on one enemy; 0 without a table. */
-  playerPercent(enemy: Enemy): number {
+  playerPercent(enemy: Enemy, player?: Player): number {
     const table = threatTable(enemy);
     if (!table || !table.entries.size) return 0;
     const top = Math.max(...table.entries.values());
-    return top > 0 ? (table.entries.get('player') ?? 0) / top : 0;
+    const threat = player ? (table.entries.get(playerThreatSource(player)) ?? 0)
+      + ((player.id ?? 0) === 0 ? table.entries.get('player') ?? 0 : 0)
+      : table.entries.get('player') ?? 0;
+    return top > 0 ? threat / top : 0;
   }
 
   /** Enemies with live threat tables, sorted by the player's share. */
-  list(enemies: readonly Enemy[], player: Player, limit = 5): ThreatListEntry[] {
+  list(enemies: readonly Enemy[], player: Player, players: readonly Player[] = [player], limit = 5): ThreatListEntry[] {
     const out: ThreatListEntry[] = [];
     for (const enemy of enemies) {
       const table = threatTable(enemy);
       if (!table || !table.entries.size || enemy.state === 'dead' || enemy.hp <= 0) continue;
-      const holder = this.holder(enemy, player);
-      out.push({ enemy, name: nameplateName(enemy), tanking: holder === 'player', percent: this.playerPercent(enemy) });
+      const holder = this.holder(enemy, players);
+      const holderPlayer = holder ? threatPlayer(players, holder) : undefined;
+      out.push({ enemy, name: nameplateName(enemy), tanking: holderPlayer === player, percent: this.playerPercent(enemy, player) });
     }
     return out.sort((a, b) => b.percent - a.percent).slice(0, limit);
   }
@@ -131,8 +145,9 @@ export function threatColor(percent: number, tanking: boolean, threshold: number
 
 /** Omen-style readout under the target plate: one row per threat holder. */
 export function drawThreatRows(c: CanvasRenderingContext2D, meter: ThreatMeter, enemy: Enemy,
-  player: Player, plate: { x: number; y: number; width: number; height: number }, opacity = 1): number {
-  const rows = meter.rows(enemy, player);
+  player: Player, plate: { x: number; y: number; width: number; height: number }, opacity = 1,
+  players: readonly Player[] = [player]): number {
+  const rows = meter.rows(enemy, player, players);
   if (!rows.length || plate.height <= 0 || opacity <= 0) return 0;
   const threshold = pullThreshold(player);
   const x = plate.x + 15, width = plate.width - 30;
@@ -155,9 +170,9 @@ export function drawThreatRows(c: CanvasRenderingContext2D, meter: ThreatMeter, 
 
 /** Side list for the target group: the player's share on every engaged enemy. */
 export function drawThreatList(c: CanvasRenderingContext2D, meter: ThreatMeter,
-  enemies: readonly Enemy[], player: Player, width: number, height: number, y: number): number {
-  const entries = meter.list(enemies, player);
-  // Single-target fights already read on the plate rows.
+  enemies: readonly Enemy[], player: Player, width: number, height: number, y: number,
+  players: readonly Player[] = [player]): number {
+  const entries = meter.list(enemies, player, players);
   if (entries.length < 2) return 0;
   const map = getMinimapRect(width, height);
   const x = map.x + 10, w = map.width - 20;

@@ -72,7 +72,7 @@ function tickTank(sim: Simulation, tank: PartyAlly): void {
   // Taunt the first engaged enemy that isn't already bound to the tank.
   for (const enemy of sim.enemies) {
     if (!engaged(enemy)) continue;
-    const holder = resolveThreatHolder(enemy, p, p.allies ?? []);
+    const holder = resolveThreatHolder(enemy, sim.players, sim.players.flatMap(pl => pl.allies ?? []));
     if (holder === source) continue;
     if (holder === undefined && nearestHostileIs(sim, enemy, tank)) continue;
     enemy.taunted = { remaining: PARTY_RULES.tauntDuration, allyId: tank.id };

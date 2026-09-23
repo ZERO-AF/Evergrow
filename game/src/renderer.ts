@@ -100,7 +100,7 @@ import { isGameUIPoint, type UIRect } from './ui-hit-test.ts';
 import type { GamePhase } from './game-phase.ts';
 import { COMBAT_TIMING, PLAYER_ABILITIES, PLAYER_MOVEMENT } from './combat-content.ts';
 import { CAMERA_FOLLOW, CameraShake, CameraZoom, cameraFollowTarget, cameraSpawnExclusion,
-  cameraView, screenToWorld, worldToScreen } from './camera.ts';
+  cameraView, coopCameraTarget, screenToWorld, worldToScreen } from './camera.ts';
 import { EnemyFocus } from './enemy-focus.ts';
 import { BattleBarkScene } from './battle-bark-scene.ts';
 import { getHUDLayout } from './hud-layout.ts';
@@ -488,12 +488,24 @@ export class Renderer {
       if (trail.hold <= 0) trail.value += (enemy.hp - trail.value) * (1 - Math.exp(-step * 8));
       if (Math.abs(trail.value - enemy.hp) < .2) this.damageTrails.delete(id);
     }
+    const coop2 = sim.coop ? sim.players[1] : null;
     if (active && !settings.fixedCamera) {
       // Velocity-based lookahead does not swing the camera when the player merely aims.
       const follow = 1 - Math.exp(-dt * CAMERA_FOLLOW.response);
-      const target = cameraFollowTarget({ x: px, y: py, vx: p.vx, vy: p.vy });
-      this.cameraX += (target.x - this.cameraX) * follow;
-      this.cameraY += (target.y - this.cameraY) * follow;
+      if (coop2) {
+        // Shared couch camera: midpoint of both players, zoomed to frame both.
+        const qx = lerp(coop2.prevX, coop2.x, alpha), qy = lerp(coop2.prevY, coop2.y, alpha);
+        const target = coopCameraTarget(
+          { x: px, y: py, vx: p.vx, vy: p.vy },
+          { x: qx, y: qy, vx: coop2.vx, vy: coop2.vy }, this.width, this.height);
+        this.cameraX += (target.x - this.cameraX) * follow;
+        this.cameraY += (target.y - this.cameraY) * follow;
+        this.cameraZoom.target = target.zoom;
+      } else {
+        const target = cameraFollowTarget({ x: px, y: py, vx: p.vx, vy: p.vy });
+        this.cameraX += (target.x - this.cameraX) * follow;
+        this.cameraY += (target.y - this.cameraY) * follow;
+      }
     }
     if (GAME_FEATURES.threatMeter) this.threat.update(sim.enemies);
     this.effects.update(sim, feedbackStep);
@@ -866,12 +878,12 @@ export class Renderer {
     if (GAME_FEATURES.threatMeter && settings.phase === 'playing' && !p.dead && target) {
       const anchor = targetFramed ? bossLayouts.find(frame => frame.enemy === target)!.layout : targetPlate;
       threatBottom = anchor.y + anchor.height + drawThreatRows(c, this.threat, target, p, anchor,
-        targetFramed ? 1 : this.plateOpacity);
+        targetFramed ? 1 : this.plateOpacity, sim.players);
     }
     if (GAME_FEATURES.threatMeter && settings.phase === 'playing' && !p.dead) {
       const map = getMinimapRect(plateWidth, plateHeight);
       drawThreatList(c, this.threat, sim.enemies, p, plateWidth, plateHeight,
-        Math.max(map.y + map.height + 8, threatBottom + 6));
+        Math.max(map.y + map.height + 8, threatBottom + 6), sim.players);
     }
     const primaryBoss = bossLayouts.find(frame => isBossKind(frame.enemy.kind));
     if (primaryBoss && this.focusedEnemy?.id === primaryBoss.enemy.id)
@@ -1203,28 +1215,30 @@ export class Renderer {
       } });
     }
 
-    if (settings.phase !== 'ready') entries.push({ y: py, draw: () => {
-      const pose = playerPose(p, sim.time);
-      pose.effectTime = settings.reducedMotion ? 0 : sim.time;
-      if (sim.portal.active) { pose.cast = .45 * Math.min(1, sim.portal.progress * 4); pose.castColor = '#b5a0ee'; }
-      const summon = summonProgress(sim);
-      if (summon > 0) { pose.cast = Math.max(pose.cast ?? 0, .45 * summon); pose.castColor = '#8fd3a0'; }
-      const mount = p.mounted ? MOUNTS[p.mounted.id] : null;
-      if (mount) {
-        const seat = mountPose(p, sim.time);
-        c.save(); c.translate(px, py); drawMount(c, mount, seat); c.restore();
-        this.actor(px, py - MOUNT_SEAT_HEIGHT, { ...pose, gaitPhase: 0, moving: 0 });
-      } else this.actor(px, py, pose);
-      drawPlayerSkillEffects(c,p,px,py,settings.reducedMotion?0:sim.time,pose,settings.reducedMotion);
-      // School aura at the weapon tip while a cast or channel is in progress,
-      // accented with the caster's class signature (rune ring + tinted glow).
-      const castSkill = p.cast?.skill ?? (p.castTime > 0 ? p.activeSkill : null);
-      const cast = castSkill ? castSignature(p, castSkill) : null;
-      if (GAME_FEATURES.spellVfx && cast) {
-        const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
-        schoolCastAura(c, px + tip.x, (mount ? py - MOUNT_SEAT_HEIGHT : py) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
-      }
-    } });
+    // Every controlled player is drawn; in co-op both share the world pass.
+    if (settings.phase !== 'ready') for (const subject of sim.players) {
+      const sx = lerp(subject.prevX, subject.x, alpha), sy = lerp(subject.prevY, subject.y, alpha);
+      entries.push({ y: sy, draw: () => {
+        const pose = playerPose(subject, sim.time);
+        pose.effectTime = settings.reducedMotion ? 0 : sim.time;
+        if (subject === p && sim.portal.active) { pose.cast = .45 * Math.min(1, sim.portal.progress * 4); pose.castColor = '#b5a0ee'; }
+        const summon = subject === p ? summonProgress(sim) : 0;
+        if (summon > 0) { pose.cast = Math.max(pose.cast ?? 0, .45 * summon); pose.castColor = '#8fd3a0'; }
+        const mount = subject.mounted ? MOUNTS[subject.mounted.id] : null;
+        if (mount) {
+          const seat = mountPose(subject, sim.time);
+          c.save(); c.translate(sx, sy); drawMount(c, mount, seat); c.restore();
+          this.actor(sx, sy - MOUNT_SEAT_HEIGHT, { ...pose, gaitPhase: 0, moving: 0 });
+        } else this.actor(sx, sy, pose);
+        drawPlayerSkillEffects(c, subject, sx, sy, settings.reducedMotion ? 0 : sim.time, pose, settings.reducedMotion);
+        const castSkill = subject.cast?.skill ?? (subject.castTime > 0 ? subject.activeSkill : null);
+        const cast = castSkill ? castSignature(subject, castSkill) : null;
+        if (GAME_FEATURES.spellVfx && cast) {
+          const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
+          schoolCastAura(c, sx + tip.x, (mount ? sy - MOUNT_SEAT_HEIGHT : sy) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
+        }
+      } });
+    }
     for(const scar of this.riftAtmosphere.visible)if(scar.float)entries.push({y:scar.y,stage:'props',draw:()=>this.riftAtmosphere.drawFragment(c,scar)});
     entries.sort((a, b) => a.y - b.y);
     for (const entry of entries) {

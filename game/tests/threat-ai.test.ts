@@ -32,6 +32,7 @@ function ally(s: Simulation, kind: Ally['kind'], x: number, y: number, id = 900)
 function aiContext(s: Simulation, moves: { vx: number; vy: number }[] = []): EnemyAIContext {
   return {
     player: s.player,
+    players: [s.player],
     allies: s.player.allies ?? [],
     hurtAlly: () => {},
     enemies: s.enemies,
@@ -54,15 +55,15 @@ test('damage threat accrues and the pull threshold gates aggro', () => {
   const ctx = aiContext(s);
   recordThreat(enemy, 'player', 100);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), 'player');
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), 'player');
   // Below the 110% melee pull line the pet does not pull.
   recordThreat(enemy, `ally:${pet.id}`, 109);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), 'player');
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), 'player');
   // Crossing it pulls aggro to the pet.
   recordThreat(enemy, `ally:${pet.id}`, 2);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), `ally:${pet.id}`);
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), `ally:${pet.id}`);
 });
 
 test('the enemy chases the threat holder instead of the nearest hostile', () => {
@@ -90,10 +91,10 @@ test('ranged attackers pull at 130% instead of 110%', () => {
   updateEnemyAI(enemy, 1 / 120, ctx);
   recordThreat(enemy, `ally:${imp.id}`, 125); // past 110%, short of 130%
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [imp]), 'player');
+  assert.equal(resolveThreatHolder(enemy, [s.player], [imp]), 'player');
   recordThreat(enemy, `ally:${imp.id}`, 6);   // 131 > 130%
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [imp]), `ally:${imp.id}`);
+  assert.equal(resolveThreatHolder(enemy, [s.player], [imp]), `ally:${imp.id}`);
 });
 
 test('taunt pins the target and snapshots threat to the top', () => {
@@ -105,16 +106,16 @@ test('taunt pins the target and snapshots threat to the top', () => {
   const ctx = aiContext(s, moves);
   recordThreat(enemy, `ally:${pet.id}`, 200);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), `ally:${pet.id}`);
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), `ally:${pet.id}`);
   // Player taunt: pins the player and pegs player threat to the top.
   enemy.taunted = { remaining: 3 };
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(threatTable(enemy)!.entries.get('player'), 200);
+  assert.equal(threatTable(enemy)!.entries.get('player:0'), 200);
   assert.ok(moves.at(-1)!.vx > 0, 'taunted enemy turns to the player');
   // Taunt expires: the snapshot keeps the player on top.
   delete enemy.taunted;
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), 'player');
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), 'player:0');
 });
 
 test('a pet growl pins the enemy on the pet', () => {
@@ -140,19 +141,19 @@ test('threat decays out of combat and dead combatants drop off', () => {
   recordThreat(enemy, 'player', 100);
   recordThreat(enemy, `ally:${pet.id}`, 50);
   enemy.state = 'idle'; enemy.awareness = 0;
-  tickThreat(enemy, 1, s.player, [pet]);
+  tickThreat(enemy, 1, [s.player], [pet]);
   assert.equal(threatTable(enemy)!.entries.get('player'), 75);
-  tickThreat(enemy, 4, s.player, [pet]);
+  tickThreat(enemy, 4, [s.player], [pet]);
   assert.equal(threatTable(enemy), undefined, 'fully decayed tables drop');
   // A dead ally leaves the table entirely.
   recordThreat(enemy, 'player', 100);
   recordThreat(enemy, `ally:${pet.id}`, 50);
   pet.hp = 0;
-  tickThreat(enemy, 0, s.player, [pet]);
+  tickThreat(enemy, 0, [s.player], [pet]);
   assert.equal(threatTable(enemy)!.entries.has(`ally:${pet.id}`), false);
   // Leashing home unaware wipes the table like a WoW evade.
   enemy.state = 'return'; enemy.awareness = 0;
-  tickThreat(enemy, 0, s.player, [pet]);
+  tickThreat(enemy, 0, [s.player], [pet]);
   assert.equal(threatTable(enemy), undefined);
 });
 
@@ -164,22 +165,22 @@ test('a dead player cannot hold aggro', () => {
   const ctx = aiContext(s);
   recordThreat(enemy, 'player', 100);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), 'player');
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), 'player');
   s.player.dead = true;
   recordThreat(enemy, `ally:${pet.id}`, 10);
   updateEnemyAI(enemy, 1 / 120, ctx);
-  assert.equal(resolveThreatHolder(enemy, s.player, [pet]), `ally:${pet.id}`);
+  assert.equal(resolveThreatHolder(enemy, [s.player], [pet]), `ally:${pet.id}`);
 });
 
 test('healing adds threat at half rate across engaged enemies', () => {
   resetThreatTables();
   const s = sim();
   const a = engaged(s), b = engaged(s, 'hound', 200, 0);
-  recordHealThreat(s.enemies, 80);
-  assert.equal(threatTable(a)!.entries.get('player'), 20);
-  assert.equal(threatTable(b)!.entries.get('player'), 20);
+  recordHealThreat(s.enemies, 80, s.player);
+  assert.equal(threatTable(a)!.entries.get('player:0'), 20);
+  assert.equal(threatTable(b)!.entries.get('player:0'), 20);
   // Idle, unaware enemies are not in combat and get nothing.
   const c = s.spawnEnemy('wisp', 400, 0)!;
-  recordHealThreat(s.enemies, 80);
+  recordHealThreat(s.enemies, 80, s.player);
   assert.equal(threatTable(c), undefined);
 });

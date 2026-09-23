@@ -1,6 +1,6 @@
 import { enemyMovementMultiplier } from './enemy-modifiers.ts';
 import { decoyTarget } from './unique-combat.ts';
-import { enemyRecoveryDuration, enemyWindupDuration, resolveThreatHolder, threatTable, tickThreat } from './enemy-threat.ts';
+import { enemyRecoveryDuration, enemyWindupDuration, resolveThreatHolder, threatPlayer, tickThreat, threatTable } from './enemy-threat.ts';
 import { projectileDamageType } from './resistance-content.ts';
 import type { Ally, DamageType } from './model.ts';
 import { hasWalkableSegment } from './world-navigation.ts';
@@ -15,12 +15,18 @@ import { enemyHostility, enemyHuntsPlayer } from './factions.ts';
 
 /** Decisions own no RNG, loot, progression, or drawing. Simulation supplies bounded world mutations. */
 export interface EnemyAIContext {
+  /** The resolved victim for this enemy's tick (rebound per enemy by
+   * updateEnemyAI/enemyTickContext); the sim seeds it with the primary player. */
   player: Player;
+  /** Every controlled player in the shared world: [P1] solo, [P1, P2] in co-op.
+   * Target resolution, area hit-tests and threat run over the whole roster. */
+  players: readonly Player[];
   target?: Pick<Player,'x'|'y'|'radius'|'dead'>;
   /** Player allies (pets/minions/totems); valid hostile targets when hurtAlly is wired. */
   allies?: readonly Ally[];
   hurtAlly?(ally:Ally,amount:number,angle:number,enemy:Enemy):void;
-  hurtDecoy?(id:number,amount:number):void;
+  /** Decoy damage; `victim` is the decoy's owning player (defaults to player). */
+  hurtDecoy?(id:number,amount:number,victim?:Player):void;
   enemies: readonly Enemy[];
   neighbors?(enemy:Enemy,padding:number):readonly Enemy[];
   world: WorldQuery;
@@ -28,13 +34,25 @@ export interface EnemyAIContext {
   trial: { campId: string; x: number; y: number; radius: number } | null;
   visible(ax: number, ay: number, bx: number, by: number): boolean;
   move(enemy: Enemy, vx: number, vy: number, dt: number): void;
-  hurt(amount: number, angle: number, enemy: Enemy, damageType: DamageType): void;
+  /** Damages the resolved victim; pass `victim` to strike another roster player
+   * (area effects hit-test every player and dispatch per victim). */
+  hurt(amount: number, angle: number, enemy: Enemy, damageType: DamageType, victim?: Player): void;
   shoot(enemy: Enemy, angle: number, definition: ProjectileDefinition, effects: ProjectileEffects): void;
   emit(event: CombatEvent): void;
   /** Treasure goblins shed gold piles while fleeing (simulation owns the piles). */
   dropGold?(enemy: Enemy): void;
-  /** Frozen elites chill the player through the shared buff overlay. */
-  addBuff?(name: string, color: string, spec: BuffSpec, id?: string): void;
+  /** Frozen elites chill the victim through the shared buff overlay. */
+  addBuff?(name: string, color: string, spec: BuffSpec, id?: string, victim?: Player): void;
+}
+
+/** Every hostile ally across the roster (pets/minions/totems of all players). */
+function contextAllies(context: EnemyAIContext): readonly Ally[] {
+  const players = context.players;
+  const own = context.allies ?? context.player.allies ?? [];
+  if (players.length <= 1) return own;
+  const allies = [...own];
+  for (const p of players) for (const ally of p.allies ?? []) if (!allies.includes(ally)) allies.push(ally);
+  return allies;
 }
 /** Live crowd-control check; entries expire when remaining reaches zero. */
 function ccActive(enemy: Enemy, kind: CcKind): boolean {
@@ -44,33 +62,45 @@ function ccActive(enemy: Enemy, kind: CcKind): boolean {
   return false;
 }
 
-/** Enemies engage the nearest hostile: the player or a living ally. Taunt pins the player. */
+/** Enemies engage the nearest hostile: any living player or ally. Taunt pins
+ * the taunting player (or the growling ally). */
 function nearestHostile(enemy: Enemy, context: EnemyAIContext): Player | Ally {
-  const p = context.player;
+  const players = context.players;
   const taunt = enemy.taunted;
   if ((taunt?.remaining ?? 0) > 0) {
-    // Pet growls pin the taunting ally instead of the player.
-    const ally = taunt!.allyId !== undefined ? (context.allies ?? p.allies ?? []).find(a => a.id === taunt!.allyId && a.hp > 0) : undefined;
-    return ally ?? p;
+    // Pet growls pin the taunting ally instead of a player.
+    if (taunt!.allyId !== undefined) {
+      const ally = contextAllies(context).find(a => a.id === taunt!.allyId && a.hp > 0);
+      if (ally) return ally;
+    } else {
+      const taunter = threatPlayer(players, `player:${taunt!.playerId ?? 0}`);
+      if (taunter && !taunter.dead) return taunter;
+    }
   }
-  let best: Player | Ally = p, bestD = p.dead ? Infinity : Math.hypot(p.x - enemy.x, p.y - enemy.y);
-  if (context.hurtAlly) for (const ally of context.allies ?? p.allies ?? []) {
+  let best: Player | Ally | undefined, bestD = Infinity;
+  for (const p of players) {
+    if (p.dead) continue;
+    const d = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+    if (d < bestD) { best = p; bestD = d; }
+  }
+  if (context.hurtAlly) for (const ally of contextAllies(context)) {
     if (ally.hp <= 0 || (ally.stealth?.remaining ?? 0) > 0) continue;
     const d = Math.hypot(ally.x - enemy.x, ally.y - enemy.y);
     if (d < bestD) { best = ally; bestD = d; }
   }
-  return best;
+  return best ?? context.player;
 }
 
 /** Threat-driven target: once a combatant holds threat, the enemy stays on it
  * until a challenger beats the holder by the WoW pull threshold (110% melee,
  * 130% ranged). Without a table the nearest hostile keeps its old behavior. */
 function threatHostile(enemy: Enemy, context: EnemyAIContext): Player | Ally {
-  const p = context.player;
-  const allies = context.hurtAlly ? (context.allies ?? p.allies ?? []) : [];
-  const holder = threatTable(enemy) ? resolveThreatHolder(enemy, p, allies) : undefined;
-  if (holder === 'player') return p;
+  const players = context.players;
+  const allies = context.hurtAlly ? contextAllies(context) : [];
+  const holder = threatTable(enemy) ? resolveThreatHolder(enemy, players, allies) : undefined;
   if (holder !== undefined) {
+    const player = threatPlayer(players, holder);
+    if (player) return player;
     const ally = allies.find(a => `ally:${a.id}` === holder);
     if (ally) return ally;
   }
@@ -129,19 +159,31 @@ function moveToward(enemy: Enemy, x: number, y: number, speed: number, dt: numbe
 function sense(enemy: Enemy, dt: number, context: EnemyAIContext): void {
   const p = context.target??context.player, definition = ENEMY_DEFINITIONS[enemy.kind];
   enemy.senseTime -= dt;
-  const distance = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+  let distance = Math.hypot(p.x - enemy.x, p.y - enemy.y);
+  let seen: typeof p | undefined;
   if (enemy.senseTime <= 0) {
     enemy.senseTime += ENEMY_AI_RULES.senseInterval;
-    let range = enemy.awareness >= 1 ? definition.awarenessDistance * 1.35 : definition.awarenessDistance;
-    // Stealth shrinks the sense bubble; only the real player can be stealthed.
-    if (p === context.player && context.player.stealthed) range = Math.min(range, WOW_COMBAT.stealthSenseRadius);
-    enemy.seesPlayer = distance < range && context.visible(enemy.x, enemy.y, p.x, p.y);
+    const range = enemy.awareness >= 1 ? definition.awarenessDistance * 1.35 : definition.awarenessDistance;
+    // Stealth shrinks the sense bubble; only a real player can be stealthed.
+    const rangeFor = (actor: typeof p) =>
+      'stealthed' in actor && actor.stealthed ? Math.min(range, WOW_COMBAT.stealthSenseRadius) : range;
+    if (distance < rangeFor(p) && context.visible(enemy.x, enemy.y, p.x, p.y)) seen = p;
+    // Co-op: a target-locked enemy still notices the rest of the roster; the
+    // nearest visible player owns lastSeen and the awareness rate.
+    if (!context.target) for (const other of context.players) {
+      if (other === p || other.dead) continue;
+      const d = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+      if (d < rangeFor(other) && context.visible(enemy.x, enemy.y, other.x, other.y)
+        && (!seen || d < distance)) { seen = other; distance = d; }
+    }
+    enemy.seesPlayer = seen !== undefined;
   }
   // A player-directed taunt compels attention regardless of sight or stealth;
   // a pet growl pins the ally instead and must not reveal a vanished player.
   if (p === context.player && (enemy.taunted?.remaining ?? 0) > 0 && enemy.taunted!.allyId === undefined) enemy.seesPlayer = true;
   if (enemy.seesPlayer) {
-    enemy.lastSeenX = p.x; enemy.lastSeenY = p.y; enemy.lostSightTime = 0;
+    const focus = seen ?? p;
+    enemy.lastSeenX = focus.x; enemy.lastSeenY = focus.y; enemy.lostSightTime = 0;
     enemy.awareness = Math.min(1, enemy.awareness + dt / ENEMY_AI_RULES.awarenessSeconds
       * (distance < ENEMY_AI_RULES.hearingDistance ? 2 : 1));
   } else {
@@ -230,20 +272,20 @@ function tickAffix(enemy: Enemy, dt: number, context: EnemyAIContext): void {
   // Shielding decays and molten patches burn out even while the elite disengages.
   state.shielded = Math.max(0, state.shielded - dt);
   if (state.patches) {
-    const p = context.player;
     for (const patch of state.patches) {
       patch.remaining -= dt;
-      if (patch.remaining > 0 && !p.dead
-        && Math.hypot(p.x - patch.x, p.y - patch.y) <= rules.molten.radius + p.radius
-        && context.visible(patch.x, patch.y, p.x, p.y))
-        context.hurt(enemy.damage * rules.molten.damageFraction * affixDamageMultiplier(enemy),
-          Math.atan2(p.y - patch.y, p.x - patch.x), enemy, 'fire');
+      if (patch.remaining <= 0) continue;
+      for (const p of context.players)
+        if (!p.dead && Math.hypot(p.x - patch.x, p.y - patch.y) <= rules.molten.radius + p.radius
+          && context.visible(patch.x, patch.y, p.x, p.y))
+          context.hurt(enemy.damage * rules.molten.damageFraction * affixDamageMultiplier(enemy),
+            Math.atan2(p.y - patch.y, p.x - patch.x), enemy, 'fire', p);
     }
     state.patches = state.patches.filter(patch => patch.remaining > 0);
     if (!state.patches.length) delete state.patches;
   }
   // Affixes only cycle while the elite is committed to the fight.
-  if (enemy.awareness < 1 || context.player.dead) return;
+  if (enemy.awareness < 1 || context.players.every(p => p.dead)) return;
   state.clock += dt;
   switch (affix) {
     case 'molten': {
@@ -258,10 +300,10 @@ function tickAffix(enemy: Enemy, dt: number, context: EnemyAIContext): void {
       const r = rules.arcane, phase = state.clock % r.period;
       if (phase >= r.telegraph && phase < r.telegraph + r.active) {
         const angle = enemy.id * 1.7 + (phase - r.telegraph) * r.revolutionsPerSecond * Math.PI * 2;
-        const p = context.player;
-        if (!p.dead && circleIntersectsSector(p.x, p.y, p.radius, enemy.x, enemy.y, angle, r.length, r.width / r.length)
-          && context.visible(enemy.x, enemy.y, p.x, p.y))
-          context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy), angle, enemy, 'arcane');
+        for (const p of context.players)
+          if (!p.dead && circleIntersectsSector(p.x, p.y, p.radius, enemy.x, enemy.y, angle, r.length, r.width / r.length)
+            && context.visible(enemy.x, enemy.y, p.x, p.y))
+            context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy), angle, enemy, 'arcane', p);
       }
       break;
     }
@@ -269,15 +311,15 @@ function tickAffix(enemy: Enemy, dt: number, context: EnemyAIContext): void {
       const r = rules.frozen;
       if (state.clock < r.period) break;
       state.clock -= r.period;
-      const p = context.player;
       context.emit({ type: 'blast', x: enemy.x, y: enemy.y, radius: r.radius, style: 'frost', enemyKind: enemy.kind });
-      if (!p.dead && Math.hypot(p.x - enemy.x, p.y - enemy.y) <= r.radius + p.radius
-        && context.visible(enemy.x, enemy.y, p.x, p.y)) {
-        context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy),
-          Math.atan2(p.y - enemy.y, p.x - enemy.x), enemy, 'frost');
-        context.addBuff?.('Chilled', '#8fd8f2',
-          { duration: r.chillSeconds, stats: { moveSpeedPercent: r.chillPercent } }, `affix-chill:${enemy.id}`);
-      }
+      for (const p of context.players)
+        if (!p.dead && Math.hypot(p.x - enemy.x, p.y - enemy.y) <= r.radius + p.radius
+          && context.visible(enemy.x, enemy.y, p.x, p.y)) {
+          context.hurt(enemy.damage * r.damageFraction * affixDamageMultiplier(enemy),
+            Math.atan2(p.y - enemy.y, p.x - enemy.x), enemy, 'frost', p);
+          context.addBuff?.('Chilled', '#8fd8f2',
+            { duration: r.chillSeconds, stats: { moveSpeedPercent: r.chillPercent } }, `affix-chill:${enemy.id}`, p);
+        }
       break;
     }
     case 'shielding': {
@@ -349,11 +391,11 @@ function updateTreasureGoblin(enemy: Enemy, dt: number, context: EnemyAIContext)
 /** Tick only a living, unstaggered actor; status/damage integration remains simulation-owned. */
 export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext): void {
   // Threat table maintenance: taunt snapshots, out-of-combat decay, leash wipes.
-  tickThreat(enemy, dt, context.player, context.allies ?? context.player.allies ?? []);
+  tickThreat(enemy, dt, context.players, contextAllies(context));
   const taunted=(enemy.taunted?.remaining??0)>0;
   if(taunted)delete enemy.decoyTarget;
   const target=taunted&&enemy.taunted?.allyId===undefined?context.player:taunted?undefined:decoyTarget(enemy,context.player,context.world,context.visible);
-  const original=context;if(target!==context.player)context={...context,target,hurt:(amount,angle,actor,type)=>{if(actor.decoyTarget)original.hurtDecoy?.(actor.decoyTarget.id,amount);else original.hurt(amount,angle,actor,type);}};
+  const original=context;if(target!==context.player)context={...context,target,hurt:(amount,angle,actor,type,victim)=>{if(actor.decoyTarget)original.hurtDecoy?.(actor.decoyTarget.id,amount,original.player);else original.hurt(amount,angle,actor,type,victim);}};
   if (enemy.state === 'chase') enemy.attackVariant = enemyAttackVariant(enemy);
   const hostile=context.target??threatHostile(enemy,context);
   if('kind' in hostile&&context.hurtAlly){

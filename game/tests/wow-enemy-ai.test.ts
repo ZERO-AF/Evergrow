@@ -15,7 +15,7 @@ function fixture() {
   sim.player.x = 0; sim.player.y = 0;
   const hits: { amount: number; ally?: number }[] = [];
   const context: EnemyAIContext = {
-    world, player: sim.player, enemies: sim.enemies, time: 0, trial: null, visible: () => true,
+    world, player: sim.player, players: [sim.player], enemies: sim.enemies, time: 0, trial: null, visible: () => true,
     move: (e, vx, vy, dt) => { e.x += vx * dt; e.y += vy * dt; },
     hurt: amount => hits.push({ amount }),
     hurtAlly: (a, amount) => hits.push({ amount, ally: a.id }),

@@ -196,7 +196,7 @@ test('key movement modifiers apply to guardian pursuit without changing attack g
  let seed=0;while(!riftModifiers({attempt:1,keySeed:seed,keyTier:5}).some(m=>m.id==='swift'))seed++;
  boss.rift={attempt:1,keySeed:seed,keyTier:5};boss.state='chase';boss.awareness=1;
  sim.player.x=boss.x+500;sim.player.y=boss.y;
- let speed=0;updateWildernessBoss(boss,1/120,{player:sim.player,enemies:[boss],world:surface,time:0,trial:null,visible:()=>true,move:(_e,vx,vy)=>{speed=Math.hypot(vx,vy);},hurt:()=>{},shoot:()=>{},emit:()=>{}});
+ let speed=0;updateWildernessBoss(boss,1/120,{player:sim.player,players:[sim.player],enemies:[boss],world:surface,time:0,trial:null,visible:()=>true,move:(_e,vx,vy)=>{speed=Math.hypot(vx,vy);},hurt:()=>{},shoot:()=>{},emit:()=>{}});
  assert.ok(Math.abs(speed-ENEMY_DEFINITIONS[boss.kind].speed*1.20)<1e-8);
 });
 

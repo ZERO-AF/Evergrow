@@ -130,6 +130,16 @@
 .title-save-branch .ui-button { margin-top: 12px; }
 .title-save-branch--recovery { background: none; border-color: #bdd9e322; }
 
+/* The co-op partner pick mirrors the save-branch panes; the forge is a compact form. */
+.title-coop { display: grid; gap: 14px; width: 100%; }
+.title-coop h3 { margin: 0; color: #c6e0e7; font-size: 17px; font-weight: 400; }
+.title-coop p { color: #a8bec7; font-size: 13px; line-height: 1.5; margin: 0; }
+.title-coop-partners { display: flex; flex-wrap: wrap; gap: 8px; }
+.title-coop-partners .ui-button small { display: block; color: #a8bec7; font-size: 11px; }
+.title-coop-forge { display: grid; gap: 12px; }
+.title-coop-forge label { display: grid; gap: 6px; color: #a8bec7; font-size: 13px; }
+.title-coop-forge input, .title-coop-forge select { font: inherit; color: var(--ui-ivory); background: #040d1660; border: 1px solid #bdd9e33b; padding: 8px 10px; }
+
 /* Stable roster silhouettes while the account and character list arrive. */
 .title-slot-skeleton { display:flex; align-items:center; gap:12px; min-height:82px; padding:7px 10px 7px 7px; border:1px solid #708d931c; border-left:3px solid #46545e33; background:#040d1625; animation:title-loading-breathe 1.8s ease-in-out infinite alternate; }
 .title-slot-skeleton .title-slot-figure { border-color:#a4c3cc22; background:#a4c3cc10; }

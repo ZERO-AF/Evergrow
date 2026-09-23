@@ -28,22 +28,31 @@ import type { Player } from './model.ts';
 import { createCharacterSheet } from './items.ts';
 import { createCharacterLook, type CharacterLook } from './character-look.ts';
 import { SKIN_PALETTES, HAIR_PALETTES, HAIR_STYLES, FACIAL_HAIR, ACCESSORIES, RACE_FEATURES, RACE_FEATURE_OPTIONS, type AppearancePalette, type CharacterAppearance } from './appearance-content.ts';
+import { createCoopCharacter } from './pvp-chargen.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { specIdentity } from './skill-progression.ts';
 import { WOW_RACES, raceAllowsClass } from './wow-races.ts';
-import { WOW_CLASS_IDS, WOW_RACE_IDS, type WowClassId, type WowRaceId } from './wow-types.ts';
+import { WOW_CLASS_IDS, WOW_RACE_IDS, isWowClassId, isWowRaceId, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { parseWorldSeed } from './world-seed.ts';
 import { displayName } from './title-state.ts';
 import './game-wordmark.css';
 import './home-screen.css';
 import './title-screen.css';
+/** The co-op result the orchestrator consumes: P1's roster slot plus the partner —
+ * another saved slot, or a session-only 'guest'/'new' character already minted as
+ * `p2Player` (never persisted; the run discards it like a PvP session sheet). */
+export interface CoopEntry {
+  readonly p1Slot: number;
+  readonly p2Slot: number | 'guest' | 'new';
+  readonly p2Player?: Player;
+}
 export interface TitleActions extends AudioControlActions {
   leaderboard?: LeaderboardLoader;
   chronicle?(onCached?:(ledger:ChronicleLedger)=>void): Promise<ChronicleLedger>;
-  create(index: number, name: string, classId: WowClassId, raceId: WowRaceId, look: CharacterLook, seed: number): void;
+  create(index: number, name: string, classId: WowClassId, raceId: WowRaceId, look: CharacterLook, seed: number, coop?: CoopEntry): void;
   editAppearance?(slot: SaveSlot): void;
   continueRecovery?(index: number, token: string): void;
-  continue(index: number): void; remove(index: number, expected: string | null): void;
+  continue(index: number, coop?: CoopEntry): void; remove(index: number, expected: string | null): void;
   read?(index: number): Promise<SaveSlot>; source?(mode: SaveMode): void;
   retry?(): void;
   download?(index: number): void; import?(index: number, file: File): void; useCloud?(index: number, expected: string | null): void;
@@ -55,6 +64,14 @@ const homePages: readonly HomePage[] = ['characters','chronicle','leaderboard','
 const homeLabels = { characters: 'Characters', chronicle: 'Chronicle', leaderboard: 'Leaderboard', changelog: 'What’s new', arena: 'Arena' };
 const format = (n: number) => Math.round(n).toLocaleString('en-US');
 interface CreationDraft { classId?: WowClassId; raceId?: WowRaceId; look: CharacterLook; }
+/** Staged co-op setup: 'pick' = choosing the partner, 'forge' = minting a session-only
+ * partner through the creation forge. `create` holds a staged P1 creation (empty slot)
+ * until the partner is chosen, so one action call carries the whole entry. */
+interface CoopPartner { kind: 'slot' | 'guest' | 'new'; slot?: number; player?: Player }
+interface CoopState {
+  stage: 'pick' | 'forge';
+  create?: { name: string; classId: WowClassId; raceId: WowRaceId; look: CharacterLook; seed: number };
+}
 const roleIcons: Record<string, UIIconName> = {
   'Melee damage': 'sword', 'Ranged damage': 'center', 'Spell damage': 'star', Healing: 'plus',
   Tank: 'shield', Pet: 'skull', Stealth: 'dodge', Control: 'diamond',
@@ -96,6 +113,9 @@ export class TitleScreen {
   private focus?: { dispose(): void };
   private frame = 0;
   private framePacer = new FramePacer(60);
+  private coop?: CoopState;
+  private coopP1 = false;
+  private coopAvailable = false;
   private confirming: 'delete' | 'cloud' | null = null;
   private loading = false;
   private rosterLoading = false;
@@ -119,6 +139,9 @@ export class TitleScreen {
     this.element.querySelector('details.title-audio')!.addEventListener('toggle', event => {
       refreshAudio(); actions.panelSound?.((event.target as HTMLDetailsElement).open);
     }, { signal: this.abort.signal });
+    // A second pad arriving or leaving mid-setup re-gates the co-op offer.
+    globalThis.addEventListener?.('gamepadconnected', () => this.refreshCoopGate(), { signal: this.abort.signal });
+    globalThis.addEventListener?.('gamepaddisconnected', () => this.refreshCoopGate(), { signal: this.abort.signal });
     this.canvas = this.element.querySelector('.title-hero canvas')!; this.heroHome = this.canvas.parentElement!; mount.append(this.element);
     this.itemTooltip = new ItemTooltip(this.element, 'title-item-tooltip');
     this.bindItemTooltips();
@@ -190,6 +213,12 @@ export class TitleScreen {
       if (action === 'cancel') { this.confirming = null; this.renderSelection(); }
       if (action === 'confirm-delete') this.actions.remove(this.selected, this.slots[this.selected]?.token ?? null);
       if (action === 'confirm-cloud') this.actions.useCloud?.(this.selected, this.slots[this.selected]?.token ?? null);
+      if (action === 'coop') this.armCoop();
+      if (action === 'coop-cancel') { this.coop = undefined; this.coopP1 = false; this.renderSelection(); }
+      if (action === 'coop-back' && this.coop) { this.coop.stage = 'pick'; this.renderSelection(); }
+      if (action === 'coop-guest' && this.coop?.stage === 'pick') this.pickCoopPartner({ kind: 'guest' });
+      if (action === 'coop-new' && this.coop?.stage === 'pick') { this.coop.stage = 'forge'; this.renderSelection(); }
+      if (button.dataset.coopSlot !== undefined && this.coop?.stage === 'pick') this.pickCoopPartner({ kind: 'slot', slot: Number(button.dataset.coopSlot) });
       if (action === 'download' && this.source.mode === 'local') this.actions.download?.(this.selected);
       if (action === 'import' && this.source.mode === 'local') this.element.querySelector<HTMLInputElement>('.title-file')!.click();
       if (action === 'random-seed') { const input = this.element.querySelector<HTMLInputElement>('[name="world-seed"]'); if (input) { input.value = this.rollSeed(); input.setCustomValidity(''); } }
@@ -203,11 +232,17 @@ export class TitleScreen {
       if (this.source.mode === 'local' && input.type === 'file' && input.files?.[0]) { this.actions.import?.(this.selected, input.files[0]); input.value = ''; }
     }, { signal: this.abort.signal });
     this.element.addEventListener('submit', event => {
-      event.preventDefault(); const input = this.element.querySelector<HTMLInputElement>('[name="character-name"]');
+      event.preventDefault();
+      if (event.target instanceof HTMLFormElement && event.target.dataset.coopForge !== undefined) { this.forgeCoopPartner(event.target); return; }
+      const input = this.element.querySelector<HTMLInputElement>('[name="character-name"]');
       const seedInput = this.element.querySelector<HTMLInputElement>('[name="world-seed"]'); if (!seedInput) return;
       const seed = this.validateSeed(seedInput); if (seed === null) { seedInput.reportValidity(); return; }
       const draft = this.drafts.get(this.selected), name = input?.value.trim();
-      if (name && draft?.classId && draft.raceId) this.actions.create(this.selected, name, draft.classId, draft.raceId, draft.look, seed);
+      if (name && draft?.classId && draft.raceId) {
+        if (this.coopP1 && this.coopAvailable) this.coop = { stage: 'pick', create: { name, classId: draft.classId, raceId: draft.raceId, look: draft.look, seed } };
+        else this.actions.create(this.selected, name, draft.classId, draft.raceId, draft.look, seed);
+        if (this.coop) this.renderSelection();
+      }
     }, { signal: this.abort.signal });
   }
   activateGamepad(target: HTMLElement): boolean {
@@ -225,7 +260,7 @@ export class TitleScreen {
   setBusy(busy: boolean) { if (busy) this.itemTooltip.hide(); this.element.inert = busy || this.element.style.visibility === 'hidden'; this.element.classList.toggle('is-busy', busy); this.element.setAttribute('aria-busy', String(busy)); }
   setRosterLoading(loading: boolean) {
     this.rosterLoading = loading;
-    if (loading) { this.inspection++; this.loading = false; this.confirming = null; this.closeAppearanceEditor(); }
+    if (loading) { this.inspection++; this.loading = false; this.confirming = null; this.coop = undefined; this.coopP1 = false; this.closeAppearanceEditor(); }
     this.render();
   }
   setSource(source: SaveSourceUI) {
@@ -255,9 +290,10 @@ export class TitleScreen {
   open(slots: SaveSlot[], preferred?: number) {
     this.selectPage('characters', false); this.element.inert = false;
     this.rosterLoading = this.source.status === 'Loading…';
-    this.slots = slots; this.names.clear(); this.seedDrafts.clear(); this.drafts.clear(); this.closeAppearanceEditor();
+    this.slots = slots; this.names.clear(); this.seedDrafts.clear(); this.drafts.clear(); this.closeAppearanceEditor(); this.coop = undefined; this.coopP1 = false;
     const latest = [...slots].sort((a, b) => (b.record?.updatedAt ?? b.summary?.updatedAt ?? 0) - (a.record?.updatedAt ?? a.summary?.updatedAt ?? 0))[0]?.index ?? 0;
     this.selected = preferred ?? latest; this.confirming = null; this.element.hidden = false; this.message(''); this.setSource(this.source);
+    this.refreshCoopGate();
     this.refreshSelected();
     this.focus?.dispose(); this.focus = trapDialogFocus(this.element, { signal: this.abort.signal, restoreFocus: false,
       initialFocus: () => this.initialSelectionFocus() });
@@ -303,6 +339,7 @@ export class TitleScreen {
   }
   dismissOverlay(): boolean {
     if (this.editor) { this.editor.cancel(); return true; }
+    if (this.coop || this.coopP1) { this.coop = undefined; this.coopP1 = false; this.renderSelection(); return true; }
     if (!this.itemTooltip.element.hidden) { this.itemTooltip.hide(); return true; }
     const audio = this.element.querySelector<HTMLDetailsElement>('.title-audio')!;
     if (audio.open) { audio.open = false; audio.querySelector('summary')!.focus(); return true; }
@@ -344,7 +381,7 @@ export class TitleScreen {
   private choose(index: number, focus = true, refresh = false) {
     if (!refresh && (index === this.selected || this.rosterLoading)) return;
     this.itemTooltip.hide();
-    this.selected = index; this.confirming = null;
+    this.selected = index; this.confirming = null; this.coop = undefined; this.coopP1 = false;
     const slot = this.slots[index];
     this.loading = !!slot && !!this.actions.read;
     const ticket = ++this.inspection;
@@ -365,7 +402,7 @@ export class TitleScreen {
     target.textContent = text; target.hidden = !text;
     if (retry) target.insertAdjacentHTML('beforeend', ' <button class="ui-button" data-action="refresh-selection">Retry</button>');
   }
-  close() { this.closeAppearanceEditor(); this.itemTooltip.hide(); this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.arena?.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; cancelAnimationFrame(this.frame); this.frame = 0; }
+  close() { this.closeAppearanceEditor(); this.itemTooltip.hide(); this.changelog.close(false); this.chronicle.close(false); this.leaderboard.close(); this.arena?.close(); this.element.inert = false; this.inspection++; this.element.hidden = true; this.focus?.dispose(); this.focus = undefined; this.coop = undefined; this.coopP1 = false; cancelAnimationFrame(this.frame); this.frame = 0; }
   dispose() { this.close(); this.portraitObserver.disconnect(); this.itemTooltip.dispose(); this.changelog.dispose(); this.chronicle.dispose(); this.leaderboard.dispose(); this.arena?.dispose(); this.abort.abort(); this.element.remove(); }
   private rollSeed() { const value = String(crypto.getRandomValues(new Uint32Array(1))[0]); this.seedDrafts.set(this.selected, value); return value; }
   private validateSeed(input: HTMLInputElement) { const seed = parseWorldSeed(input.value); input.setCustomValidity(seed === null ? 'Use a whole number from 0 to 4294967295.' : ''); return seed; }
@@ -451,12 +488,19 @@ export class TitleScreen {
         <button class="ui-button ui-button--quiet" data-action="delete">Delete character</button>
       </div>`; return;
     }
+    if (this.coop) {
+      this.setCreating(false);
+      if (this.coop.stage === 'forge') this.renderCoopForge(selection); else this.renderCoopPick(selection);
+      return;
+    }
     if (record) {
       selection.innerHTML = titleCharacterDetails(record, this.player.derived, this.detailTab, !!this.actions.editAppearance);
       const cls = WOW_CLASSES[record.checkpoint.character.classId], race = WOW_RACES[record.checkpoint.character.raceId];
       if (cls && race) selection.querySelector?.('.title-selection-heading')?.insertAdjacentHTML('afterend',
         `<p class="title-identity">Level ${record.checkpoint.level} ${race.name} <b class="title-slot-class" style="color:${cls.color}">${escapeUI(specIdentity(record.checkpoint.character) || cls.name)}</b></p>`);
       if (slot.conflict) selection.querySelector?.('.title-cta-row')?.insertAdjacentHTML('beforebegin', '<div class="title-conflict"><span>Another device has a newer save.</span><button class="ui-button" data-action="cloud">Use cloud version</button></div>');
+      selection.querySelector?.('.title-cta-row')?.insertAdjacentHTML('afterbegin',
+        `<button class="ui-button" data-action="coop" ${this.coopAvailable ? '' : 'disabled'} title="${this.coopAvailable ? 'Bring a second player into this world' : 'Connect a second controller to play co-op'}">${uiIcon('character')}<span>2P co-op</span></button>`);
     } else if (slot?.state === 'empty') {
       if (slot.conflict || slot.pending) {
         selection.innerHTML = '<div class="title-confirm"><h3>Deletion needs attention</h3><p>Resolve this slot’s cloud save before creating another character.</p><button class="ui-button" data-action="retry">Retry</button><button class="ui-button" data-action="delete">Delete character</button></div>'; return;
@@ -590,11 +634,75 @@ export class TitleScreen {
         <div class="title-look-row"><span class="title-look-label">Skin</span><div class="title-swatches" role="group" aria-label="Skin tone">${swatches('skin', race?.skinTones.length ? SKIN_PALETTES.filter(p => race.skinTones.includes(p.id)) : SKIN_PALETTES)}</div></div>
         <div class="title-look-row"><span class="title-look-label">Hair</span><div class="title-swatches" role="group" aria-label="Hair color">${swatches('hairColor', HAIR_PALETTES)}</div></div>
         <div class="title-look-selects">${lookSelect('hair', 'Style', HAIR_STYLES)}${lookSelect('facialHair', 'Facial hair', FACIAL_HAIR)}${lookSelect('accessory', 'Accessory', ACCESSORIES)}${draft.raceId && RACE_FEATURE_OPTIONS[draft.raceId]?.length ? lookSelect('feature', 'Features', (RACE_FEATURE_OPTIONS[draft.raceId] ?? []).map(id => RACE_FEATURES.find(f => f.id === id)!)) : ''}</div>
-        <div class="title-create-actions"><button type="button" class="ui-button" data-action="appearance">${uiIcon('palette')}<span>Armor &amp; details</span></button><button class="ui-button ui-button--primary title-enter" type="submit" ${ready ? '' : 'disabled'}><span>Create character</span>${uiIcon('chevron')}</button></div>
+        <div class="title-create-actions"><button type="button" class="ui-button" data-action="appearance">${uiIcon('palette')}<span>Armor &amp; details</span></button><button type="button" class="ui-button" data-action="coop" aria-pressed="${this.coopP1}" ${this.coopAvailable ? '' : 'disabled'} title="${this.coopAvailable ? 'Create this hero and bring a second player' : 'Connect a second controller to play co-op'}">${uiIcon('character')}<span>2P co-op</span></button><button class="ui-button ui-button--primary title-enter" type="submit" ${ready ? '' : 'disabled'}><span>Create character</span>${uiIcon('chevron')}</button></div>
       </form>
       <section class="title-forge-column" aria-label="Class"><h3>Class</h3><div class="title-class-grid" role="group" data-class-grid>${WOW_CLASS_IDS.map(classCard).join('')}</div></section>
     </div>`;
     this.setCreating(true);
+  }
+  /** The 2P offer rides on a second gamepad: hotplug events and roster opens
+   * re-gate it, and losing the pad mid-setup drops the staged partner flow. */
+  private refreshCoopGate() {
+    let pads = 0;
+    try { if (navigator.getGamepads) for (const pad of navigator.getGamepads()) if (pad?.connected) pads++; } catch { /* API may be denied by the host. */ }
+    const available = pads >= 2;
+    if (available === this.coopAvailable) return;
+    this.coopAvailable = available;
+    if (!available) { this.coop = undefined; this.coopP1 = false; }
+    if (!this.element.hidden) this.renderSelection();
+  }
+  /** Arm co-op for the selected slot: a saved slot goes straight to partner pick;
+   * an empty slot toggles the forge's 2P flag so submitting stages the pick. */
+  private armCoop() {
+    if (!this.coopAvailable) return;
+    const slot = this.slots[this.selected];
+    if (slot?.record && !slot.conflict) { this.coop = { stage: 'pick' }; this.renderSelection(); }
+    else if (slot?.state === 'empty' && !slot.conflict && !slot.pending) { this.coopP1 = !this.coopP1; this.renderSelection(); }
+  }
+  /** The 'pick' stage: partner candidates are the other saved slots, a session
+   * guest, or a forged 'new' character (only saved partners persist). */
+  private renderCoopPick(selection: Element) {
+    const partners = this.slots.filter(s => s.index !== this.selected && (s.record || s.summary) && !s.conflict);
+    const label = (s: SaveSlot) => {
+      const name = s.record ? displayName({ name: s.record.name, character: s.record.checkpoint.character }) : s.summary!.name;
+      return `${escapeUI(name)} <small>Lv ${s.record?.checkpoint.level ?? s.summary!.level}</small>`;
+    };
+    selection.innerHTML = `<div class="title-coop"><h3>Player 2</h3><p>Choose who joins ${this.coop?.create ? 'after creation' : 'the world'} — a saved hero keeps their own slot; a guest or new hero lives only for this session.</p>
+      <div class="title-coop-partners">${partners.map(s => `<button class="ui-button" data-coop-slot="${s.index}">${label(s)}</button>`).join('')}
+      <button class="ui-button" data-action="coop-guest">${uiIcon('character')}<span>Guest <small>session only</small></span></button>
+      <button class="ui-button" data-action="coop-new">${uiIcon('plus')}<span>New hero <small>session only</small></span></button></div>
+      <div class="title-actions"><button class="ui-button" data-action="coop-cancel">Cancel</button></div></div>`;
+  }
+  /** The 'forge' stage: mint a session-only partner through createCoopCharacter —
+   * same race/class legality as the roster forge, never a save write. */
+  private renderCoopForge(selection: Element) {
+    selection.innerHTML = `<div class="title-coop"><h3>Forge Player 2</h3>
+      <form class="title-coop-forge" data-coop-forge>
+        <label>Name<input name="coop-name" maxlength="24" minlength="1" required autocomplete="off" value="Companion" pattern=".*\\S.*"/></label>
+        <label>Race<select name="coop-race">${WOW_RACE_IDS.map(id => `<option value="${id}">${WOW_RACES[id].name}</option>`).join('')}</select></label>
+        <label>Class<select name="coop-class">${WOW_CLASS_IDS.map(id => `<option value="${id}">${WOW_CLASSES[id].name}</option>`).join('')}</select></label>
+        <div class="title-actions"><button type="button" class="ui-button" data-action="coop-back">Back</button><button class="ui-button ui-button--primary" type="submit"><span>Forge partner</span>${uiIcon('chevron')}</button></div>
+      </form></div>`;
+  }
+  private forgeCoopPartner(form: HTMLFormElement) {
+    if (!this.coop) return;
+    const name = (form.elements.namedItem('coop-name') as HTMLInputElement | null)?.value.trim() || 'Companion';
+    const raceId = (form.elements.namedItem('coop-race') as HTMLSelectElement | null)?.value ?? '';
+    const classId = (form.elements.namedItem('coop-class') as HTMLSelectElement | null)?.value ?? '';
+    if (!isWowRaceId(raceId) || !isWowClassId(classId) || !raceAllowsClass(raceId, classId)) { this.message('That race cannot be that class.'); return; }
+    const player = createCoopCharacter(name, classId, raceId);
+    if (!player) { this.message('Could not create the partner. Try another pairing.'); return; }
+    this.pickCoopPartner({ kind: 'new', player });
+  }
+  /** Resolve the staged entry and hand the whole party to the orchestrator in one
+   * action call: create() when P1 is a staged creation, continue() otherwise. */
+  private pickCoopPartner(partner: CoopPartner) {
+    const coop = this.coop; if (!coop) return;
+    const entry: CoopEntry = { p1Slot: this.selected, p2Slot: partner.kind === 'slot' ? partner.slot ?? -1 : partner.kind, p2Player: partner.player };
+    const create = coop.create;
+    this.coop = undefined; this.coopP1 = false;
+    if (create) this.actions.create(this.selected, create.name, create.classId, create.raceId, create.look, create.seed, entry);
+    else this.actions.continue(this.selected, entry);
   }
   private animate = (): void => {
     if (this.element.hidden) return;

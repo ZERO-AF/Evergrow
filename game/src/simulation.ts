@@ -1026,7 +1026,7 @@ export class Simulation {
     if (healed > 0) this.emit({ type: 'heal', x: p.x, y: p.y, value: healed, ...(color ? { color } : {}) });
     if (healed > 0) tryTriggerProc(p, 'onHeal', this.procContext());
     // Healing generates threat on every engaged enemy (WoW healer-aggro rule).
-    if (healed > 0) recordHealThreat(this.enemies, healed);
+    if (healed > 0) recordHealThreat(this.enemies, healed, p);
   }
 
   /** Minimal context for self-targeted proc triggers (cast/heal): buffs, events, rolls. */
@@ -1847,21 +1847,21 @@ export class Simulation {
     const p = this.player;
     const trial = this.eventState.trial && !this.dungeonFloor ? this.eventState.sites[this.eventState.trial.siteId] : null;
     const context = {
-      player: p, enemies: this.enemies, world: this.world, time: this.time,
+      player: p, players: this.players, enemies: this.enemies, world: this.world, time: this.time,
       allies: p.allies ?? [],
       hurtAlly: (ally: Ally, amount: number) => this.damageAlly(ally, amount),
       neighbors:(enemy,padding)=>this.enemyNeighbors.around(enemy,padding),
-      hurtDecoy:(id,amount)=>{hurtDecoy(p,id,amount);},
+      hurtDecoy:(id,amount,victim)=>{hurtDecoy(victim??p,id,amount);},
       trial: trial ? { campId: `event:${trial.id}`, x: trial.x, y: trial.y, radius: EVENT_RULES.trialRadius } : worldEventTrialContext(this.worldEvents),
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
       move: (actor, vx, vy, delta) => this.moveEnemy(actor, vx, vy, delta),
-      hurt: (amount, angle, actor, damageType) => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical', actor),
+      hurt: (amount, angle, actor, damageType, victim) => this.forPlayer(victim ?? p, () => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical', actor)),
       shoot: (actor, angle, definition, effects) => this.projectile(actor.x, actor.y, angle,
         definition, undefined, effects, actor.level, actor.kind, enemyDisplayName(actor), actor.id),
       emit: event => this.emit(event),
       dropGold: actor => dropGold(this.groundGold, { id: this.nextId++, x: actor.x, y: actor.y,
         amount: TREASURE_GOBLIN.goldBase + TREASURE_GOBLIN.goldPerLevel * actor.level, age: 0 }),
-      addBuff: (name, color, spec, id) => this.addBuffTo(this.player, name, color, spec, id),
+      addBuff: (name, color, spec, id, victim) => this.addBuffTo(victim ?? this.player, name, color, spec, id),
     } as EnemyAIContext;
     this.riftTactics.tick(context,dt,currentDungeon(this.expeditions)?.rift?.phase==='hunt');
     for (const enemy of this.enemies) {

@@ -20,7 +20,7 @@ function fixture(kind: EnemyKind, distance=45, seed=7319) {
   const sim=new Simulation(world,{spawn:false,seed});
   const enemy=sim.spawnEnemy(kind,-distance,0,'elite',undefined,{base:32,min:32,max:32,fixed:true})!;
   const hits:number[]=[],shots:{angle:number;damage:number}[]=[];
-  const context:EnemyAIContext={world,player:sim.player,enemies:sim.enemies,time:0,trial:null,visible:()=>true,
+  const context:EnemyAIContext={world,player:sim.player,players:[sim.player],enemies:sim.enemies,time:0,trial:null,visible:()=>true,
     move:()=>{},hurt:damage=>hits.push(damage),shoot:(_e,angle,d)=>shots.push({angle,damage:d.damage}),emit:()=>{}};
   const update=()=>kind==='warden'?updateWarden(enemy,1/120,context)
     :['briarMatriarch','ashColossus','graveMarshal'].includes(kind)?updateWildernessBoss(enemy,1/120,context)

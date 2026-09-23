@@ -56,7 +56,7 @@ test('the tank taunts an enemy off the player and holds the threat table', () =>
   recordThreat(enemy, 'player', 500);
   tickDungeonParty(sim);
   assert.equal(enemy.taunted?.allyId, tank!.id, 'taunt compels the enemy onto the tank');
-  assert.equal(resolveThreatHolder(enemy, sim.player, sim.player.allies ?? []), `ally:${tank!.id}`);
+  assert.equal(resolveThreatHolder(enemy, [sim.player], sim.player.allies ?? []), `ally:${tank!.id}`);
   // The threat trickle keeps the tank ahead of fresh damage.
   const before = threatTable(enemy)!.entries.get(`ally:${tank!.id}`) ?? 0;
   tick(sim, 1.5);

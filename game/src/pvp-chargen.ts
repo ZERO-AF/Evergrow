@@ -10,7 +10,7 @@ import { allocateSkillRoute, buildSkillRoutes } from './skill-tree-routes.ts';
 import { SKILL_NODES, unlockedSkills } from './skill-tree.ts';
 import { specSignatureNode } from './skill-tree-content.ts';
 import { chosenSpec, specIdentity } from './skill-progression.ts';
-import { assignSkill, refreshCharacter } from './character.ts';
+import { assignSkill, createCharacter, refreshCharacter } from './character.ts';
 import { initialPlayer } from './simulation.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { raceAllowsClass, WOW_RACES } from './wow-races.ts';
@@ -436,4 +436,14 @@ export function buildCustomCharacter(options: CustomCharacterOptions): PvpCharac
   player.soulShards = 4;
   player.name = options.name ?? specIdentity(sheet);
   return { player, sheet, summary: summarize(sheet, level, role) };
+}
+
+/** Couch co-op session character: minted entirely in memory through the same
+ * `initialPlayer` + `createCharacter` path the live game uses, so the partner obeys
+ * race/class legality, starter gear and resource seeding. Never a CharacterSession,
+ * never a save write — the session character lives only for the co-op run, exactly
+ * like the Custom-mode build above. Returns null when the pair is illegal. */
+export function createCoopCharacter(name: string, classId: WowClassId, raceId: WowRaceId, look?: CharacterLook): Player | null {
+  const player = initialPlayer(0, 0);
+  return createCharacter(player, name, classId, raceId, look).ok ? player : null;
 }

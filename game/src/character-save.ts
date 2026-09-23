@@ -4,14 +4,14 @@ import { STASH_CAPACITY, MAX_STORAGE_TABS } from './storage-content.ts';
 import { validPackLayout } from './inventory-grid.ts';
 import { validBagSlots } from './bag-state.ts';
 import { bagGridLayout } from './bag-content.ts';
-import { validEncounterScales } from './encounter-scaling.ts';
+import { validEncounterScales, type EncounterScales } from './encounter-scaling.ts';
 import { validChronicle, type ChronicleProgress } from './chronicle.ts';
 import { validTreasureFlight } from './treasure-flight.ts';
 import { createRaceLook, validCharacterLook } from './character-look.ts';
 import { ROAMING_RULES } from './roaming-encounters.ts';
 import { validJourneys, type JourneyState } from './journey-state.ts';
 import type { Expeditions, StoredActor } from './dungeon-state.ts';
-import type { Pickup } from './model.ts';
+import type { Ally, Pickup, Player, WowBuff } from './model.ts';
 import { validExpeditions, validActors, validCampWounds, validPickups } from './dungeon-validation.ts';
 import { validEvents, validBlessing } from './poi-validation.ts';
 import type { EventState } from './poi-content.ts';
@@ -39,8 +39,8 @@ import { ENEMY_DEFINITIONS, LOOT_RULES } from './combat-content.ts';
 import { validTransmogMap } from './transmog-state.ts';
 import { validSpecs } from './dual-spec-state.ts';
 import { freshWorldEvents, validWorldEvents, type WorldEventState } from './world-event-state.ts';
-import { freshWorldBossLedger, validWorldBossLedger } from './world-boss-state.ts';
-import { freshHoliday, validHoliday, validDarkmoonTickets } from './holiday-state.ts';
+import { freshWorldBossLedger, validWorldBossLedger, type WorldBossLedger } from './world-boss-state.ts';
+import { freshHoliday, validHoliday, validDarkmoonTickets, type HolidayState } from './holiday-state.ts';
 import { validMailState } from './mail-state.ts';
 import { validAuctionHouse } from './auction-state.ts';
 import { PET_FAMILIES, PET_RULES, petXpForLevel } from './pet-content.ts';
@@ -52,33 +52,93 @@ import { isTitleId } from './title-content.ts';
 import { PET_FAMILY_TREE, PET_TALENTS } from './pet-talent-content.ts';
 
 export const CHARACTER_SLOT_COUNT = 8;
-export const CHARACTER_SAVE_VERSION = 7;
+export const CHARACTER_SAVE_VERSION = 8;
 export const SAVE_MAX_CODE_UNITS = 8 * 1024 * 1024;
-export interface CharacterCheckpoint {
-  chronicle?: ChronicleProgress;
+
+/** Shared-world half of a checkpoint: one authoritative copy per co-op session.
+ * captureWorld() emits exactly these fields; both co-op slots store them. */
+export interface WorldCheckpoint {
   brokenContainers?: string[];
   journeys?: JourneyState;
   roaming?: {warmup:number;cooldown:number;requiredDistance:number};
-  encounterScales?: import('./encounter-scaling.ts').EncounterScales;
+  encounterScales?: EncounterScales;
   campWounds?: StoredActor[];
   expeditions?: Expeditions; actors?: StoredActor[]; pickups?: Pickup[];
   events?: EventState;
   /** Absent until travel has been initialized; no portal and Briarwatch home by default. */
   travel?: TravelState;
-  character: CharacterSheet; level: number; xp: number; x: number; y: number; angle: number;
-  hp: number; mana: number; dead: boolean; flasks: number; healCooldown: number;
-  dodgeCharges: number; dodgeRecharge: number; skillCooldowns: Partial<Record<SkillId, number>>;
   time: number; kills: number; randomState: number; spawnOrdinal: number; killRecharge: number;
   clearedCamps: string[]; defeatedCampMembers: Record<string, string[]>; groundItems: GroundItem[]; groundGold?: GroundGold[];
   /** Scourge Invasion schedule + war-chest ledger (world-event-state.ts). */
   worldEvents?: WorldEventState;
-  worldBosses?: import('./world-boss-state.ts').WorldBossLedger;
-  holiday?: import('./holiday-state.ts').HolidayState;
+  worldBosses?: WorldBossLedger;
+  holiday?: HolidayState;
+}
+
+/** Per-player half of a checkpoint: capturePlayerFields(p) emits exactly these
+ * fields. In co-op each slot stores its own; the host slot additionally embeds
+ * the partner's copy in `partner.playerFields`. */
+export interface PlayerCheckpointFields {
+  chronicle?: ChronicleProgress;
+  character: CharacterSheet; level: number; xp: number; x: number; y: number; angle: number;
+  hp: number; mana: number; dead: boolean; flasks: number; healCooldown: number;
+  dodgeCharges: number; dodgeRecharge: number; skillCooldowns: Partial<Record<SkillId, number>>;
+  allies?: Ally[]; buffs?: WowBuff[]; comboPoints?: number; runes?: number[]; petCommand?: Player['petCommand'];
+  soulShards?: number; stealthed?: boolean; autoAttack?: boolean;
+  mounted?: Player['mounted']; restedXp?: number; hearthstone?: Player['hearthstone'];
+  professions?: Player['professions']; quests?: Player['quests']; achievements?: Player['achievements'];
+  glyphs?: Player['glyphs']; fishing?: Player['fishing']; durability?: Player['durability']; combatLog?: Player['combatLog'];
+  reputation?: Player['reputation'];
+}
+
+/** The co-op partner embedded in the host's checkpoint (v8+): the guest's slot
+ * index (-1 for a drop-in partner with no slot), its character id ('' when
+ * slotless), and its player fields. Absent on solo saves and on the guest's own
+ * slot — the guest stores world+self only, so either slot loads solo. */
+export interface CheckpointPartner { slot: number; id: string; playerFields: PlayerCheckpointFields; }
+
+export interface CharacterCheckpoint extends WorldCheckpoint, PlayerCheckpointFields {
+  /** Co-op partner snapshot written only into the host's slot. */
+  partner?: CheckpointPartner;
 }
 export interface CharacterSave {
   version: typeof CHARACTER_SAVE_VERSION; id: string; name: string;
   createdAt: number; updatedAt: number; worldSeed: number; worldVersion: number;
   checkpoint: CharacterCheckpoint;
+}
+
+/** Canonical field split between the shared world and one player. The lists are
+ * exhaustive and disjoint; `partner` is deliberately in neither — it belongs to
+ * the host slot's record, never to a player's own fields or the shared world. */
+export const CHECKPOINT_WORLD_KEYS = ['brokenContainers','journeys','roaming','encounterScales','campWounds','expeditions','actors','pickups','events','travel','time','kills','randomState','spawnOrdinal','killRecharge','clearedCamps','defeatedCampMembers','groundItems','groundGold','worldEvents','worldBosses','holiday'] as const satisfies readonly (keyof WorldCheckpoint)[];
+export const CHECKPOINT_PLAYER_KEYS = ['chronicle','character','level','xp','x','y','angle','hp','mana','dead','flasks','healCooldown','dodgeCharges','dodgeRecharge','skillCooldowns','allies','buffs','comboPoints','runes','petCommand','soulShards','stealthed','autoAttack','mounted','restedXp','hearthstone','professions','quests','achievements','glyphs','fishing','durability','combatLog','reputation'] as const satisfies readonly (keyof PlayerCheckpointFields)[];
+const _worldKeysCover: Exclude<keyof WorldCheckpoint, typeof CHECKPOINT_WORLD_KEYS[number]> extends never ? true : never = true;
+const _playerKeysCover: Exclude<keyof PlayerCheckpointFields, typeof CHECKPOINT_PLAYER_KEYS[number]> extends never ? true : never = true;
+const _checkpointKeysCover: Exclude<keyof CharacterCheckpoint, typeof CHECKPOINT_WORLD_KEYS[number] | typeof CHECKPOINT_PLAYER_KEYS[number] | 'partner'> extends never ? true : never = true;
+void _worldKeysCover; void _playerKeysCover; void _checkpointKeysCover;
+
+/** The world half of a checkpoint (shares nested references; callers serialize
+ * immediately or clone upstream, matching captureCheckpoint's contract). */
+export function worldFieldsOf(checkpoint: CharacterCheckpoint): WorldCheckpoint {
+  const world = {} as Record<string, unknown>;
+  for (const key of CHECKPOINT_WORLD_KEYS) if (checkpoint[key] !== undefined) world[key] = checkpoint[key];
+  return world as unknown as WorldCheckpoint;
+}
+/** The player half of a checkpoint — the fields capturePlayerFields(p) emits. */
+export function playerFieldsOf(checkpoint: CharacterCheckpoint): PlayerCheckpointFields {
+  const fields = {} as Record<string, unknown>;
+  for (const key of CHECKPOINT_PLAYER_KEYS) if (checkpoint[key] !== undefined) fields[key] = checkpoint[key];
+  return fields as unknown as PlayerCheckpointFields;
+}
+/** Reassemble a full checkpoint from its halves; `partner` rides only on the host's. */
+export function mergeCheckpoint(world: WorldCheckpoint, player: PlayerCheckpointFields, partner?: CheckpointPartner): CharacterCheckpoint {
+  return { ...world, ...player, ...(partner ? { partner } : {}) };
+}
+/** The partner block the host slot persists: guest slot index (-1 when the
+ * partner has no slot), guest character id ('' when slotless), and a snapshot
+ * of the partner's player fields. */
+export function checkpointPartner(slot: number, id: string, playerFields: PlayerCheckpointFields): CheckpointPartner {
+  return { slot, id, playerFields };
 }
 
 /** v4→v5 class inference from the equipped weapon (assignment: staff→mage, wand→priest, bow→hunter, dagger→rogue, shield→paladin, 2H sword→warrior, else warrior). */
@@ -248,12 +308,73 @@ function validActorWowExtras(actors: unknown): boolean {
       && (a.sundered === undefined || object(a.sundered) && number(a.sundered.fraction, 0, 1) && number(a.sundered.remaining, 0, 1e6))
       && (a.taunted === undefined || object(a.taunted) && number(a.taunted.remaining, 0, 1e6) && (a.taunted.allyId === undefined || integer(a.taunted.allyId, 1))));
 }
+
+/** World-half validation: the shared state both co-op slots store identically. */
+function validWorldFields(p: ObjectValue): p is ObjectValue & WorldCheckpoint {
+  return (p.encounterScales === undefined || validEncounterScales(p.encounterScales))
+    && (p.journeys === undefined || validJourneys(p.journeys))
+    && (p.campWounds === undefined || validCampWounds(p.campWounds))
+    && (p.roaming === undefined || (object(p.roaming) && integer(p.roaming.warmup,0,ROAMING_RULES.warmupPopulation) && number(p.roaming.cooldown,-1,10) && number(p.roaming.requiredDistance,0,300)))
+    && (p.expeditions === undefined || validExpeditions(p.expeditions))
+    && (p.actors === undefined || validActors(p.actors))
+    && (p.pickups === undefined || validPickups(p.pickups))
+    && (p.events === undefined || validEvents(p.events))
+    && (p.travel === undefined || validTravel(p.travel))
+    && number(p.time) && integer(p.kills) && integer(p.randomState, 0, 4294967295) && integer(p.spawnOrdinal)
+    && integer(p.killRecharge, 0, 1000)
+    && Array.isArray(p.clearedCamps) && p.clearedCamps.every(id => text(id, 180))
+    && new Set(p.clearedCamps).size === p.clearedCamps.length
+    && object(p.defeatedCampMembers)
+    && Object.entries(p.defeatedCampMembers).every(([id, members]) => text(id, 180) && Array.isArray(members)
+      && members.length <= 32 && members.every(member => text(member, 180)) && new Set(members).size === members.length)
+    && Array.isArray(p.groundItems) && p.groundItems.length <= LOOT_RULES.maxGroundItems
+    && p.groundItems.every(i => object(i) && integer(i.id, 1) && number(i.x, -4e7, 4e7) && number(i.y, -4e7, 4e7) && validItem(i.item) && validTreasureFlight(i.flight))
+    && (p.actors === undefined || validActorWowExtras(p.actors));
+}
+
+/** Player-half validation: the fields capturePlayerFields emits. Reused for the
+ * embedded co-op partner's playerFields, which must satisfy the same contract. */
+function validPlayerFields(p: ObjectValue): p is ObjectValue & PlayerCheckpointFields {
+  return (p.chronicle === undefined || validChronicle(p.chronicle))
+    && integer(p.level, 1, MAX_CONTENT_LEVEL) && integer(p.xp, 0) && (p.level >= MAX_CONTENT_LEVEL || p.xp < xpForNextLevel(p.level))
+    && validSheet(p.character, p.level) && number(p.x, -4e7, 4e7) && number(p.y, -4e7, 4e7) && number(p.angle, -1000, 1000)
+    && number(p.hp, 0, 1e9) && number(p.mana, 0, 1e9) && typeof p.dead === 'boolean' && (p.dead || p.hp > 0)
+    && integer(p.flasks, 0, 2) && number(p.healCooldown, 0, 1000) && integer(p.dodgeCharges, 0, 2) && number(p.dodgeRecharge, 0, 1000)
+    && object(p.skillCooldowns)
+    && Object.entries(p.skillCooldowns).every(([id, n]) => (unlockedSkills((p.character as CharacterSheet).allocatedNodes).includes(id as SkillId) || id === WOW_RACES[(p.character as CharacterSheet).raceId].racial) && number(n, 0, 1000))
+    && validWowState(p);
+}
+
+/** The host slot's embedded co-op partner (v8+): the guest's slot index (-1 for
+ * a drop-in partner with no slot), its character id ('' when slotless), and a
+ * player-fields snapshot held to the same standard as the primary's. */
+function validPartner(partner: unknown): partner is CheckpointPartner {
+  if (!object(partner) || !integer(partner.slot, -1, CHARACTER_SLOT_COUNT - 1)
+    || !(partner.id === '' || (text(partner.id, 64) && /^[a-zA-Z0-9-]+$/.test(partner.id)))
+    || !object(partner.playerFields)) return false;
+  const fields = partner.playerFields;
+  return upgradeSkillTree(fields) && validPlayerFields(fields);
+}
+
+/** Stock-item provenance for one character's item set: a `stock:` id is valid
+ * only while its merchant epoch is current or its slot is marked sold. */
+function validStockItems(items: Item[], level: number, commerce: CharacterSheet['commerce']): boolean {
+  for (const item of items) {
+    if (!item.id.startsWith('stock:')) continue;
+    const source = /^stock:(town:[0-9]+:-?[0-9]+:building:[0-9]+:(blacksmith|jeweler)):([0-9]+):([0-9]+)$/.exec(item.id);
+    if (!source) return false;
+    const epoch = Number(source[3]), slot = Number(source[4]);
+    if (!Number.isSafeInteger(epoch) || epoch > Math.floor((level - 1) / 3) || slot >= (source[2] === 'jeweler' ? 16 : 24)) return false;
+    if (epoch >= commerce.epoch && !(commerce.sold[source[1]] & 1 << slot)) return false;
+  }
+  return true;
+}
 /** Upgrade pre-WoW saves (v3 appearance, v4 class/race) on the parsed copy, then validate the entire checkpoint. */
 export function decodeCharacterSave(raw: string): CharacterSave | null {
   if (raw.length > SAVE_MAX_CODE_UNITS) return null;
   try {
     const v: unknown = JSON.parse(raw);
-    if (object(v) && (v.version === 3 || v.version === 4 || v.version === 5 || v.version === 6) && object(v.checkpoint) && object(v.checkpoint.character)) {
+    if (object(v) && (v.version === 3 || v.version === 4 || v.version === 5 || v.version === 6 || v.version === 7) && object(v.checkpoint) && object(v.checkpoint.character)) {
       // v4 predates class/race: infer the class from the equipped weapon; every legacy hero is human.
       if (!isWowClassId(v.checkpoint.character.classId)) v.checkpoint.character.classId = inferWowClassId(v.checkpoint.character);
       if (!isWowRaceId(v.checkpoint.character.raceId)) v.checkpoint.character.raceId = 'human';
@@ -268,21 +389,8 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
       || !integer(v.worldSeed, 0, 4294967295) || !integer(v.worldVersion, 1)) return null;
     const p = v.checkpoint;
     if(!object(p)||!upgradeSkillTree(p))return null;
-    if (!object(p) || (p.encounterScales !== undefined && !validEncounterScales(p.encounterScales)) || (p.chronicle !== undefined && !validChronicle(p.chronicle)) || (p.journeys !== undefined && !validJourneys(p.journeys)) || (p.campWounds!==undefined&&!validCampWounds(p.campWounds)) || (p.roaming !== undefined && (!object(p.roaming) || !integer(p.roaming.warmup,0,ROAMING_RULES.warmupPopulation) || !number(p.roaming.cooldown,-1,10) || !number(p.roaming.requiredDistance,0,300))) || (p.expeditions !== undefined && !validExpeditions(p.expeditions)) || (p.actors !== undefined && !validActors(p.actors)) || (p.pickups !== undefined && !validPickups(p.pickups)) || (p.events !== undefined && !validEvents(p.events)) || (p.travel !== undefined && !validTravel(p.travel)) || !integer(p.level, 1, MAX_CONTENT_LEVEL) || !integer(p.xp, 0) || (p.level < MAX_CONTENT_LEVEL && p.xp >= xpForNextLevel(p.level))
-      || !validSheet(p.character, p.level) || !number(p.x, -4e7, 4e7) || !number(p.y, -4e7, 4e7) || !number(p.angle, -1000, 1000)
-      || !number(p.hp, 0, 1e9) || !number(p.mana, 0, 1e9) || typeof p.dead !== 'boolean' || (!p.dead && p.hp <= 0)
-      || !integer(p.flasks, 0, 2) || !number(p.healCooldown, 0, 1000) || !integer(p.dodgeCharges, 0, 2) || !number(p.dodgeRecharge, 0, 1000)
-      || !number(p.time) || !integer(p.kills) || !integer(p.randomState, 0, 4294967295) || !integer(p.spawnOrdinal)
-      || !integer(p.killRecharge, 0, 1000) || !object(p.skillCooldowns)
-      || !Object.entries(p.skillCooldowns).every(([id, n]) => (unlockedSkills((p.character as CharacterSheet).allocatedNodes).includes(id as SkillId) || id === WOW_RACES[(p.character as CharacterSheet).raceId].racial) && number(n, 0, 1000))
-      || !Array.isArray(p.clearedCamps) || !p.clearedCamps.every(id => text(id, 180))
-      || new Set(p.clearedCamps).size !== p.clearedCamps.length
-      || !object(p.defeatedCampMembers)
-      || !Object.entries(p.defeatedCampMembers).every(([id, members]) => text(id, 180) && Array.isArray(members)
-        && members.length <= 32 && members.every(member => text(member, 180)) && new Set(members).size === members.length)
-      || !Array.isArray(p.groundItems) || p.groundItems.length > LOOT_RULES.maxGroundItems
-      || !p.groundItems.every(i => object(i) && integer(i.id, 1) && number(i.x, -4e7, 4e7) && number(i.y, -4e7, 4e7) && validItem(i.item) && validTreasureFlight(i.flight))
-      || !validWowState(p) || (p.actors !== undefined && !validActorWowExtras(p.actors))) return null;
+    if (!validWorldFields(p) || !validPlayerFields(p)) return null;
+    if (p.partner !== undefined && !validPartner(p.partner)) return null;
     if (p.brokenContainers !== undefined && (!Array.isArray(p.brokenContainers)
       || !p.brokenContainers.every(id => text(id, 180)) || new Set(p.brokenContainers).size !== p.brokenContainers.length)) return null;
     if (p.groundGold !== undefined && (!Array.isArray(p.groundGold) || p.groundGold.length > GOLD_RULES.maxPiles
@@ -297,22 +405,20 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
     if(dungeonReturn && !expedition?.runs.some(r=>r.entrance.id===dungeonReturn))return null;
     const items = [...storedItems,...(p.character.stash??[]),...(p.character.guildVault??[]),...p.character.inventory, ...Object.values(p.character.equipped), ...p.groundItems.map(i => i.item), ...p.character.commerce.buyback.map(i => i.item)].filter(Boolean) as Item[];
     if (new Set(items.map(i => i.id)).size !== items.length || new Set(p.groundItems.map(i => i.id)).size !== p.groundItems.length) return null;
-    for (const item of items) {
-      if (!item.id.startsWith('stock:')) continue;
-      const source = /^stock:(town:[0-9]+:-?[0-9]+:building:[0-9]+:(blacksmith|jeweler)):([0-9]+):([0-9]+)$/.exec(item.id);
-      if (!source) return null;
-      const epoch = Number(source[3]), slot = Number(source[4]), state = p.character.commerce;
-      if (!Number.isSafeInteger(epoch) || epoch > Math.floor((p.level - 1) / 3) || slot >= (source[2] === 'jeweler' ? 16 : 24)) return null;
-      if (epoch >= state.epoch && !(state.sold[source[1]] & 1 << slot)) return null;
-    }
+    if (!validStockItems(items, p.level, p.character.commerce)) return null;
+    // The embedded partner's sheet is checked against itself: item ids are
+    // per-character, so a partner may legitimately hold ids the host also owns.
+    const partnerFields = p.partner?.playerFields;
+    const partnerItems = partnerFields ? [...(partnerFields.character.stash??[]),...(partnerFields.character.guildVault??[]),...(partnerFields.character.bags??[]),...partnerFields.character.inventory,...Object.values(partnerFields.character.equipped),...partnerFields.character.commerce.buyback.map(i=>i.item)].filter(Boolean) as Item[] : [];
+    if (partnerFields && (new Set(partnerItems.map(i=>i.id)).size !== partnerItems.length || !validStockItems(partnerItems, partnerFields.level, partnerFields.character.commerce))) return null;
     // Scourge Invasion state is self-healing: malformed or absent data restarts the schedule.
     p.worldEvents = validWorldEvents(p.worldEvents) ? p.worldEvents : freshWorldEvents();
     p.worldBosses = validWorldBossLedger(p.worldBosses) ? p.worldBosses : freshWorldBossLedger();
     p.holiday = validHoliday(p.holiday) ? p.holiday : freshHoliday();
     // Retire suppression and opt-out settings; the HUD now follows accepted work.
-    if (object(p.journeys)) { delete p.journeys.dismissed; delete p.journeys.suggestions; }
+    if (object(p.journeys)) { const j = p.journeys as ObjectValue; delete j.dismissed; delete j.suggestions; }
     // Normalize the validated parsed copy, including stored dungeon loot and buyback.
-    for (const item of items) Object.assign(item, roundItemStats(refreshEquipmentBudgets(rebalanceItemRolls(rebalanceItemOffense(rebalanceItemMana(rebalanceCharm(item)))))));
+    for (const item of [...items, ...partnerItems]) Object.assign(item, roundItemStats(refreshEquipmentBudgets(rebalanceItemRolls(rebalanceItemOffense(rebalanceItemMana(rebalanceCharm(item)))))));
     return v as unknown as CharacterSave;
   } catch { return null; }
 }

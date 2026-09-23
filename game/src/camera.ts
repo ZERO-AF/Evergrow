@@ -81,6 +81,20 @@ export interface CameraView {
 export interface CameraBounds { x: number; y: number; width: number; height: number; }
 interface CameraSubject { x: number; y: number; vx: number; vy: number; }
 
+/** Shared couch co-op framing: the camera sits on the players' midpoint and
+ * zooms out just enough to keep both on screen, clamped to the normal zoom
+ * band. Returns the follow target plus the zoom that frames both bodies. */
+export function coopCameraTarget(a: CameraSubject, b: CameraSubject,
+  viewWidth: number, viewHeight: number): { x: number; y: number; zoom: number } {
+  const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+  // Half the screen-space separation each player needs, plus body margin.
+  const needX = Math.abs(a.x - b.x) / 2 + 140;
+  const needY = Math.abs(a.y - b.y) / 2 + 110;
+  const zoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM,
+    Math.min(viewWidth / 2 / needX, viewHeight / 2 / needY)));
+  return { x, y, zoom };
+}
+
 export function cameraFollowTarget(subject: CameraSubject): { x: number; y: number } {
   return { x: subject.x + subject.vx * CAMERA_FOLLOW.lookAheadX,
     y: subject.y + subject.vy * CAMERA_FOLLOW.lookAheadY - CAMERA_FOLLOW.height };

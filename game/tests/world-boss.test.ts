@@ -60,7 +60,7 @@ function spawnBoss(sim: Simulation, id: keyof typeof WORLD_BOSSES): Enemy {
 
 function aiCtx(sim: Simulation, hits: { amount: number; type: string }[]): EnemyAIContext {
   return {
-    world: flat, player: sim.player, enemies: sim.enemies, time: 0, trial: null,
+    world: flat, player: sim.player, players: [sim.player], enemies: sim.enemies, time: 0, trial: null,
     visible: () => true,
     move: (e, vx, vy, dt) => { e.x += vx * dt; e.y += vy * dt; },
     hurt: (amount, _angle, _actor, damageType) => hits.push({ amount, type: damageType ?? 'physical' }),

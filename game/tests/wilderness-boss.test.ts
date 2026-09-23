@@ -27,7 +27,7 @@ function setup(kind:typeof WILDERNESS_BOSSES[number]='briarMatriarch'){
  const sim=new Simulation(flat,{spawn:false,startX:0,startY:155});
  const boss=sim.spawnEnemy(kind,0,0,'normal',{campId:'site:7319:lair:1:1',memberId:'site:7319:lair:1:1:member:0',lootSeed:456})!;
  const hits:number[]=[];
- const c:EnemyAIContext={world:flat,player:sim.player,enemies:sim.enemies,time:0,trial:null,visible:()=>true,move:(e,vx,vy,dt)=>{e.x+=vx*dt;e.y+=vy*dt;},hurt:n=>hits.push(n),shoot:()=>{},emit:()=>{}};
+ const c:EnemyAIContext={world:flat,player:sim.player,players:[sim.player],enemies:sim.enemies,time:0,trial:null,visible:()=>true,move:(e,vx,vy,dt)=>{e.x+=vx*dt;e.y+=vy*dt;},hurt:n=>hits.push(n),shoot:()=>{},emit:()=>{}};
  return {sim,boss,c,hits};
 }
 test('lairs are rare, deterministic, spaced and available in level-one regions outside the safe arrival',()=>{

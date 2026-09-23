@@ -38,7 +38,7 @@ function killWithBolt(sim: Simulation, enemy: Enemy, damage = 99999): void {
 /** Minimal AI context: player parked at (0,0), world open, events captured. */
 function aiContext(sim: Simulation, events: CombatEvent[] = [], buffs: string[] = [], hurtTypes: string[] = []): EnemyAIContext {
   return {
-    player: sim.player, enemies: sim.enemies, world: emptyWorld, time: sim.time, trial: null,
+    player: sim.player, players: [sim.player], enemies: sim.enemies, world: emptyWorld, time: sim.time, trial: null,
     visible: () => true,
     move: (enemy, vx, vy, dt) => { enemy.x += vx * dt; enemy.y += vy * dt; },
     hurt: (amount, _angle, _actor, type) => { hurtTypes.push(type); sim.player.hp -= amount; },

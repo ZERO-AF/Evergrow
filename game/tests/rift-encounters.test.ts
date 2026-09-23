@@ -17,7 +17,7 @@ function fixture(){
  source.rift=ally.rift={attempt:1,layout:'clearings'};source.campMemberId='rift:0:0:ritual';source.campId=ally.campId='dungeon:rift:1';
  source.state=ally.state='chase';source.awareness=ally.awareness=1;
  const hits:{amount:number;type:string}[]=[];
- const context:EnemyAIContext={player:sim.player,enemies:sim.enemies,world:surface,time:0,trial:null,visible:()=>true,move:()=>{},hurt:(amount,_angle,_enemy,type)=>hits.push({amount,type}),shoot:()=>{},emit:()=>{}};
+ const context:EnemyAIContext={player:sim.player,players:[sim.player],enemies:sim.enemies,world:surface,time:0,trial:null,visible:()=>true,move:()=>{},hurt:(amount,_angle,_enemy,type)=>hits.push({amount,type}),shoot:()=>{},emit:()=>{}};
  return {sim,source,ally,hits,context,director:new RiftTactics()};
 }
 test('connected rifts retain dry, body-clear routes across seeds and key densities',()=>{

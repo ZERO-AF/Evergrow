@@ -59,7 +59,7 @@ test('every missile style retains the correct damage channel without a live cast
 
 test('enemy ground signatures and Colossus eruptions route actual elemental contacts', () => {
   const sim=setup(), hits:DamageType[]=[];
-  const context:EnemyAIContext={world,player:sim.player,enemies:sim.enemies,time:0,trial:null,visible:()=>true,move:()=>{},hurt:(_n,_a,_e,kind)=>hits.push(kind),shoot:()=>{},emit:()=>{}};
+  const context:EnemyAIContext={world,player:sim.player,players:[sim.player],enemies:sim.enemies,time:0,trial:null,visible:()=>true,move:()=>{},hurt:(_n,_a,_e,kind)=>hits.push(kind),shoot:()=>{},emit:()=>{}};
   for(const [kind,element] of [['mireSpitter','arcane'],['frostRevenant','frost'],['emberAcolyte','fire']] as const){
     const enemy=sim.spawnEnemy(kind,60,0)!;enemy.attackVariant=1;enemy.state='windup';enemy.stateTime=2;enemy.stateDuration=1;enemy.attackTargetX=0;enemy.attackTargetY=0;enemy.seesPlayer=true;
     updateEnemyAI(enemy,1/120,context);assert.equal(hits.pop(),element);

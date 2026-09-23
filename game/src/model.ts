@@ -58,6 +58,8 @@ export interface Input {
 export type HitSnapshot = Readonly<Pick<DerivedCharacterStats, 'critChance' | 'critMultiplier' | 'lifeOnHit'>> & { readonly skill?: SkillId; readonly directDamageMultiplier?: number; readonly ally?: boolean; readonly proc?: boolean;
   /** Attacking ally's entity id (pet/summon); threat attribution only. */
   readonly allyId?: number;
+  /** Attacking player's combatant id (Player.id); threat/kill attribution in co-op. */
+  readonly playerId?: number;
   /** Attack-table ratings snapshotted with the swing; absent on ally/proc echoes means 0. */
   readonly hitRating?: number; readonly expertise?: number };
 
@@ -164,6 +166,9 @@ export interface Equipment {
 }
 
 export interface Player {
+  /** Stable combatant identity for threat/kill attribution; absent on legacy
+   * single-player actors (treated as 0). The sim assigns roster indexes in co-op. */
+  id?: number;
   auras?: import('./auras.ts').AuraState;
   chronicle?: ChronicleProgress;
   name?: string;
@@ -373,6 +378,8 @@ export interface EnemyDot {
   readonly source: 'player' | 'ally';
   /** Attacking ally's entity id when source is 'ally'; threat attribution only. */
   allyId?: number;
+  /** Owning player's combatant id when source is 'player'; co-op threat split. */
+  readonly playerId?: number;
 }
 
 /** Crowd-control instance on an enemy. */
@@ -503,8 +510,9 @@ export interface Enemy {
   ccDiminishedUntil?: Partial<Record<CcKind, number>>;
   /** Sunder/expose: bonus damage fraction taken. */
   sundered?: { fraction: number; remaining: number };
-  /** Taunted: forced to attack the player — or the pet ally that growled (allyId). */
-  taunted?: { remaining: number; allyId?: number };
+  /** Taunted: forced to attack the taunting player (playerId) — or the pet ally
+   * that growled (allyId). A missing playerId means the primary player. */
+  taunted?: { remaining: number; allyId?: number; playerId?: number };
   /** Dispellable beneficial effects (enrage/shield/haste); stripped by purge skills.
    * Unioned with WowBuff so PvP Combatants (Player & Enemy) keep one buffs field. */
   buffs?: (EnemyBuff | WowBuff)[];

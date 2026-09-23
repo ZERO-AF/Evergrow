@@ -79,7 +79,7 @@ test('player taunt pegs the player above a tanking pet', () => {
   meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
   const tank = rows.find(r => r.tanking)!;
-  assert.equal(tank.source, 'player');
+  assert.equal(tank.source, 'player:0');
   assert.equal(tank.threat, 80);
   assert.equal(tank.tanking, true);
 });
@@ -108,7 +108,7 @@ test('periodic ticks split across live dots by ownership', () => {
   recordThreat(enemy, 'player', 40, true);
   meter.update(s.enemies, s.player);
   const rows = meter.rows(enemy, s.player);
-  assert.equal(rows.find(r => r.source === 'player')!.threat, 10);
+  assert.equal(rows.find(r => r.source === 'player:0')!.threat, 10);
   assert.equal(rows.find(r => r.source === `ally:${pet.id}`)!.threat, 30);
 });
 

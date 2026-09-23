@@ -34,9 +34,23 @@ export function enemyWindupDuration(enemy: Pick<Enemy,'lootSeed'|'attackTurns'|'
 }
 
 // ── Threat tables ────────────────────────────────────────────────────────────
-/** One bucket per combatant on an enemy's table: the player or one `ally:<id>`
- * per pet/summon. */
-export type ThreatSource = 'player' | `ally:${number}`;
+/** One bucket per combatant on an enemy's table: `player:<id>` per co-op player
+ * (legacy bare 'player' reads as player id 0) or one `ally:<id>` per pet/summon. */
+export type ThreatSource = 'player' | `player:${number}` | `ally:${number}`;
+
+/** The bucket a player's damage accrues to; unidentified players share id 0. */
+export function playerThreatSource(player: Player): ThreatSource {
+  return `player:${player.id ?? 0}`;
+}
+
+/** The player a `player:<id>` source names; bare 'player' resolves to id 0.
+ * Falls back to the first roster entry so a missing id never orphans aggro. */
+export function threatPlayer(players: readonly Player[], source: ThreatSource): Player | undefined {
+  if (source === 'player') return players.find(p => (p.id ?? 0) === 0) ?? players[0];
+  if (!source.startsWith('player:')) return undefined;
+  const id = Number(source.slice(7));
+  return players.find(p => (p.id ?? 0) === id);
+}
 
 export const THREAT_RULES = Object.freeze({
   /** WoW pull thresholds: melee pulls aggro at 110%, ranged at 130%. */
@@ -57,7 +71,7 @@ export interface ThreatTable {
   entries: Map<ThreatSource, number>;
   holder?: ThreatSource;
   /** Last observed taunt, for application/refresh detection. */
-  taunt?: { allyId?: number; remaining: number };
+  taunt?: { allyId?: number; playerId?: number; remaining: number };
 }
 
 /** Tables are transient combat state: keyed on the live enemy object so dead or
@@ -93,21 +107,23 @@ export function recordThreat(enemy: Enemy, source: ThreatSource, amount: number,
     const total = dots.reduce((n, d) => n + d.dps, 0);
     if (total <= 0) { recordThreat(enemy, 'player', amount); return; }
     for (const dot of dots)
-      recordThreat(enemy, dot.source === 'ally' ? `ally:${dot.allyId ?? 0}` : 'player', amount * dot.dps / total);
+      recordThreat(enemy, dot.source === 'ally' ? `ally:${dot.allyId ?? 0}` : `player:${dot.playerId ?? 0}`, amount * dot.dps / total);
     return;
   }
   const table = tableFor(enemy);
   table.entries.set(source, (table.entries.get(source) ?? 0) + amount);
 }
 
-/** Healing threat: half rate, split evenly across every engaged enemy. */
-export function recordHealThreat(enemies: readonly Enemy[], amount: number): void {
+/** Healing threat: half rate, split evenly across every engaged enemy. The
+ * healing player owns the aggro (their `player:<id>` bucket). */
+export function recordHealThreat(enemies: readonly Enemy[], amount: number, healer: Player): void {
   const engaged = enemies.filter(e => e.state !== 'dead' && e.hp > 0
     && (e.awareness > 0 || (e.taunted?.remaining ?? 0) > 0
       || e.state === 'chase' || e.state === 'windup' || e.state === 'attack' || e.state === 'recover'));
   if (!engaged.length) return;
   const share = amount * THREAT_RULES.healFactor / engaged.length;
-  for (const enemy of engaged) recordThreat(enemy, 'player', share);
+  const source = playerThreatSource(healer);
+  for (const enemy of engaged) recordThreat(enemy, source, share);
 }
 
 /** WoW taunt: the taunter's threat rises to the current holder's level and it
@@ -130,10 +146,12 @@ export function clearThreat(enemy: Enemy, source?: ThreatSource): void {
 }
 
 /** WoW pull threshold for a challenger: 110% in melee, 130% at range. The
- * player's basic weapon decides; allies follow their template's attackRange. */
-export function threatPullThreshold(source: ThreatSource, player: Player, allies: readonly Ally[]): number {
-  if (source === 'player')
-    return basicAttackWeapon(player).attackKind === 'melee' ? THREAT_RULES.meleePull : THREAT_RULES.rangedPull;
+ * challenger's own basic weapon decides; allies follow their template's
+ * attackRange. */
+export function threatPullThreshold(source: ThreatSource, players: readonly Player[], allies: readonly Ally[]): number {
+  const challenger = threatPlayer(players, source);
+  if (challenger)
+    return basicAttackWeapon(challenger).attackKind === 'melee' ? THREAT_RULES.meleePull : THREAT_RULES.rangedPull;
   const ally = allies.find(a => `ally:${a.id}` === source);
   return ally && ALLY_TEMPLATES[ally.kind].attackRange > 0 ? THREAT_RULES.rangedPull : THREAT_RULES.meleePull;
 }
@@ -141,11 +159,13 @@ export function threatPullThreshold(source: ThreatSource, player: Player, allies
 /** The source the enemy should attack: the standing holder while no challenger
  * beats it by the pull threshold, else the highest-threat valid combatant.
  * Dead players and dead/despawned/stealthed allies can never hold aggro. */
-export function resolveThreatHolder(enemy: Enemy, player: Player, allies: readonly Ally[]): ThreatSource | undefined {
+export function resolveThreatHolder(enemy: Enemy, players: readonly Player[], allies: readonly Ally[]): ThreatSource | undefined {
   const table = threatTable(enemy);
   if (!table) return undefined;
   const valid = (source: ThreatSource): boolean => {
-    if (source === 'player') return !player.dead;
+    const player = threatPlayer(players, source);
+    if (player) return !player.dead;
+    if (source === 'player' || source.startsWith('player:')) return false;
     const ally = allies.find(a => `ally:${a.id}` === source);
     return !!ally && ally.hp > 0 && (ally.stealth?.remaining ?? 0) <= 0;
   };
@@ -158,7 +178,7 @@ export function resolveThreatHolder(enemy: Enemy, player: Player, allies: readon
   if (best === undefined || best === holder) return holder;
   const holderValue = holder !== undefined ? table.entries.get(holder) ?? 0 : 0;
   if (holder !== undefined && valid(holder) && holderValue > 0
-    && bestValue < holderValue * threatPullThreshold(best!, player, allies)) return holder;
+    && bestValue < holderValue * threatPullThreshold(best!, players, allies)) return holder;
   table.holder = best;
   return best;
 }
@@ -166,24 +186,28 @@ export function resolveThreatHolder(enemy: Enemy, player: Player, allies: readon
 /** Per-tick table maintenance, driven by the AI tick: taunt snapshots (a new
  * application or a longer refresh re-pegs the taunter), out-of-combat decay,
  * leash wipes and dead-combatant pruning. */
-export function tickThreat(enemy: Enemy, dt: number, player: Player, allies: readonly Ally[]): void {
+export function tickThreat(enemy: Enemy, dt: number, players: readonly Player[], allies: readonly Ally[]): void {
   if (enemy.state === 'dead' || enemy.hp <= 0) { tables.delete(enemy); return; }
   let table = tables.get(enemy);
   const taunt = enemy.taunted;
   if (taunt && taunt.remaining > 0) {
     const previous = table?.taunt;
-    if (!previous || previous.allyId !== taunt.allyId || taunt.remaining > previous.remaining + .05)
-      tauntThreat(enemy, taunt.allyId !== undefined ? `ally:${taunt.allyId}` : 'player');
-    (table ??= tables.get(enemy)!).taunt = { allyId: taunt.allyId, remaining: taunt.remaining };
+    if (!previous || previous.allyId !== taunt.allyId || previous.playerId !== taunt.playerId
+      || taunt.remaining > previous.remaining + .05)
+      tauntThreat(enemy, taunt.allyId !== undefined ? `ally:${taunt.allyId}` : `player:${taunt.playerId ?? 0}`);
+    (table ??= tables.get(enemy)!).taunt = { allyId: taunt.allyId, playerId: taunt.playerId, remaining: taunt.remaining };
   } else if (table?.taunt) delete table.taunt;
   if (!table) return;
   // Leashing home unaware wipes the table like a WoW evade.
   if (enemy.state === 'return' && enemy.awareness <= 0) { tables.delete(enemy); return; }
   // Dead combatants drop off: a dead player's threat dies with them, and dead
   // or despawned allies leave the table entirely.
-  if (player.dead) table.entries.delete('player');
-  for (const source of [...table.entries.keys()])
-    if (source !== 'player' && !allies.some(a => `ally:${a.id}` === source && a.hp > 0)) table.entries.delete(source);
+  for (const source of [...table.entries.keys()]) {
+    const player = threatPlayer(players, source);
+    if (player) { if (player.dead) table.entries.delete(source); continue; }
+    if (source === 'player' || source.startsWith('player:')) continue;
+    if (!allies.some(a => `ally:${a.id}` === source && a.hp > 0)) table.entries.delete(source);
+  }
   if (enemy.state === 'idle' || enemy.state === 'patrol') {
     const decay = Math.max(0, 1 - dt * THREAT_RULES.decayPerSecond);
     for (const [source, value] of table.entries) {

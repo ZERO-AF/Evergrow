@@ -76,7 +76,7 @@ test('Rime and Astral fracture attacks use their own elements, timings, and one 
     const e=sim.spawnEnemy('warden',sim.player.x-300,sim.player.y)!;
     e.dungeonTheme=theme;e.state='chase';e.bossTurns=2;e.hp=e.maxHp;
     const hits:string[]=[];
-    const context={player:sim.player,enemies:sim.enemies,world:{...world,isSanctuary:()=>false},time:0,trial:null,visible:()=>true,move:()=>{},hurt:(_n:number,_a:number,_e:typeof e,element:string)=>hits.push(element),shoot:()=>{},emit:()=>{}};
+    const context={player:sim.player,players:[sim.player],enemies:sim.enemies,world:{...world,isSanctuary:()=>false},time:0,trial:null,visible:()=>true,move:()=>{},hurt:(_n:number,_a:number,_e:typeof e,element:string)=>hits.push(element),shoot:()=>{},emit:()=>{}};
     updateWarden(e,1/120,context);
     assert.equal(e.bossMove,'fracture');
     assert.equal(e.stateDuration,enemyWindupDuration(e,wardenProfile(theme).warning));

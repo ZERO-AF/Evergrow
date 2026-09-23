@@ -219,7 +219,7 @@ function selectionBoundary(record: CharacterSave | null) {
 
 test('a cached character keeps the identical detail layout while refreshing, with actions held until it finishes', () => {
   const sim = new Simulation({ seed: 7319, blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) }, { spawn: false });
-  const record: CharacterSave = { id: 'loading-layout', name: 'Rowan', version: 7, worldVersion: 10,
+  const record: CharacterSave = { id: 'loading-layout', name: 'Rowan', version: 8, worldVersion: 10,
     worldSeed: 7319, createdAt: 1, updatedAt: 1, checkpoint: sim.captureCheckpoint() };
   const { title, get } = selectionBoundary(record);
   title.renderSelection();
@@ -285,7 +285,7 @@ test('detail navigation skips hidden, disabled and inert items while retaining v
 test('hall gear reveals shared tooltips on hover/focus and clears them when changing detail tabs', () => {
   const world = { seed: 7319, blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) };
   const sim = new Simulation(world, { spawn: false });
-  const record: CharacterSave = { id: 'tooltip-test', name: 'Rowan', version: 7, worldVersion: 10,
+  const record: CharacterSave = { id: 'tooltip-test', name: 'Rowan', version: 8, worldVersion: 10,
     worldSeed: world.seed, createdAt: 1, updatedAt: 1, checkpoint: sim.captureCheckpoint() };
   const before = structuredClone(record);
   const anchor = new Control(); anchor.dataset.titleItem = 'weapon';
