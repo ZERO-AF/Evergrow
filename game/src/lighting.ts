@@ -62,12 +62,17 @@ function lightStamp(color: string): HTMLCanvasElement {
 
 export function drawGlow(c: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, power = 1) {
   if (radius <= 0 || power <= 0) return;
-  c.save();
+  // Manual state restore: save()/restore() snapshot the whole graphics state,
+  // and this helper runs dozens of times per frame (motes, sparks, emitters).
+  const alpha = c.globalAlpha, composite = c.globalCompositeOperation;
   c.globalCompositeOperation = 'screen';
-  c.globalAlpha *= Math.min(1, power);
+  c.globalAlpha = alpha * Math.min(1, power);
   c.drawImage(lightStamp(color), x - radius, y - radius, radius * 2, radius * 2);
-  c.restore();
+  c.globalAlpha = alpha; c.globalCompositeOperation = composite;
 }
+
+/** Shadow wedge passes: [softness, alpha] — hoisted so the per-light path allocates nothing. */
+const SHADOW_PASSES: readonly (readonly [number, number])[] = [[.035, .2], [0, .65]];
 
 /** Half-resolution surface illumination with bounded trunk/rock shadow casting. */
 export class Lighting {
@@ -107,12 +112,18 @@ export class Lighting {
     c.globalCompositeOperation = 'lighter';
     this.nextObserved.clear();
     let shadowCount = 0;
-    for (const light of lights.slice(0, 18)) {
+    const limit = Math.min(lights.length, 18);
+    for (let i = 0; i < limit; i++) {
+      const light = lights[i];
       if (light.x + light.radius < left || light.x - light.radius > left + worldWidth
         || light.y + light.radius < top || light.y - light.radius > top + worldHeight) continue;
       const shadows = !!light.shadows && shadowCount++ < 4;
       // Power changes (fire flicker, roof fading) do not alter the reusable cookie.
-      const key = `${light.x}:${light.y}:${light.radius}:${light.color}:${shadows}:` + (light.clip?.map(p => `${p.x},${p.y}`).join(';') ?? '');
+      // The string key is built only for stationary lights — dynamic lights never
+      // consult the cookie map, so keying them was pure per-frame string churn.
+      const key = light.stationary
+        ? `${light.x}:${light.y}:${light.radius}:${light.color}:${shadows}:` + (light.clip?.map(p => `${p.x},${p.y}`).join(';') ?? '')
+        : '';
       if (light.stationary) this.nextObserved.add(key);
       let cookie = !shadows && !light.clip?.length ? lightStamp(light.color) : light.stationary ? this.cookies.get(key) : undefined;
       if (!cookie) {
@@ -147,6 +158,7 @@ export class Lighting {
         (light.y - light.radius - top) * scaleY, light.radius * 2 * scaleX, light.radius * 2 * scaleY);
     }
     const previous = this.observed; this.observed = this.nextObserved; this.nextObserved = previous;
+
     c.globalAlpha = 1;
     target.save();
     target.globalCompositeOperation = 'multiply';
@@ -170,7 +182,7 @@ export class Lighting {
       const center = Math.atan2(dy, dx), spread = Math.asin(radius / distance);
       const near = Math.sqrt(distance * distance - radius * radius), far = light.radius * 1.7;
       // A wider, faint wedge softens the edge of the central shadow.
-      for (const [softness, alpha] of [[.035, .2], [0, .65]]) {
+      for (const [softness, alpha] of SHADOW_PASSES) {
         const a = center - spread - softness, b = center + spread + softness;
         c.globalAlpha = alpha;
         c.beginPath();

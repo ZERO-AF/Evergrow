@@ -18,6 +18,8 @@ export class EventChannel {
   private owner: Player | null = null;
   get duration() { return this.site?.kind === 'watchtower' ? EVENT_RULES.beaconChannel : EVENT_RULES.channel; }
   get ready() { return !!this.site && this.elapsed + 1e-9 >= this.duration; }
+  /** True while `player` owns an in-progress channel (or none is set). */
+  activeFor(player: Player) { return !!this.site && (this.owner === null || this.owner === player); }
   cancel() { this.site = null; this.choice = null; this.elapsed = 0; this.owner = null; }
   /** Cancel only if `player` owns the channel (or none is set); a partner's
    * damage/movement leaves another player's channel running. */

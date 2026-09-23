@@ -44,6 +44,8 @@ export class PortalChannel {
    * a co-op partner's actions never interrupt (or double-speed) the cast. */
   private owner: Player | null = null;
   get active() { return this.origin !== null; }
+  /** True while `player` owns an in-progress channel (or none is set). */
+  activeFor(player: Player) { return this.origin !== null && (this.owner === null || this.owner === player); }
   get ready() { return this.active && this.elapsed + 1e-9 >= PORTAL_RULES.channel; }
   get progress() { return Math.min(1, this.elapsed / PORTAL_RULES.channel); }
   start(player: Player, world: WorldQuery): string | null {

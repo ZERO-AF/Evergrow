@@ -1151,6 +1151,13 @@ export class Simulation {
     }
   }
 
+  /** Context changes (pause, resume, blur, menu) clear every player's buffers in
+   * co-op — not just the primary's — so no queued partner action fires on resume. */
+  clearInputAll(preserveMovement = false): void {
+    if (!this.coop) { this.clearInput(preserveMovement); return; }
+    for (const actor of this.players) this.forPlayer(actor, () => this.clearInput(preserveMovement));
+  }
+
   /** UI hover cancels queued weapons while movement and current actions continue. */
   clearBasicAttackInput(): void { this.attackBuffer = -1; }
 
@@ -1739,7 +1746,6 @@ export class Simulation {
       return;
     }
     const primary = roster[0].player;
-    if (!this.ghosts.has(primary)) this.eventChannel.advance(dt, primary, inputs[0]);
     for (const actor of roster) {
       const p = actor.player, blessing = p.character.blessing;
       if (blessing && !this.world.isSanctuary?.(p.x, p.y)) {
@@ -1769,6 +1775,9 @@ export class Simulation {
       this.forPlayer(p, () => {
         this.portal.advance(dt, p, inputs[i]);
         this.hearthstone.advance(dt, p, inputs[i]);
+        // Event channels are owner-scoped: advance per-actor so a partner-owned
+        // channel progresses (advance early-returns for non-owners).
+        this.eventChannel.advance(dt, p, inputs[i]);
         advanceMount(this, dt, inputs[i], event => this.emit(event));
         advanceGatherChannel(this, dt, inputs[i]);
         if (GAME_FEATURES.hearthstone) restedAccrual(p, this.world, dt);

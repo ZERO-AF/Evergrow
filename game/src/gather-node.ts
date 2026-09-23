@@ -190,7 +190,9 @@ export function advanceGatherChannel(sim: Simulation, dt: number, input: Input):
   const p = sim.player;
   if (p.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
     || p.attack || p.castTime > 0 || p.dash || p.dodgeTime > 0 || p.mounted
-    || sim.eventChannel.site || sim.portal.active
+    // Only the gatherer's own channels interrupt — a partner's portal/event
+    // channel must not cancel this player's gather.
+    || sim.eventChannel.activeFor(p) || sim.portal.activeFor(p)
     || Math.hypot(p.x - channel.node.x, p.y - channel.node.y) > GATHER_RULES.reach) {
     channels.delete(sim.player);
     return;

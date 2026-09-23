@@ -6,6 +6,8 @@ export const FRAME_METRICS = ['timestamp', 'frameInterval', 'frameCPU', ...FRAME
 export type FrameMetric = typeof FRAME_METRICS[number];
 export const FRAME_CAPACITY = 600;
 export const FRAME_STRIDE = FRAME_METRICS.length;
+/** Stages summed into `other`; nested render stages are deliberately excluded. */
+const TOP_LEVEL_STAGES: readonly FrameStage[] = ['simulation', 'world', 'postfx', 'ui', 'monitor'];
 const index = Object.fromEntries(FRAME_METRICS.map((name, i) => [name, i])) as Record<FrameMetric, number>;
 export const frameValue = (samples: Float64Array, frame: number, metric: FrameMetric) => samples[frame * FRAME_STRIDE + index[metric]];
 
@@ -49,7 +51,7 @@ export class FrameProfiler {
     if (!this.active || !this.recording) return;
     this.current[index.frameCPU] = Math.max(0, this.clock() - this.started);
     this.current[index.other] = Math.max(0, this.current[index.frameCPU] -
-      ['simulation', 'world', 'postfx', 'ui', 'monitor'].reduce((sum, name) => sum + this.current[index[name as FrameStage]], 0));
+      TOP_LEVEL_STAGES.reduce((sum, name) => sum + this.current[index[name]], 0));
     this.times.set(this.current, this.cursor * FRAME_STRIDE);
     this.count = Math.min(FRAME_CAPACITY, this.count + 1);
     this.cursor = (this.cursor + 1) % FRAME_CAPACITY;

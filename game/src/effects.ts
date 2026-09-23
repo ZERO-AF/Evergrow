@@ -255,10 +255,19 @@ export class CombatEffects {
       popup.life -= dt; popup.x += popup.vx * dt; popup.y += popup.vy * dt;
       popup.vx *= Math.exp(-dt * 2.5); popup.vy = Math.min(-17, popup.vy + dt * 60);
     }
-    this.sparks = this.sparks.filter(s => s.life > 0);
-    this.flashes = this.flashes.filter(f => f.life > 0);
-    this.impacts = this.impacts.filter(i => i.life > 0);
-    this.popups = this.popups.filter(p => p.life > 0);
+    // In-place compaction keeps drawing order without allocating a fresh array per frame.
+    let write = 0;
+    for (const spark of this.sparks) if (spark.life > 0) this.sparks[write++] = spark;
+    this.sparks.length = write;
+    write = 0;
+    for (const flash of this.flashes) if (flash.life > 0) this.flashes[write++] = flash;
+    this.flashes.length = write;
+    write = 0;
+    for (const impact of this.impacts) if (impact.life > 0) this.impacts[write++] = impact;
+    this.impacts.length = write;
+    write = 0;
+    for (const popup of this.popups) if (popup.life > 0) this.popups[write++] = popup;
+    this.popups.length = write;
     // Let the final impact disperse behind the death menu without emitting forever
     // from projectiles whose gameplay state has already stopped.
     if (sim.player.dead) return;
@@ -276,7 +285,8 @@ export class CombatEffects {
         for (let i = 0; i < 2; i++) this.spark(x, y, angle + 1.3,
           i === 0 ? '#fff0d4' : (attack.weapon.visual.glow ?? GOLD), .5, false);
       }
-      for (const shot of sim.projectiles.slice(0, 32)) {
+      for (let i = 0; i < Math.min(32, sim.projectiles.length); i++) {
+        const shot = sim.projectiles[i];
         const style = projectileStyle(shot);
         if (style === 'arrow' || style === 'radiant') continue;
         const color = PROJECTILE_COLORS[style];
@@ -295,9 +305,17 @@ export class CombatEffects {
     this.trim();
   }
 
+  private lightScratch: PointLight[] = [];
   getLights(): PointLight[] {
-    return [...this.flashes.slice(-7).map(f => ({ x: f.x, y: f.y, radius: f.radius,
-      power: Math.pow(f.life / f.max, .75), color: f.color })), ...this.skillEffects.getLights()].slice(-7);
+    // Reused buffer: the renderer consumes the list within the same frame.
+    const out = this.lightScratch; out.length = 0;
+    for (let i = Math.max(0, this.flashes.length - 7); i < this.flashes.length; i++) {
+      const f = this.flashes[i];
+      out.push({ x: f.x, y: f.y, radius: f.radius, power: Math.pow(f.life / f.max, .75), color: f.color });
+    }
+    for (const light of this.skillEffects.getLights()) out.push(light);
+    if (out.length > 7) out.splice(0, out.length - 7);
+    return out;
   }
 
   drawSword(c: CanvasRenderingContext2D) { this.sword.draw(c); }

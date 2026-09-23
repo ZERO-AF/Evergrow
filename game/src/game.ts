@@ -948,7 +948,7 @@ export class Game {
           if(this.phase==='chronicle'){event.stopPropagation();if(!event.repeat)this.resume();return;}
           if (!event.repeat) {
             if (uiEditMode()) { this.uiLayoutPanel.close(); setUiEditMode(false); return; }
-            if (this.sim.portal.active) { this.sim.portal.cancel(); return; }
+            if (this.sim.portal.active) { this.sim.portal.cancelFor(this.sim.player); return; }
             if (this.pvpScorePanel.opened) { this.pvpScorePanel.close(); return; }
             if (this.panels.activePanel) this.resume();
             else if (this.phase === 'playing') this.pause();
@@ -1138,7 +1138,8 @@ export class Game {
     // UI is rasterized at the display's native density, independently of the world buffer.
     this.uiCanvas.width = viewport.uiBufferWidth;
     this.uiCanvas.height = viewport.uiBufferHeight;
-    this.renderer.resize(viewport.logicalWidth, viewport.logicalHeight, viewport.worldBufferWidth, viewport.worldBufferHeight);
+    // NOTE: no second full-width renderer.resize here — it would undo the co-op
+    // split re-carve above and squash both views after a window resize.
     this.renderer.cursorPixelScale = { x: this.renderer.width / viewport.width, y: this.renderer.height / viewport.height };
     this.touch?.refreshLayout();
     this.renderer.touchViewport = this.touch?.viewport ?? null;
@@ -1244,7 +1245,7 @@ export class Game {
     this.input.clear(preserveMovement);
     if (!preserveMovement) { this.gamepad.clear(); clearNativeController(); }
     this.gamepadMenu.clear();
-    this.sim.clearInput(preserveMovement);
+    this.sim.clearInputAll(preserveMovement);
   }
 
   /** Defeat recovery keeps the character, allocations and loot; it never creates a new run. */
@@ -1845,7 +1846,7 @@ export class Game {
           }) => Math.hypot(p.x - q.x, p.y - q.y) < 75 && (!pointer || Math.hypot(pointer.x - q.x, pointer.y - (q.y - 20)) < 55);
           const event=f.events?.find(e=>!run.events?.[e.id]?.finished&&hit(e));
           if(event){
-              this.sim.clearInput();this.sim.portal.cancel();
+              this.sim.clearInput();this.sim.portal.cancelFor(this.sim.player);
               void this.durable(async()=>{const result=await startDungeonEvent(this.sim,event.id,c=>this.persistTravel(c));this.notify(result.message);},undefined);
               return true;
           }
@@ -1856,7 +1857,7 @@ export class Game {
                   this.notify(problem);
               else {
                   this.sim.clearInput();
-                  this.sim.portal.cancel();
+                  this.sim.portal.cancelFor(this.sim.player);
                   void this.finishEvent({ ...f.chests[chest], kind: 'cryptChest', name: 'Crypt chest', index: chest }, null);
               }
               return true;
@@ -2933,7 +2934,7 @@ export class Game {
     if (pad.pressed.has(PAD.pause) || (!this.panels.simulationActive && pad.pressed.has(PAD.dodge))) {
       if (this.phase === 'character' && this.inventoryPanel.dismissPopup()) return;
       if (this.panels.activePanel) this.resume();
-      else if (this.phase === 'playing' && !this.savingAction) { if (this.sim.portal.active) this.sim.portal.cancel(); else this.pause(); }
+      else if (this.phase === 'playing' && !this.savingAction) { if (this.sim.portal.active) this.sim.portal.cancelFor(this.sim.player); else this.pause(); }
       else if (this.phase === 'paused' && !this.shell.backInMenu()) this.resume();
       else if (this.phase === 'ready') this.shell.titleMount.querySelector<HTMLButtonElement>('[data-action="cancel"]')?.click();
       return;

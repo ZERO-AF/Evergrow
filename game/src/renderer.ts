@@ -12,7 +12,7 @@ import { drawRiftPortal, drawRiftArrival } from './rift-art.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import { controls, cursorPreference } from './control-preferences.ts';
 import { drawMouseCursor } from './cursor-art.ts';
-import type { ActiveBuff } from './active-buffs.ts';
+import type { GroundItem } from './character-types.ts';
 import { drawPlayerSkillEffects, drawConductor, drawHarvestMark } from './player-skill-art.ts';
 import { skyAtTime, skyAtHour, type SkyState } from './world-time.ts';
 import { OutdoorLightEffects } from './outdoor-light-effects.ts';
@@ -31,14 +31,14 @@ import { sceneClimate } from './scene-light-style.ts';
 import type { Prop } from './world.ts';
 import { drawEnemyWarning, enemyWarningLight } from './enemy-warning-art.ts';
 import { drawGroundSpell, groundSpellLights } from './ground-spell-art.ts';
-import { enemyTraitBuffs, enemyDebuffs } from './enemy-debuffs.ts';
+import { enemyTraitBuffs, enemyDebuffs, type EnemyDebuff } from './enemy-debuffs.ts';
 import { basicAttackWeapon } from './equipment.ts';
 import { projectilePresentation } from './projectile-launch.ts';
 import { heldEquipmentLights } from './weapon-emission.ts';
 import { MaterialResponses } from './material-response.ts';
 import { drawMaterialBurst } from './material-response-art.ts';
 import { hoveredGroundLoot, type GroundLootLabel } from './ground-loot-hover.ts';
-import { eventClaimed } from './poi-content.ts';
+import { eventClaimed, type EventSite } from './poi-content.ts';
 import { projectSiteAftermath, type SiteAftermath } from './poi-aftermath.ts';
 import type { FrameProfiler, FrameStage } from './frame-profiler.ts';
 import { WaterPresentation } from './water-presentation.ts';
@@ -77,7 +77,7 @@ import type { CharacterPose } from './art.ts';
 import { World } from './world.ts';
 import { GroundLayer } from './ground-layer.ts';
 import type { Simulation } from './simulation.ts';
-import type { CombatEvent, Enemy, Player, WorldQuery } from './model.ts';
+import type { Ally, CombatEvent, Enemy, Player, WorldQuery } from './model.ts';
 import { text, textWidth } from './font.ts';
 import { drawFloatingHUD } from './hud.ts';
 import { phoneLandscapeLayout, type TouchViewport } from './touch-layout.ts';
@@ -93,7 +93,7 @@ import { castBarSettings } from './cast-bar-settings.ts';
 import { drawCharacterStatus } from './status-art.ts';
 import { SettlementArt } from './settlement-art.ts';
 import { EnvironmentArt } from './environment-art.ts';
-import { biomeAmbient } from './biomes.ts';
+import { biomeAmbient, type BiomeWeights } from './biomes.ts';
 import { propDefinition } from './biome-props.ts';
 import { SceneVisibility } from './scene-visibility.ts';
 import { isGameUIPoint, type UIRect } from './ui-hit-test.ts';
@@ -125,7 +125,7 @@ import { drawLootBeams } from './loot-beam-art.ts';
 import { MOUNTS } from './mount-content.ts';
 import { drawMount, mountPose, mountSeatHeight } from './mount-art.ts';
 import { drawAlly } from './ally-art.ts';
-import { COMPANIONS } from './companion-content.ts';
+import { COMPANIONS, type CompanionDef } from './companion-content.ts';
 import { activeCompanion, advanceCompanionFollower, freshCompanionFollower, type CompanionFollower } from './companion-state.ts';
 import { drawCompanion } from './companion-art.ts';
 
@@ -149,16 +149,31 @@ import { worldEventsOf, worldEventProgress, worldEventChestAt } from './world-ev
 import { drawNecropolis, drawWorldEventChest, worldEventLights, WorldEventCardPresentation, drawWorldEventCard, worldEventChestLabel } from './world-event-art.ts';
 import { drawNameplates } from './nameplate-art.ts';
 import { nameplateSettings } from './nameplate-settings.ts';
-import { transportPrompt, vehiclesNear } from './transport.ts';
+import { transportPrompt, vehiclesNear, type VehicleMarker } from './transport.ts';
 import { drawTransport } from './transport-art.ts';
 
 import { GAME_FEATURES } from './game-features.ts';
 import { OcclusionField } from './occlusion.ts';
 import { drawElevationRegion } from './elevation-art.ts';
 import type { ElevationQueries } from './elevation.ts';
-import { EnemyDeaths } from './death-presentation.ts';
+import { EnemyDeaths, type EnemyRemains } from './death-presentation.ts';
+import type { WildernessSite, SiteDecor } from './wilderness-sites.ts';
+import type { MaterialBurst } from './material-response.ts';
+import type { BiomeBird } from './biome-life.ts';
+import type { StructureLayer } from './settlement-art.ts';
+import type { RiftScar } from './rift-atmosphere-art.ts';
 import { drawEnemyRemains, deathDepth, resetDeathArt } from './death-art.ts';
 interface Ghost { x: number; y: number; angle: number; gait: number; life: number; }
+/** Pooled depth-sort row: `kind` dispatches to a shared draw path so the actor
+ * pass allocates no per-entry closures. `a`/`b`/`x` carry the draw payload. */
+interface DrawEntry {
+  y: number;
+  stage?: FrameStage;
+  kind: string;
+  a?: unknown;
+  b?: unknown;
+  x?: number;
+}
 export interface RenderSettings {
   liveMap?: boolean;
   showGroundLootNames?: boolean;
@@ -278,6 +293,19 @@ export class Renderer {
   private positioned<T extends TownNPC>(npc: T | null): T | null {
     return npc ? positionedNPC(npc, this.npcTowns.get(npc.buildingId), this.npcTime) : npc;
   }
+  /** Positioned NPC list into a pooled scratch array (no per-frame map allocation). */
+  private positionedList<T extends TownNPC>(list: readonly T[]): T[] {
+    const out = this.npcList as T[]; out.length = 0;
+    for (const npc of list) out.push(this.positioned(npc)!);
+    return out;
+  }
+  /** Pooled debuff list for a boss frame that is not the shared target plate. */
+  private frameDebuffs(enemy: Enemy, p: Player): EnemyDebuff[] {
+    const out = this.bossDebuffScratch; out.length = 0;
+    for (const b of enemyTraitBuffs(enemy)) out.push(b);
+    for (const b of enemyDebuffs(enemy, p)) out.push(b);
+    return out;
+  }
   /** The faire clearing is deterministic per world; probing it is not cheap. */
   private faireSites = new WeakMap<WorldQuery, FaireSite>();
   private faireSiteFor(world: WorldQuery): FaireSite {
@@ -287,7 +315,7 @@ export class Renderer {
   }
   private indoorBlend = 0;
   private lighting = new Lighting();
-  private materialLights: readonly PointLight[] = [];
+  private materialLights: PointLight[] = [];
   private equipmentEmitters: ReturnType<typeof heldEquipmentLights> = [];
   private deaths = new EnemyDeaths();
   private materials = new MaterialResponses();
@@ -300,7 +328,7 @@ export class Renderer {
   private threat = new ThreatMeter();
   private battleBarks = new BattleBarkScene();
   private focusedEnemy: Enemy | null = null;
-  targetEffects: { id: number; buffs: ActiveBuff[]; x: number; y: number; opacity: number } | null = null;
+  targetEffects: { id: number; buffs: EnemyDebuff[]; x: number; y: number; opacity: number } | null = null;
   /** Enemy under the pointer this frame; click-targeting reads it. */
   get hoveredEnemyId(): number | null { return this.enemyFocus.hoveredId; }
   readonly worldEventCard = new WorldEventCardPresentation();
@@ -314,6 +342,40 @@ export class Renderer {
   portalDestinations: { home: PortalDestination; returnTo: PortalDestination | null } | null = null;
   private portalAnchors: PortalAnchor[] = [];
   private fadingPortal: { x: number; y: number; progress: number; life: number } | null = null;
+  /** Reused depth-sort entries: the actor pass pushes hundreds per frame. */
+  private entryPool: DrawEntry[] = [];
+  private entryList: DrawEntry[] = [];
+  private siteLightScratch: PointLight[] = [];
+  private warningLights: PointLight[] = [];
+  /** Reused UI scratch lists; renderUI consumes them within the frame. */
+  private lootItemScratch: GroundItem[] = [];
+  private lootBoundsScratch: GroundLootLabel[] = [];
+  private barkReservedScratch: UIRect[] = [];
+  private bossLayoutScratch: { enemy: Enemy; layout: ReturnType<typeof getBossFrameLayout> }[] = [];
+  private debuffScratch: EnemyDebuff[] = [];
+  private bossDebuffScratch: EnemyDebuff[] = [];
+  private pointScratch: { x: number; y: number; name: string }[] = [];
+  /** Reused per-frame light lists; callers consume them within the frame. */
+  private lightList: PointLight[] = [];
+  private envLights: PointLight[] = [];
+  private finalLights: PointLight[] = [];
+  private detailLights: PointLight[] = [];
+  /** Pooled water-splash actor rows; ids/positions refresh every frame. */
+  private waterActors: { id: number; x: number; y: number }[] = [];
+  /** Reused NPC query scratch for the per-frame vendor/trainer prompts. */
+  private npcList: TownNPC[] = [];
+  /** Cached biome weights for the world-anchored mote cells (static per world). */
+  private moteWeights = new Map<number, BiomeWeights>();
+  private residentProbe: TownNPC = { id: '', name: '', x: 0, y: 0, role: 'stash', level: 1, seed: 0, buildingId: '' };
+  /** Screen-space gradients depend only on canvas size (and pulse color). */
+  private vignetteGradient: CanvasGradient | null = null;
+  private vignetteSize = '';
+  private hurtGradient: CanvasGradient | null = null;
+  private hurtGradientSize = '';
+  private lootGradient: CanvasGradient | null = null;
+  private lootGradientKey = '';
+  private ambientChannels = [0, 0, 0];
+  private ambientColor = '';
 
   private profiler?: FrameProfiler;
   constructor(backgroundTerrain = false, profiler?: FrameProfiler) { this.profiler = profiler; this.groundLayer = new GroundLayer(undefined, backgroundTerrain); this.resize(960, 600); }
@@ -492,7 +554,9 @@ export class Renderer {
     if (GAME_FEATURES.lootBeams) this.vfx.update(feedbackStep);
     if (GAME_FEATURES.bossWarnings) this.bossWarnings.update(sim.enemies, this.visualTime);
 
-    this.portalAnchors = world.getSettlements(this.view.left - 100, this.view.top - 100, this.view.width + 200, this.view.height + 200).map(townPortalAnchor);
+    const portalTowns = world.getSettlements(this.view.left - 100, this.view.top - 100, this.view.width + 200, this.view.height + 200);
+    this.portalAnchors.length = 0;
+    for (const town of portalTowns) this.portalAnchors.push(townPortalAnchor(town));
     this.cameraShake.update(dt); this.hurt *= Math.exp(-dt * 5);
     this.playerHealthHold -= feedbackStep;
     this.playerHealthTrail = Math.max(p.hp, this.playerHealthTrail);
@@ -527,7 +591,9 @@ export class Renderer {
     this.effects.update(sim, feedbackStep);
     this.deaths.update(feedbackStep); this.materials.update(feedbackStep);
     for (const ghost of this.ghosts) ghost.life -= step;
-    this.ghosts = this.ghosts.filter(ghost => ghost.life > 0);
+    let ghostWrite = 0;
+    for (const ghost of this.ghosts) if (ghost.life > 0) this.ghosts[ghostWrite++] = ghost;
+    this.ghosts.length = ghostWrite;
     this.ghostTimer -= step;
     if (active && p.dodgeTime > 0 && this.ghostTimer <= 0) {
       this.ghostTimer = .024;
@@ -561,7 +627,9 @@ export class Renderer {
       : null;
     this.siteAftermath = projectSiteAftermath(this.visibility.sites, sim.eventState, id => sim.getCampState(id));
     const towns = this.cryptFloor ? [] : world.getSettlements(left, top, worldWidth, worldHeight);
-    this.residents = towns.flatMap(t=>settlementResidents(t,sim.time)).filter(n=>n.x>=left-90&&n.x<=left+worldWidth+90&&n.y>=top-90&&n.y<=top+worldHeight+90);
+    this.residents.length = 0;
+    for (const town of towns) for (const n of settlementResidents(town, sim.time))
+      if (n.x >= left - 90 && n.x <= left + worldWidth + 90 && n.y >= top - 90 && n.y <= top + worldHeight + 90) this.residents.push(n);
     this.npcTime = sim.time;
     this.npcTowns.clear();
     for (const town of towns) for (const b of town.buildings) this.npcTowns.set(b.id, town);
@@ -569,7 +637,15 @@ export class Renderer {
       this.residentCooldown=Math.max(0,this.residentCooldown-step);
       if(this.residentSpeech){this.residentSpeech.age+=step;if(this.residentSpeech.age>4)this.residentSpeech=null;}
       if(!this.residentSpeech&&this.residentCooldown===0){
-        const speaker=this.residents.filter(n=>Math.hypot(n.x-p.x,n.y-p.y)<100&&canInteractNPC({...n,role:'stash',level:1,buildingId:n.household},p,world)).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
+        // Single pass for the nearest interactable resident — no filter/sort arrays.
+        let speaker: Resident | null = null, best = 100 * 100;
+        const probe = this.residentProbe;
+        for (const n of this.residents) {
+          const d2 = (n.x - p.x) ** 2 + (n.y - p.y) ** 2;
+          if (d2 >= best) continue;
+          probe.id = n.id; probe.x = n.x; probe.y = n.y; probe.buildingId = n.household;
+          if (canInteractNPC(probe, p, world)) { speaker = n; best = d2; }
+        }
         if(speaker){this.residentSpeech={id:speaker.id,age:0,line:residentHint(speaker.seed,world.sampleBiome(speaker.x,speaker.y).id,Math.floor(sim.time/18))};this.residentCooldown=12;}
       }
     }
@@ -581,15 +657,17 @@ export class Renderer {
     this.biomeLife.update(dt, this.visualTime, this.cachedProps, { x: px, y: py, vx: p.vx, vy: p.vy },
       settings.reducedMotion, (x, y) => world.sampleGroundContact(x, y));
     const lights = this.sceneLights(sim, px, py, settings.reducedMotion, alpha);
-    if (GAME_FEATURES.lootBeams) lights.push(...lootBeamLights(this.lootBeams).slice(0, 4));
-    this.materialLights = lights.slice(1);
+    if (GAME_FEATURES.lootBeams) for (const light of lootBeamLights(this.lootBeams).slice(0, 4)) lights.push(light);
+    const materialLights = this.materialLights as PointLight[]; materialLights.length = 0;
+    const detailLights = this.detailLights; detailLights.length = 0;
+    for (let i = 1; i < lights.length; i++) { materialLights.push(lights[i]); detailLights.push(lights[i]); }
     this.profiler?.end('sceneSetup', setupStart);
     const detailStart = this.profiler?.start() ?? 0;
     // The first light is navigation fill, not a physical lamp reflecting on wet stone.
-    const dungeonDetail = this.cryptFloor && this.dungeonLightEffects.prepare(this.cryptFloor, this.view, lights.slice(1),
+    const dungeonDetail = this.cryptFloor && this.dungeonLightEffects.prepare(this.cryptFloor, this.view, detailLights,
       this.visualTime, settings.reducedMotion, this.width, this.height);
     const outdoorDetail = !this.cryptFloor && this.outdoorLightEffects.prepare(world, this.view, this.cachedProps,
-      prop => this.propSprite(prop), lights.slice(1), this.visualTime, settings.reducedMotion, this.indoorBlend, this.width, this.height, this.sky, {x:px,y:py});
+      prop => this.propSprite(prop), detailLights, this.visualTime, settings.reducedMotion, this.indoorBlend, this.width, this.height, this.sky, {x:px,y:py});
     if (this.cryptFloor) {
       this.emissionCanvas ??= document.createElement('canvas');
       const scale = Math.min(.5, 640 / this.width, 640 / this.height);
@@ -610,7 +688,7 @@ export class Renderer {
       const blade = a?.kind === 'melee' && a.elapsed >= a.activeStart && a.elapsed <= a.activeEnd
         ? getPlayerSwordTip(playerPose(p, sim.time)) : undefined;
       this.water.update(world, { x: left, y: top, width: worldWidth, height: worldHeight }, (x, y) => world.sampleWater(x, y),
-        [{ id: -1, x: px, y: py }, ...sim.enemies.filter(e => e.hp > 0).map(e => ({ id: e.id, x: lerp(e.prevX, e.x, alpha), y: lerp(e.prevY, e.y, alpha) }))],
+        this.waterActorList(sim, px, py, alpha),
         step, settings.reducedMotion, blade ? { x: px + blade.x, y: py + blade.y } : undefined);
     } else this.water.reset();
     this.profiler?.end('water', waterStart);
@@ -730,9 +808,14 @@ export class Renderer {
     // Authored zones tint ambient fog/light toward their palette (Teldrassil
     // violet, Hellfire fel-red) instead of the shared biome ambient.
     const ambientBase = biome.tint ? biome.tint.ambient.map((v, i) => biomeAmbient(weights)[i] * .45 + v * .55) : biomeAmbient(weights);
-    const ambientChannels = ambientBase.map((value, channel) =>
-      Math.round(value * this.sky.ambient[channel] * (1 - inside) + [116, 119, 141][channel] * inside));
-    const ambient = this.cryptFloor ? dungeonTheme(this.cryptFloor.seed,this.cryptFloor.theme).ambient : `rgb(${ambientChannels.join(',')})`;
+    const channels = this.ambientChannels;
+    let ambientDirty = false;
+    for (let channel = 0; channel < 3; channel++) {
+      const value = Math.round(ambientBase[channel] * this.sky.ambient[channel] * (1 - inside) + [116, 119, 141][channel] * inside);
+      if (channels[channel] !== value) { channels[channel] = value; ambientDirty = true; }
+    }
+    if (ambientDirty || !this.ambientColor) this.ambientColor = `rgb(${channels[0]},${channels[1]},${channels[2]})`;
+    const ambient = this.cryptFloor ? dungeonTheme(this.cryptFloor.seed,this.cryptFloor.theme).ambient : this.ambientColor;
     const lightingStart = this.profiler?.start() ?? 0;
     this.lighting.apply(c, this.width, this.height, left, top, lights, this.cachedProps, ambient, zoom);
     this.profiler?.end('lighting', lightingStart);
@@ -779,10 +862,14 @@ export class Renderer {
     c.restore();
     if (GAME_FEATURES.castBars && !platesOn) drawCastBars(c, sim, this.view, castBarSettings(), settings.reducedMotion);
 
-    const vignette = c.createRadialGradient(this.width / 2, this.height * .46, this.height * .23,
-      this.width / 2, this.height * .46, Math.max(this.width, this.height) * .7);
-    vignette.addColorStop(0, '#04101900'); vignette.addColorStop(1, '#02081260');
-    c.fillStyle = vignette; c.fillRect(0, 0, this.width, this.height);
+    const vignetteKey = `${this.width}x${this.height}`;
+    if (!this.vignetteGradient || this.vignetteSize !== vignetteKey) {
+      const gradient = c.createRadialGradient(this.width / 2, this.height * .46, this.height * .23,
+        this.width / 2, this.height * .46, Math.max(this.width, this.height) * .7);
+      gradient.addColorStop(0, '#04101900'); gradient.addColorStop(1, '#02081260');
+      this.vignetteGradient = gradient; this.vignetteSize = vignetteKey;
+    }
+    c.fillStyle = this.vignetteGradient; c.fillRect(0, 0, this.width, this.height);
     this.damageVignette(settings.reducedMotion);
     this.lootVignette(settings.reducedMotion);
   }
@@ -799,19 +886,23 @@ export class Renderer {
     const lootPointer = settings.phase === 'playing' && this.pointerActive && !this.gamepadActive && !this.touchActive && !this.pointerOverHUD()
       ? { x: this.pointerX, y: this.pointerY } : null;
     const retainedId = lootPointer ? hoveredGroundLoot(this.groundLootLabels, lootPointer.x, lootPointer.y)?.id : undefined;
-    this.groundLootLabels = drawLootLabels(c, sim.groundItems.filter(d=>!d.flight||sim.time>=d.flight.at+d.flight.delay+1.05),
+    const lootItems = this.lootItemScratch; lootItems.length = 0;
+    for (const d of sim.groundItems) if (!d.flight || sim.time >= d.flight.at + d.flight.delay + 1.05) lootItems.push(d);
+    this.groundLootLabels = drawLootLabels(c, lootItems,
       (x, y) => worldToScreen(this.view, x, y), this.width, this.height,
       { showAll: settings.showGroundLootNames !== false, pointer: lootPointer, retainedId,
         selectedId: settings.phase === 'playing' ? sim.groundPickup.id : null, filter: settings.lootFilter ?? 'off' });
-    const lootBounds = this.groundLootLabels.filter(label => label.visible !== false);
+    const lootBounds = this.lootBoundsScratch; lootBounds.length = 0;
+    for (const label of this.groundLootLabels) if (label.visible !== false) lootBounds.push(label);
     const phone = this.touchActive && this.touchViewport ? phoneLandscapeLayout(this.touchViewport) : null;
     const unit = this.touchViewport ? this.width / this.touchViewport.width : 1;
     const footer = phone ? {x:phone.footer.x*unit,y:phone.footer.y*unit,scale:phone.footer.scale*unit} : undefined;
     const headerX = phone ? (phone.left-22*.8)*unit : 0;
     const headerY = phone ? (phone.top-22*.8)*unit : 0;
-    const barkReserved = [...lootBounds,
-      getHUDLayout(this.width, this.height), getMinimapRect(this.width, this.height),
-      { x: 0, y: 0, width: this.width, height: 112 + this.touchTopInset }];
+    const barkReserved = this.barkReservedScratch; barkReserved.length = 0;
+    for (const label of lootBounds) barkReserved.push(label);
+    barkReserved.push(getHUDLayout(this.width, this.height), getMinimapRect(this.width, this.height),
+      { x: 0, y: 0, width: this.width, height: 112 + this.touchTopInset });
     if (this.extraUIBounds) barkReserved.push(this.extraUIBounds);
     if (this.performanceUIBounds) barkReserved.push(this.performanceUIBounds);
     if (this.touchActive) barkReserved.push({ x: 0, y: this.height - 190 * unit, width: this.width, height: 190 * unit });
@@ -839,13 +930,16 @@ export class Renderer {
     const plateWidth=this.width/plateScale, plateHeight=this.height/plateScale;
     const plateInset=this.touchTopInset/plateScale;
     const bossTargets = bossFrameTargets(sim.enemies, p, this.focusedEnemy?.id ?? null);
-    const bossLayouts = bossTargets.map((enemy, slot) => ({ enemy,
-      layout: getBossFrameLayout(plateWidth, plateHeight, { slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset }) }))
-      .filter(frame => frame.layout.height > 0);
+    const bossLayouts = this.bossLayoutScratch; bossLayouts.length = 0;
+    for (const [slot, enemy] of bossTargets.entries()) {
+      const layout = getBossFrameLayout(plateWidth, plateHeight, { slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset });
+      if (layout.height > 0) bossLayouts.push({ enemy, layout });
+    }
     const bossStack = bossLayouts.length ? bossLayouts[bossLayouts.length - 1].layout.y + bossLayouts[bossLayouts.length - 1].layout.height - bossLayouts[0].layout.y : 0;
     const target = (this.plateOpacity > .01 && this.plateEnemy && !bossFrameEligible(this.plateEnemy) ? this.plateEnemy : null) ?? bossTargets[0] ?? null;
     const targetFramed = !!target && bossLayouts.some(frame => frame.enemy.id === target.id);
-    const debuffs = target ? [...enemyTraitBuffs(target),...enemyDebuffs(target, p)] : [];
+    const debuffs = this.debuffScratch; debuffs.length = 0;
+    if (target) { for (const b of enemyTraitBuffs(target)) debuffs.push(b); for (const b of enemyDebuffs(target, p)) debuffs.push(b); }
     const plateOffset = target && !targetFramed ? bossStack + (bossStack ? BOSS_FRAME.gap : 0) : 0;
     const targetPlate = getEnemyPlateLayout(plateWidth, plateHeight, this.touchActive, plateInset, debuffs.length > 0, !!phone, plateOffset);
     // Visible plates own this space, including their death fade. Dismiss without replaying after focus ends.
@@ -882,7 +976,7 @@ export class Renderer {
       drawBossFrame(c, frameEnemy, plateWidth, plateHeight, {
         slot, touch: this.touchActive, compactLandscape: !!phone, topInset: plateInset,
         name: isBossKind(frameEnemy.kind) ? (raidBossName(frameEnemy) ?? raid2BossName(frameEnemy) ?? raid3BossName(frameEnemy) ?? raid4BossName(frameEnemy) ?? raid5BossName(frameEnemy) ?? raid6BossName(frameEnemy) ?? raid7BossName(frameEnemy) ?? raid8BossName(frameEnemy) ?? raid9BossName(frameEnemy) ?? (this.cryptFloor ? dungeonTheme(this.cryptFloor.seed, this.cryptFloor.theme).bossName : undefined)) : undefined,
-        debuffs: framed ? debuffs : [...enemyTraitBuffs(frameEnemy),...enemyDebuffs(frameEnemy, p)],
+        debuffs: framed ? debuffs : this.frameDebuffs(frameEnemy, p),
         time: this.visualTime, reducedMotion: settings.reducedMotion,
         hitPulse: settings.reducedMotion ? 0 : Math.min(1, frameEnemy.hitFlash / COMBAT_TIMING.hitFlashDuration),
         comboPoints: framed ? p.comboPoints : undefined,
@@ -916,32 +1010,32 @@ export class Renderer {
         const point = worldToScreen(view, innkeeper.x, innkeeper.y - 78);
         text(c, `${innkeeper.name} - Innkeeper  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const stableMaster = focusedStableMaster(stableMastersNear(world, p.x - 100, p.y - 100, 200, 200).map(m => this.positioned(m)!), p, world);
+      const stableMaster = focusedStableMaster(this.positionedList(stableMastersNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (stableMaster) {
         const point = worldToScreen(view, stableMaster.x, stableMaster.y - 78);
         text(c, `${stableMaster.name} - Stable Master  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const battlemaster = focusedBattlemaster(battlemastersNear(world, p.x - 100, p.y - 100, 200, 200).map(m => this.positioned(m)!), p, world);
+      const battlemaster = focusedBattlemaster(this.positionedList(battlemastersNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (battlemaster) {
         const point = worldToScreen(view, battlemaster.x, battlemaster.y - 78);
         text(c, `${battlemaster.name} - Battlemaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const pvpVendor = focusedPvpVendor(pvpVendorsNear(world, p.x - 100, p.y - 100, 200, 200).map(v => this.positioned(v)!), p, world);
+      const pvpVendor = focusedPvpVendor(this.positionedList(pvpVendorsNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (pvpVendor) {
         const point = worldToScreen(view, pvpVendor.x, pvpVendor.y - 78);
         text(c, `${pvpVendor.name} - PvP Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const badgeVendor = focusedBadgeVendor(badgeVendorsNear(world, p.x - 100, p.y - 100, 200, 200).map(v => this.positioned(v)!), p, world);
+      const badgeVendor = focusedBadgeVendor(this.positionedList(badgeVendorsNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (badgeVendor) {
         const point = worldToScreen(view, badgeVendor.x, badgeVendor.y - 78);
         text(c, `${badgeVendor.name} - Badge Vendor  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const trainer = focusedTrainer(trainersNear(world, p.x - 100, p.y - 100, 200, 200).map(t => this.positioned(t)!), p, world);
+      const trainer = focusedTrainer(this.positionedList(trainersNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (trainer) {
         const point = worldToScreen(view, trainer.x, trainer.y - 78);
         text(c, `${trainer.name} - Class Trainer  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
       }
-      const quartermaster = focusedQuartermaster(quartermastersNear(world, p.x - 100, p.y - 100, 200, 200).map(q => this.positioned(q)!), p, world);
+      const quartermaster = focusedQuartermaster(this.positionedList(quartermastersNear(world, p.x - 100, p.y - 100, 200, 200)), p, world);
       if (quartermaster) {
         const point = worldToScreen(view, quartermaster.x, quartermaster.y - 78);
         text(c, `${quartermaster.name} - Quartermaster  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, point.x, point.y, 1, '#d6d7b3', 'center');
@@ -976,7 +1070,9 @@ export class Renderer {
     if (GAME_FEATURES.bossWarnings) drawBossWarnings(c, this.bossWarnings, this.width, this.height, this.visualTime, settings.reducedMotion);
     if (settings.phase === 'playing') {
       const run=currentDungeon(sim.expeditions),f=sim.dungeonFloor;
-      const points=run&&f?[{...f.entry,name:'Leave dungeon'},...(run.states.warden.hp<=0?[{...dungeonRunExit(f,run),name:'Leave dungeon'}]:[]),...dungeonInteractionChests(f,run).map(chest=>({...chest,name:'Treasure chest'}))]:this.visibility.entrances;
+      const points=this.pointScratch;points.length=0;
+      if(run&&f){points.push({...f.entry,name:'Leave dungeon'});if(run.states.warden.hp<=0)points.push({...dungeonRunExit(f,run),name:'Leave dungeon'});for(const chest of dungeonInteractionChests(f,run))points.push({...chest,name:'Treasure chest'});}
+      else for(const e of this.visibility.entrances)points.push(e);
       const table=!run&&world.getBuildings(p.x-180,p.y-180,360,360).find(b=>(b.kind==='expedition'||b.kind==='rift')&&Math.hypot(b.door.x-p.x,b.door.y-p.y)<75);
       if(table){const q=worldToScreen(this.view,table.door.x,table.door.y-80);text(c,`${table.kind==='rift'?'Crimson Rift':'Expeditions'}${p.level<20?' · Level 20':''} [${this.gamepadActive?'A':controls.label('interact')}]`,q.x,q.y,1,'#d8c593','center');}
       const target=points.find(q=>Math.hypot(q.x-p.x,q.y-p.y)<75);
@@ -1056,165 +1152,83 @@ export class Renderer {
     c.restore();
   }
 
+  private pushEntry(y: number, kind: string, a?: unknown, b?: unknown, x?: number, stage?: FrameStage) {
+    const entry = this.entryPool[this.entryList.length] ?? (this.entryPool[this.entryList.length] = { y: 0, kind: '' });
+    entry.y = y; entry.kind = kind; entry.a = a; entry.b = b; entry.x = x; entry.stage = stage;
+    this.entryList.push(entry);
+  }
+
   private actorsAndProps(sim: Simulation, world: World, px: number, py: number, alpha: number, dt: number, settings: RenderSettings) {
-    const c = this.ctx, p = this.subject ?? sim.player;
-    const entries: Array<{ y: number; stage?: FrameStage; draw: () => void }> = this.cachedProps.map(prop => ({ y: prop.y, stage: 'props', draw: () => {
+    const p = this.subject ?? sim.player;
+    const view = this.view, entries = this.entryList;
+    entries.length = 0;
+    for (const prop of this.cachedProps) {
       // Prefetched offscreen props retain collision/light coverage without generating unseen sprites.
-      if (prop.x + 115 < this.view.left || prop.x - 115 > this.view.left + this.view.width
-        || prop.y + 10 < this.view.top || prop.y - 230 > this.view.top + this.view.height) return;
-      const definition = propDefinition(prop.kind);
-      const sprite = this.propSprite(prop);
-      // Generalized occluder fade: any tall prop (canopy kind or authored
-      // `occluder` metadata) whose silhouette covers the focus→player segment
-      // turns translucent. Foliage layers fade alone so trunks stay rooted.
-      // The volume + slab test are inlined so this per-frame path allocates
-      // nothing (propOccluder/occluderBlocks both allocate per call).
-      const meta = prop.occluder === undefined ? definition.canopy : prop.occluder;
-      let occluderAlpha = 1;
-      if (meta === null) this.occlusion.delete(prop.id);
-      else {
-        const radius = meta.radius * prop.scale, cx = prop.x + (meta.offsetX ?? 0) * prop.scale;
-        const vx = cx - radius, vy = prop.y - (meta.height + meta.radius) * prop.scale;
-        const vw = radius * 2, vh = meta.height * prop.scale + radius + 8;
-        const dx = px - this.cameraX, dy = py - this.cameraY;
-        let t0 = 0, t1 = 1, occludes = true;
-        if (Math.abs(dx) < 1e-12) { if (this.cameraX < vx || this.cameraX > vx + vw) occludes = false; }
-        else {
-          let ta = (vx - this.cameraX) / dx, tb = (vx + vw - this.cameraX) / dx;
-          if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
-          t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
-          if (t0 > t1) occludes = false;
-        }
-        if (occludes) {
-          if (Math.abs(dy) < 1e-12) { if (this.cameraY < vy || this.cameraY > vy + vh) occludes = false; }
-          else {
-            let ta = (vy - this.cameraY) / dy, tb = (vy + vh - this.cameraY) / dy;
-            if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
-            t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
-            if (t0 > t1) occludes = false;
-          }
-        }
-        occluderAlpha = this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion);
-      }
-      c.save(); c.translate(prop.x, prop.y); c.scale(prop.scale, prop.scale);
-      // Trunks stay rooted and opaque. Only the obstructing canopy becomes translucent.
-      if (!sprite.foliage && definition.radius[1] === 0) {
-        const wind = biomeWind(prop.x, prop.y, this.visualTime, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway;
-        const bend = settings.reducedMotion ? 0 : this.biomeLife.bend(prop.x, prop.y);
-        c.transform(1, 0, -bend * .35, 1 - Math.abs(bend) * .18, 0, 0);
-        c.transform(1, 0, wind * -.012, 1, 0, 0);
-      }
-      // Props without foliage layers fade whole; layered trees keep an opaque trunk.
-      c.save();
-      if (!sprite.foliage) c.globalAlpha *= occluderAlpha;
-      c.drawImage(sprite.image, -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
-      this.propSurfaceLight.draw(c, prop, sprite, sprite.image, this.cryptFloor ? undefined : this.sky);
-      if (!this.cryptFloor) this.propSurfaceLight.drawOutdoor(c, prop, sprite, sprite.image, world, this.visualTime, settings.reducedMotion, this.sky);
-      c.restore();
-      for (const [layer, foliage] of (sprite.foliage ?? []).entries()) {
-        c.save();
-        const gust = biomeWind(prop.x, prop.y, this.visualTime - layer * .18, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway * 2.2;
-        c.transform(1, 0, gust * (layer ? -.009 : -.005), 1, 0, 0);
-        c.globalAlpha *= occluderAlpha;
-        c.drawImage(foliage, -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
-        this.propSurfaceLight.draw(c, prop, sprite, foliage, this.cryptFloor ? undefined : this.sky);
-        if (!this.cryptFloor) this.propSurfaceLight.drawOutdoor(c, prop, sprite, foliage, world, this.visualTime, settings.reducedMotion, this.sky);
-        c.restore();
-      }
-      c.restore();
-    } }));
-    for (const site of this.eventSites)
-      entries.push({ y: site.y, draw: () => this.eventArt.draw(c, site, eventClaimed(sim.eventState, site.id) ? { phase: 'claimed' } : sim.eventState.sites[site.id], this.visualTime, dt, settings.reducedMotion, sim.eventChannel.site?.id===site.id ? sim.eventChannel.elapsed/sim.eventChannel.duration : 0) });
-    for (const anchor of this.portalAnchors) entries.push({ y: anchor.y, draw: () => {
-      drawTownAnchor(c, anchor, sim.travel.homeTown === anchor.band);
-      if (sim.travel.returnTo?.town === anchor.band) drawPortal(c, anchor.x, anchor.y, this.visualTime, 1, this.portalDestinations?.returnTo ?? undefined, settings.reducedMotion);
-    } });
+      if (prop.x + 115 < view.left || prop.x - 115 > view.left + view.width
+        || prop.y + 10 < view.top || prop.y - 230 > view.top + view.height) continue;
+      this.pushEntry(prop.y, 'prop', prop, undefined, undefined, 'props');
+    }
+    for (const site of this.eventSites) this.pushEntry(site.y, 'site', site);
+    for (const anchor of this.portalAnchors) this.pushEntry(anchor.y, 'anchor', anchor);
     if (GAME_FEATURES.transport && !currentDungeon(sim.expeditions))
-      for (const vehicle of vehiclesNear(sim, this.view.left - 160, this.view.top - 160, this.view.width + 320, this.view.height + 320))
-        entries.push({ y: vehicle.y, draw: () => drawTransport(c, vehicle, this.visualTime) });
-    if (sim.portal.origin) { const origin = sim.portal.origin;
-      entries.push({ y: origin.y - 1, draw: () => drawPortal(c, origin.x, origin.y, this.visualTime, sim.portal.progress, this.portalDestinations?.home, settings.reducedMotion) });
-    }
-    if (!sim.portal.active && this.fadingPortal) { const old = this.fadingPortal;
-      entries.push({ y: old.y - 1, draw: () => { c.save(); c.globalAlpha = old.life / .25;
-        drawPortal(c, old.x, old.y, this.visualTime, old.progress * old.life / .25); c.restore(); } });
-    }
-    for(const resident of this.residents)entries.push({y:resident.y,stage:'characters',draw:()=>withGearLight(c,sampleGearLight(resident.x,resident.y-24,this.materialLights,this.materialKey),()=>drawNPC(c,resident,this.visualTime,settings.reducedMotion))});
-    for (const bird of this.biomeLife.birds) entries.push({ y: bird.y + (bird.state === 'perched' ? 1 : 130),
-      draw: () => this.biomeArt.drawBird(c, bird, this.visualTime, settings.reducedMotion) });
+      for (const vehicle of vehiclesNear(sim, view.left - 160, view.top - 160, view.width + 320, view.height + 320))
+        this.pushEntry(vehicle.y, 'vehicle', vehicle);
+    if (sim.portal.origin) this.pushEntry(sim.portal.origin.y - 1, 'portal', sim.portal.origin);
+    if (!sim.portal.active && this.fadingPortal) this.pushEntry(this.fadingPortal.y - 1, 'fadingPortal', this.fadingPortal);
+    for (const resident of this.residents) this.pushEntry(resident.y, 'npc', resident, undefined, undefined, 'characters');
+    for (const bird of this.biomeLife.birds) this.pushEntry(bird.y + (bird.state === 'perched' ? 1 : 130), 'bird', bird);
     for (const building of this.cachedBuildings) {
       const npc = this.positioned(buildingNPC(building));
-      if (npc) entries.push({ y: npc.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(npc.x,npc.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, npc, this.visualTime, settings.reducedMotion)) });
+      if (npc) this.pushEntry(npc.y, 'npc', npc, undefined, undefined, 'characters');
       const master = this.positioned(stableMasterFor(building));
-      if (master) entries.push({ y: master.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(master.x,master.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, master, this.visualTime, settings.reducedMotion)) });
+      if (master) this.pushEntry(master.y, 'npc', master, undefined, undefined, 'characters');
       const battlemaster = this.positioned(battlemasterFor(building));
-      if (battlemaster) entries.push({ y: battlemaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(battlemaster.x,battlemaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, battlemaster, this.visualTime, settings.reducedMotion)) });
+      if (battlemaster) this.pushEntry(battlemaster.y, 'npc', battlemaster, undefined, undefined, 'characters');
       const pvpVendor = this.positioned(pvpVendorFor(building));
-      if (pvpVendor) entries.push({ y: pvpVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(pvpVendor.x,pvpVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, pvpVendor, this.visualTime, settings.reducedMotion)) });
+      if (pvpVendor) this.pushEntry(pvpVendor.y, 'npc', pvpVendor, undefined, undefined, 'characters');
       const badgeVendor = this.positioned(badgeVendorFor(building));
-      if (badgeVendor) entries.push({ y: badgeVendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(badgeVendor.x,badgeVendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, badgeVendor, this.visualTime, settings.reducedMotion)) });
+      if (badgeVendor) this.pushEntry(badgeVendor.y, 'npc', badgeVendor, undefined, undefined, 'characters');
       const trainer = this.positioned(trainerFor(building));
-      if (trainer) entries.push({ y: trainer.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(trainer.x,trainer.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, trainer, this.visualTime, settings.reducedMotion)) });
+      if (trainer) this.pushEntry(trainer.y, 'npc', trainer, undefined, undefined, 'characters');
       const quartermaster = this.positioned(quartermasterFor(building));
-      if (quartermaster) entries.push({ y: quartermaster.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(quartermaster.x,quartermaster.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, quartermaster, this.visualTime, settings.reducedMotion)) });
+      if (quartermaster) this.pushEntry(quartermaster.y, 'npc', quartermaster, undefined, undefined, 'characters');
       const mailbox = GAME_FEATURES.mail ? mailboxFor(building) : null;
-      if (mailbox) entries.push({ y: mailbox.y, stage: 'props', draw: () => drawMailbox(c, mailbox) });
-      for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers)) {
-        entries.push({ y: layer.y, stage: 'structures', draw: () => layer.draw(c) });
-      }
+      if (mailbox) this.pushEntry(mailbox.y, 'mailbox', mailbox, undefined, undefined, 'props');
+      for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers))
+        this.pushEntry(layer.y, 'structure', layer, undefined, undefined, 'structures');
     }
     if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
       const vendor = faireVendor(this.faireSiteFor(world));
-      entries.push({ y: vendor.y, stage: 'characters', draw: () => withGearLight(c,sampleGearLight(vendor.x,vendor.y-24,this.materialLights,this.materialKey),()=>drawNPC(c, vendor, this.visualTime, settings.reducedMotion)) });
+      this.pushEntry(vendor.y, 'npc', vendor, undefined, undefined, 'characters');
     }
-    for (const remains of this.materials.bursts)
-      entries.push({ y: remains.y, draw: () => drawMaterialBurst(c, remains, settings.reducedMotion) });
+    for (const remains of this.materials.bursts) this.pushEntry(remains.y, 'burst', remains);
     for (const site of this.visibility.sites) for (const decor of site.decor) {
       if (sim.brokenContainers.has(decor.id)) continue;
-      entries.push({ y: decor.y, draw: () => drawSiteDecor(c, site, decor, settings.reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id)) });
+      this.pushEntry(decor.y, 'decor', site, decor);
     }
-    for (const remains of this.deaths.remains)
-      entries.push({ y: deathDepth(remains), draw: () => drawEnemyRemains(c, remains, settings.reducedMotion) });
-    if(p.skillEffects?.conductor)entries.push({y:p.skillEffects.conductor.y,draw:()=>drawConductor(c,p)});
+    for (const remains of this.deaths.remains) this.pushEntry(deathDepth(remains), 'remains', remains);
+    if (p.skillEffects?.conductor) this.pushEntry(p.skillEffects.conductor.y, 'conductor');
     for (const enemy of sim.enemies) {
       if (enemy.hp <= 0) continue;
       const x = lerp(enemy.prevX, enemy.x, alpha), y = lerp(enemy.prevY, enemy.y, alpha);
       // Keep simulating pursued rooms, but don't build or draw wholly offscreen rigs.
       // Generous padding includes bosses, held weapons and status effects.
-      if (x < this.view.left - 256 || x > this.view.left + this.view.width + 256
-        || y < this.view.top - 256 || y > this.view.top + this.view.height + 256) continue;
-      if(p.skillEffects?.harvest?.length)entries.push({y:y+1,draw:()=>drawHarvestMark(c,p,enemy.id,x,y)});
-      const skin=enemyRosterSkin(enemy);
-      entries.push({ y, draw: () => {const scale=enemyVisualScale(enemy);this.actor(x, y, { kind: enemy.kind, dungeonTheme:enemy.dungeonTheme, angle: enemy.angle,
-        command: enemy.warband?.order, commandWarning: enemy.warband?.warning,
-        time: sim.time + enemy.id, effectTime: settings.reducedMotion ? 0 : sim.time + enemy.id, moveAngle: Math.atan2(enemy.vy, enemy.vx),
-        moving: Math.min(1, Math.hypot(enemy.vx, enemy.vy) / 70),
-        attack: enemy.state === 'windup' ? -Math.max(.001, enemy.stateTime / enemy.stateDuration)
-          : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
-        attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
-        cc: enemy.cc, dots: enemy.dots, tint: skin?.tint, tintAmount: skin?.tintAmount,
-        impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },scale,riftMechanic(enemy)==='ritual'?'#9ae0c7':riftWardActive(enemy)?'#80c9b8':scale>1?(enemy.rank==='elite'?'#e9bb70':enemy.rank==='rare'?'#b9d2e2':'#85c9ee'):undefined); } });
+      if (x < view.left - 256 || x > view.left + view.width + 256
+        || y < view.top - 256 || y > view.top + view.height + 256) continue;
+      if (p.skillEffects?.harvest?.length) this.pushEntry(y + 1, 'harvest', enemy.id, y, x);
+      this.pushEntry(y, 'enemy', enemy, undefined, x);
     }
-    for(const [kind,spirit] of [['decoy',p.skillEffects?.decoy],['archer',p.skillEffects?.archer]] as const){
-      if(!spirit||p.dead||settings.phase==='ready')continue;
-      entries.push({y:spirit.y,draw:()=>{
-        c.save();c.globalAlpha=Math.min(.55,spirit.remaining*2);
-        const pose=playerPose(p,settings.reducedMotion?0:sim.time,null);pose.effectTime=settings.reducedMotion?0:sim.time;
-        Object.assign(pose,{angle:spirit.angle,attack:0,moving:0,dodging:false,cast:0,guard:0,hitFlash:0,impact:0,gesture:undefined,attackKind:undefined});
-        if(kind==='archer'&&spirit.shotRemaining){pose.attackKind='ranged';pose.attack=.45;pose.attackAngle=spirit.angle;}
-        c.save();c.translate(spirit.x,spirit.y);drawHumanoid(c,pose);c.restore();
-        c.strokeStyle=kind==='decoy'?'#adc7ce':'#bcaddd';c.lineWidth=1.5;c.beginPath();c.ellipse(spirit.x,spirit.y,23,9,0,0,Math.PI*2);c.stroke();
-        c.restore();
-      }});
-    }
+    const spirits = p.skillEffects;
+    if (spirits?.decoy && !p.dead && settings.phase !== 'ready') this.pushEntry(spirits.decoy.y, 'spirit', spirits.decoy, undefined, 0);
+    if (spirits?.archer && !p.dead && settings.phase !== 'ready') this.pushEntry(spirits.archer.y, 'spirit', spirits.archer, undefined, 1);
     let drawnAllies = 0;
     for (const ally of p.allies ?? []) {
       if (ally.hp <= 0 || drawnAllies >= 24) continue;
       const x = lerp(ally.prevX, ally.x, alpha), y = lerp(ally.prevY, ally.y, alpha);
-      if (x < this.view.left - 48 || x > this.view.left + this.view.width + 48
-        || y < this.view.top - 48 || y > this.view.top + this.view.height + 48) continue;
+      if (x < view.left - 48 || x > view.left + view.width + 48
+        || y < view.top - 48 || y > view.top + view.height + 48) continue;
       drawnAllies++;
-      entries.push({ y, stage: 'characters', draw: () => drawAlly(c, ally, x, y, this.visualTime, settings.reducedMotion) });
+      this.pushEntry(y, 'ally', ally, y, x, 'characters');
     }
     // Vanity companion: a cosmetic follower that trails the player. Its state
     // is presentation-only — the sim never sees it.
@@ -1225,17 +1239,105 @@ export class Renderer {
     }
     if (companionId && this.companionFollower) {
       const follower = advanceCompanionFollower(this.companionFollower, p, dt, settings.reducedMotion);
-      const def = COMPANIONS[companionId];
-      entries.push({ y: follower.y, stage: 'characters', draw: () => {
-        this.drawContactShadow(follower.x, follower.y, 5, 2.4);
-        drawCompanion(c, def, follower, follower.x, follower.y, this.visualTime, settings.reducedMotion);
-      } });
+      this.pushEntry(follower.y, 'companion', COMPANIONS[companionId], follower, undefined, 'characters');
     }
 
     // Every controlled player is drawn; in co-op both share the world pass.
-    if (settings.phase !== 'ready') for (const subject of sim.players) {
-      const sx = lerp(subject.prevX, subject.x, alpha), sy = lerp(subject.prevY, subject.y, alpha);
-      entries.push({ y: sy, draw: () => {
+    if (settings.phase !== 'ready') for (const subject of sim.players)
+      this.pushEntry(lerp(subject.prevY, subject.y, alpha), 'player', subject, undefined, lerp(subject.prevX, subject.x, alpha));
+    for (const scar of this.riftAtmosphere.visible) if (scar.float) this.pushEntry(scar.y, 'riftScar', scar, undefined, undefined, 'props');
+    entries.sort((a, b) => a.y - b.y);
+    for (const entry of entries) {
+      const start = this.profiler?.enabled && entry.stage ? this.profiler.start() : 0;
+      this.drawEntry(entry, sim, world, px, py, dt, settings);
+      if (this.profiler?.enabled && entry.stage) this.profiler.end(entry.stage, start);
+    }
+    entries.length = 0;
+  }
+
+  /** Depth-sorted draw dispatch. Every branch reproduces the former closure body. */
+  private drawEntry(entry: DrawEntry, sim: Simulation, world: World, px: number, py: number,
+    dt: number, settings: RenderSettings) {
+    const c = this.ctx, p = this.subject ?? sim.player;
+    switch (entry.kind) {
+      case 'prop': this.drawProp(entry.a as Prop, world, px, py, dt, settings); break;
+      case 'site': {
+        const site = entry.a as EventSite;
+        this.eventArt.draw(c, site, eventClaimed(sim.eventState, site.id) ? { phase: 'claimed' } : sim.eventState.sites[site.id],
+          this.visualTime, dt, settings.reducedMotion, sim.eventChannel.site?.id === site.id ? sim.eventChannel.elapsed / sim.eventChannel.duration : 0);
+        break;
+      }
+      case 'anchor': {
+        const anchor = entry.a as PortalAnchor;
+        drawTownAnchor(c, anchor, sim.travel.homeTown === anchor.band);
+        if (sim.travel.returnTo?.town === anchor.band) drawPortal(c, anchor.x, anchor.y, this.visualTime, 1, this.portalDestinations?.returnTo ?? undefined, settings.reducedMotion);
+        break;
+      }
+      case 'vehicle': drawTransport(c, entry.a as VehicleMarker, this.visualTime); break;
+      case 'portal': {
+        const origin = entry.a as NonNullable<Simulation['portal']['origin']>;
+        drawPortal(c, origin.x, origin.y, this.visualTime, sim.portal.progress, this.portalDestinations?.home, settings.reducedMotion);
+        break;
+      }
+      case 'fadingPortal': {
+        const old = entry.a as { x: number; y: number; progress: number; life: number };
+        c.save(); c.globalAlpha = old.life / .25;
+        drawPortal(c, old.x, old.y, this.visualTime, old.progress * old.life / .25); c.restore();
+        break;
+      }
+      case 'npc': {
+        const npc = entry.a as TownNPC | Resident;
+        withGearLight(c, sampleGearLight(npc.x, npc.y - 24, this.materialLights, this.materialKey),
+          () => drawNPC(c, npc, this.visualTime, settings.reducedMotion));
+        break;
+      }
+      case 'bird': this.biomeArt.drawBird(c, entry.a as BiomeBird, this.visualTime, settings.reducedMotion); break;
+      case 'mailbox': drawMailbox(c, entry.a as Mailbox); break;
+      case 'structure': (entry.a as StructureLayer).draw(c); break;
+      case 'burst': drawMaterialBurst(c, entry.a as MaterialBurst, settings.reducedMotion); break;
+      case 'decor': {
+        const site = entry.a as WildernessSite, decor = entry.b as SiteDecor;
+        drawSiteDecor(c, site, decor, settings.reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id));
+        break;
+      }
+      case 'remains': drawEnemyRemains(c, entry.a as EnemyRemains, settings.reducedMotion); break;
+      case 'conductor': drawConductor(c, p); break;
+      case 'harvest': drawHarvestMark(c, p, entry.a as number, entry.x!, entry.b as number); break;
+      case 'enemy': {
+        const enemy = entry.a as Enemy, x = entry.x!, y = entry.y;
+        const scale = enemyVisualScale(enemy), skin = enemyRosterSkin(enemy);
+        this.actor(x, y, { kind: enemy.kind, dungeonTheme: enemy.dungeonTheme, angle: enemy.angle,
+          command: enemy.warband?.order, commandWarning: enemy.warband?.warning,
+          time: sim.time + enemy.id, effectTime: settings.reducedMotion ? 0 : sim.time + enemy.id, moveAngle: Math.atan2(enemy.vy, enemy.vx),
+          moving: Math.min(1, Math.hypot(enemy.vx, enemy.vy) / 70),
+          attack: enemy.state === 'windup' ? -Math.max(.001, enemy.stateTime / enemy.stateDuration)
+            : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
+          attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
+          cc: enemy.cc, dots: enemy.dots, tint: skin?.tint, tintAmount: skin?.tintAmount,
+          impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },
+          scale, riftMechanic(enemy) === 'ritual' ? '#9ae0c7' : riftWardActive(enemy) ? '#80c9b8' : scale > 1 ? (enemy.rank === 'elite' ? '#e9bb70' : enemy.rank === 'rare' ? '#b9d2e2' : '#85c9ee') : undefined);
+        break;
+      }
+      case 'spirit': {
+        const spirit = entry.a as { x: number; y: number; angle: number; remaining: number; shotRemaining?: number };
+        c.save(); c.globalAlpha = Math.min(.55, spirit.remaining * 2);
+        const pose = playerPose(p, settings.reducedMotion ? 0 : sim.time, null); pose.effectTime = settings.reducedMotion ? 0 : sim.time;
+        Object.assign(pose, { angle: spirit.angle, attack: 0, moving: 0, dodging: false, cast: 0, guard: 0, hitFlash: 0, impact: 0, gesture: undefined, attackKind: undefined });
+        if (entry.x === 1 && spirit.shotRemaining) { pose.attackKind = 'ranged'; pose.attack = .45; pose.attackAngle = spirit.angle; }
+        c.save(); c.translate(spirit.x, spirit.y); drawHumanoid(c, pose); c.restore();
+        c.strokeStyle = entry.x === 1 ? '#bcaddd' : '#adc7ce'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(spirit.x, spirit.y, 23, 9, 0, 0, Math.PI * 2); c.stroke();
+        c.restore();
+        break;
+      }
+      case 'ally': drawAlly(c, entry.a as Ally, entry.x!, entry.b as number, this.visualTime, settings.reducedMotion); break;
+      case 'companion': {
+        const def = entry.a as CompanionDef, follower = entry.b as CompanionFollower;
+        this.drawContactShadow(follower.x, follower.y, 5, 2.4);
+        drawCompanion(c, def, follower, follower.x, follower.y, this.visualTime, settings.reducedMotion);
+        break;
+      }
+      case 'player': {
+        const subject = entry.a as Player, sx = entry.x!, sy = entry.y;
         const pose = playerPose(subject, sim.time);
         pose.effectTime = settings.reducedMotion ? 0 : sim.time;
         if (subject === p && sim.portal.active) { pose.cast = .45 * Math.min(1, sim.portal.progress * 4); pose.castColor = '#b5a0ee'; }
@@ -1254,15 +1356,80 @@ export class Renderer {
           const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
           schoolCastAura(c, sx + tip.x, (mount ? sy - mountSeatHeight(mount) : sy) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
         }
-      } });
+        break;
+      }
+      case 'riftScar': this.riftAtmosphere.drawFragment(c, entry.a as RiftScar); break;
     }
-    for(const scar of this.riftAtmosphere.visible)if(scar.float)entries.push({y:scar.y,stage:'props',draw:()=>this.riftAtmosphere.drawFragment(c,scar)});
-    entries.sort((a, b) => a.y - b.y);
-    for (const entry of entries) {
-      const start = this.profiler?.enabled && entry.stage ? this.profiler.start() : 0;
-      entry.draw();
-      if (this.profiler?.enabled && entry.stage) this.profiler.end(entry.stage, start);
+  }
+
+  /** One visible prop: base sprite, surface relief, then wind-blown foliage layers. */
+  private drawProp(prop: Prop, world: World, px: number, py: number, dt: number, settings: RenderSettings) {
+    const c = this.ctx;
+    const definition = propDefinition(prop.kind);
+    const sprite = this.propSprite(prop);
+    // Generalized occluder fade: any tall prop (canopy kind or authored
+    // `occluder` metadata) whose silhouette covers the focus→player segment
+    // turns translucent. Foliage layers fade alone so trunks stay rooted.
+    // The volume + slab test are inlined so this per-frame path allocates
+    // nothing (propOccluder/occluderBlocks both allocate per call).
+    const meta = prop.occluder === undefined ? definition.canopy : prop.occluder;
+    let occluderAlpha = 1;
+    if (meta === null) this.occlusion.delete(prop.id);
+    else {
+      const radius = meta.radius * prop.scale, cx = prop.x + (meta.offsetX ?? 0) * prop.scale;
+      const vx = cx - radius, vy = prop.y - (meta.height + meta.radius) * prop.scale;
+      const vw = radius * 2, vh = meta.height * prop.scale + radius + 8;
+      const dx = px - this.cameraX, dy = py - this.cameraY;
+      let t0 = 0, t1 = 1, occludes = true;
+      if (Math.abs(dx) < 1e-12) { if (this.cameraX < vx || this.cameraX > vx + vw) occludes = false; }
+      else {
+        let ta = (vx - this.cameraX) / dx, tb = (vx + vw - this.cameraX) / dx;
+        if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+        if (t0 > t1) occludes = false;
+      }
+      if (occludes) {
+        if (Math.abs(dy) < 1e-12) { if (this.cameraY < vy || this.cameraY > vy + vh) occludes = false; }
+        else {
+          let ta = (vy - this.cameraY) / dy, tb = (vy + vh - this.cameraY) / dy;
+          if (ta > tb) { const swap = ta; ta = tb; tb = swap; }
+          t0 = Math.max(t0, ta); t1 = Math.min(t1, tb);
+          if (t0 > t1) occludes = false;
+        }
+      }
+      occluderAlpha = this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion);
     }
+    c.save(); c.translate(prop.x, prop.y); c.scale(prop.scale, prop.scale);
+    // Trunks stay rooted and opaque. Only the obstructing canopy becomes translucent.
+    if (!sprite.foliage && definition.radius[1] === 0) {
+      const wind = biomeWind(prop.x, prop.y, this.visualTime, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway;
+      const bend = settings.reducedMotion ? 0 : this.biomeLife.bend(prop.x, prop.y);
+      c.transform(1, 0, -bend * .35, 1 - Math.abs(bend) * .18, 0, 0);
+      c.transform(1, 0, wind * -.012, 1, 0, 0);
+    }
+    // Props without foliage layers fade whole; layered trees keep an opaque trunk.
+    // The surface-light helpers restore their own state, so alpha is set directly
+    // instead of paying a canvas save/restore per sprite layer.
+    if (!sprite.foliage) c.globalAlpha = occluderAlpha;
+    c.drawImage(sprite.image, -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
+    if (definition.radius[1] !== 0) this.propSurfaceLight.draw(c, prop, sprite, sprite.image, this.cryptFloor ? undefined : this.sky);
+    if (!this.cryptFloor && prop.kind === 'rock')
+      this.propSurfaceLight.drawOutdoor(c, prop, sprite, sprite.image, world, this.visualTime, settings.reducedMotion, this.sky);
+    const foliage = sprite.foliage;
+    if (foliage?.length) {
+      const base = c.getTransform();
+      for (let layer = 0; layer < foliage.length; layer++) {
+        const gust = biomeWind(prop.x, prop.y, this.visualTime - layer * .18, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway * 2.2;
+        c.setTransform(base);
+        c.transform(1, 0, gust * (layer ? -.009 : -.005), 1, 0, 0);
+        c.globalAlpha = occluderAlpha;
+        c.drawImage(foliage[layer], -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
+        if (definition.radius[1] !== 0) this.propSurfaceLight.draw(c, prop, sprite, foliage[layer], this.cryptFloor ? undefined : this.sky);
+        if (!this.cryptFloor && definition.canopy)
+          this.propSurfaceLight.drawOutdoor(c, prop, sprite, foliage[layer], world, this.visualTime, settings.reducedMotion, this.sky);
+      }
+    }
+    c.restore();
   }
 
   private propSprite(prop: Prop) {
@@ -1298,14 +1465,27 @@ export class Renderer {
     this.waterArt.drawFeet(c, this.water.fluid, x, y, pose.kind === 'brute' ? 18 : pose.kind === 'player' ? 13 * PLAYER_ART_SCALE : 12);
   }
 
+  /** In-place nearest-first ordering; squared distance keeps the comparator cheap. */
+  private sortLights(list: PointLight[], px: number, py: number) {
+    list.sort((a, b) => (a.x - px) ** 2 + (a.y - py) ** 2 - ((b.x - px) ** 2 + (b.y - py) ** 2));
+  }
+
   private sceneLights(sim: Simulation, px: number, py: number, reducedMotion: boolean, alpha: number): PointLight[] {
     const p = this.subject ?? sim.player;
     const heldPose = playerPose(p, sim.time);
     heldPose.effectTime = reducedMotion ? 0 : sim.time;
     const heldLights = this.equipmentEmitters = heldEquipmentLights(heldPose, px, py);
-    const lights: PointLight[] = [{ x: px, y: py - 15, radius: this.cryptFloor ? 250 : 185, color: this.cryptFloor || heldLights.length ? '#c0cbd8' : '#ffcf87', power: (this.cryptFloor ? .85 : .58) * (heldLights.length ? .65 : 1), shadows: true }, ...heldLights];
-    const riftLights:PointLight[]=this.cachedBuildings.filter(b=>b.kind==='rift').map(b=>({x:b.x+b.width/2,y:b.y-35,radius:150,color:'#ef548b',power:.55}));
-    const environmentLights: PointLight[] = this.cryptFloor?cryptLights(this.cryptFloor, reducedMotion ? 0 : this.visualTime):[...riftLights,...this.visibility.entrances.map(e=>({x:e.x,y:e.y-30,radius:100,color:'#9bdbc9',power:.45}))];
+    const lights = this.lightList; lights.length = 0;
+    lights.push({ x: px, y: py - 15, radius: this.cryptFloor ? 250 : 185, color: this.cryptFloor || heldLights.length ? '#c0cbd8' : '#ffcf87', power: (this.cryptFloor ? .85 : .58) * (heldLights.length ? .65 : 1), shadows: true });
+    for (const light of heldLights) lights.push(light);
+    const environmentLights = this.envLights; environmentLights.length = 0;
+    if (this.cryptFloor) for (const light of cryptLights(this.cryptFloor, reducedMotion ? 0 : this.visualTime)) environmentLights.push(light);
+    else {
+      for (const b of this.cachedBuildings) if (b.kind === 'rift')
+        environmentLights.push({ x: b.x + b.width / 2, y: b.y - 35, radius: 150, color: '#ef548b', power: .55 });
+      for (const e of this.visibility.entrances)
+        environmentLights.push({ x: e.x, y: e.y - 30, radius: 100, color: '#9bdbc9', power: .45 });
+    }
     if (sim.portal.active) lights.push({ x: p.x, y: p.y - 30, radius: 105, color: '#b5a0ee', power: .22 + sim.portal.progress * .35 });
     for (const anchor of this.portalAnchors) if (sim.travel.returnTo?.town === anchor.band)
       environmentLights.push({ x: anchor.x, y: anchor.y - 30, radius: 130, color: '#b5a0ee', power: .6 });
@@ -1329,12 +1509,14 @@ export class Renderer {
       const vendor = faireVendor(this.faireSiteFor(sim.world));
       environmentLights.push({ x: vendor.x, y: vendor.y - 20, radius: 60, color: NPC_COLORS.darkmoonVendor, power: .3 });
     }
-    const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky)
-      .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
-    environmentLights.push(...buildingLights.slice(0, 6));
-    const siteLights = this.visibility.sites.flatMap(site => wildernessLights(site, reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id)))
-      .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
-    environmentLights.push(...siteLights.slice(0, 6));
+    const buildingLights = this.settlementArt.getLights(this.cachedBuildings, this.visualTime, this.sky);
+    this.sortLights(buildingLights, px, py);
+    for (let i = 0; i < Math.min(6, buildingLights.length); i++) environmentLights.push(buildingLights[i]);
+    const siteLights = this.siteLightScratch; siteLights.length = 0;
+    for (const site of this.visibility.sites)
+      for (const light of wildernessLights(site, reducedMotion ? 0 : this.visualTime, this.siteAftermath.get(site.id))) siteLights.push(light);
+    this.sortLights(siteLights, px, py);
+    for (let i = 0; i < Math.min(6, siteLights.length); i++) environmentLights.push(siteLights[i]);
     for (const prop of this.cachedProps) {
       const emission = propDefinition(prop.kind).emissive;
       if (!emission) continue;
@@ -1350,27 +1532,38 @@ export class Renderer {
         power: .55 * Math.sin(Math.PI * Math.min(1, (a.elapsed - a.activeStart) / (a.activeEnd - a.activeStart + .05))), shadows: true });
     }
     if (p.healFlash > 0) lights.push({ x: px, y: py - 8, radius: 150, color: '#54e8b8', power: p.healFlash * .8 });
-    lights.push(...sim.groundEffects.flatMap(effect => groundSpellLights(effect, reducedMotion)).filter(light => light.x + light.radius >= this.view.left
-      && light.x - light.radius <= this.view.left + this.view.width && light.y + light.radius >= this.view.top
-      && light.y - light.radius <= this.view.top + this.view.height).slice(-5));
-    lights.push(...sim.enemies.map(enemyWarningLight).filter((light): light is PointLight => light !== null)
-      .sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py)).slice(0, 3));
-    lights.push(...this.effects.getLights(), ...this.materials.lights(reducedMotion));
-    for (const shot of sim.projectiles.slice(0, 8)) lights.push(projectileLight(shot, alpha));
+    const view = this.view;
+    const inView = (light: PointLight) => light.x + light.radius >= view.left
+      && light.x - light.radius <= view.left + view.width && light.y + light.radius >= view.top
+      && light.y - light.radius <= view.top + view.height;
+    const groundStart = lights.length;
+    for (const effect of sim.groundEffects) for (const light of groundSpellLights(effect, reducedMotion))
+      if (inView(light)) lights.push(light);
+    if (lights.length - groundStart > 5) lights.splice(groundStart, lights.length - groundStart - 5);
+    const warnings = this.warningLights; warnings.length = 0;
+    for (const enemy of sim.enemies) {
+      const light = enemyWarningLight(enemy);
+      if (light) warnings.push(light);
+    }
+    this.sortLights(warnings, px, py);
+    for (let i = 0; i < Math.min(3, warnings.length); i++) lights.push(warnings[i]);
+    for (const light of this.effects.getLights()) lights.push(light);
+    for (const light of this.materials.lights(reducedMotion)) lights.push(light);
+    for (let i = 0; i < Math.min(8, sim.projectiles.length); i++) lights.push(projectileLight(sim.projectiles[i], alpha));
     for(const e of sim.enemies)if(isBossKind(e.kind)&&e.hp>0)lights.push({x:e.x,y:e.y-50,radius:150,color:isWildernessBoss(e.kind)?BOSS_PALETTES[e.kind]:'#a3d4b9',power:e.state==='windup'?.48:.23});
     for (const enemy of sim.enemies) if (enemy.hp > 0 && (enemy.kind === 'caster' || enemy.kind === 'wisp' || enemy.kind === 'emberAcolyte' || enemy.kind === 'stormSentinel' || enemy.kind === 'mireSpitter')) {
       lights.push({ x: enemy.x, y: enemy.y - 22, radius: enemy.state === 'windup' ? 100 : 53,
         color: enemy.kind === 'emberAcolyte' ? '#ffac63' : enemy.kind === 'stormSentinel' ? '#a5baff' : enemy.kind === 'wisp' ? '#93c6ff' : '#8fc88c', power: enemy.state === 'windup' ? .65 : .28 });
     }
-    if (!this.cryptFloor) environmentLights.push(...worldEventLights(worldEventsOf(sim), this.visualTime, reducedMotion));
+    if (!this.cryptFloor) for (const light of worldEventLights(worldEventsOf(sim), this.visualTime, reducedMotion)) environmentLights.push(light);
     // Combat illumination gets the finite light budget before distant lanterns.
     for (const light of environmentLights) light.stationary = true;
-    environmentLights.sort((a, b) => Math.hypot(a.x - px, a.y - py) - Math.hypot(b.x - px, b.y - py));
-    const view = this.view;
-    return [...lights, ...environmentLights].filter(light => light.x + light.radius >= view.left
-      && light.x - light.radius <= view.left + view.width && light.y + light.radius >= view.top
-      && light.y - light.radius <= view.top + view.height).slice(0, 18).map(light => this.cryptFloor
-        ? { ...light, clip: cryptLightMask(this.cryptFloor, light) } : light);
+    this.sortLights(environmentLights, px, py);
+    const out = this.finalLights; out.length = 0;
+    for (const light of lights) { if (out.length >= 18) break; if (inView(light)) out.push(light); }
+    for (const light of environmentLights) { if (out.length >= 18) break; if (inView(light)) out.push(light); }
+    if (this.cryptFloor) for (let i = 0; i < out.length; i++) out[i] = { ...out[i], clip: cryptLightMask(this.cryptFloor, out[i]) };
+    return out;
   }
 
   private emitters(sim: Simulation, alpha: number, lights: PointLight[], reducedMotion: boolean) {
@@ -1381,7 +1574,7 @@ export class Renderer {
       drawGlow(c, x, y, 17, '#ff643b', .8);
       c.fillStyle = '#fff0b4'; c.fillRect(x - 1.5, y - 3, 3, 6);
     }
-    for (const light of lights.slice(1, 12)) drawGlow(c, light.x, light.y, light.radius * .27, light.color, light.power * .2);
+    for (let i = 1; i < Math.min(12, lights.length); i++) { const light = lights[i]; drawGlow(c, light.x, light.y, light.radius * .27, light.color, light.power * .2); }
     // Emissive cores are drawn after scene darkening, before bloom/CRT, like projectiles.
     for (const light of this.equipmentEmitters) if (light.core > 0) {
       drawGlow(c, light.x, light.y, light.core * 12, light.color, .72);
@@ -1406,7 +1599,13 @@ export class Renderer {
         const seed = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453, phase = (seed - Math.floor(seed)) * TAU;
         const x = ix * cell + 70 + Math.sin(t * .3 + phase) * 35;
         const y = iy * cell + 70 + Math.cos(t * .4 + phase * 2) * 25;
-        const weights = world.sampleBiome(ix * cell + 70, iy * cell + 70).weights;
+        const cellKey = ix * 1048576 + (iy + 524288);
+        let weights = this.moteWeights.get(cellKey);
+        if (!weights) {
+          weights = world.sampleBiome(ix * cell + 70, iy * cell + 70).weights;
+          if (this.moteWeights.size >= 512) this.moteWeights.delete(this.moteWeights.keys().next().value!);
+          this.moteWeights.set(cellKey, weights);
+        }
         const abundance = weights.deadwood + weights.verdant * .35 + weights.swamp * .25 + weights.autumn * .22;
         const power = (.2 + (Math.sin(t * 1.3 + phase) + 1) * .22) * abundance;
         if (power < .01) continue;
@@ -1417,6 +1616,21 @@ export class Renderer {
       }
     }
     c.globalAlpha = 1;
+  }
+
+  /** Pooled splash actors: the player first, then living enemies at interpolated positions. */
+  private waterActorList(sim: Simulation, px: number, py: number, alpha: number) {
+    const actors = this.waterActors;
+    let count = 0;
+    const player = actors[0] ?? (actors[0] = { id: 0, x: 0, y: 0 });
+    player.id = -1; player.x = px; player.y = py; count = 1;
+    for (const e of sim.enemies) {
+      if (e.hp <= 0) continue;
+      const actor = actors[count] ?? (actors[count] = { id: 0, x: 0, y: 0 });
+      actor.id = e.id; actor.x = lerp(e.prevX, e.x, alpha); actor.y = lerp(e.prevY, e.y, alpha); count++;
+    }
+    actors.length = count;
+    return actors;
   }
 
   private healthBars(sim: Simulation, alpha: number) {
@@ -1452,11 +1666,15 @@ export class Renderer {
     if (this.hurt < .02) return;
     const c = this.ctx;
     const radius = Math.hypot(this.width, this.height) * .55;
-    const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .28,
-      this.width / 2, this.height / 2, radius);
-    gradient.addColorStop(0, '#ac1f2700'); gradient.addColorStop(.6, '#ac1f2700'); gradient.addColorStop(1, '#df3437');
+    const sizeKey = `${this.width}x${this.height}`;
+    if (!this.hurtGradient || this.hurtGradientSize !== sizeKey) {
+      const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .28,
+        this.width / 2, this.height / 2, radius);
+      gradient.addColorStop(0, '#ac1f2700'); gradient.addColorStop(.6, '#ac1f2700'); gradient.addColorStop(1, '#df3437');
+      this.hurtGradient = gradient; this.hurtGradientSize = sizeKey;
+    }
     c.save(); c.globalAlpha = this.hurt * (reducedMotion ? .13 : .25);
-    c.fillStyle = gradient; c.fillRect(0, 0, this.width, this.height); c.restore();
+    c.fillStyle = this.hurtGradient; c.fillRect(0, 0, this.width, this.height); c.restore();
   }
 
   /** Brief screen-edge glow when a legendary/unique drop lands; reduced motion dims it. */
@@ -1465,14 +1683,18 @@ export class Renderer {
     if (pulse < .02) return;
     const c = this.ctx;
     const radius = Math.hypot(this.width, this.height) * .55;
-    const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .3,
-      this.width / 2, this.height / 2, radius);
     const color = this.effects.lootPulseColor;
-    const [lr, lg, lb] = rgbOf(color);
-    gradient.addColorStop(0, `rgba(${lr},${lg},${lb},0)`); gradient.addColorStop(.62, `rgba(${lr},${lg},${lb},0)`);
-    gradient.addColorStop(1, `rgb(${lr},${lg},${lb})`);
+    const key = `${this.width}x${this.height}:${color}`;
+    if (!this.lootGradient || this.lootGradientKey !== key) {
+      const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .3,
+        this.width / 2, this.height / 2, radius);
+      const [lr, lg, lb] = rgbOf(color);
+      gradient.addColorStop(0, `rgba(${lr},${lg},${lb},0)`); gradient.addColorStop(.62, `rgba(${lr},${lg},${lb},0)`);
+      gradient.addColorStop(1, `rgb(${lr},${lg},${lb})`);
+      this.lootGradient = gradient; this.lootGradientKey = key;
+    }
     c.save(); c.globalAlpha = pulse * (reducedMotion ? .1 : .22);
-    c.fillStyle = gradient; c.fillRect(0, 0, this.width, this.height); c.restore();
+    c.fillStyle = this.lootGradient; c.fillRect(0, 0, this.width, this.height); c.restore();
   }
 
   private navigation(c: CanvasRenderingContext2D, sim: Simulation, world: World) {
