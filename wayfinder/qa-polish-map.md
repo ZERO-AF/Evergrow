@@ -37,20 +37,22 @@ A bug-free, sharp, performant WoW-like game. Specifically:
 - Post/CRT: `postfx.ts`, `renderer.ts`, `lighting.ts`, `hud*.ts`.
 - Mounts: search `mount`, `summon`, `speed` — likely absent or stubbed.
 - Map: `world-map.ts`, `map-view.ts`, `exploration.ts`, `atlas-*.ts`.
-- Keep it local; no Sites/deploy. Player does gameplay testing — do NOT drive gameplay.
-- All tests + `npx tsc --noEmit` + `tsconfig.core.json` must stay green.
-- Review gates: a critic agent reviews each workstream's output before commit.
-
 ## Decisions so far
 
 <!-- one line per closed ticket: gist + link -->
 
+- [T01 Character rendering](qa-t01-characters.md) — NO DEFECT: all 10 races render upright, correctly proportioned/skinned at all 8 facings on the current build; the user's distortion was the stale 5199 server (now killed). Verified via screenshots.
+- [T02 Graphics fidelity](qa-t02-graphics.md) — FIXED: the co-op commit dropped `canvas.height=worldBufferHeight`, leaving the WebGL canvas at 150px CSS-stretched fullscreen (the milky blur). Restored + native-density rasterization; bloom tightened; scanlines fixed; color-suffix crash shape swept.
+- [T03 Mounts](qa-t03-mounts.md) — VERIFIED + FIXED: mechanic already worked (summon→mounted→speed); fixed rider seat height, added a discoverability hint chip + live keybind badges + ghost-summon guard.
+- [T04 World map](qa-t04-map.md) — DONE: M zooms out to a WoW-style continent/region outline (zone fills, coastlines, exploration fog, continent names, decluttered labels).
+- [T05 Content sweep](qa-t05-content.md) — DONE: content-sweep.test.ts exercises all ~200 skills/auras/weapons/shields/foci/armor/charms through the real sim; fixed manaShield ward + savageRoar self-buff finisher.
+- [T06 Performance](qa-t06-performance.md) — DONE: eliminated per-frame allocations across the render hot path; fixed a ground-layer preview-cache key bug; ~8% mean frame-time improvement.
+- [T07 Latent-bug sweep](qa-t07-bugs.md) — DONE: 10 validation-reset + co-op state-mutation bugs fixed (heroic boss hp, bossPhases cap, dual-spec accounting, channel owner scoping).
+- Critic pass (QACritic) — 5 defects found & fixed: partner event-channel advance, resize split-squash, residual unscoped portal.cancel, gather-channel shared-flag, clearInputAll for co-op.
+
 ## Not yet specified
 
-- Whether the "distorted characters" report was purely the stale 5199 build or a real
-  residual defect — QA-T01 verifies on the current build first.
-- Mount system design (summon item vs skill, dismount rules, combat interaction) —
-  scoped inside QA-T03 once the current state is known.
+<!-- empty — all reported issues resolved; the frontier is clear -->
 
 ## Out of scope
 
