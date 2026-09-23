@@ -1,5 +1,6 @@
-import { CONTINENT_BOUNDS, CONTINENTS, ZONES, zoneRect, type AtlasRect, type ContinentId } from './world-atlas.ts';
+import { CONTINENT_BOUNDS, CONTINENTS, ZONES, zoneAt, zoneRect, type AtlasRect, type ContinentId } from './world-atlas.ts';
 import { BIOMES, zoneBiome } from './biomes.ts';
+import { hash, noise } from './world-landscape.ts';
 import type { Exploration } from './exploration.ts';
 import { text, textWidth } from './font.ts';
 import { projectMapPoint, type MapView } from './map-view.ts';
@@ -7,19 +8,226 @@ import { projectMapPoint, type MapView } from './map-view.ts';
 /** Below this zoom the chart swaps terrain tiles for the authored atlas silhouette. */
 export const MAP_OVERVIEW_ZOOM = .02;
 
+// ── Authored outline geometry ────────────────────────────────────────────────
+// The atlas pins zones to exact rectangles; the chart derives the real
+// coastline/border course from that union. Every zone edge is split at the
+// corners of adjoining zones (T-junctions become shared nodes), each node and
+// edge point is displaced by a seeded noise field, and shared segments carry
+// identical points — so displaced zone fills still tile seamlessly and the
+// continent silhouette is the true union boundary, not a generic blob.
+const OVERVIEW_SEED = 0x5eed;
+const COAST_REACH = 26000;   // max coastal displacement, world units
+const BORDER_REACH = 2400;   // max interior border wobble
+const SEGMENT_STEP = 8000;   // subdivisions along a shared edge
+const PROBE = 420;           // outward probe deciding coast vs border
+
+type Pt = readonly [number, number];
+interface Segment {
+  ka: string; kb: string;             // canonical node keys (ka < kb)
+  ax: number; ay: number; bx: number; by: number; // base points, ka→kb order
+  coast: boolean;
+  continent: ContinentId;             // land side's continent (emitter)
+  pts: Pt[];                          // displaced polyline, ka→kb order
+}
 interface OverviewZone {
   readonly id: string; readonly name: string; readonly rect: AtlasRect; readonly color: string;
   readonly levelMin: number; readonly levelMax: number; readonly hazardous: boolean;
+  readonly path: Path2D;
 }
-/** Zone fills blend toward parchment so the silhouette reads as a hand-drawn atlas. */
-const parchmentMix = (hex: string, lift: number): string => {
-  const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
-  return `rgb(${rgb.map(v => Math.round(v + (196 - v) * lift)).join(',')})`;
-};
-const OVERVIEW_ZONES: readonly OverviewZone[] = Object.freeze(Object.values(ZONES).map(zone => Object.freeze({
-  id: zone.id, name: zone.name, rect: zoneRect(zone.id)!, color: parchmentMix(BIOMES[zoneBiome(zone.terrain)].color, .34),
-  levelMin: zone.levelMin, levelMax: zone.levelMax, hazardous: zone.faction === 'hostile',
-})));
+interface OverviewContinent { readonly bounds: AtlasRect; readonly zones: OverviewZone[]; readonly coast: Path2D; readonly borders: Path2D }
+
+const nodeKey = (x: number, y: number) => `${Math.round(x)}:${Math.round(y)}`;
+const segKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`;
+
+/** Seeded 2D displacement field; identical for a point regardless of which zone samples it. */
+function displaced(x: number, y: number, amp: number): Pt {
+  const dx = (noise(x / 46000, y / 46000, OVERVIEW_SEED + 11) - .5) * 1.7
+    + (noise(x / 13000, y / 13000, OVERVIEW_SEED + 23) - .5) * 1.1;
+  const dy = (noise(x / 46000, y / 46000, OVERVIEW_SEED + 37) - .5) * 1.7
+    + (noise(x / 13000, y / 13000, OVERVIEW_SEED + 51) - .5) * 1.1;
+  return [x + dx * amp, y + dy * amp];
+}
+
+/** Quadratic midpoint smoothing: passes through every displaced point tangentially. */
+function smoothClosed(path: Path2D, pts: readonly Pt[]): void {
+  if (pts.length < 3) return;
+  const n = pts.length;
+  path.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2);
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], q = pts[(i + 1) % n];
+    path.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+  }
+  path.closePath();
+}
+function smoothOpen(path: Path2D, pts: readonly Pt[]): void {
+  if (pts.length < 2) return;
+  path.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const p = pts[i], q = pts[i + 1];
+    path.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+  }
+  path.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+}
+
+
+let geometry: ReadonlyMap<ContinentId, OverviewContinent> | null = null;
+function overviewGeometry(): ReadonlyMap<ContinentId, OverviewContinent> {
+  if (geometry) return geometry;
+  const segments = new Map<string, Segment>();
+  const coastalNode = new Set<string>();
+  const nodeMinEdge = new Map<string, number>();
+  const zoneEdges = new Map<string, { seg: Segment; forward: boolean }[][]>();
+  const zones = Object.values(ZONES);
+
+  // Pass 1: split each zone edge at adjoining zone corners, classify segments.
+  for (const zone of zones) {
+    const r = zoneRect(zone.id)!;
+    const edges: { seg: Segment; forward: boolean }[][] = [];
+    const sides: readonly (readonly [number, number, number, number])[] = [
+      [r.x, r.y, r.x + r.w, r.y],           // top, west→east
+      [r.x + r.w, r.y, r.x + r.w, r.y + r.h], // right, north→south
+      [r.x + r.w, r.y + r.h, r.x, r.y + r.h], // bottom, east→west
+      [r.x, r.y + r.h, r.x, r.y],           // left, south→north
+    ];
+    for (const [sx, sy, ex, ey] of sides) {
+      const dx = ex - sx, dy = ey - sy, len = Math.hypot(dx, dy);
+      const ts = new Set<number>([0, 1]);
+      for (const other of zones) {
+        if (other === zone) continue;
+        const o = zoneRect(other.id)!;
+        for (const [cx, cy] of [[o.x, o.y], [o.x + o.w, o.y], [o.x + o.w, o.y + o.h], [o.x, o.y + o.h]]) {
+          const t = dx ? (cx - sx) / dx : (cy - sy) / dy;
+          if (t > 1e-9 && t < 1 - 1e-9 && Math.abs(dx ? cy - sy : cx - sx) < 1e-6) ts.add(t);
+        }
+      }
+      const sorted = [...ts].sort((a, b) => a - b), list: { seg: Segment; forward: boolean }[] = [];
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const ax = sx + dx * sorted[i], ay = sy + dy * sorted[i];
+        const bx = sx + dx * sorted[i + 1], by = sy + dy * sorted[i + 1];
+        let ka = nodeKey(ax, ay), kb = nodeKey(bx, by), forward = true;
+        if (kb < ka) { [ka, kb] = [kb, ka]; forward = false; }
+        const key = segKey(ka, kb);
+        let seg = segments.get(key);
+        if (!seg) {
+          // Outward is ambiguous under canonical order: probe both sides of the
+          // midpoint; exactly one must be open water for a coastline.
+          const mx = (ax + bx) / 2, my = (ay + by) / 2, nx = dy / len, ny = -dx / len;
+          const coast = (zoneAt(mx + nx * PROBE, my + ny * PROBE) === null)
+            !== (zoneAt(mx - nx * PROBE, my - ny * PROBE) === null);
+          seg = { ka, kb, ax: forward ? ax : bx, ay: forward ? ay : by, bx: forward ? bx : ax, by: forward ? by : ay, coast, continent: zone.continent, pts: [] };
+          segments.set(key, seg);
+          if (coast) { coastalNode.add(ka); coastalNode.add(kb); }
+          for (const k of [ka, kb]) {
+            const e = Math.hypot(bx - ax, by - ay);
+            nodeMinEdge.set(k, Math.min(nodeMinEdge.get(k) ?? Infinity, e));
+          }
+        }
+        list.push({ seg, forward });
+      }
+      edges.push(list);
+    }
+    zoneEdges.set(zone.id, edges);
+  }
+
+  // Pass 2: displace segment points. Coastal nodes swing wide; border nodes
+  // stay near the authored line. Interior amplitude lerps between endpoints.
+  const nodeAmp = (k: string) =>
+    coastalNode.has(k) ? Math.min(COAST_REACH, (nodeMinEdge.get(k) ?? COAST_REACH) * .3) : BORDER_REACH;
+  for (const seg of segments.values()) {
+    const ampA = nodeAmp(seg.ka), ampB = nodeAmp(seg.kb);
+    const len = Math.hypot(seg.bx - seg.ax, seg.by - seg.ay);
+    const n = Math.max(1, Math.min(14, Math.round(len / SEGMENT_STEP)));
+    const pts: Pt[] = [displaced(seg.ax, seg.ay, ampA)];
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      pts.push(displaced(seg.ax + (seg.bx - seg.ax) * t, seg.ay + (seg.by - seg.ay) * t, ampA + (ampB - ampA) * t));
+    }
+    pts.push(displaced(seg.bx, seg.by, ampB));
+    seg.pts = pts;
+  }
+
+  // Pass 3: chain coast segments into continuous shorelines, dedupe borders,
+  // and build each zone's closed fill path from its own oriented segments.
+  const byNode = new Map<string, Segment[]>();
+  for (const seg of segments.values()) {
+    if (!seg.coast) continue;
+    for (const k of [seg.ka, seg.kb]) {
+      const list = byNode.get(k); if (list) list.push(seg); else byNode.set(k, [seg]);
+    }
+  }
+  const used = new Set<Segment>(), chains: { continent: ContinentId; pts: Pt[] }[] = [];
+  for (const start of segments.values()) {
+    if (!start.coast || used.has(start)) continue;
+    used.add(start);
+    const chain = [start];
+    // Extend both ends node-by-node; each added segment's free end becomes the cursor.
+    let endKey = start.kb, startKey = start.ka;
+    for (;;) {
+      const next = byNode.get(endKey)?.find(s => !used.has(s));
+      if (!next) break;
+      used.add(next); chain.push(next);
+      endKey = next.ka === endKey ? next.kb : next.ka;
+    }
+    for (;;) {
+      const next = byNode.get(startKey)?.find(s => !used.has(s));
+      if (!next) break;
+      used.add(next); chain.unshift(next);
+      startKey = next.ka === startKey ? next.kb : next.ka;
+    }
+    // Flatten in traversal order from the chain's free start node.
+    const pts: Pt[] = [];
+    let cursor = startKey;
+    for (const seg of chain) {
+      const forward = seg.ka === cursor;
+      const pts2 = forward ? seg.pts : [...seg.pts].reverse();
+      for (let i = pts.length ? 1 : 0; i < pts2.length; i++) pts.push(pts2[i]);
+      cursor = forward ? seg.kb : seg.ka;
+    }
+    chains.push({ continent: chain[0].continent, pts });
+  }
+
+  const result = new Map<ContinentId, OverviewContinent>();
+  for (const cid of Object.keys(CONTINENTS) as ContinentId[]) {
+    const coast = new Path2D(), borders = new Path2D(), zoneList: OverviewZone[] = [];
+    for (const zone of zones) {
+      if (zone.continent !== cid) continue;
+      const outline: Pt[] = [];
+      for (const edge of zoneEdges.get(zone.id)!)
+        for (const { seg, forward } of edge) {
+          const pts = forward ? seg.pts : [...seg.pts].reverse();
+          for (let i = outline.length ? 1 : 0; i < pts.length; i++) outline.push(pts[i]);
+        }
+      if (outline.length > 1 && outline[0][0] === outline[outline.length - 1][0]
+        && outline[0][1] === outline[outline.length - 1][1]) outline.pop();
+      const path = new Path2D();
+      smoothClosed(path, outline);
+      const rect = zoneRect(zone.id)!;
+      const jitter = (hash(Math.round(rect.x / 5000), Math.round(rect.y / 5000), OVERVIEW_SEED, 7) % 13) - 6;
+      const rgb = [1, 3, 5].map(i => parseInt(BIOMES[zoneBiome(zone.terrain)].color.slice(i, i + 2), 16));
+      // Saturate the biome hue, then lift toward parchment: WoW atlas zones keep
+      // their identity color under the aged-paper wash.
+      const mean = (rgb[0] + rgb[1] + rgb[2]) / 3;
+      const rich = rgb.map(v => v + (v - mean) * .7);
+      const lift = .14 + jitter / 130;
+      const color = `rgb(${rich.map(v => Math.round(Math.max(0, Math.min(255, v + (198 - v) * lift)))).join(',')})`;
+      zoneList.push(Object.freeze({ id: zone.id, name: zone.name, rect, color,
+        levelMin: zone.levelMin, levelMax: zone.levelMax, hazardous: zone.faction === 'hostile', path }));
+    }
+    for (const seg of segments.values()) {
+      if (seg.continent !== cid || seg.coast) continue; // coastlines come from the chained loops below
+      smoothOpen(borders, seg.pts);
+    }
+    for (const chain of chains) {
+      if (chain.continent !== cid) continue;
+      const pts = chain.pts;
+      const closed = pts.length > 2 && pts[0][0] === pts[pts.length - 1][0] && pts[0][1] === pts[pts.length - 1][1];
+      if (closed) smoothClosed(coast, pts.slice(0, -1)); else smoothOpen(coast, pts);
+    }
+    result.set(cid, { bounds: CONTINENT_BOUNDS[cid], zones: zoneList, coast, borders });
+  }
+  geometry = result;
+  return result;
+}
 
 /** World-space rectangle covered by the chart viewport. */
 interface OverviewRegion { left: number; top: number; right: number; bottom: number }
@@ -30,59 +238,72 @@ const viewBounds = (view: MapView): OverviewRegion => ({
 const intersects = (r: AtlasRect, region: OverviewRegion) =>
   r.x < region.right && r.x + r.w > region.left && r.y < region.bottom && r.y + r.h > region.top;
 
-export function drawMapOverview(c: CanvasRenderingContext2D, view: MapView,
-  zoneKey: (x: number, y: number) => string | null): void {
-  const region = viewBounds(view), step = Math.max(1500, Math.min(6000, 12 / view.zoom));
-  const coast = new Path2D(), border = new Path2D();
+export function drawMapOverview(c: CanvasRenderingContext2D, view: MapView): void {
+  const region = viewBounds(view);
   c.save();
-  c.fillStyle = '#22333a'; c.fillRect(view.x, view.y, view.width, view.height);
-  for (const zone of OVERVIEW_ZONES) {
-    const r = zone.rect;
-    if (!intersects(r, region)) continue;
-    const p = projectMapPoint(r.x, r.y, view);
-    c.globalAlpha = .88; c.fillStyle = zone.color;
-    c.fillRect(p.x, p.y, r.w * view.zoom + .5, r.h * view.zoom + .5);
-    // Sample just outside each edge: open water yields coastline, land a border.
-    const edges: readonly (readonly [number, number, number, number, number, number])[] = [
-      [r.x, r.y, r.w, 0, 0, -900], [r.x, r.y + r.h, r.w, 0, 0, 900],
-      [r.x, r.y, 0, r.h, -900, 0], [r.x + r.w, r.y, 0, r.h, 900, 0]];
-    for (const [ex, ey, dx, dy, ox, oy] of edges) {
-      const n = Math.max(1, Math.ceil((dx || dy) / step));
-      let start = 0, coastal = zoneKey(ex + ox, ey + oy) === null;
-      for (let i = 1; i <= n; i++) {
-        const next = i < n && zoneKey(ex + dx * i / n + ox, ey + dy * i / n + oy) === null;
-        if (i < n && next === coastal) continue;
-        const a = projectMapPoint(ex + dx * start / n, ey + dy * start / n, view);
-        const b = projectMapPoint(ex + dx * i / n, ey + dy * i / n, view);
-        const path = coastal ? coast : border;
-        path.moveTo(a.x, a.y); path.lineTo(b.x, b.y);
-        if (i < n) { start = i; coastal = next; }
-      }
+  // Deep parchment sea: a cool slate with a soft vignette so the chart edges
+  c.fillStyle = '#2b3d46'; c.fillRect(view.x, view.y, view.width, view.height);
+  const cx = view.x + view.width / 2, cy = view.y + view.height / 2;
+  const vignette = c.createRadialGradient(cx, cy, Math.min(view.width, view.height) * .3,
+    cx, cy, Math.max(view.width, view.height) * .75);
+  vignette.addColorStop(0, 'rgba(255,244,214,.05)'); vignette.addColorStop(1, 'rgba(8,14,18,.34)');
+  c.fillStyle = vignette; c.fillRect(view.x, view.y, view.width, view.height);
+
+  // Draw the authored outlines in world space: one transform, stroke widths
+  // expressed in world units to land at fixed screen widths.
+  const t = c.getTransform();
+  const scale = Math.max(.0001, Math.hypot(t.a, t.b));
+  const px = 1 / (scale * view.zoom); // world units per device pixel
+  c.transform(view.zoom, 0, 0, view.zoom,
+    view.x + view.width / 2 - view.centerX * view.zoom,
+    view.y + view.height / 2 - view.centerY * view.zoom);
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  for (const continent of overviewGeometry().values()) {
+    // Shallow shelf: a pale halo hugging the coastline, half hidden under land.
+    c.strokeStyle = 'rgba(222,204,158,.4)'; c.lineWidth = 11 * px; c.stroke(continent.coast);
+    c.globalAlpha = .94;
+    for (const zone of continent.zones) {
+      // Cull on the rect inflated by the max coastal displacement — a zone whose
+      // rect sits just off-view can still bulge a coastline into the viewport.
+      const zr = zone.rect, pad = COAST_REACH;
+      if (!(zr.x - pad < region.right && zr.x + zr.w + pad > region.left
+        && zr.y - pad < region.bottom && zr.y + zr.h + pad > region.top)) continue;
+      // Stroke the outline in the fill color first: smoothClosed rounds shared
+      // corner nodes, so adjacent zones' arcs diverge and leave sea-colored
+      // wedges at multi-zone junctions — the matching stroke covers the gap.
+      c.strokeStyle = zone.color; c.lineWidth = 3 * px; c.stroke(zone.path);
+      c.fillStyle = zone.color; c.fill(zone.path);
     }
+    c.globalAlpha = 1;
+    c.strokeStyle = 'rgba(20,28,26,.7)'; c.lineWidth = 1.1 * px; c.stroke(continent.borders);
+    c.strokeStyle = '#0a1418'; c.lineWidth = 2.6 * px; c.stroke(continent.coast);
+    c.strokeStyle = 'rgba(234,217,168,.55)'; c.lineWidth = 1.05 * px; c.stroke(continent.coast);
   }
-  c.globalAlpha = 1; c.lineJoin = 'round'; c.lineCap = 'round';
-  c.strokeStyle = '#101b20b8'; c.lineWidth = .9; c.stroke(border);
-  c.strokeStyle = '#0a1418'; c.lineWidth = 2.6; c.stroke(coast);
-  c.strokeStyle = '#ead9a8b0'; c.lineWidth = 1.1; c.stroke(coast);
   c.restore();
 }
 
-/** Exploration fog lifted chunk-by-chunk; the silhouette stays readable below it. */
+/** Exploration fog lifted chunk-by-chunk into a low-res buffer; the silhouette stays readable below it. */
 export function drawMapOverviewFog(c: CanvasRenderingContext2D, view: MapView,
   exploration: Pick<Exploration, 'forEachExploredChunk'>, fog: HTMLCanvasElement): void {
+  const scale = Math.min(1, 340 / Math.max(1, view.width));
+  const fw = Math.max(1, Math.round(view.width * scale)), fh = Math.max(1, Math.round(view.height * scale));
+  if (fog.width !== fw) fog.width = fw;
+  if (fog.height !== fh) fog.height = fh;
   const f = fog.getContext('2d')!;
   f.globalCompositeOperation = 'source-over';
-  f.clearRect(0, 0, fog.width, fog.height);
-  f.fillStyle = '#060a0e59'; f.fillRect(0, 0, fog.width, fog.height);
+  f.clearRect(0, 0, fw, fh);
+  f.fillStyle = '#060a0e59'; f.fillRect(0, 0, fw, fh);
   f.globalCompositeOperation = 'destination-out';
   const region = viewBounds(view);
   exploration.forEachExploredChunk((x, y, size) => {
     if (x + size <= region.left || x >= region.right || y + size <= region.top || y >= region.bottom) return;
     const p = projectMapPoint(x, y, view), side = size * view.zoom;
-    f.fillRect(p.x - view.x - .5, p.y - view.y - .5, side + 1, side + 1);
+    f.fillRect((p.x - view.x) * scale - .5, (p.y - view.y) * scale - .5, side * scale + 1, side * scale + 1);
   });
   f.globalCompositeOperation = 'source-over';
+  c.imageSmoothingEnabled = true;
   c.drawImage(fog, view.x, view.y, view.width, view.height);
+  c.imageSmoothingEnabled = false;
 }
 
 interface LabelBox { x: number; y: number; w: number; h: number }
@@ -107,7 +328,8 @@ export function drawMapOverviewLabels(c: CanvasRenderingContext2D, view: MapView
     c.globalAlpha = .5; text(c, name, p.x, p.y, 2.2, '#e9dcbd', 'center');
     placed.push(box);
   }
-  const zones = OVERVIEW_ZONES.filter(z => intersects(z.rect, region))
+  const zones = [...overviewGeometry().values()].flatMap(continent => continent.zones)
+    .filter(z => intersects(z.rect, region))
     .sort((a, b) => b.rect.w * b.rect.h - a.rect.w * a.rect.h);
   c.globalAlpha = 1;
   for (const zone of zones) {

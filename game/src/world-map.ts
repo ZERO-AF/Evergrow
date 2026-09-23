@@ -229,6 +229,9 @@ export class WorldMap {
   private overviewFog?: HTMLCanvasElement;
   private chartLayer?: HTMLCanvasElement;
   private chartLayerValid = false;
+  /** Zoom gestures draw the last chart scaled; detail tiles rebuild after input settles. */
+  private zoomQuietAt = 0;
+  private zoomAnchor: { centerX: number; centerY: number; zoom: number } | null = null;
   private visiblePOIs: MapPOI[] = [];
   private zoneLevels = true;
   setZoneLevels(visible: boolean) { this.zoneLevels = visible; this.render(); }
@@ -338,7 +341,7 @@ export class WorldMap {
     this.cancelRecenter();
     if (this.drag && this.canvas.hasPointerCapture(this.drag.id)) this.canvas.releasePointerCapture(this.drag.id);
     if (this.frame) cancelAnimationFrame(this.frame); this.frame = 0;
-    this.chartLayer = undefined; this.visiblePOIs = [];
+    this.chartLayer = undefined; this.visiblePOIs = []; this.zoomAnchor = null; this.zoomQuietAt = 0;
     this.clearTouch?.(); this.opened = false; this.element.hidden = true; this.drag = null; this.pointer = null;
     this.canvas.classList.remove('world-map-dragging'); this.hideTooltip(); this.exploration.save();
     if (this.returnFocus?.isConnected) this.returnFocus.focus({ preventScroll: true });
@@ -391,12 +394,36 @@ export class WorldMap {
     this.cancelRecenter();
     this.view = fitMapBounds(this.view, region, padding, this.zoomLimits); this.render();
   }
+  /** Wheel/button/pinch zoom: snapshot the chart once, then stretch it while input flows. */
+  private zoomTo(x: number, y: number, zoom: number) {
+    if (!this.zoomAnchor) {
+      // Settle any pending frame first so the snapshot isn't one frame stale.
+      if (this.chartDirty) this.render();
+      this.zoomAnchor = { centerX: this.view.centerX, centerY: this.view.centerY, zoom: this.view.zoom };
+      if (typeof document !== 'undefined') {
+        const layer = this.chartLayer ??= document.createElement('canvas');
+        if (layer.width !== this.canvas.width || layer.height !== this.canvas.height) {
+          layer.width = this.canvas.width; layer.height = this.canvas.height;
+        }
+        const saved = layer.getContext('2d')!;
+        saved.setTransform(1, 0, 0, 1, 0, 0);
+        saved.clearRect(0, 0, layer.width, layer.height);
+        saved.drawImage(this.canvas, 0, 0);
+        // The layer now holds the pre-zoom frame, not a hover base.
+        this.chartLayerValid = false;
+      }
+    }
+    this.zoomQuietAt = performance.now() + 140;
+    this.view = zoomMapAt(this.view, x, y, zoom, this.zoomLimits);
+    this.view.centerX = clampMapCoordinate(this.view.centerX);
+    this.view.centerY = clampMapCoordinate(this.view.centerY);
+    this.invalidate();
+  }
+  private zoomActive() { return performance.now() < this.zoomQuietAt; }
   zoomExplorationByWheel(deltaY: number, deltaMode: number) {
     if (!this.opened || !this.explorationMode || !Number.isFinite(deltaY)) return;
     const delta = Math.max(-240, Math.min(240, deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? this.view.height : 1)));
-    this.view = zoomMapAt(this.view, this.view.width / 2, this.view.height / 2,
-      this.view.zoom * Math.exp(-delta * .0016), this.zoomLimits);
-    this.invalidate();
+    this.zoomTo(this.view.width / 2, this.view.height / 2, this.view.zoom * Math.exp(-delta * .0016));
   }
   get viewBounds(): MapRect { return bounds(this.view); }
   get terrainCacheSize(): number { return this.tiles.size; }
@@ -489,7 +516,7 @@ export class WorldMap {
     this.clearTouch = bindTouchCanvas(this.canvas,signal,{
       start:()=>{this.cancelRecenter();this.pointer=null;this.hideTooltip();},
       pan:(dx,dy)=>{this.pointer=null;this.view.centerX=clampMapCoordinate(this.view.centerX-dx/this.view.zoom);this.view.centerY=clampMapCoordinate(this.view.centerY-dy/this.view.zoom);this.invalidate();},
-      zoom:(factor,p)=>{this.view=zoomMapAt(this.view,p.x,p.y,this.view.zoom*factor, this.zoomLimits);this.invalidate();},
+      zoom:(factor,p)=>{this.zoomTo(p.x,p.y,this.view.zoom*factor);},
       tap:p=>{this.pointer=p;this.invalidate(false);},
     });
     this.element.querySelector('.world-map-close')!.addEventListener('click', () => { this.close(); this.onClose(); }, { signal });
@@ -499,9 +526,8 @@ export class WorldMap {
           this.centerOnPlayer(); return;
         }
         this.cancelRecenter();
-        this.view = zoomMapAt(this.view, this.view.width / 2, this.view.height / 2,
-          this.view.zoom * (button.dataset.map === 'in' ? 1.3 : 1 / 1.3), this.zoomLimits);
-        this.invalidate();
+        this.zoomTo(this.view.width / 2, this.view.height / 2,
+          this.view.zoom * (button.dataset.map === 'in' ? 1.3 : 1 / 1.3));
       }, { signal });
     }
     const local = (event: PointerEvent | WheelEvent) => { const r = this.canvas.getBoundingClientRect(); return { x: event.clientX - r.left, y: event.clientY - r.top }; };
@@ -530,7 +556,7 @@ export class WorldMap {
       event.preventDefault(); const p = local(event);
       if (this.explorationMode) { p.x = this.view.width / 2; p.y = this.view.height / 2; }
       const delta = Math.max(-240, Math.min(240, event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.view.height : 1)));
-      this.view = zoomMapAt(this.view, p.x, p.y, this.view.zoom * Math.exp(-delta * .0016), this.zoomLimits); this.invalidate();
+      this.zoomTo(p.x, p.y, this.view.zoom * Math.exp(-delta * .0016));
     }, { signal, passive: false });
     this.element.addEventListener('keydown', event => {
       if (this.explorationMode) return;
@@ -552,8 +578,8 @@ export class WorldMap {
       else if (event.key === 'ArrowRight') this.view.centerX += pan;
       else if (event.key === 'ArrowUp') this.view.centerY -= pan;
       else if (event.key === 'ArrowDown') this.view.centerY += pan;
-      else if (event.key === '+' || event.key === '=' || event.key === '-') this.view = zoomMapAt(this.view,
-        this.view.width / 2, this.view.height / 2, this.view.zoom * (event.key === '-' ? 1 / 1.3 : 1.3), this.zoomLimits);
+      else if (event.key === '+' || event.key === '=' || event.key === '-') { this.zoomTo(
+        this.view.width / 2, this.view.height / 2, this.view.zoom * (event.key === '-' ? 1 / 1.3 : 1.3)); event.preventDefault(); event.stopPropagation(); return; }
       else return;
       this.view.centerX = clampMapCoordinate(this.view.centerX);
       this.view.centerY = clampMapCoordinate(this.view.centerY);
@@ -570,6 +596,9 @@ export class WorldMap {
     if (!revision) return null;
     const id = `${detailed ? 'atlas' : 'mini'}:${size}:${tx}:${ty}`;
     let tile = this.tiles.get(id);
+    // Mid-gesture frames never start new terrain: the stretched chart snapshot
+    // covers the view and tiles build once input settles.
+    if (!tile && this.zoomActive()) { this.pendingTerrain = true; return null; }
     const building = !tile?.decorated, started = performance.now();
     // Charge generation only: cached painting/label work must not starve unfinished edge tiles.
     const deadline = detailed && this.buildBudget !== undefined ? started + this.buildBudget : Infinity;
@@ -605,18 +634,23 @@ export class WorldMap {
       if (changed) tile.revision = -1;
     }
     if (tile.decorated && tile.revision !== revision) {
-      const c = tile.charted.getContext('2d')!;
-      // One copy per contiguous revealed row run, retaining the exact fine-cell mask.
-      maskMapTile(c, tile.base, this.exploration, ox, oy, size, pixels);
-      if (tile.roads && tile.chartedRoads) {
-        const roads = tile.chartedRoads.getContext('2d')!;
-        roads.globalCompositeOperation = 'source-over'; roads.clearRect(0, 0, 128, 128);
-        roads.drawImage(tile.roads, 0, 0); roads.imageSmoothingEnabled = false;
-        // The same conservative exploration mask clips terrain and fine road strokes.
-        roads.globalCompositeOperation = 'destination-in'; roads.drawImage(tile.charted, 0, 0, 128, 128);
-        roads.globalCompositeOperation = 'source-over';
+      // The fine-cell mask is charged against the same frame budget; over budget
+      // or mid-zoom the previous mask stays until the next pass.
+      if (this.zoomActive() || performance.now() >= deadline) this.pendingTerrain = true;
+      else {
+        const c = tile.charted.getContext('2d')!;
+        // One copy per contiguous revealed row run, retaining the exact fine-cell mask.
+        maskMapTile(c, tile.base, this.exploration, ox, oy, size, pixels);
+        if (tile.roads && tile.chartedRoads) {
+          const roads = tile.chartedRoads.getContext('2d')!;
+          roads.globalCompositeOperation = 'source-over'; roads.clearRect(0, 0, 128, 128);
+          roads.drawImage(tile.roads, 0, 0); roads.imageSmoothingEnabled = false;
+          // The same conservative exploration mask clips terrain and fine road strokes.
+          roads.globalCompositeOperation = 'destination-in'; roads.drawImage(tile.charted, 0, 0, 128, 128);
+          roads.globalCompositeOperation = 'source-over';
+        }
+        tile.revision = revision;
       }
-      tile.revision = revision;
     }
     if (building && detailed && this.buildBudget !== undefined)
       this.buildBudget = Math.max(0, this.buildBudget - (performance.now() - started));
@@ -741,14 +775,8 @@ export class WorldMap {
       c.fillStyle = vignette; c.fillRect(view.x, view.y, view.width, view.height);
       c.globalCompositeOperation = 'source-over';
     }
-    if (overview && this.world.zoneKey) drawMapOverview(c, view, this.world.zoneKey);
-    if (overview) {
-      const fog = this.overviewFog ??= document.createElement('canvas');
-      const fw = Math.max(1, Math.round(view.width)), fh = Math.max(1, Math.round(view.height));
-      if (fog.width !== fw) fog.width = fw;
-      if (fog.height !== fh) fog.height = fh;
-      drawMapOverviewFog(c, view, this.exploration, fog);
-    }
+    if (overview && this.world.zoneKey) drawMapOverview(c, view);
+    if (overview) drawMapOverviewFog(c, view, this.exploration, this.overviewFog ??= document.createElement('canvas'));
     c.imageSmoothingEnabled = false;
     for (const building of simple || view.zoom < .065 ? [] : this.world.getBuildings(region.x, region.y, region.width, region.height)) {
       const { x, y, width, height } = building;
@@ -883,7 +911,7 @@ export class WorldMap {
     const focusPoint = projectMapPoint(destination.x, destination.y, this.view);
     this.focusPing.style.left = `${focusPoint.x}px`;
     this.focusPing.style.top = `${focusPoint.y}px`;
-    if (this.pendingTerrain || this.recenter) this.invalidate();
+    if (this.pendingTerrain || this.recenter || this.zoomActive()) this.invalidate();
     const drops = lootMapMarkers(this.lootMarkers?.() ?? []);
     let checksum = 0; for (const drop of drops) checksum = (checksum + drop.id) | 0;
     this.presentation = { x: this.player.x, y: this.player.y, angle: this.player.angle,
@@ -894,7 +922,23 @@ export class WorldMap {
   private drawChart() {
     const c = this.context;
     c.setTransform(this.ratio, 0, 0, this.ratio, 0, 0); c.clearRect(0, 0, this.view.width, this.view.height);
-    this.hovered = null; this.chartLayerValid = false;
+    this.hovered = null;
+    // Mid-gesture: stretch the pre-zoom chart instead of rebuilding terrain,
+    // fog and labels every frame. The settled render restores full detail.
+    if (this.zoomActive() && this.zoomAnchor && this.chartLayer) {
+      const a = this.zoomAnchor, k = this.view.zoom / a.zoom;
+      const dx = this.view.width / 2 + (a.centerX - this.view.centerX) * this.view.zoom - k * this.view.width / 2;
+      const dy = this.view.height / 2 + (a.centerY - this.view.centerY) * this.view.zoom - k * this.view.height / 2;
+      c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      c.imageSmoothingEnabled = true;
+      c.setTransform(k, 0, 0, k, dx * this.ratio, dy * this.ratio);
+      c.drawImage(this.chartLayer, 0, 0);
+      c.setTransform(this.ratio, 0, 0, this.ratio, 0, 0);
+      c.imageSmoothingEnabled = false;
+      this.playerArrow(c, this.player, this.view, false);
+      return;
+    }
+    this.chartLayerValid = false; this.zoomAnchor = null;
     if (this.explorationMode) {
       const features = this.features(this.view, true);
       this.chart(c, this.view, false, features, true);
@@ -929,6 +973,8 @@ export class WorldMap {
   }
 
   private drawHover() {
+    // Mid-gesture the canvas shows a stretched snapshot; hover chrome waits for the settled render.
+    if (this.zoomActive()) { this.tooltip.hidden = true; this.areaInfo.hidden = true; return; }
     const previous = this.hovered;
     this.hovered = this.pointer && !this.drag ? pickMapPOI(this.visiblePOIs, this.view, this.pointer, 14) : null;
     if (previous?.id !== this.hovered?.id) {

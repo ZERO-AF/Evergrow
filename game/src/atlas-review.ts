@@ -41,6 +41,8 @@ async function start() {
   map.open(player);
   map.setZoneLevels(showLevels);
   map.fitBounds(region, 24);
+  // Review-only handle: lets the harness drive zooms and time renders directly.
+  (window as unknown as { __atlas?: unknown }).__atlas = { map, chart, world };
   const signal = abort.signal;
   root.querySelector('.atlas-levels')!.addEventListener('click', event => {
     showLevels = !showLevels; map?.setZoneLevels(showLevels);

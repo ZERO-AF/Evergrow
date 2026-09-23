@@ -1,6 +1,6 @@
 import { torsoFacing } from './character-facing.ts';
 import { gearSurface } from './gear-material.ts';
-import { projectArmPoint } from './player-arm-rig.ts';
+import { ARM_DEPTH_SCALE, projectArmPoint } from './player-arm-rig.ts';
 import type { CharacterOutfit } from './art-types.ts';
 import type { StatusPose } from './status-art.ts';
 import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
@@ -141,7 +141,7 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   // authored palette through the plain resolver.
   const gear: Color = value => color(vividColor(value));
   const { moving, phase, step, moveX, moveY, bob, back, commitment, torsoTurn, cast,
-    weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
+    weaponAngle, offWeaponAngle, weaponScale, offWeaponScale, rangedDraw, weaponCharge, weaponBehind, supportHolding, bodyAngle, hipX, hipY, lean, leanDepth, hunch, body, weaponOrigin, offWeaponOrigin, weaponArm, offArm } = playerMotion(pose);
   const rv = pose.raceId ? WOW_RACES[pose.raceId]?.visual : undefined;
   // A race without an explicit look still wears its default skin and hair.
   const appearance = pose.appearance ?? (pose.raceId ? raceAppearance(pose.raceId) : undefined);
@@ -324,11 +324,11 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   }
   // The neck counterbalances the moving torso; the head reads ~18% larger with
   // a warm rim arc so the silhouette separates from dark terrain.
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
+  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
   ctx.scale(1.18, 1.18);
   headArmor(ctx, outfit.head, gear, pose.angle, appearance, pose.raceId, color);
   ctx.restore();
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2);
+  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3;
   ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = .9;
   ctx.beginPath(); ctx.arc(0, -31, 6.4, -Math.PI * .92, -Math.PI * .08); ctx.stroke();
