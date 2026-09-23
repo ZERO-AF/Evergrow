@@ -175,6 +175,12 @@ export class NetClientSession {
   private onHostMessage(data: string): void {
     const msg = decodeHost(data);
     if (!msg) return;
+    // Defense in depth: the relay stamps `from` with the sender's peer id and
+    // the host is always peer 1. Drop any host-shaped frame a member managed to
+    // get routed here (member→member is also blocked at the relay). A missing
+    // `from` (memory-channel tests, direct links) is accepted.
+    const from = (msg as { from?: number }).from;
+    if (typeof from === 'number' && from !== 1) return;
     switch (msg.type) {
       case 'welcome': {
         const wait = this.welcomeWait;

@@ -206,7 +206,7 @@ import { NetHostSession } from './net-host.ts';
 import { NetClientSession } from './net-client.ts';
 import { connectWebSocket } from './net-transport.ts';
 import { NET_PROTOCOL_VERSION, type MsgHello } from './net-protocol.ts';
-import { playerFieldsOf } from './character-save.ts';
+import { playerFieldsOf, worldFieldsOf, mergeCheckpoint } from './character-save.ts';
 
 /** Coordinates browser lifecycle, simulation and presentation; system rules live in their owners. */
 export class Game {
@@ -301,6 +301,14 @@ export class Game {
   /** While a client is joined to a different-seed host world, the client's own
    * overworld/map/exploration are parked here and restored on leave. */
   private netWorldSwap: { overworld: World; exploration: Exploration; worldMap: WorldMap } | null = null;
+  /** The client's own checkpoint captured just before joining — restored on
+   * leave so no host world state (enemies, time, kills, camps, position) leaks
+   * into the solo game or its autosave. */
+  private netPreJoin: import('./character-save.ts').CharacterCheckpoint | null = null;
+  /** The couch partner's own save slot + write token, so their progress
+   * persists back to their slot (null for guest/'new' partners). */
+  private coopPartnerSlot: number | null = null;
+  private coopPartnerToken: string | null = null;
   private gamepadMenu = new GamepadMenu();
   private usingGamepad = false;
   private clearWorldTouch: (() => void) | undefined;
@@ -1146,7 +1154,9 @@ export class Game {
    * when the two players separate beyond what the shared camera can frame, the
    * screen splits into two half-width viewports composited side by side. */
   private renderCoopWorld(dt: number, settings: Parameters<Renderer['render']>[3]): HTMLCanvasElement {
-    const p2 = this.sim.coop ? this.sim.players[1] : null;
+    // Split-screen is couch co-op only. A net host also has sim.coop (the remote
+    // partner is seated via enterCoop) but must keep its own single full view.
+    const p2 = this.sim.coop && this.sim.netMode === null ? this.sim.players[1] : null;
     if (!p2) {
       // Co-op ended (or never started): restore the single full-width view.
       if (this.coopSplit) this.layoutSplit(false);
@@ -1253,16 +1263,20 @@ export class Game {
   }
 
   /** Ghost resurrection: at the corpse for a light penalty, at the healer for the heavy one. */
-  private resurrectGhost(mode: 'corpse' | 'healer') {
-    if (!this.sim.ghost || this.savingAction) return;
-    // A net client can't resurrect itself — the host owns the authoritative
-    // sim, so forward the request and let the next snapshot apply the result.
-    if (this.sim.netMode === 'client') {
-      (this.net as import('./net-client.ts').NetClientSession | null)?.requestResurrect(mode);
-      return;
-    }
-    const revived = mode === 'corpse' ? this.sim.resurrectAtCorpse() : this.sim.resurrectAtHealer();
-    if (revived) { this.canvas.focus(); this.saveCharacter(); }
+  private resurrectGhost(mode: 'corpse' | 'healer', player: Player = this.sim.player) {
+    // Run as the acting player so a co-op partner's ghost resolves to their own
+    // corpse/healer — a dead P2 resurrects themselves, not P1.
+    this.sim.asPlayer(player, () => {
+      if (!this.sim.ghost || this.savingAction) return;
+      // A net client can't resurrect itself — the host owns the authoritative
+      // sim, so forward the request and let the next snapshot apply the result.
+      if (this.sim.netMode === 'client') {
+        (this.net as import('./net-client.ts').NetClientSession | null)?.requestResurrect(mode);
+        return;
+      }
+      const revived = mode === 'corpse' ? this.sim.resurrectAtCorpse() : this.sim.resurrectAtHealer();
+      if (revived) { this.canvas.focus(); this.saveCharacter(); }
+    });
   }
 
   /** Co-op death: each downed overworld player releases as a ghost at their
@@ -1277,10 +1291,11 @@ export class Game {
         this.notify(`${p.name ?? 'Your partner'}'s spirit releases at ${town.name}.`);
     }
   }
-
   /** Drop the co-op partner and continue solo. Restores single-renderer layout,
    * clears the partner's pad and returns focus to the primary player. */
   private leaveCoop() {
+    // Persist the partner's progress to their own slot before dropping them.
+    void this.saveCoopPartner();
     const partner = this.sim.exitCoop();
     if (!partner) return;
     if (this.coopSplit) { this.layoutSplit(false); this.coopSplit = false; }
@@ -1334,6 +1349,9 @@ export class Game {
     try {
       const channel = await connectWebSocket(`${address}/?room=${code}`);
       const checkpoint = this.sim.captureCheckpoint();
+      // Park the client's own checkpoint: restored on leave so no host world
+      // state (enemies, time, kills, camps, position) leaks into the solo game.
+      this.netPreJoin = checkpoint;
       const hello: MsgHello = { type: 'hello', version: NET_PROTOCOL_VERSION,
         name: this.sim.player.name ?? 'Player', player: playerFieldsOf(checkpoint) };
       const welcome = await session.connect(channel, hello);
@@ -1351,8 +1369,12 @@ export class Game {
       this.netPanel.setStatus(`Connected to ${code}.`);
       this.notify(`Joined ${session.worldSeed === this.overworld.seed ? 'the host' : 'a new world'} — playing together.`);
     } catch (err) {
-      // A failed join must not leave a live orphaned session behind.
+      // A failed join must not leave a live orphaned session behind, nor a
+      // parked world swap: restore the client's own world + checkpoint so a
+      // later join/leave doesn't resurrect stale host geography.
       session.leave();
+      this.restoreNetWorld();
+      if (this.netPreJoin) { const c = this.netPreJoin; this.netPreJoin = null; this.sim.restoreCheckpoint(c); }
       this.netPanel.setStatus(err instanceof Error ? err.message : 'Could not join that session.');
     }
   }
@@ -1387,14 +1409,20 @@ export class Game {
     this.sim.world = this.overworld;
     this.worldMap.resize();
   }
-
-  /** Leave the online session (host or client) and return to solo play.
-   * `quiet` suppresses the notice when the caller already reported the drop. */
   private netLeave(quiet = false) {
     if (!this.net) return;
     this.net.leave();
     this.net = null;
     this.restoreNetWorld();
+    // Restore the client's own pre-join checkpoint so no host world state —
+    // puppet enemies, host time/kills/camps, host position — leaks into the
+    // solo game or its autosave. restoreCheckpoint also unsticks the player.
+    if (this.netPreJoin) {
+      const checkpoint = this.netPreJoin;
+      this.netPreJoin = null;
+      this.sim.restoreCheckpoint(checkpoint);
+      this.renderer.snapTo(this.sim.player);
+    }
     this.netPanel.setConnected(false);
     this.netPanel.setStatus('Left session.');
     if (!quiet) this.notify('Left online co-op.');
@@ -1539,6 +1567,7 @@ export class Game {
   }
 
   private async resolveCoopPartner(entry: CoopEntry): Promise<Player | null> {
+    this.coopPartnerSlot = null; this.coopPartnerToken = null;
     if (entry.p2Player) return entry.p2Player;
     if (typeof entry.p2Slot !== 'number') return null;
     const slot = await this.session.repository.read(entry.p2Slot);
@@ -1552,7 +1581,25 @@ export class Game {
     // The throwaway sim's reset() re-pointed the world's broken-container set to
     // its own empty set; hand the live sim's set back so opened chests stay open.
     this.world.setBrokenContainers?.(this.sim.brokenContainers);
+    // Remember the slot + write token so the partner's progress persists back.
+    this.coopPartnerSlot = entry.p2Slot; this.coopPartnerToken = slot.token;
     return partner;
+  }
+
+  /** Persist the co-op partner's progress to their own slot. The partner shares
+   * the host's world state but keeps their own player fields (character, level,
+   * xp, gear, position). No-op for guest/'new' partners with no slot. */
+  private async saveCoopPartner() {
+    const slot = this.coopPartnerSlot;
+    const partner = this.sim.coop ? this.sim.players[1] : null;
+    if (slot === null || slot === undefined || !partner) return;
+    const world = worldFieldsOf(this.sim.captureCheckpoint({ clone: false }));
+    const checkpoint = mergeCheckpoint(world, this.sim.netPlayerFields(partner));
+    const result = await this.session.repository.write(slot, {
+      ...(await this.session.repository.read(slot)).record!,
+      updatedAt: Date.now(), checkpoint,
+    }, this.coopPartnerToken);
+    if (result.ok) this.coopPartnerToken = result.token;
   }
 
   private async deleteCharacter(index: number, expected: string | null) {
@@ -1660,6 +1707,9 @@ export class Game {
           this.shell.setSaveStatus(message || (this.saveClient.mode === 'cloud' ? cloud.message || cloud.status : ''), !saved || this.saveClient.mode === 'cloud' && !['Synced', 'Saving…'].includes(cloud.status));
         }
       } while (this.saveAgain && !this.savingAction && !this.disposed && saved);
+      // Persist the couch partner's progress to their own slot alongside the
+      // primary's save so a saved P2 keeps XP, loot, quests and position.
+      if (saved && this.sim.coop && this.sim.netMode === null) await this.saveCoopPartner();
       await this.exploration.save();
       return saved;
     })().finally(() => { this.autosave = null; });
@@ -1721,14 +1771,22 @@ export class Game {
   private interact(pointer?: {
       x: number;
       y: number;
-  }): boolean {
+  }, player: Player = this.sim.player): boolean {
+      // Run as the acting player so a co-op partner's interact resolves their
+      // own ghost, position and pickup channel — never the primary's.
+      return this.sim.asPlayer(player, () => this.interactBody(pointer, player));
+  }
+
+  private interactBody(pointer: {
+      x: number;
+      y: number;
+  } | undefined, p: Player): boolean {
       if (this.savingAction) return false;
       if (!this.panels.simulationActive)
           return false;
-      const p = this.sim.player;
       if (this.sim.ghost) {
           const mode = this.sim.ghostPrompt();
-          if (mode === 'corpse' || mode === 'healer') this.resurrectGhost(mode);
+          if (mode === 'corpse' || mode === 'healer') this.resurrectGhost(mode, p);
           return true;
       }
       // A net client is a guest in the host's world: world interactions (loot,
@@ -1741,7 +1799,9 @@ export class Game {
       const nearby=!pointer?this.sim.groundItems.filter(d=>Math.hypot(d.x-p.x,d.y-p.y)<=80).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0]:undefined;
       const lootId=label?.id??nearby?.id;
       if(lootId!==undefined){
-          this.canvas.focus();this.input.clear();this.sim.clearInput();
+          // Only the primary's keyboard buffer is cleared; a partner's interact
+          // must not eat P1's held input. sim.clearInput() is per-actor.
+          this.canvas.focus(); if (p === this.sim.players[0]) this.input.clear(); this.sim.clearInput();
           const problem=this.sim.requestGroundItem(lootId);if(problem)this.notify(problem);
           return true;
       }
@@ -1997,9 +2057,18 @@ export class Game {
     return this.phase === 'playing' && !this.world.isSanctuary(this.sim.player.x, this.sim.player.y);
   }
 
+  /** True while hosting with at least one seated remote client. World
+   * transitions (portal/dungeon/hearthstone) are blocked then: the protocol has
+   * no world-switch frame, so a host that travels would leave the client
+   * rendering the old geography against new-coordinates snapshots. */
+  private netHostHasGuests(): boolean {
+    return this.sim.netMode === 'host' && (this.net as import('./net-host.ts').NetHostSession | null)?.clients.length ? true : false;
+  }
+
   private requestPortal() {
     if (this.savingAction || !this.panels.simulationActive || !this.session.active || this.sim.ghost) return;
     if (this.sim.netMode === 'client') return; // travel is host-authoritative
+    if (this.netHostHasGuests()) { this.notify('You cannot travel while a guest is connected.'); return; }
     const p = this.sim.player, link = this.sim.travel.returnTo;
     if (this.world.isSanctuary(p.x, p.y)) {
       const anchor = this.returnPortalInReach();
@@ -2041,6 +2110,7 @@ export class Game {
   }
   private switchDungeon(action: DungeonAction): Promise<boolean> {
     if (this.sim.netMode === 'client') return Promise.resolve(false); // dungeons are host-authoritative
+    if (this.netHostHasGuests()) { this.notify('You cannot change location while a guest is connected.'); return Promise.resolve(false); }
     return this.durable(async () => {
       const ok = await this.locations.dungeon(action);
       if (ok && action.kind === 'enter') {
@@ -2310,6 +2380,7 @@ export class Game {
 
   private castHearthstone() {
     if (!GAME_FEATURES.hearthstone || this.sim.ghost || this.sim.netMode === 'client') return; // host-authoritative
+    if (this.netHostHasGuests()) { this.notify('You cannot hearth while a guest is connected.'); return; }
     if (this.sim.dungeonFloor?.pvp) { this.notify('Hearthstones are sealed during a match.'); return; }
     const problem = hearthstoneCast(this.sim);
     if (problem) this.notify(problem);
@@ -2371,7 +2442,7 @@ export class Game {
       const recipe = id ? resolveSkill(id,p.derived,p.character).recipe : null;
       let aim = recipe?.kind === 'ground' ? skillTargetPoint(this.world,p,raw,deriveAttackStats(p.stats,weapon).range) : raw;
       const assisted = this.renderer.resolveDirectionAim(this.sim, this.world, aim,
-        directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe));
+        directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe), p);
       if (assisted) aim = assisted;
       const screen = this.renderer.worldToScreen(aim.x,aim.y);
       this.mouse.x = screen.x; this.mouse.y = screen.y; this.mouse.present = true;
@@ -2413,8 +2484,11 @@ export class Game {
     const id = input.skillSlot !== null ? p.character.skillSlots[input.skillSlot] : null;
     const weapon = id ? skillWeapon(id,p.equipment) ?? basicAttackWeapon(p) : basicAttackWeapon(p);
     const recipe = id ? resolveSkill(id,p.derived,p.character).recipe : null;
-    const assisted = this.renderer.resolveDirectionAim(this.sim, this.world, aim,
-      directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe));
+    // Resolve aim against the acting player and store the indicator on the
+    // renderer showing their view (renderer2 in split-screen, shared otherwise).
+    const aimRenderer = this.coopSplit && this.renderer2 && p === this.sim.players[1] ? this.renderer2 : this.renderer;
+    const assisted = aimRenderer.resolveDirectionAim(this.sim, this.world, aim,
+      directionalAimProfile(deriveAttackStats(p.stats,weapon).range, weapon.attackKind, recipe), p);
     if (assisted) aim = assisted;
     if (primary) {
       const screen = this.renderer.worldToScreen(aim.x, aim.y);
@@ -2430,8 +2504,10 @@ export class Game {
   private routeInput(input: Input, player: Player = this.sim.player): Input {
     if (input.barPage !== undefined) this.bars.page = Math.max(0, Math.min(2, input.barPage));
     const barred = applyBarInput(player, this.bars, input);
-    for (const id of barred.mounts) this.toggleMount(id);
-    for (const id of barred.consumables) this.useConsumable(id);
+    // Mount/consumable commands run as the acting player so a co-op partner's
+    // bar slot summons their mount / consumes their item, never the primary's.
+    for (const id of barred.mounts) this.sim.asPlayer(player, () => this.toggleMount(id));
+    for (const id of barred.consumables) this.sim.asPlayer(player, () => this.useConsumable(id));
     return barred.input;
   }
 
@@ -2509,6 +2585,9 @@ export class Game {
       if (spentWeave && spentWeave !== previousWeave) this.audio.spellweave(spentWeave.kind);
       this.performance.end('simulation', simulationStart);
       this.renderer.handleEvents(events, this.reducedMotion);
+      // The split-screen second view needs the same combat events — damage
+      // numbers, hit sparks, shake — or P2's half renders combat with no feedback.
+      if (this.coopSplit && this.renderer2) this.renderer2.handleEvents(events, this.reducedMotion);
       logCombatEvents(this.sim.player, events, this.sim.time);
       this.damageMeter.pushAll(events, this.sim.time * 1000);
       if (this.damageMeterPanel.isOpen) this.damageMeterPanel.update();
@@ -2609,7 +2688,10 @@ export class Game {
         // opens the defeat panel. A net client's ghost state arrives via the
         // host snapshot, so it never takes the solo defeat branch.
         if (this.sim.netMode !== 'client') this.releaseCoopSpirits();
-        if (this.sim.players.every(pl => pl.dead) && !this.sim.ghost && !this.sim.pvpCombatants)
+        // A wipe = every roster member down (dead or already a released ghost).
+        // Checking only `dead` misses ghosts: a released partner leaves dead=false,
+        // so the party could end as permanent ghosts with no defeat panel.
+        if (this.sim.players.every(pl => pl.dead || this.sim.ghostOf(pl) !== null) && !this.sim.pvpCombatants)
           this.panels.transition('dead', true);
       } else if (this.sim.player.dead && !this.sim.ghost && !this.sim.pvpCombatants) {
         this.panels.transition('dead', true);
@@ -2844,6 +2926,13 @@ export class Game {
       if (pad.pressed.has(PAD.left) || pad.pressed.has(PAD.right)) { this.openCharacterPanel('character'); return; }
       if (pad.pressed.has(PAD.down)) { this.requestPortal(); return; }
       if (pad.pressed.has(PAD.interact)) this.interact();
+      // Player 2's pad: route their interact to their own actor so a couch
+      // partner can loot, talk to NPCs, gather and resurrect independently.
+      const p2pad = this.gamepad2;
+      if (this.sim.coop && this.sim.netMode === null && p2pad.active && p2pad.pressed.has(PAD.interact)) {
+        const partner = this.sim.players[1];
+        if (partner) this.interact(undefined, partner);
+      }
     } else {
       if (this.phase === 'character') { this.inventoryPanel.updateGamepad(pad, now); return; }
       if (this.phase === 'skills') { this.skillPanel.updateGamepad(pad, now); return; }

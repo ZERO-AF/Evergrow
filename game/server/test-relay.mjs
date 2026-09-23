@@ -68,17 +68,19 @@ m3.send({ type: 'input', seq: 9, to: 'host' });
 await host.next();
 check('to:"host" unicast reaches host', host.inbox[1]?.type === 'input' && host.inbox[1]?.from === 3);
 
-// member → member via numeric `to`
+// member → member is BLOCKED: a member may only reach the host, so a guest
+// cannot forge host-shaped frames (kick/snapshot) at another member.
 m2.send({ type: 'emote', to: 3 });
-await m3.next();
-check('member→member to:3 works', m3.inbox[2]?.type === 'emote' && m3.inbox[2]?.from === 2);
+await host.next(); // the forged frame lands on the host instead
+check('member→member to:3 is rerouted to host', host.inbox[2]?.type === 'emote' && host.inbox[2]?.from === 2);
+check('member3 never receives member→member frame', m3.inbox.length === 2);
 
 // ── 2. member disconnect → host notified ────────────────────────────────────
 m2.sock.close();
 await host.next();
 check('host got relayPeerLeft for peer 2',
-  host.inbox[2]?.type === 'relayPeerLeft' && host.inbox[2]?.peer === 2,
-  JSON.stringify(host.inbox[2]));
+  host.inbox[3]?.type === 'relayPeerLeft' && host.inbox[3]?.peer === 2,
+  JSON.stringify(host.inbox));
 
 // ── 3. host disconnect → members kicked, room closed ────────────────────────
 host.sock.close();

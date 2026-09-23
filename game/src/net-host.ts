@@ -187,7 +187,20 @@ export class NetHostSession {
     if (!input || typeof input !== 'object') return;
     client.lastSeq = msg.seq;
     const clamp = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
-    client.latestInput = { ...input, moveX: clamp(input.moveX), moveY: clamp(input.moveY) };
+    const next = { ...input, moveX: clamp(input.moveX), moveY: clamp(input.moveY) };
+    // Merge edge-triggered fields into an unconsumed held frame so a press that
+    // arrives between host ticks isn't discarded before the sim consumes it.
+    const held = client.latestInput;
+    client.latestInput = held ? {
+      ...next,
+      attack: held.attack || next.attack,
+      dodge: held.dodge || next.dodge,
+      heal: held.heal || next.heal,
+      skillPressed: held.skillPressed || next.skillPressed,
+      skillSlot: next.skillSlot ?? held.skillSlot,
+      targetId: next.targetId ?? held.targetId,
+      cycleTarget: next.cycleTarget ?? held.cycleTarget,
+    } : next;
   }
 
   /** A client ghost asked to resurrect; the host applies the real resurrection

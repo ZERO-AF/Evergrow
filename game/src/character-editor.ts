@@ -199,7 +199,9 @@ function refresh() {
   root.querySelector('#coverage-note')!.textContent = showHelmet ? 'The hood covers hair, hoops and circlets.' : 'Hair and accessories follow your selected facing.';
   root.querySelector('#preview-name')!.textContent = displayName;
   facial.value = appearance.facialHair; accessory.value = appearance.accessory;
-  root.querySelector<HTMLElement>('#feature-label')!.hidden = !featureOptions.length;
+  // Hide the feature select when a race has no variants or only one — a
+  // single-option dropdown adds UI weight without offering a choice.
+  root.querySelector<HTMLElement>('#feature-label')!.hidden = featureOptions.length < 2;
   if (featureOptions.length) feature.value = appearance.feature ?? featureOptions[0].id;
   for (const target of root.querySelectorAll<HTMLCanvasElement>('.hair-option:not([hidden]) [data-hair]')) {
     drawHead(target, { ...appearance, hair:target.dataset.hair as CharacterAppearance['hair'], facialHair:'none', accessory:'none' }, Math.PI / 2);

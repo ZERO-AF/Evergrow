@@ -684,6 +684,11 @@ export class Simulation {
     return actor ? this.withActor(actor.player, actor.control, fn) : fn();
   }
 
+  /** Public: run fn with this.player/ghost/buffers bound to a roster member.
+   * Game-layer per-player actions (mount, consumable, interact) use this so a
+   * co-op partner's command mutates their own state, never the primary's. */
+  asPlayer<T>(player: Player, fn: () => T): T { return this.forPlayer(player, fn); }
+
   /** The ground-pickup channel for a player: per-actor in co-op, the shared
    * field otherwise. */
   private pickupFor(player: Player): GroundItemPickup {

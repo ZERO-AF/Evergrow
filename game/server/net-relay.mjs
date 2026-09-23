@@ -184,11 +184,12 @@ function routeMessage(peer, data) {
   }
 
   let targets;
-  if (to !== undefined) {
-    targets = resolveTo(room, peer, to);
-  } else if (peer.isHost) {
-    targets = [...room.members.values()];
+  if (peer.isHost) {
+    // The host may unicast to a member, broadcast, or (pointlessly) itself.
+    targets = to !== undefined ? resolveTo(room, peer, to) : [...room.members.values()];
   } else {
+    // A member may ONLY reach the host. Member→member unicast/broadcast would
+    // let a guest forge host-shaped frames (kick/snapshot) at other members.
     targets = room.host ? [room.host] : [];
   }
   for (const t of targets) sendText(t, data);

@@ -374,9 +374,9 @@ export class Renderer {
     return this.rangedAim;
   }
 
-  resolveDirectionAim(sim: Simulation, world: World, aim: { x: number; y: number }, profile: { range: number; speed: number } | null): RangedAim | null {
-    if (!profile || sim.player.dead) { this.rangedAim = null; return null; }
-    this.rangedAim = resolveDirectionalAim(sim.player, aim, sim.enemies, {
+  resolveDirectionAim(sim: Simulation, world: World, aim: { x: number; y: number }, profile: { range: number; speed: number } | null, subject: Player = sim.player): RangedAim | null {
+    if (!profile || subject.dead) { this.rangedAim = null; return null; }
+    this.rangedAim = resolveDirectionalAim(subject, aim, sim.enemies, {
       ...profile, alpha: sim.interpolationAlpha, previousTargetId: this.rangedAim?.targetId ?? null,
       bounds: this.lastDisplayedView, visible: (ax, ay, bx, by) => hasLineOfSight(world, ax, ay, bx, by),
     });
