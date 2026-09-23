@@ -1295,7 +1295,10 @@ export class Game {
    * clears the partner's pad and returns focus to the primary player. */
   private leaveCoop() {
     // Persist the partner's progress to their own slot before dropping them.
-    void this.saveCoopPartner();
+    // Capture the partner now — exitCoop() removes them from the roster before
+    // the async write would read players[1].
+    const departing = this.sim.coop ? this.sim.players[1] : null;
+    void this.saveCoopPartner(departing ?? undefined);
     const partner = this.sim.exitCoop();
     if (!partner) return;
     if (this.coopSplit) { this.layoutSplit(false); this.coopSplit = false; }
@@ -1589,15 +1592,27 @@ export class Game {
   /** Persist the co-op partner's progress to their own slot. The partner shares
    * the host's world state but keeps their own player fields (character, level,
    * xp, gear, position). No-op for guest/'new' partners with no slot. */
-  private async saveCoopPartner() {
+  private async saveCoopPartner(partnerOverride?: Player) {
+    // Serialize partner writes: leaveCoop and an in-flight autosave must not
+    // read-modify-write the same slot+token concurrently (loser is rejected).
+    const run = (this.partnerSave ?? Promise.resolve()).then(() => this.writeCoopPartner(partnerOverride));
+    this.partnerSave = run.catch(() => {});
+    return run;
+  }
+  private partnerSave: Promise<void> | null = null;
+
+  private async writeCoopPartner(partnerOverride?: Player) {
     const slot = this.coopPartnerSlot;
-    const partner = this.sim.coop ? this.sim.players[1] : null;
+    // leaveCoop passes the partner explicitly because exitCoop() drops them
+    // from the roster before this async write runs.
+    const partner = partnerOverride ?? (this.sim.coop ? this.sim.players[1] : null);
     if (slot === null || slot === undefined || !partner) return;
     const world = worldFieldsOf(this.sim.captureCheckpoint({ clone: false }));
     const checkpoint = mergeCheckpoint(world, this.sim.netPlayerFields(partner));
+    const existing = (await this.session.repository.read(slot)).record;
+    if (!existing) return; // partner's slot was deleted mid-session — nothing to update
     const result = await this.session.repository.write(slot, {
-      ...(await this.session.repository.read(slot)).record!,
-      updatedAt: Date.now(), checkpoint,
+      ...existing, updatedAt: Date.now(), checkpoint,
     }, this.coopPartnerToken);
     if (result.ok) this.coopPartnerToken = result.token;
   }
@@ -2123,6 +2138,9 @@ export class Game {
     }, false);
   }
   private travelThrough(anchor: PortalAnchor, returning: boolean): Promise<boolean> {
+    // The return-to-dungeon anchor path is a world switch too — block it while
+    // a guest is seated, same as portal/dungeon/hearthstone.
+    if (this.netHostHasGuests()) { this.notify('You cannot change location while a guest is connected.'); return Promise.resolve(false); }
     return this.durable(() => this.locations.portal(anchor, returning), false);
   }
   private finishTravel(): void {

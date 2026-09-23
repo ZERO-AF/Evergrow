@@ -1136,8 +1136,10 @@ export class Simulation {
 
   /** Call when focus/control context changes, including pause and resume. */
   clearInput(preserveMovement = false): void {
-    this.groundPickup.cancel();
-    this.portal.cancel(); this.eventChannel.cancel(); this.hearthstone.cancel();
+    // Owner-scoped cancels: in co-op a partner's clearInput must not cancel the
+    // other player's in-progress portal/hearthstone/event/pickup channel.
+    this.pickupFor(this.player).cancel();
+    this.portal.cancelFor(this.player); this.eventChannel.cancelFor(this.player); this.hearthstone.cancelFor(this.player);
     this.attackBuffer = this.dodgeBuffer = this.healBuffer = -1;
     this.skillBuffer = null; this.blockedDrawSlot = null;
     if(this.player.skillEffects)delete this.player.skillEffects.draw;
