@@ -347,7 +347,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     }
     case 'ward': {
       p.castTime=.18;
-      skillEffects(p).ward={remaining:recipe.duration,capacity:p.maxHp*recipe.fraction,
+      skillEffects(p).ward={remaining:recipe.duration,capacity:p.maxHp*recipe.fraction,source:id,
         ...(hasUnique(p.character,'broken-seal')?{rupture:{absorbed:0,cap:attack.damage*UNIQUE_RULES.wardSpellCap,radius:UNIQUE_RULES.wardRadius*p.derived.areaMultiplier,offense:{...offense,critChance:0,lifeOnHit:0,directDamageMultiplier:1}}}:{})};
       if(p.skillEffects?.borrowed)p.skillEffects.borrowed.capacity=Math.min(p.skillEffects.borrowed.capacity,Math.max(0,p.maxHp*UNIQUE_RULES.borrowedLife-p.skillEffects.ward!.capacity));
       applySelfPayload(recipe);
@@ -655,7 +655,16 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     }
     case 'comboStrike': {
       const t = target;
-      if (!t) { strikeWhiff(); break; }
+      // Self-buff finishers (Savage Roar) spend combo and apply their buff with no
+      // enemy target — they must not whiff on the missing target.
+      if (!t) {
+        if (recipe.spend && recipe.buffPerCombo) {
+          const pts = context.sim.spendComboPoints();
+          context.sim.addBuff(definition.name, color, { ...recipe.buffPerCombo, duration: recipe.buffPerCombo.duration * Math.max(1, pts) }, id);
+          context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: p.angle, range: 0, arc: Math.PI * 2, rear: false });
+        } else strikeWhiff();
+        break;
+      }
       const angle = Math.atan2(t.y - p.y, t.x - p.x);
       const pts = recipe.spend ? context.sim.spendComboPoints() : 0;
       const dealt = damage * (recipe.spend ? Math.max(1, pts) : 1);

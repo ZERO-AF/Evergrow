@@ -176,7 +176,9 @@ export function startGather(sim: Simulation, node: GatherNode): string | null {
     ?? (Math.hypot(node.x - p.x, node.y - p.y) > GATHER_RULES.reach ? 'Move closer.' : null)
     ?? (!hasLineOfSight(sim.world, p.x, p.y, node.x, node.y) ? 'No line of sight.' : null);
   if (problem) return problem;
-  sim.eventChannel.cancel(); sim.portal.cancel(); sim.clearCombatInput();
+  // Owner-scoped cancels: a partner starting a gather must not cancel the other
+  // player's in-progress portal/event channel.
+  sim.eventChannel.cancelFor(p); sim.portal.cancelFor(p); sim.clearCombatInput();
   channels.set(sim.player, { node, elapsed: 0 });
   return null;
 }

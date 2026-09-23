@@ -76,7 +76,7 @@ async function boot() {
   const reviewRecord = (phase: EventRecord['phase']): EventRecord => ({ ...selected, phase, choice: kind === 'caravan' ? 'goods' : kind === 'standingStones' ? 'haste' : null, wavesCleared: kind === 'cursedChest' ? 6 : 0, delivered: 0, bonusGranted: phase === 'claimed' });
   function paint(animated = false, dt = 0) {
     const settings = { phase: 'playing' as const, fixedCamera: true, reducedMotion: !animated || matchMedia('(prefers-reduced-motion: reduce)').matches };
-    renderer.render(sim, scene, dt, settings); fx ??= new PostFX(display); fx.render(renderer.canvas, sim.time);
+    renderer.render(sim, scene, dt, settings); fx ??= new PostFX(display); fx.render(renderer.canvas, 0);
     const c = canvas.getContext('2d')!; c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(display, 0, 0);
     c.save(); c.scale(2, 2); renderer.renderUI(c, sim, scene, settings); c.restore();
     canvas.setAttribute('aria-label', `${selected.name}, ${previewState === 'progress' ? readout.value : previewState}`);
@@ -110,7 +110,7 @@ async function boot() {
       sim.eventState.sites[selected.id] = reviewRecord('claimed');
     }
     const landmark = ['cursedChest','reliquary'].includes(kind)?undefined:landmarks.find(s => s.id === selected.id);
-    renderer.reset(); renderer.resize(960, 640); renderer.cameraX = landmark?.x ?? selected.x;
+    renderer.reset(); renderer.resize(960, 640, 1920, 1280); renderer.cameraX = landmark?.x ?? selected.x;
     // The chapel's long north-facing nave otherwise leaves its reward anchor
     // beneath the bottom HUD; center farther south so the scene reads higher.
     renderer.cameraY = (landmark?.y ?? selected.y) + (kind === 'ruinedChapel' ? 100 : -40);

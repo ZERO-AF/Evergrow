@@ -6,7 +6,7 @@ export const ATLAS_SURVEYS = Object.freeze([
   { id: 'wide', label: 'Wide', chunks: 32 },
   { id: 'vast', label: 'Vast', chunks: 64 },
 ] as const);
-export const ATLAS_ZOOM = Object.freeze({ min: .001, max: .7 });
+export const ATLAS_ZOOM = Object.freeze({ min: .0003, max: .7 });
 export function atlasSurveyBounds(id: string | null): MapRect {
   const size = (ATLAS_SURVEYS.find(s => s.id === id) ?? ATLAS_SURVEYS[1]).chunks * EXPLORATION_CHUNK_SIZE;
   return { x: -size / 2, y: -size / 2, width: size, height: size };

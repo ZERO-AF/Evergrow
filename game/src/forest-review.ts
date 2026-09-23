@@ -15,7 +15,7 @@ async function boot() {
   if (!import.meta.env.DEV) throw new Error('Forest motion review is local development only.');
   await loadGameFont(); if (disposed) return;
   world = new World(7319); const sceneWorld = world, scene = forestReviewScene(world);
-  const renderer = new Renderer(); renderer.resize(scene.width, scene.height);
+  const renderer = new Renderer(); renderer.resize(scene.width, scene.height, 960, 587);
   const simulation = new Simulation(world, { seed: 7319, spawn: false, startX: scene.x - 90, startY: scene.y });
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const display = document.createElement('canvas'); display.width = 960; display.height = 587; post = new PostFX(display);
@@ -46,7 +46,7 @@ async function boot() {
     }
     stageForestPlayer(simulation.player, scene, time); simulation.time = time;
     renderer.render(simulation, sceneWorld, dt, { phase: 'paused', reducedMotion: reduced.matches });
-    post!.render(renderer.canvas, time);
+    post!.render(renderer.canvas, 0);
     c.fillStyle = '#091318'; c.fillRect(0, 0, 960, 640); c.drawImage(display, 0, 32);
     c.font = '18px "Evergrow Numerals", "Pixelify Sans"'; c.fillStyle = '#d8d8ab'; c.fillText('EVERGROW / THE LIVING FOREST', 16, 23);
     c.font = '12px "Evergrow Numerals", "Pixelify Sans"'; c.fillStyle = '#9eb9a4';

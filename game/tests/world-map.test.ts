@@ -50,7 +50,7 @@ test('zoom preserves the hovered world anchor and clamps extreme wheel input', (
   const zoomed = zoomMapAt(view, 740, 120, .51), after = unprojectMapPoint(740, 120, zoomed);
   near(anchor.x, after.x); near(anchor.y, after.y);
   assert.equal(zoomMapAt(view, 740, 120, 1000).zoom, .7);
-  assert.equal(zoomMapAt(view, 740, 120, .00001).zoom, .025);
+  assert.equal(zoomMapAt(view, 740, 120, .00001).zoom, MAP_ZOOM.min);
   assert.equal(zoomMapAt(view, 740, 120, NaN).zoom, view.zoom);
 });
 
@@ -450,9 +450,9 @@ test('a zero detail budget still paints every revealed preview and refreshes its
   map.chart(c,view,false,{pois:[],labels:[],zones:[]});
   assert.equal(map.tiles.size,0); assert.equal(copies,4,'all four tiles have an immediate preview even with no detailed tiles');
   assert.equal(samples,400,'preview uses only a ten-by-ten padded color grid per tile');
-  const preview=map.previewTile(0,0,768); assert.equal(preview.getContext().painted,1024);
+  const preview=map.previewTile(0,0,768); assert.equal(preview.charted.getContext().painted,1024);
   revealed=false;revision++;
-  assert.equal(map.previewTile(0,0,768),preview);assert.equal(preview.getContext().painted,0);
+  assert.equal(map.previewTile(0,0,768),preview);assert.equal(preview.charted.getContext().painted,0);
   assert.equal(samples,400,'discovery changes reuse preview colors');
 });
 

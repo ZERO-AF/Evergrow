@@ -11,7 +11,7 @@
  * recomputed as `level - 1 - spent(active)` on every swap and the save-time
  * conservation invariant holds for whichever spec is active. */
 import { GAME_FEATURES } from './game-features.ts';
-import { SKILL_NODES, SKILL_TREE_ORIGIN, doctrineConflict, unlockedSkills } from './skill-tree.ts';
+import { SKILL_NODES, SKILL_TREE_ORIGIN, doctrineConflict, freeNodeCount, unlockedSkills } from './skill-tree.ts';
 import { validSkillProgression } from './skill-progression.ts';
 import { BAR_TOTAL } from './action-bar.ts';
 import { object, text } from './item-validation.ts';
@@ -73,10 +73,13 @@ export function inactiveSpecIndex(sheet: DualSpecSheet): number {
   return (activeSpecIndex(sheet) + 1) % (sheet.specs?.length || DUAL_SPEC_COUNT);
 }
 
-/** Points a build spends: every allocated node except the free origin, plus
- * purchased skill ranks beyond the first. Mirrors commerce.ts respecPoints. */
-export function specSpentPoints(spec: Pick<TalentSpec, 'allocatedNodes' | 'skillRanks'>): number {
-  return spec.allocatedNodes.length - 1
+/** Points a build spends: every allocated node except the free ones (origin +
+ * the class starter) and gold-trained nodes (those cost gold, not points), plus
+ * purchased skill ranks beyond the first. Mirrors commerce.ts respecPoints and
+ * validSheet's conservation ledger. */
+export function specSpentPoints(spec: Pick<TalentSpec, 'allocatedNodes' | 'skillRanks'>, trainedIds: readonly string[] = []): number {
+  const trained = new Set(trainedIds);
+  return spec.allocatedNodes.filter(id => !trained.has(id)).length - freeNodeCount(spec.allocatedNodes)
     + Object.values(spec.skillRanks).reduce((sum, rank) => sum + rank - 1, 0);
 }
 
@@ -124,7 +127,7 @@ export function applySpec(sheet: DualSpecSheet, spec: TalentSpec, level: number)
   }
   sheet.skillSpecializations = { ...spec.skillSpecializations };
   sheet.arcaneOverload = spec.arcaneOverload;
-  sheet.skillPoints = level - 1 - specSpentPoints(spec);
+  sheet.skillPoints = level - 1 - specSpentPoints(spec, trainedNodeIds(sheet));
 }
 
 /** Re-mirror the live build into its spec slot. Optional housekeeping for the
@@ -147,7 +150,7 @@ export function resetSpecs(sheet: DualSpecSheet): void {
 /** Strict stored-build validation for the save boundary. Mirrors validSheet's
  * tree checks (known nodes, uniqueness, doctrine exclusivity, origin-rooted
  * connectivity) plus class gating and the shared point budget. */
-export function validSpec(spec: unknown, classId: WowClassId, raceId: WowRaceId, level: number): spec is TalentSpec {
+export function validSpec(spec: unknown, classId: WowClassId, raceId: WowRaceId, level: number, trainedIds: readonly string[] = []): spec is TalentSpec {
   if (!object(spec) || !text(spec.name, SPEC_NAME_MAX)) return false;
   const nodes = spec.allocatedNodes;
   if (!Array.isArray(nodes) || !nodes.length || nodes.length > SKILL_NODES.size
@@ -159,11 +162,16 @@ export function validSpec(spec: unknown, classId: WowClassId, raceId: WowRaceId,
     if (node.classId && node.classId !== classId) return false;
     if (doctrineConflict(nodes as string[], node)) return false;
   }
-  const allocated = new Set(nodes as string[]), connected = new Set([SKILL_TREE_ORIGIN]), queue = [SKILL_TREE_ORIGIN];
+  // Connectivity runs over the effective build: the spec's own nodes plus the
+  // trained nodes applySpec re-installs. A bought node whose only route passes
+  // through a trained node is legal, so trained ids seed the walk like
+  // validSheet does.
+  const trained = new Set(trainedIds), effective = new Set([...nodes, ...trained] as string[]);
+  const connected = new Set([SKILL_TREE_ORIGIN, ...trained]), queue = [SKILL_TREE_ORIGIN, ...trained];
   for (let i = 0; i < queue.length; i++) for (const next of SKILL_NODES.get(queue[i])!.neighbors) {
-    if (allocated.has(next) && !connected.has(next)) { connected.add(next); queue.push(next); }
+    if (effective.has(next) && !connected.has(next)) { connected.add(next); queue.push(next); }
   }
-  if (connected.size !== allocated.size) return false;
+  if (connected.size !== effective.size) return false;
   const unlocked = unlockedSkills(nodes as string[]);
   if (!Array.isArray(spec.skillSlots) || spec.skillSlots.length !== BAR_TOTAL
     || !spec.skillSlots.every(id => id === null || unlocked.includes(id as SkillId))
@@ -174,17 +182,17 @@ export function validSpec(spec: unknown, classId: WowClassId, raceId: WowRaceId,
     skillSpecializations: spec.skillSpecializations, arcaneOverload: spec.arcaneOverload } as CharacterSheet;
   if (!validSkillProgression(pseudo)) return false;
   // validSkillProgression proved skillRanks is a rank record; nodes are known strings.
-  const spent = specSpentPoints({ allocatedNodes: nodes as string[], skillRanks: spec.skillRanks as TalentSpec['skillRanks'] });
+  const spent = specSpentPoints({ allocatedNodes: nodes as string[], skillRanks: spec.skillRanks as TalentSpec['skillRanks'] }, trainedIds);
   return spent <= level - 1;
 }
 
 /** Save-boundary validation for the sheet's dual-spec fields: absent or a full
  * pair of legal builds with a consistent active index. */
-export function validSpecs(specs: unknown, activeSpec: unknown, classId: WowClassId, raceId: WowRaceId, level: number): boolean {
+export function validSpecs(specs: unknown, activeSpec: unknown, classId: WowClassId, raceId: WowRaceId, level: number, trainedIds: readonly string[] = []): boolean {
   if (specs === undefined) return activeSpec === undefined;
   return Array.isArray(specs) && specs.length === DUAL_SPEC_COUNT
     && Number.isSafeInteger(activeSpec) && (activeSpec as number) >= 0 && (activeSpec as number) < specs.length
-    && specs.every(spec => validSpec(spec, classId, raceId, level));
+    && specs.every(spec => validSpec(spec, classId, raceId, level, trainedIds));
 }
 
 /** Enemy states that mean the fight is on (or the camp is still leashing back). */
@@ -228,7 +236,9 @@ export function dualSpecView(player: Player): DualSpecView {
     specs: specs.map((spec, i) => i === active
       ? {
         name: spec.name,
-        spent: specSpentPoints(sheet),
+        // The live sheet's spent points are the pool minus what's unspent;
+        // specSpentPoints would count trained nodes/ranks as point-bought.
+        spent: Math.max(0, player.level - 1 - sheet.skillPoints),
         unspent: Math.max(0, sheet.skillPoints),
         skills: unlockedSkills(sheet.allocatedNodes).length,
       }

@@ -14,6 +14,7 @@ import { spendGold } from './wallet.ts';
 import { formatWalletCompact } from './currency.ts';
 import { pushChatMessage } from './chat-log.ts';
 import { text } from './item-validation.ts';
+import { trainedNodeIds } from './trainer-state.ts';
 import {
   activeSpecIndex, applySpec, captureSpec, DUAL_SPEC_COST, DUAL_SPEC_LEVEL, DUAL_SPEC_NAMES,
   dualSpecProblem, dualSpecUnlocked, emptySpec, inactiveSpecIndex, SPEC_NAME_MAX, validSpec,
@@ -61,7 +62,7 @@ export async function executeSpecSwap(sim: Simulation, persist: Persist): Promis
   if (!specs?.length) return { ok: false, message: 'Learn dual specialization first.' };
   const active = activeSpecIndex(live), target = inactiveSpecIndex(live);
   const stored = specs[target];
-  if (!stored || !validSpec(stored, live.classId, live.raceId, p.level))
+  if (!stored || !validSpec(stored, live.classId, live.raceId, p.level, trainedNodeIds(live)))
     return { ok: false, message: 'The stored specialization is no longer valid.' };
   const checkpoint = sim.captureCheckpoint() as DualSpecCheckpoint;
   const sheet = checkpoint.character as DualSpecSheet;

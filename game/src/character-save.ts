@@ -10,7 +10,7 @@ import { validTreasureFlight } from './treasure-flight.ts';
 import { createRaceLook, validCharacterLook } from './character-look.ts';
 import { ROAMING_RULES } from './roaming-encounters.ts';
 import { validJourneys, type JourneyState } from './journey-state.ts';
-import type { Expeditions, StoredActor } from './dungeon-state.ts';
+import { currentDungeon, type Expeditions, type StoredActor } from './dungeon-state.ts';
 import type { Ally, Pickup, Player, WowBuff } from './model.ts';
 import { validExpeditions, validActors, validCampWounds, validPickups } from './dungeon-validation.ts';
 import { validEvents, validBlessing } from './poi-validation.ts';
@@ -186,7 +186,7 @@ function validSheet(v: unknown, level: number): v is CharacterSheet {
   if (v.auctionHouse !== undefined && !validAuctionHouse(v.auctionHouse)) return false;
   if (v.trained !== undefined && !validTrainerLedger(v.trained, (v as unknown as CharacterSheet).classId)) return false;
   const sheet = v as unknown as CharacterSheet;
-  if (sheet.treeVersion!==SKILL_TREE_VERSION || sheet.treeRefunded!==undefined&&sheet.treeRefunded!==true || sheet.allocatedNodes.some(id=>{const node=SKILL_NODES.get(id)!;return doctrineConflict(sheet.allocatedNodes,node)||node.classId!==undefined&&node.classId!==sheet.classId;}) || !validSkillProgression(sheet) || sheet.inventory.length > bagGridLayout(sheet).totalCells || !validPackLayout(sheet.inventory, sheet.inventoryLayout, bagGridLayout(sheet)) || !validSpecs(sheet.specs, sheet.activeSpec, sheet.classId, sheet.raceId, level)) return false;
+  if (sheet.treeVersion!==SKILL_TREE_VERSION || sheet.treeRefunded!==undefined&&sheet.treeRefunded!==true || sheet.allocatedNodes.some(id=>{const node=SKILL_NODES.get(id)!;return doctrineConflict(sheet.allocatedNodes,node)||node.classId!==undefined&&node.classId!==sheet.classId;}) || !validSkillProgression(sheet) || sheet.inventory.length > bagGridLayout(sheet).totalCells || !validPackLayout(sheet.inventory, sheet.inventoryLayout, bagGridLayout(sheet)) || !validSpecs(sheet.specs, sheet.activeSpec, sheet.classId, sheet.raceId, level, trainedNodeIds(sheet))) return false;
   const ids = [...(sheet.stash??[]), ...(sheet.guildVault??[]), ...sheet.inventory, ...Object.values(sheet.equipped), ...(sheet.bags??[])].filter((i): i is Item => i !== null).map(i => i.id);
   if (new Set(ids).size !== ids.length || sheet.equipped.weapon?.weapon?.hands === 2 && sheet.equipped.offhand !== null) return false;
   const allocated = new Set(sheet.allocatedNodes), trained = new Set(trainedNodeIds(sheet)), connected = new Set(['origin', ...trained]), queue = ['origin', ...trained];
@@ -311,12 +311,16 @@ function validActorWowExtras(actors: unknown): boolean {
 
 /** World-half validation: the shared state both co-op slots store identically. */
 function validWorldFields(p: ObjectValue): p is ObjectValue & WorldCheckpoint {
+  // Expeditions validate first so the current run's heroic flag can bound the
+  // top-level actor HP check — a mid-dungeon save stores live dungeon enemies
+  // (including a heroic boss at doubled maxHp) in p.actors.
+  if (p.expeditions !== undefined && !validExpeditions(p.expeditions)) return false;
+  const heroic = p.expeditions !== undefined && currentDungeon(p.expeditions as Expeditions)?.entrance.scaling?.heroic === true;
   return (p.encounterScales === undefined || validEncounterScales(p.encounterScales))
     && (p.journeys === undefined || validJourneys(p.journeys))
     && (p.campWounds === undefined || validCampWounds(p.campWounds))
     && (p.roaming === undefined || (object(p.roaming) && integer(p.roaming.warmup,0,ROAMING_RULES.warmupPopulation) && number(p.roaming.cooldown,-1,10) && number(p.roaming.requiredDistance,0,300)))
-    && (p.expeditions === undefined || validExpeditions(p.expeditions))
-    && (p.actors === undefined || validActors(p.actors))
+    && (p.actors === undefined || validActors(p.actors, heroic))
     && (p.pickups === undefined || validPickups(p.pickups))
     && (p.events === undefined || validEvents(p.events))
     && (p.travel === undefined || validTravel(p.travel))

@@ -82,7 +82,7 @@ const draw = () => {
     const ratio = Math.min(1.6, devicePixelRatio || 1);
     if (canvas.width !== Math.round(innerWidth * ratio) || canvas.height !== Math.round(innerHeight * ratio)) {
       canvas.width = Math.round(innerWidth * ratio); canvas.height = Math.round(innerHeight * ratio);
-      renderer.resize(Math.round(600 * innerWidth / innerHeight), 600);
+      renderer.resize(Math.round(600 * innerWidth / innerHeight), 600, canvas.width, canvas.height);
     }
     renderer.cameraX = -90; renderer.cameraY = -180;
     renderer.render(sim, world, 1 / 60, { phase: 'ready', reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches });

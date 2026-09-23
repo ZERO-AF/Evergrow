@@ -93,7 +93,11 @@ export class HearthstoneChannel {
   get ready() { return this.active && this.elapsed + 1e-9 >= this.duration; }
   get progress() { return Math.min(1, this.elapsed / this.duration); }
   start(player: Player, world: WorldQuery): string | null {
-    if (this.active) { this.cancel(); return null; }
+    // A partner's hearth must not cancel the owner's in-progress cast.
+    if (this.active) {
+      if (this.owner !== null && this.owner !== player) return 'A hearthstone is already being channeled.';
+      this.cancel(); return null;
+    }
     const problem = hearthstoneProblem(player, world); if (problem) return problem;
     this.duration = HEARTHSTONE_RULES.channel * guildHearthstoneChannelFactor(player);
     this.origin = { x: player.x, y: player.y }; this.elapsed = 0; this.owner = player; return null;
@@ -117,8 +121,10 @@ export type HearthstoneHost = Simulation & { readonly hearthstone: HearthstoneCh
 
 /** H key edge: cancel competing channels, then start the 10s cast. Returns a problem to notify, or null. */
 export function hearthstoneCast(sim: HearthstoneHost): string | null {
-  sim.eventChannel.cancel();
-  sim.portal.cancel();
+  // Owner-scoped cancels: the caster interrupts only their own channels, never
+  // a co-op partner's in-progress event or portal.
+  sim.eventChannel.cancelFor(sim.player);
+  sim.portal.cancelFor(sim.player);
   sim.clearCombatInput();
   return sim.hearthstone.start(sim.player, sim.world);
 }

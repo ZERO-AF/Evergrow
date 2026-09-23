@@ -101,6 +101,10 @@ export class Exploration {
   getChunkRevision(x: number, y: number) {
     return this.chunks.get(key(Math.floor(x / EXPLORATION_CHUNK_SIZE), Math.floor(y / EXPLORATION_CHUNK_SIZE)))?.revision ?? 0;
   }
+  /** Every stored chunk has at least one revealed cell; the far-zoom chart fogs by chunk. */
+  forEachExploredChunk(visit: (x: number, y: number, size: number) => void) {
+    for (const chunk of this.chunks.values()) visit(chunk.x * EXPLORATION_CHUNK_SIZE, chunk.y * EXPLORATION_CHUNK_SIZE, EXPLORATION_CHUNK_SIZE);
+  }
 
   private revealCell(x: number, y: number) {
     const minCell = Math.floor(-EXPLORATION_LIMITS.coordinate / EXPLORATION_CELL_SIZE);

@@ -64,7 +64,7 @@ function draw() {
   document.documentElement.style.setProperty('--touch-vh', `${h}px`);
   if(canvas.width!==viewport.worldBufferWidth||canvas.height!==viewport.worldBufferHeight) {
     canvas.width=viewport.worldBufferWidth;canvas.height=viewport.worldBufferHeight;ui.width=viewport.uiBufferWidth;ui.height=viewport.uiBufferHeight;
-    renderer.resize(viewport.logicalWidth,viewport.logicalHeight);
+    renderer.resize(viewport.logicalWidth,viewport.logicalHeight,viewport.worldBufferWidth,viewport.worldBufferHeight);
     touch.refreshLayout(); renderer.touchViewport = touch.viewport;
     renderer.touchTopInset = touch.safeTop * renderer.height / h;
   }

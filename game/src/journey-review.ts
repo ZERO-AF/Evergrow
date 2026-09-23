@@ -58,7 +58,7 @@ function draw(){
   shell.canvas.width=Math.round(innerWidth*Math.min(1.6,ratio));shell.canvas.height=Math.round(innerHeight*Math.min(1.6,ratio));
   shell.uiCanvas.width=Math.round(innerWidth*ratio);shell.uiCanvas.height=Math.round(innerHeight*ratio);
   const height=Math.min(680,Math.max(450,Math.round(innerHeight/1.35)));
-  renderer.resize(Math.max(540,Math.round(height*innerWidth/innerHeight)),height);
+  renderer.resize(Math.max(540,Math.round(height*innerWidth/innerHeight)),height,shell.canvas.width,shell.canvas.height);
   renderer.cameraX=p.x;renderer.cameraY=p.y-30;
   const settings={phase:'playing' as const,reducedMotion:true};
   renderer.render(sim,world,0,settings);fx.render(renderer.canvas,0);

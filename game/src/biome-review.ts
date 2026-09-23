@@ -64,7 +64,7 @@ async function boot() {
     // Pose only. No simulation steps, enemy spawning, input, exploration, or save reads.
     const sim = new Simulation(sceneWorld, { seed, spawn: false, startX: playerX, startY: playerY });
     sim.time = 12; sim.player.angle = -Math.PI / 2;
-    sceneRenderer.reset(); sceneRenderer.resize(800, 550); sceneRenderer.cameraX = scene.x; sceneRenderer.cameraY = scene.y - 20;
+    sceneRenderer.reset(); sceneRenderer.resize(800, 550, 1600, 1100); sceneRenderer.cameraX = scene.x; sceneRenderer.cameraY = scene.y - 20;
     profiler.reset();renderCount=0;
     present=dt=>{
       profiler.begin(performance.now());

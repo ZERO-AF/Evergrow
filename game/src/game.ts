@@ -1125,18 +1125,20 @@ export class Game {
       profile: this.presentation,
     });
     this.canvas.width = viewport.worldBufferWidth;
+    this.canvas.height = viewport.worldBufferHeight;
     this.viewW = viewport.logicalWidth; this.viewH = viewport.logicalHeight;
-    this.renderer.resize(viewport.logicalWidth, viewport.logicalHeight);
+    this.renderer.resize(viewport.logicalWidth, viewport.logicalHeight, viewport.worldBufferWidth, viewport.worldBufferHeight);
     // A live split must re-carve both halves from the new full width.
     if (this.coopSplit && this.renderer2) {
       const halfW = Math.floor(this.viewW / 2);
-      this.renderer.resize(halfW, this.viewH);
-      this.renderer2.resize(this.viewW - halfW, this.viewH);
+      const halfBW = Math.floor(viewport.worldBufferWidth / 2);
+      this.renderer.resize(halfW, this.viewH, halfBW, viewport.worldBufferHeight);
+      this.renderer2.resize(this.viewW - halfW, this.viewH, viewport.worldBufferWidth - halfBW, viewport.worldBufferHeight);
     }
     // UI is rasterized at the display's native density, independently of the world buffer.
     this.uiCanvas.width = viewport.uiBufferWidth;
     this.uiCanvas.height = viewport.uiBufferHeight;
-    this.renderer.resize(viewport.logicalWidth, viewport.logicalHeight);
+    this.renderer.resize(viewport.logicalWidth, viewport.logicalHeight, viewport.worldBufferWidth, viewport.worldBufferHeight);
     this.renderer.cursorPixelScale = { x: this.renderer.width / viewport.width, y: this.renderer.height / viewport.height };
     this.touch?.refreshLayout();
     this.renderer.touchViewport = this.touch?.viewport ?? null;
@@ -1180,7 +1182,7 @@ export class Game {
     // Split: render each player's view into its half-width canvas, composite.
     this.renderer.render(this.sim, this.world, dt, settings);
     this.renderer2.render(this.sim, this.world, dt, settings);
-    const w = this.renderer.width + this.renderer2.width, h = this.renderer.height;
+    const w = this.renderer.canvas.width + this.renderer2.canvas.width, h = this.renderer.canvas.height;
     if (!this.splitCanvas) this.splitCanvas = document.createElement('canvas');
     if (this.splitCanvas.width !== w || this.splitCanvas.height !== h) {
       this.splitCanvas.width = w; this.splitCanvas.height = h;
@@ -1188,10 +1190,10 @@ export class Game {
     const ctx = this.splitCanvas.getContext('2d')!;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.renderer.canvas, 0, 0);
-    ctx.drawImage(this.renderer2.canvas, this.renderer.width, 0);
+    ctx.drawImage(this.renderer2.canvas, this.renderer.canvas.width, 0);
     // Divider seam between the two views.
     ctx.fillStyle = '#050a0e';
-    ctx.fillRect(this.renderer.width - 1, 0, 2, h);
+    ctx.fillRect(this.renderer.canvas.width - 1, 0, 2, h);
     return this.splitCanvas;
   }
 
@@ -1222,14 +1224,15 @@ export class Game {
       this.renderer.subject = this.sim.player;
       this.renderer2.subject = p2;
       const halfW = Math.floor(this.viewW / 2);
-      this.renderer.resize(halfW, this.viewH);
-      this.renderer2.resize(this.viewW - halfW, this.viewH);
+      const halfBW = Math.floor(this.canvas.width / 2);
+      this.renderer.resize(halfW, this.viewH, halfBW, this.canvas.height);
+      this.renderer2.resize(this.viewW - halfW, this.viewH, this.canvas.width - halfBW, this.canvas.height);
       this.renderer.snapTo(this.sim.player);
       this.renderer2.snapTo(p2);
     } else {
       this.renderer.subject = null;
       if (this.renderer2) this.renderer2.splitActive = false;
-      this.renderer.resize(this.viewW, this.viewH);
+      this.renderer.resize(this.viewW, this.viewH, this.canvas.width, this.canvas.height);
       if (this.savedZoom !== undefined) { this.renderer.zoomTarget = this.savedZoom; this.savedZoom = undefined; }
       this.renderer.snapTo(this.sim.player);
     }
@@ -2007,8 +2010,8 @@ export class Game {
     if (this.savingAction) return;
     const problem = eventProblem(this.sim, site, choice);
     if (problem) { this.notify(problem); return; }
-    this.sim.portal.cancel(); this.sim.clearInput();
-    if(site.kind==='watchtower'||site.kind==='standingStones')this.sim.eventChannel.start(site, choice);
+    this.sim.portal.cancelFor(this.sim.player); this.sim.clearInput();
+    if(site.kind==='watchtower'||site.kind==='standingStones')this.sim.eventChannel.start(site, choice, this.sim.player);
     else void this.finishEvent(site,choice);
   }
 
@@ -2092,7 +2095,7 @@ export class Game {
       else this.notify('Explore outside the sanctuary to open a town portal.');
       return;
     }
-    this.sim.eventChannel.cancel();
+    this.sim.eventChannel.cancelFor(p);
     this.sim.clearCombatInput();
     const problem = this.sim.portal.start(p, this.world);
     if (problem) this.notify(problem);

@@ -9,6 +9,7 @@ import { bindTouchCanvas } from './touch-canvas.ts';
 import { formatWorldDistance } from './world-distance.ts';
 import { drawJourneyMapMarker, type JourneyMarker } from './journey-marker.ts';
 import { drawMapZoneLevels, mapZoneLabels } from './map-zone-art.ts';
+import { drawMapOverview, drawMapOverviewFog, drawMapOverviewLabels, MAP_OVERVIEW_ZOOM } from './atlas-overview.ts';
 import { drawMapProps, drawMapBuilding } from './map-terrain-art.ts';
 import { drawMapCompass } from './map-compass-art.ts';
 import type { Prop } from './world.ts';
@@ -45,7 +46,7 @@ export const MAP_TERRAIN_RULES = Object.freeze({ cacheLimit: 384, maximumVisible
 /** Increase world coverage per tile at overview scales while retaining a bounded sample budget. */
 export function mapTerrainSize(zoom: number, width: number, height: number): number {
   if (![zoom, width, height].every(Number.isFinite) || zoom <= 0 || width <= 0 || height <= 0) return MAP_TERRAIN_RULES.baseWorldSize;
-  zoom = Math.max(.001, zoom); width = Math.min(16384, width); height = Math.min(16384, height);
+  zoom = Math.max(.00025, zoom); width = Math.min(16384, width); height = Math.min(16384, height);
   let size = Math.max(width, height) <= 256 ? 768 : zoom < .06 ? 3072 : zoom < .13 ? 1536 : 768;
   while ((Math.ceil(width / zoom / size) + 2) * (Math.ceil(height / zoom / size) + 2) > MAP_TERRAIN_RULES.maximumVisibleTiles) size *= 2;
   return size;
@@ -124,6 +125,15 @@ export function chartedMapArea(world: Pick<MapWorld, 'sampleBiome' | 'isSanctuar
 function mapAreaLabel(world: Pick<MapWorld, 'isSanctuary'> & Partial<Pick<MapWorld, 'seed'>>, x: number, y: number) {
   return world.isSanctuary?.(x, y) ? 'Sanctuary' : regionLevelLabel(getZoneAt(x, y, world.seed));
 }
+/** At overview zoom the chart names authored zones and the sea before they're charted. */
+function overviewMapArea(world: Pick<MapWorld, 'sampleBiome' | 'isSanctuary'> & Partial<Pick<MapWorld, 'seed' | 'zoneKey'>>, x: number, y: number) {
+  if (![x, y].every(Number.isFinite) || !world.zoneKey) return null;
+  const key = world.zoneKey(x, y);
+  if (key === undefined) return null;
+  const zone = getZoneAt(x, y, world.seed);
+  return { name: key === null ? 'The Great Sea' : zone.name, biome: key === null ? 'Ocean' : zone.districtName,
+    label: key === null ? 'Ocean' : regionLevelLabel(zone), x, y };
+}
 
 /** Keep hover selection inside the chart and prefer the closest visible marker. */
 export function pickMapPOI(pois: readonly MapPOI[], view: MapView, pointer: { x: number; y: number }, radius: number): MapPOI | null {
@@ -146,7 +156,7 @@ export function selectMapPOIs(pois: readonly MapPOI[], view: MapView, mini = fal
     .map(poi => ({ poi, screen: projectMapPoint(poi.x, poi.y, view) }))
     .filter(({ screen }) => screen.x >= view.x + 6 && screen.y >= view.y + 6 && screen.x <= view.x + view.width - 6 && screen.y <= view.y + view.height - 6)
     .sort((a, b) => priority(a.poi) - priority(b.poi) || a.poi.id.localeCompare(b.poi.id));
-  const selected: typeof candidates = [], separation = mini ? 11 : view.zoom < .07 ? 40 : 19;
+  const selected: typeof candidates = [], separation = mini ? 11 : view.zoom < .006 ? 110 : view.zoom < MAP_OVERVIEW_ZOOM ? 64 : view.zoom < .07 ? 40 : 19;
   for (const candidate of candidates) if (selected.every(other => Math.hypot(candidate.screen.x - other.screen.x,
     candidate.screen.y - other.screen.y) >= separation)) selected.push(candidate);
   return selected.map(candidate => candidate.poi);
@@ -216,6 +226,7 @@ export class WorldMap {
   private chartDirty = false;
   private buildBudget?: number;
   private pendingTerrain = false;
+  private overviewFog?: HTMLCanvasElement;
   private chartLayer?: HTMLCanvasElement;
   private chartLayerValid = false;
   private visiblePOIs: MapPOI[] = [];
@@ -614,7 +625,7 @@ export class WorldMap {
   }
 
   /** Cheap, complete overview under unfinished detail; its own fog mask never exposes unknown cells. */
-  private previewTile(tx: number, ty: number, size: number): HTMLCanvasElement | null {
+  private previewTile(tx: number, ty: number, size: number): PreviewTile | null {
     const ox = tx * size, oy = ty * size;
     let revision = 0;
     for (let cy = Math.floor(oy / EXPLORATION_CHUNK_SIZE); cy < Math.ceil((oy + size) / EXPLORATION_CHUNK_SIZE); cy++)
@@ -643,7 +654,7 @@ export class WorldMap {
       tile.revision = revision;
     }
     if (cache.size > TERRAIN_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-    return tile.charted;
+    return tile;
   }
   private features(view: MapView, mini: boolean): { pois: MapPOI[]; labels: MapRegionLabel[]; zones: ZoneProgression[] } {
     const pois = selectMapPOIs([...this.exploration.getDiscoveredPOIs(bounds(view))
@@ -651,8 +662,9 @@ export class WorldMap {
       ...worldEventMapMarkers(this.worldEvents?.()?.state ?? { nextAt: 0, index: 0, active: null, history: [] }, this.worldEvents?.()?.time ?? 0)
         .map(marker => ({ ...marker, sighted: true }))]
       .filter(poi => mapIconVisible(this.iconVisibility, poi.kind) || (!mini && poi.id === this.focusPOI?.id)), view, mini, mini ? undefined : this.focusPOI?.id);
-    const labels = mini || this.zoneLevels ? [] : mapRegionLabels(this.world, this.exploration, view, [...pois.filter(poi => poi.kind === 'town'), this.player]);
-    const zones = mini || !this.zoneLevels ? [] : mapZoneLabels(view, this.exploration, this.world.seed, pois.filter(p => p.kind === 'town'));
+    const overview = !mini && view.zoom < MAP_OVERVIEW_ZOOM;
+    const labels = mini || this.zoneLevels || overview ? [] : mapRegionLabels(this.world, this.exploration, view, [...pois.filter(poi => poi.kind === 'town'), this.player]);
+    const zones = mini || !this.zoneLevels || overview ? [] : mapZoneLabels(view, this.exploration, this.world.seed, pois.filter(p => p.kind === 'town'));
     return { labels, zones, pois: pois.filter(poi => (!mini && poi.id === this.focusPOI?.id) || !zones.some(z => Math.abs((z.x-poi.x)*view.zoom)<82 && Math.abs((z.y-poi.y)*view.zoom)<28)).filter(poi => (!mini && poi.id === this.focusPOI?.id) || poi.kind === 'portal' || poi.kind === 'town' || !labels.some(label => {
       const dx = Math.abs((poi.x - label.x) * view.zoom), dy = (poi.y - label.y) * view.zoom;
       return dx < label.name.length * 3.4 + 8 && dy > -9 && dy < 27;
@@ -661,12 +673,27 @@ export class WorldMap {
 
   private chart(c: CanvasRenderingContext2D, view: MapView, mini: boolean,
     features = this.features(view, mini), simple = false) {
-    const region = bounds(view), tileSize = mini ? MAP_TERRAIN_RULES.baseWorldSize : mapTerrainSize(view.zoom, view.width, view.height);
+    const region = bounds(view), overview = !mini && view.zoom < MAP_OVERVIEW_ZOOM;
     c.save(); c.beginPath(); c.rect(view.x, view.y, view.width, view.height); c.clip();
     const opacity = simple ? .58 : 1;
     c.globalAlpha = opacity;
     if (!simple) { c.fillStyle = palette.ink; c.fillRect(view.x, view.y, view.width, view.height); }
     c.imageSmoothingEnabled = false;
+    if (overview) {
+      // Far zoom: the authored continent/zone silhouette replaces detail tiles,
+      // so the chart never pays the per-cell fog mask at world scale. Authored
+      // silhouettes draw after the parchment grade to keep their own palette.
+      if (!this.world.zoneKey) {
+        const tileSize = 49152, bleed = 1 / Math.max(.1, Math.hypot(c.getTransform().a, c.getTransform().b));
+        for (let ty = Math.floor(region.y / tileSize); ty <= Math.floor((region.y + region.height) / tileSize); ty++)
+          for (let tx = Math.floor(region.x / tileSize); tx <= Math.floor((region.x + region.width) / tileSize); tx++) {
+            const base = this.previewTile(tx, ty, tileSize)?.base; if (!base) continue;
+            const p = projectMapPoint(tx * tileSize, ty * tileSize, view);
+            c.drawImage(base, p.x, p.y, tileSize * view.zoom + bleed, tileSize * view.zoom + bleed);
+          }
+      }
+    } else {
+    const tileSize = mini ? MAP_TERRAIN_RULES.baseWorldSize : mapTerrainSize(view.zoom, view.width, view.height);
     const transform = c.getTransform();
     const bleed = 1 / Math.max(.1, Math.hypot(transform.a, transform.b));
     const roadTiles: Array<{ tile: TerrainTile; x: number; y: number }> = [];
@@ -685,7 +712,7 @@ export class WorldMap {
     });
     // Populate every revealed low-resolution tile in this frame, before refining the center outward.
     if (!mini && this.pendingTerrain) for (const { tx, ty } of visibleTiles) {
-      const preview = this.previewTile(tx, ty, tileSize); if (!preview) continue;
+      const preview = this.previewTile(tx, ty, tileSize)?.charted; if (!preview) continue;
       const p = projectMapPoint(tx * tileSize, ty * tileSize, view);
       c.drawImage(preview, p.x, p.y, tileSize * view.zoom + bleed, tileSize * view.zoom + bleed);
     }
@@ -699,6 +726,7 @@ export class WorldMap {
     c.globalAlpha = opacity;
     c.imageSmoothingEnabled = true;
     for (const road of roadTiles) c.drawImage(road.tile.chartedRoads!, road.x, road.y, tileSize * view.zoom, tileSize * view.zoom);
+    }
     if (!mini) {
       // Parchment grade: warm sepia multiply, a faint paper lift and a soft
       // vignette pull the chart toward a hand-drawn WoW atlas.
@@ -712,6 +740,14 @@ export class WorldMap {
       vignette.addColorStop(0, '#ffffff'); vignette.addColorStop(1, '#b8a67e');
       c.fillStyle = vignette; c.fillRect(view.x, view.y, view.width, view.height);
       c.globalCompositeOperation = 'source-over';
+    }
+    if (overview && this.world.zoneKey) drawMapOverview(c, view, this.world.zoneKey);
+    if (overview) {
+      const fog = this.overviewFog ??= document.createElement('canvas');
+      const fw = Math.max(1, Math.round(view.width)), fh = Math.max(1, Math.round(view.height));
+      if (fog.width !== fw) fog.width = fw;
+      if (fog.height !== fh) fog.height = fh;
+      drawMapOverviewFog(c, view, this.exploration, fog);
     }
     c.imageSmoothingEnabled = false;
     for (const building of simple || view.zoom < .065 ? [] : this.world.getBuildings(region.x, region.y, region.width, region.height)) {
@@ -728,6 +764,7 @@ export class WorldMap {
     }
     const { pois, labels } = features;
     if (!mini && !simple && this.zoneLevels) drawMapZoneLevels(c, view, this.exploration, this.world.seed, features.zones, this.world.zoneKey);
+    if (overview) drawMapOverviewLabels(c, view, this.world.zoneKey);
     for (const label of labels) {
       const p = projectMapPoint(label.x, label.y, view), biome = BIOMES[label.id as BiomeId];
       const labelColor = biome?.color ?? palette.jade;
@@ -868,7 +905,7 @@ export class WorldMap {
     const features = this.features(this.view, false);
     this.visiblePOIs = features.pois;
     this.chart(c, this.view, false, features);
-    const grid = this.view.zoom < .01 ? 12800 : this.view.zoom < .065 ? 3200 : 1536, first = unprojectMapPoint(0, 0, this.view);
+    const grid = this.view.zoom < .002 ? 200000 : this.view.zoom < .01 ? 12800 : this.view.zoom < .065 ? 3200 : 1536, first = unprojectMapPoint(0, 0, this.view);
     c.save(); c.strokeStyle = '#bfbe9710'; c.lineWidth = .65;
     for (let wx = Math.ceil(first.x / grid) * grid; wx < first.x + this.view.width / this.view.zoom; wx += grid) {
       const p = projectMapPoint(wx, 0, this.view); c.beginPath(); c.moveTo(p.x, 0); c.lineTo(p.x, this.view.height); c.stroke();
@@ -878,7 +915,9 @@ export class WorldMap {
     }
     c.restore();
     this.playerArrow(c, this.player, this.view, false);
-    const scale = this.view.zoom < .025 ? 10000 : this.view.zoom < .06 ? 2000 : this.view.zoom < .16 ? 1000 : 250;
+    const scale = this.view.zoom < .0006 ? 400000 : this.view.zoom < .0015 ? 150000 : this.view.zoom < .003 ? 60000
+      : this.view.zoom < .006 ? 40000 : this.view.zoom < .012 ? 25000 : this.view.zoom < .025 ? 10000
+      : this.view.zoom < .06 ? 2000 : this.view.zoom < .16 ? 1000 : 250;
     const scaleWidth = scale * this.view.zoom;
     c.strokeStyle = `${palette.ivory}75`; c.lineWidth = 1;
     c.beginPath(); c.moveTo(24, this.view.height - 25); c.lineTo(24, this.view.height - 21);
@@ -930,7 +969,8 @@ export class WorldMap {
       this.areaInfo.hidden = true; return;
     }
     const point = unprojectMapPoint(pointer.x, pointer.y, this.view);
-    const inspected = chartedMapArea(this.world, this.exploration, point.x, point.y);
+    const inspected = chartedMapArea(this.world, this.exploration, point.x, point.y)
+      ?? (this.view.zoom < MAP_OVERVIEW_ZOOM ? overviewMapArea(this.world, point.x, point.y) : null);
     this.areaInfo.hidden = !inspected;
     if (!inspected) return;
     setText(this.areaName, inspected.name); setText(this.areaBiome, inspected.biome);

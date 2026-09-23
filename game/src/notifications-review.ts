@@ -36,7 +36,7 @@ notices.push({ kind: 'loot', item: generateItem(279, 4, 'head', undefined, 'comm
 const draw = () => {
   const ratio = devicePixelRatio || 1;
   canvas.width = ui.width = Math.round(innerWidth * ratio); canvas.height = ui.height = Math.round(innerHeight * ratio);
-  renderer.resize(Math.round(600 * innerWidth / innerHeight), 600);
+  renderer.resize(Math.round(600 * innerWidth / innerHeight), 600, canvas.width, canvas.height);
   renderer.cameraX = sim.player.x; renderer.cameraY = sim.player.y;
   const settings = { phase: 'playing' as const, reducedMotion: true };
   renderer.render(sim, world, 0, settings); fx.render(renderer.canvas, 0);

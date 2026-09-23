@@ -34,13 +34,13 @@ function draw(now: number) {
   const ratio = devicePixelRatio || 1;
   if (canvas.width !== Math.round(innerWidth * ratio) || canvas.height !== Math.round(innerHeight * ratio)) {
     canvas.width = Math.round(innerWidth * ratio); canvas.height = Math.round(innerHeight * ratio);
-    renderer.resize(620 * innerWidth / innerHeight, 620);
+    renderer.resize(620 * innerWidth / innerHeight, 620, canvas.width, canvas.height);
   }
   renderer.handleEvents(stageWaterScene(sim, scene, time, time + dt), motion.matches); time += dt;
   renderer.cameraX = scene.x; renderer.cameraY = scene.y - 80;
   const renderStart = performance.now();
   renderer.render(sim, world, dt, { phase: 'playing', reducedMotion: motion.matches, waterAge });
-  fx.render(renderer.canvas, time);
+  fx.render(renderer.canvas, 0);
   renderAverage += (performance.now() - renderStart - renderAverage) * .04;
   canvas.dataset.renderMs = renderAverage.toFixed(2);
   document.querySelector('#status')!.textContent = `${kind === 'river' ? 'River crossing' : 'Lakeshore'} · Seed ${seed} · ${time < 4 ? 'Walking into water' : time < 7 ? 'Blade disturbances' : time < 10 ? 'Impact waves and reflected light' : 'Walking out'} ${waterAge ? ` · Surface age +${waterAge}s` : ''} · No gameplay ticks or saves`;

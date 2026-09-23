@@ -83,9 +83,9 @@ function draw(dt = 0) {
   shell.canvas.width = innerWidth * Math.min(1.6, ratio); shell.canvas.height = innerHeight * Math.min(1.6, ratio);
   shell.uiCanvas.width = innerWidth * ratio; shell.uiCanvas.height = innerHeight * ratio;
   const projected = destinations(); renderer.portalDestinations = projected;
-  renderer.resize(Math.round(540 * innerWidth / innerHeight), 540); renderer.snapTo(p);
+  renderer.resize(Math.round(540 * innerWidth / innerHeight), 540, shell.canvas.width, shell.canvas.height); renderer.snapTo(p);
   const settings = { phase: 'playing' as const, reducedMotion: frozen };
-  renderer.render(sim, world, dt, settings); fx.render(renderer.canvas, dt);
+  renderer.render(sim, world, dt, settings); fx.render(renderer.canvas, 0);
   const c = shell.uiCanvas.getContext('2d')!;
   c.setTransform(shell.uiCanvas.width / renderer.width, 0, 0, shell.uiCanvas.height / renderer.height, 0, 0);
   renderer.renderUI(c, sim, world, settings); map.drawMinimap(c, p, renderer.width, renderer.height, 0);

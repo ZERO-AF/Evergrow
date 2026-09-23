@@ -13,6 +13,7 @@ import { COMPANIONS, type CompanionId } from './companion-content.ts';
 import { NPC_NAMES, NPC_COLORS, type StableMaster } from './npcs.ts';
 import { npcEmblem } from './npc-art.ts';
 import { escapeUI, trapDialogFocus } from './ui-components.ts';
+import { controls } from './control-preferences.ts';
 import './stable-panel.css';
 
 const e = escapeUI;
@@ -255,7 +256,7 @@ export class StablePanel {
           ${active ? this.petCard(active, true, -1) : '<p class="stable-empty">No active pet. Hunters tame beasts in the wild; warlocks summon demons through their skills.</p>'}</section>
         <section class="stable-stabled" aria-label="Stabled pets"><div class="service-section-heading"><h3>Stable</h3><span>${stabled.length} / ${capacity}</span></div>
           <div class="stable-grid">${slots.join('')}</div></section>
-        <section class="stable-mounts" aria-label="Mounts"><div class="service-section-heading"><h3>Mounts</h3><span>Pick your ride — X summons it</span></div>
+        <section class="stable-mounts" aria-label="Mounts"><div class="service-section-heading"><h3>Mounts</h3><span>Pick your ride${controls.has('mount') ? ` — ${e(controls.label('mount'))} summons it` : ''}</span></div>
           <div class="stable-mount-grid">${this.actions.mounts().map(mount => this.mountCard(mount)).join('')}</div></section>
         <section class="stable-companions" aria-label="Companions"><div class="service-section-heading"><h3>Companions</h3><span>${this.actions.companions().filter(c => c.owned).length} collected — one follows you</span></div>
           <div class="stable-mount-grid">${this.actions.companions().map(companion => this.companionCard(companion)).join('')}</div></section>

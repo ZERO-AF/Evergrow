@@ -57,7 +57,7 @@ async function boot() {
         enemy.warband = { order: 'rush', remaining: 5.7, warning: true };
       }
     }
-    renderer.reset(); renderer.resize(720, 500); renderer.cameraX = site.x; renderer.cameraY = site.y + 15;
+    renderer.reset(); renderer.resize(720, 500, 1440, 1000); renderer.cameraX = site.x; renderer.cameraY = site.y + 15;
     let platesToDraw: any[] = [];
     if (view === 'singularity') {
       sim.enemies.length = 0;

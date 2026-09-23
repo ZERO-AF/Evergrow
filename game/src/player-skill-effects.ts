@@ -5,7 +5,7 @@ import type { SkillId } from './character-types.ts';
 import type { ProjectileDefinition } from './combat-content.ts';
 import { canUseSkill } from './skill-content.ts';
 import { deriveCharacterStats } from './character-stats.ts';
-import { getTreeBonuses } from './skill-tree.ts';
+import { getTreeBonuses, unlockedSkills } from './skill-tree.ts';
 import { manaCapacity } from './auras.ts';
 import { WOW_CLASSES, wowClassOf } from './wow-classes.ts';
 import type { WowClassDef } from './wow-types.ts';
@@ -26,7 +26,7 @@ export interface PlayerSkillEffects {
   embers?: StoredEmbers[];
   /** Legendary proc state by equipped item id: icd remaining + gathered stacks. */
   procs?: Record<string, { cooldown: number; stacks: number }>;
-  ward?: { remaining: number; capacity: number; rupture?: {absorbed:number;cap:number;radius:number;offense:HitSnapshot} };
+  ward?: { remaining: number; capacity: number; source?: SkillId; rupture?: {absorbed:number;cap:number;radius:number;offense:HitSnapshot} };
   echoes: SkillEcho[];
 }
 export const skillEffects = (p: Player): PlayerSkillEffects => p.skillEffects ??= { echoes: [] };
@@ -53,7 +53,7 @@ export function mitigateSkillHit(p: Player, amount:number):{damage:number;absorb
   const s=p.skillEffects;if(!s)return{damage:amount,absorbed:0};
   const reduction=Math.max(...Object.entries(s.shelters??{}).map(([id,b])=>b.remaining&&canUseSkill(id as SkillId,p.equipment)?b.reduction:0),s.brace?.remaining? s.brace.reduction:0,s.rallyOfIron?.remaining&&canUseSkill('rallyOfIron',p.equipment)?s.rallyOfIron.reduction:0);
   amount=Math.max(1,Math.round(amount*(1-reduction)));
-  const ward=s.ward?.remaining&&canUseSkill('runicWard',p.equipment)?s.ward:undefined;
+  const ward=s.ward?.remaining&&canUseSkill(s.ward.source??'runicWard',p.equipment)?s.ward:undefined;
   const absorbed=ward?Math.min(amount,ward.capacity):0;
   let burst:WardBurst|undefined;
   if(ward){
@@ -73,7 +73,7 @@ export function advanceSkillEffects(p: Player,dt:number,emitEcho?:(echo:SkillEch
   const s=p.skillEffects;if(!s)return;if(p.dead){p.skillEffects=undefined;return;}
   for(const id of ['brace','rallyOfIron','ghostHunt'] as const){const b=s[id];if(b){b.remaining=Math.max(0,b.remaining-dt);if(!b.remaining||!p.character.allocatedNodes.includes(`skill:${id}`)||!canUseSkill(id,p.equipment))delete s[id];}}
   for(const [id,b]of Object.entries(s.shelters??{})){b.remaining=Math.max(0,b.remaining-dt);if(!b.remaining||!p.character.allocatedNodes.includes(`skill:${id}`)||!canUseSkill(id as SkillId,p.equipment))delete s.shelters![id as SkillId];}
-  if(s.ward){s.ward.remaining=Math.max(0,s.ward.remaining-dt);s.ward.capacity=Math.min(s.ward.capacity,p.maxHp*.35);if(!s.ward.remaining||!p.character.allocatedNodes.includes('skill:runicWard')||!canUseSkill('runicWard',p.equipment))delete s.ward;}
+  if(s.ward){s.ward.remaining=Math.max(0,s.ward.remaining-dt);s.ward.capacity=Math.min(s.ward.capacity,p.maxHp*.35);const src=s.ward.source??'runicWard';if(!s.ward.remaining||!unlockedSkills(p.character.allocatedNodes).includes(src)||!canUseSkill(src,p.equipment))delete s.ward;}
   // The shared barrier budget uses the current life limit and surviving ward.
   advanceUniqueEffects(p,dt);
   // Legendary proc cooldowns tick down; entries die with the item that owns them.

@@ -41,7 +41,7 @@ const draw = (now: number) => {
   if (canvas.width !== Math.round(innerWidth * ratio) || canvas.height !== Math.round(innerHeight * ratio)) {
     canvas.width = Math.round(innerWidth * ratio); canvas.height = Math.round(innerHeight * ratio);
     stage.width = canvas.width; stage.height = canvas.height;
-    renderer.resize(600 * innerWidth / innerHeight, 600);
+    renderer.resize(600 * innerWidth / innerHeight, 600, stage.width, stage.height);
   }
   const settings = { phase: 'playing' as const, reducedMotion: motion.matches };
   // Initialize the visual balances before this loop's first authored reward.
@@ -49,7 +49,7 @@ const draw = (now: number) => {
   const events = rewardSceneEvents(sim, scene, elapsed, elapsed + dt); elapsed += dt;
   renderer.handleEvents(events, motion.matches);
   if (sound) for (const event of events) audio.play(event);
-  renderer.render(sim, world, dt, settings); fx.render(renderer.canvas, elapsed);
+  renderer.render(sim, world, dt, settings); fx.render(renderer.canvas, 0);
   const c = canvas.getContext('2d')!; c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(stage, 0, 0);
   c.setTransform(canvas.width / renderer.width, 0, 0, canvas.height / renderer.height, 0, 0);
   renderer.renderUI(c, sim, world, settings);

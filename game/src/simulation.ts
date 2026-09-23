@@ -2650,7 +2650,9 @@ export class Simulation {
   }
 
   requestGroundItem(id: number, player: Player = this.player): string | null {
-    this.clearCombatInput();this.portal.cancel();this.eventChannel.cancel();this.hearthstone.cancel();
+    // Owner-scoped cancels: a co-op partner's pickup must not cancel the other
+    // player's in-progress portal/hearthstone/event channel.
+    this.clearCombatInput();this.portal.cancelFor(player);this.eventChannel.cancelFor(player);this.hearthstone.cancelFor(player);
     return this.pickupFor(player).select(player,this.groundItems.find(drop=>drop.id===id),this.time);
   }
 

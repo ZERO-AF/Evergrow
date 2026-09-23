@@ -35,7 +35,7 @@ function stage(){
   const reward=eventRewards(record);sim.groundItems=reward.items.map((item,i)=>({id:100+i,item,...treasureLanding(world,center.x,center.y,i,site.seed),flight:{x:center.x,y:center.y,at:12,delay:i*.15}}));
   sim.groundGold=[{id:110,...treasureLanding(world,center.x,center.y,12,site.seed),amount:reward.gold,age:0,flight:{x:center.x,y:center.y,at:12,delay:.1}}];
  }
- renderer.reset();renderer.resize(960,640);renderer.cameraX=site.x;renderer.cameraY=site.y+10;start=performance.now();
+ renderer.reset();renderer.resize(960,640,1920,1280);renderer.cameraX=site.x;renderer.cameraY=site.y+10;start=performance.now();
  for(const [id,b] of buttons)b.setAttribute('aria-current',String(id===kind));
  for(const b of root.querySelectorAll<HTMLButtonElement>('[data-mode]'))b.setAttribute('aria-current',String(b.dataset.mode===mode));
  params.set('boss',kind);history.replaceState(null,'',`${location.pathname}?${params}`);paint(start);
@@ -44,7 +44,7 @@ function paint(now:number){
  if(disposed)return;const t=reduced.matches?2:(now-start)/1000;sim.time=12+t;
  for(const enemy of sim.enemies)if(enemy.state==='windup')enemy.stateTime=reduced.matches?.8:(t%2)/2*enemy.stateDuration;
  const settings={phase:'playing' as const,reducedMotion:reduced.matches};
- renderer.render(sim,world,1/60,settings);fx.render(renderer.canvas,sim.time);
+ renderer.render(sim,world,1/60,settings);fx.render(renderer.canvas,0);
  const c=canvas.getContext('2d')!;c.setTransform(1,0,0,1,0,0);c.drawImage(display,0,0);c.save();c.scale(2,2);renderer.renderUI(c,sim,world,settings);c.restore();
  canvas.setAttribute('aria-label',`${BOSS_NAMES[kind]} · ${mode}`);root.dataset.ready='true';frame=requestAnimationFrame(paint);
 }

@@ -56,7 +56,7 @@ const renderer = new Renderer(), fx = life.own(new PostFX(shell.canvas));
 renderer.cameraX = p.x; renderer.cameraY = p.y - 40;
 function draw() {
   shell.canvas.width = Math.round(innerWidth * Math.min(1.6, devicePixelRatio)); shell.canvas.height = Math.round(innerHeight * Math.min(1.6, devicePixelRatio));
-  renderer.resize(Math.round(680 * innerWidth / innerHeight), 680);
+  renderer.resize(Math.round(680 * innerWidth / innerHeight), 680, shell.canvas.width, shell.canvas.height);
   renderer.render(sim, world, 0, { phase: 'paused', reducedMotion: true }); fx.render(renderer.canvas, 0);
 }
 shell.showMenu('service', 0, 0); draw();

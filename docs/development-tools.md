@@ -60,7 +60,7 @@ World → Map icon workshop (`/tools/map-icons.html`) catalogs every registered 
 
 The atlas now surveys a complete square through the runtime `World`, with Local (24,576 world units), Wide (49,152, default) and Vast (98,304) coverage. The selector displays the shared in-game metre scale. Seed input, New seed, Fit survey and PNG export stay in the atlas workspace; `?seed=18427&size=vast` links directly to a survey. Terrain renders progressively, while small, cancellable spatial batches enumerate landmarks. The disposable survey owns its complete POI index so large studies do not truncate at a character chart's discovery limit. Its 4,096 maximum revealed chunks remain within the normal exploration capacity. No character storage is read or written.
 
-The atlas alone uses a 0.001 minimum zoom; gameplay retains 0.025. Shared terrain LOD keeps a maximum of 256 visible tiles even at the larger overview scale, and normal detail returns when zooming in.
+  The atlas and gameplay maps share a 0.0003 minimum zoom; below 0.02 the chart swaps detail tiles for the authored continent/zone silhouette under exploration fog. Shared terrain LOD keeps a maximum of 256 visible tiles even at the larger overview scale, and normal detail returns when zooming in.
 
 ### Dungeon workshop
 

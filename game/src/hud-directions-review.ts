@@ -63,7 +63,7 @@ async function boot() {
   sim.player.angle = -.65;
   // Frame the forest below the stationary character so its silhouette cannot
   // be mistaken for part of a HUD crest in the comparison crop.
-  renderer.resize(1000, 400); renderer.cameraX = 0; renderer.cameraY = 170;
+  renderer.resize(1000, 400, 1500, 600); renderer.cameraX = 0; renderer.cameraY = 170;
   renderer.render(sim, world, 1, { phase: 'paused', reducedMotion: true });
   const backdrop = document.createElement('canvas'); backdrop.width = 1500; backdrop.height = 600;
   const postfx = lifetime.own(new PostFX(backdrop)); postfx.render(renderer.canvas, 0);

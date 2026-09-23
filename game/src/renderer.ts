@@ -82,7 +82,7 @@ import { text, textWidth } from './font.ts';
 import { drawFloatingHUD } from './hud.ts';
 import { phoneLandscapeLayout, type TouchViewport } from './touch-layout.ts';
 import { ExperienceFeedback, type ExperienceDisplay } from './hud-experience.ts';
-import { Lighting, drawGlow } from './lighting.ts';
+import { Lighting, drawGlow, rgbOf } from './lighting.ts';
 import type { PointLight } from './lighting.ts';
 import { CombatEffects } from './effects.ts';
 import { playerPose } from './character-pose.ts';
@@ -123,7 +123,7 @@ import { lootBeamAnchors, lootBeamLights, type LootBeamAnchor } from './loot-bea
 import type { LootFilterMode } from './loot.ts';
 import { drawLootBeams } from './loot-beam-art.ts';
 import { MOUNTS } from './mount-content.ts';
-import { drawMount, mountPose, MOUNT_SEAT_HEIGHT } from './mount-art.ts';
+import { drawMount, mountPose, mountSeatHeight } from './mount-art.ts';
 import { drawAlly } from './ally-art.ts';
 import { COMPANIONS } from './companion-content.ts';
 import { activeCompanion, advanceCompanionFollower, freshCompanionFollower, type CompanionFollower } from './companion-state.ts';
@@ -318,9 +318,13 @@ export class Renderer {
   private profiler?: FrameProfiler;
   constructor(backgroundTerrain = false, profiler?: FrameProfiler) { this.profiler = profiler; this.groundLayer = new GroundLayer(undefined, backgroundTerrain); this.resize(960, 600); }
 
-  resize(width: number, height: number) {
+  resize(width: number, height: number, bufferWidth = width, bufferHeight = height) {
     this.width = Math.round(width); this.height = Math.round(height);
-    this.canvas.width = this.width; this.canvas.height = this.height;
+    // The world rasterizes at display-buffer density while every draw call keeps
+    // logical units — the same view, resolved sharply instead of upscaled.
+    this.canvas.width = Math.max(1, Math.round(bufferWidth));
+    this.canvas.height = Math.max(1, Math.round(bufferHeight));
+    this.ctx.setTransform?.(this.canvas.width / this.width, 0, 0, this.canvas.height / this.height, 0, 0);
     this.view = cameraView(this.width, this.height, this.cameraX, this.cameraY, this.cameraZoom.value);
     // Smooth subpixel sprite translation, with the deliberately coarse art preserved by its source.
     this.ctx.imageSmoothingEnabled = true;
@@ -1003,7 +1007,8 @@ export class Renderer {
         c.save(); c.font = '12px "Evergrow Numerals", system-ui, sans-serif'; c.textAlign = 'center';
         const label = `${NPC_NAMES[npc.role]}  [${this.gamepadActive ? 'A' : controls.label('interact')}]`, width = c.measureText(label).width + 18;
         c.fillStyle = '#071019ed'; c.fillRect(point.x - width / 2, point.y - 14, width, 23);
-        c.strokeStyle = NPC_COLORS[npc.role] + '90'; c.strokeRect(point.x - width / 2, point.y - 14, width, 23);
+        const [nr, ng, nb] = rgbOf(NPC_COLORS[npc.role]);
+        c.strokeStyle = `rgba(${nr},${ng},${nb},.56)`; c.strokeRect(point.x - width / 2, point.y - 14, width, 23);
         c.fillStyle = '#e1dfcd'; c.fillText(label, point.x, point.y + 2); c.restore();
       }
       this.cursor(c, sim);
@@ -1240,14 +1245,14 @@ export class Renderer {
         if (mount) {
           const seat = mountPose(subject, sim.time);
           c.save(); c.translate(sx, sy); drawMount(c, mount, seat); c.restore();
-          this.actor(sx, sy - MOUNT_SEAT_HEIGHT, { ...pose, gaitPhase: 0, moving: 0 });
+          this.actor(sx, sy - mountSeatHeight(mount), { ...pose, gaitPhase: 0, moving: 0 }, 1, undefined, sy);
         } else this.actor(sx, sy, pose);
         drawPlayerSkillEffects(c, subject, sx, sy, settings.reducedMotion ? 0 : sim.time, pose, settings.reducedMotion);
         const castSkill = subject.cast?.skill ?? (subject.castTime > 0 ? subject.activeSkill : null);
         const cast = castSkill ? castSignature(subject, castSkill) : null;
         if (GAME_FEATURES.spellVfx && cast) {
           const tip = getPlayerSwordTip(mount ? { ...pose, gaitPhase: 0, moving: 0 } : pose);
-          schoolCastAura(c, sx + tip.x, (mount ? sy - MOUNT_SEAT_HEIGHT : sy) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
+          schoolCastAura(c, sx + tip.x, (mount ? sy - mountSeatHeight(mount) : sy) + tip.y, cast.style, this.visualTime, 1, settings.reducedMotion, cast.cls);
         }
       } });
     }
@@ -1282,9 +1287,9 @@ export class Renderer {
   }
 
   private enemyOutlines=new EnemyOutlineArt();
-  private actor(x: number, y: number, pose: CharacterPose, scale=1,rankColor?:string) {
+  private actor(x: number, y: number, pose: CharacterPose, scale=1, rankColor?:string, groundY = y) {
     const c = this.ctx;
-    this.drawContactShadow(x, y, pose.kind === 'brute' ? 17 : pose.kind === 'player' ? 11 * PLAYER_ART_SCALE : 11, pose.kind === 'brute' ? 8 : 5);
+    this.drawContactShadow(x, groundY, pose.kind === 'brute' ? 17 : pose.kind === 'player' ? 11 * PLAYER_ART_SCALE : 11, pose.kind === 'brute' ? 8 : 5);
     c.save(); c.translate(x, y); c.scale(scale,scale); if (pose.dead) c.globalAlpha = .4;
     const light=sampleGearLight(x,y-24,this.materialLights,this.materialKey);
     const paint=(target:CanvasRenderingContext2D)=>withGearLight(target,light,()=>drawHumanoid(target,pose));
@@ -1463,7 +1468,9 @@ export class Renderer {
     const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .3,
       this.width / 2, this.height / 2, radius);
     const color = this.effects.lootPulseColor;
-    gradient.addColorStop(0, `${color}00`); gradient.addColorStop(.62, `${color}00`); gradient.addColorStop(1, color);
+    const [lr, lg, lb] = rgbOf(color);
+    gradient.addColorStop(0, `rgba(${lr},${lg},${lb},0)`); gradient.addColorStop(.62, `rgba(${lr},${lg},${lb},0)`);
+    gradient.addColorStop(1, `rgb(${lr},${lg},${lb})`);
     c.save(); c.globalAlpha = pulse * (reducedMotion ? .1 : .22);
     c.fillStyle = gradient; c.fillRect(0, 0, this.width, this.height); c.restore();
   }

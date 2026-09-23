@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Simulation } from '../src/simulation.ts';
 import type { Input, WorldQuery } from '../src/model.ts';
-import { mountSpeedFactor, summonProgress, preferredMount, mountUnlocked } from '../src/mount-state.ts';
+import { mountSpeedFactor, summonProgress, summonCast, preferredMount, mountUnlocked } from '../src/mount-state.ts';
 import { mountToggle, advanceMount, mountOnOffense, mountOnDamage } from '../src/mount-command.ts';
 import { MOUNTS, MOUNT_IDS } from '../src/mount-content.ts';
 import { drawMount, mountPose } from '../src/mount-art.ts';
+import { ActionBars } from '../src/action-bar.ts';
+import { mountHintVisible } from '../src/hud-action-bars.ts';
 const idle: Input = { moveX: 0, moveY: 0, aimX: 300, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 const world: WorldQuery = { blocked: () => false, move: (x, y, dx, dy) => ({ x: x + dx, y: y + dy }) };
 const indoorWorld: WorldQuery = { ...world, sampleGroundContact: () => ({ indoors: true }) } as WorldQuery;
@@ -110,4 +112,27 @@ test('stable-master pick drives the X toggle; locked picks fall back', () => {
   assert.equal(preferredMount(s.player), 'horse');
   s.player.achievements = { 'mount:drake': 1 };
   assert.equal(preferredMount(s.player), 'drake');
+});
+
+test('ghosts cannot summon a mount', () => {
+  const s = sim();
+  s.ghost = { corpse: { x: 0, y: 0 }, healer: { x: 10, y: 10, name: 'Spirit Healer' } };
+  const r = mountToggle(s);
+  assert.equal(r.ok, false);
+  assert.equal(summonCast(s), null);
+});
+
+test('summon hint shows until first mount or a bar slot carries a mount', () => {
+  const s = sim();
+  const bars = new ActionBars();
+  assert.equal(mountHintVisible(s.player, bars), true);
+  bars.setExtra(11, { kind: 'mount', id: 'horse' });
+  assert.equal(mountHintVisible(s.player, bars), false);
+  const s2 = sim(), bars2 = new ActionBars();
+  s2.player.mounted = { id: 'horse', since: 0 };
+  assert.equal(mountHintVisible(s2.player, bars2), false);
+  s2.player.mounted = null;
+  assert.equal(mountHintVisible(s2.player, bars2), false);
+  s2.player.dead = true;
+  assert.equal(mountHintVisible(s2.player, bars2), false);
 });

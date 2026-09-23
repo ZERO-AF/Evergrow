@@ -64,11 +64,12 @@ const compositeFragment = precision + damage + `
 uniform sampler2D u_scene;
 uniform sampler2D u_bloom;
 uniform vec2 u_size;
+uniform vec2 u_texel;
 void main() {
   vec3 original = texture2D(u_scene, v_uv).rgb;
   float edge = smoothstep(.17, .7, length(v_uv - .5));
   // A trace of CRT color separation at the edges; fine character details stay aligned.
-  vec2 separation = vec2(.16 * edge / u_size.x, 0.);
+  vec2 separation = vec2(.16 * edge * u_texel.x, 0.);
   vec3 color = vec3(texture2D(u_scene, v_uv + separation).r, original.g,
                     texture2D(u_scene, v_uv - separation).b);
   float luma = dot(color, vec3(.2126, .7152, .0722));
@@ -83,9 +84,9 @@ void main() {
   color = max(color, 0.);
   vec3 bloom = texture2D(u_bloom, v_uv).rgb;
   // Soft phosphor light surrounds bright cores while preserving their material color.
-  color += bloom * .76 * (1. - clamp(color, 0., 1.) * .38);
+  color += bloom * .62 * (1. - clamp(color, 0., 1.) * .38);
   color = pow(max(color, 0.), vec3(.96));
-  // Shallow scanlines and a low-contrast RGB grille combine both treatments.
+  // Shallow scanlines track the display rows and a low-contrast RGB grille combines both treatments.
   // Attenuate the grille in shadow so it never becomes a colored mesh over the woods.
   float scan = .967 + .033 * cos(v_uv.y * u_size.y * 3.14159265);
   color *= scan;
@@ -197,7 +198,7 @@ export class PostFX {
     try {
       this.bright = this.makePass(brightFragment, ['u_scene', 'u_size', 'u_emission', 'u_selective']);
       this.blur = this.makePass(blurFragment, ['u_scene', 'u_direction']);
-      this.composite = this.makePass(compositeFragment, ['u_scene', 'u_bloom', 'u_size', 'u_hurt']);
+      this.composite = this.makePass(compositeFragment, ['u_scene', 'u_bloom', 'u_size', 'u_texel', 'u_hurt']);
       this.buffer = gl.createBuffer();
       if (!this.buffer) throw new Error('Could not allocate the display geometry');
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
@@ -280,7 +281,8 @@ export class PostFX {
       this.use(this.blur, b.texture, a);
       gl.uniform2f(this.blur.uniforms.u_direction, 0, 1 / this.bloomHeight); gl.drawArrays(gl.TRIANGLES, 0, 6);
       this.use(this.composite, this.scene, null);
-      gl.uniform2f(this.composite.uniforms.u_size, this.sourceWidth, this.sourceHeight);
+      gl.uniform2f(this.composite.uniforms.u_size, this.canvas.width, this.canvas.height);
+      gl.uniform2f(this.composite.uniforms.u_texel, 1 / this.sourceWidth, 1 / this.sourceHeight);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, a.texture);
       gl.uniform1f(this.composite.uniforms.u_hurt, hurtAmount); gl.drawArrays(gl.TRIANGLES, 0, 6);
     } else if (this.fallback) {

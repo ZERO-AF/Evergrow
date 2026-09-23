@@ -9,17 +9,32 @@ const rgbCache = new Map<string, [number, number, number]>();
 /** Parse any CSS color (hex, rgb(), named) into [r,g,b] once — lightStamp
  * appends alpha stops, which only works on numeric channels. */
 let colorProbe: CanvasRenderingContext2D | null = null;
-function rgbOf(color: string): [number, number, number] {
+export function rgbOf(color: string): [number, number, number] {
   const hit = rgbCache.get(color);
   if (hit) return hit;
-  const probe = colorProbe ?? (colorProbe = document.createElement('canvas').getContext('2d')!);
-  probe.fillStyle = '#000';
-  probe.fillStyle = color;
-  const normalized = probe.fillStyle; // browser normalizes to #rrggbb or rgb()
-  const m = normalized.startsWith('#')
-    ? [parseInt(normalized.slice(1, 3), 16), parseInt(normalized.slice(3, 5), 16), parseInt(normalized.slice(5, 7), 16)]
-    : normalized.match(/\d+/g)!.slice(0, 3).map(Number);
-  const rgb: [number, number, number] = [m[0], m[1], m[2]];
+  // Fast path: parse #rgb/#rrggbb/#rrggbbaa and rgb()/rgba() directly — no DOM
+  // needed, so headless tests (canvas stubs) work too.
+  let rgb: [number, number, number] | null = null;
+  const s = color.trim();
+  if (s.startsWith('#')) {
+    const h = s.slice(1);
+    const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    rgb = [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+  } else {
+    const m = s.match(/rgba?\(([^)]*)\)/);
+    if (m) rgb = m[1]!.split(',').slice(0, 3).map(v => Number(v.trim())) as [number, number, number];
+  }
+  if (!rgb || rgb.some(v => !Number.isFinite(v))) {
+    // Named/exotic colors: normalize through a canvas probe when available.
+    const probe = colorProbe ?? (colorProbe = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null);
+    if (probe) {
+      probe.fillStyle = '#000'; probe.fillStyle = color;
+      const n = probe.fillStyle;
+      rgb = n.startsWith('#')
+        ? [parseInt(n.slice(1, 3), 16), parseInt(n.slice(3, 5), 16), parseInt(n.slice(5, 7), 16)]
+        : (n.match(/\d+/g)!.slice(0, 3).map(Number) as [number, number, number]);
+    } else rgb = [255, 255, 255]; // headless fallback: white
+  }
   if (rgbCache.size >= 64) rgbCache.delete(rgbCache.keys().next().value!);
   rgbCache.set(color, rgb);
   return rgb;

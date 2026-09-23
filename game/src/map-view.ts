@@ -14,7 +14,7 @@ export function clampMapCoordinate(value: number): number {
   return Math.max(-EXPLORATION_LIMITS.coordinate, Math.min(EXPLORATION_LIMITS.coordinate, Number.isFinite(value) ? value : 0));
 }
 export interface MapZoomLimits { readonly min: number; readonly max: number; }
-export const MAP_ZOOM = Object.freeze({ min: .025, max: .7 });
+export const MAP_ZOOM = Object.freeze({ min: .0003, max: .7 });
 
 export function fitMapBounds(view: MapView, region: MapRect, padding = 40, limits: MapZoomLimits = MAP_ZOOM): MapView {
   if (![region.x, region.y, region.width, region.height, padding].every(Number.isFinite)

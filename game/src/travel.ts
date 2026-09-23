@@ -47,7 +47,11 @@ export class PortalChannel {
   get ready() { return this.active && this.elapsed + 1e-9 >= PORTAL_RULES.channel; }
   get progress() { return Math.min(1, this.elapsed / PORTAL_RULES.channel); }
   start(player: Player, world: WorldQuery): string | null {
-    if (this.active) { this.cancel(); return null; }
+    // A partner's portal request must not cancel the owner's in-progress cast.
+    if (this.active) {
+      if (this.owner !== null && this.owner !== player) return 'A portal is already being channeled.';
+      this.cancel(); return null;
+    }
     const problem = portalDepartureProblem(player, world); if (problem) return problem;
     this.origin = { x: player.x, y: player.y }; this.elapsed = 0; this.owner = player; return null;
   }

@@ -5,7 +5,7 @@ import './atlas-review.css';
 import { installUITheme } from './ui-theme.ts';
 import { loadGameFont } from './font.ts';
 import { uiIcon } from './ui-components.ts';
-import { World } from './world.ts';
+import { createWorld } from './authored-world.ts';
 import { WorldMap } from './world-map.ts';
 import { formatWorldDistance } from './world-distance.ts';
 import { AtlasSurvey, ATLAS_SURVEYS, ATLAS_ZOOM, atlasSurveyBounds } from './tools/atlas-survey.ts';
@@ -18,7 +18,7 @@ const seed = params.has('seed') && Number.isSafeInteger(requestedSeed) ? request
 const surveyId = ATLAS_SURVEYS.find(s => s.id === params.get('size'))?.id ?? 'wide';
 const region = atlasSurveyBounds(surveyId);
 const root = document.querySelector<HTMLElement>('#atlas-review')!;
-const world = new World(seed), chart = new AtlasSurvey(world, region);
+const world = createWorld(seed), chart = new AtlasSurvey(world, region);
 const abort = new AbortController();
 let map: WorldMap | null = null;
 let disposed = false;

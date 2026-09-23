@@ -18,14 +18,14 @@ test('every atlas survey covers its edges without overflowing gameplay chart cap
   }
 });
 
-test('vast atlas fits a compact viewport while runtime zoom stays unchanged', () => {
+test('vast atlas fits a compact viewport within atlas and gameplay zoom limits', () => {
   const view = { x: 0, y: 0, width: 700, height: 400, centerX: 0, centerY: 0, zoom: .17 };
   const region = atlasSurveyBounds('vast');
   const fitted = fitMapBounds(view, region, 24, ATLAS_ZOOM);
-  assert.ok(fitted.zoom < MAP_ZOOM.min);
+  assert.ok(fitted.zoom >= ATLAS_ZOOM.min && fitted.zoom >= MAP_ZOOM.min);
   assert.ok(region.width * fitted.zoom <= view.width - 48);
   assert.ok(region.height * fitted.zoom <= view.height - 48);
-  assert.equal(fitMapBounds(view, region, 24).zoom, MAP_ZOOM.min);
+  assert.equal(fitMapBounds(view, region, 24).zoom, fitted.zoom);
   assert.equal(zoomMapAt(fitted, 350, 200, 0, ATLAS_ZOOM).zoom, ATLAS_ZOOM.min);
   for (const zoom of [.001, .002, fitted.zoom]) {
     const size = mapTerrainSize(zoom, view.width, view.height);

@@ -21,7 +21,7 @@ export type MountEmit = (event: CombatEvent) => void;
 export function summonProblem(sim: Simulation, id: MountId): string | null {
   const p = sim.player;
   if (!GAME_FEATURES.mounts) return 'Mounts are not available.';
-  if (p.dead) return 'You cannot summon a mount while defeated.';
+  if (p.dead || sim.ghost) return 'You cannot summon a mount while defeated.';
   if (!mountUnlocked(p, id)) return `${MOUNTS[id].name} is still locked.`;
   if (mountIndoors(sim)) return 'You cannot summon a mount indoors.';
   if (p.attack || p.cast || p.castTime > 0 || p.dash || p.dodgeTime > 0 || Math.hypot(p.vx, p.vy) > 1)
@@ -69,7 +69,7 @@ export function mountOnDamage(sim: Simulation): void {
 export function advanceMount(sim: Simulation, dt: number, input: Input, emit?: MountEmit): void {
   const p = sim.player;
   if (!GAME_FEATURES.mounts) { p.mounted = null; cancelSummonCast(sim); return; }
-  if (p.dead) { p.mounted = null; cancelSummonCast(sim); return; }
+  if (p.dead || sim.ghost) { p.mounted = null; cancelSummonCast(sim); return; }
   if (p.mounted && mountIndoors(sim)) {
     dismount(sim);
     emit?.({ type: 'notice', x: p.x, y: p.y, message: 'You cannot ride indoors.' });

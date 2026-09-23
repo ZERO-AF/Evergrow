@@ -5,9 +5,15 @@ import { clamp, line, polygon, taper, type Point } from './art-primitives.ts';
 import type { MountDef } from './mount-content.ts';
 import type { Player } from './model.ts';
 
-/** Pixels the rider's feet lift above the ground point while mounted —
- * low enough that the legs straddle the mount's body at the saddle. */
-export const MOUNT_SEAT_HEIGHT = 7;
+/** Pixels the rider's feet lift above the ground point while mounted — stirrup
+ * height on quadrupeds, so the legs wrap the torso instead of spearing through
+ * it. Low-slung rigs (carpet/chopper/turtle) sit lower: `mountSeatHeight`. */
+export const MOUNT_SEAT_HEIGHT = 20;
+
+/** Rider foot lift for a specific mount; the renderer raises the rider by this. */
+export function mountSeatHeight(def: MountDef): number {
+  return def.art === 'carpet' ? 18 : def.art === 'machine' ? 14 : def.art === 'turtle' ? 15 : MOUNT_SEAT_HEIGHT;
+}
 
 /** Minimal pose the mount rig needs; derived from the live player each frame. */
 export interface MountPose {

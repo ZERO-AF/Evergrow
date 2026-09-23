@@ -189,7 +189,7 @@ function embeddedReview() {
     shell.canvas.height = display.height = Math.round(height * ratio);
     shell.uiCanvas.width = Math.round(width * ratio); shell.uiCanvas.height = Math.round(height * ratio);
     const logicalHeight = Math.min(680, Math.max(450, Math.round(height / 1.35)));
-    renderer.reset(); renderer.resize(Math.round(logicalHeight * width / height), logicalHeight);
+    renderer.reset(); renderer.resize(Math.round(logicalHeight * width / height), logicalHeight, display.width, display.height);
     renderer.cameraX = 0; renderer.cameraY = -15;
     simulation.player.angle = -.65; simulation.player.hp = view === 'dead' ? 0 : view === 'paused' ? 76 : 100;
     simulation.player.dead = view === 'dead'; simulation.player.mana = view === 'paused' ? 62 : 100;

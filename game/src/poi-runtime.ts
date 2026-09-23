@@ -22,7 +22,12 @@ export class EventChannel {
   /** Cancel only if `player` owns the channel (or none is set); a partner's
    * damage/movement leaves another player's channel running. */
   cancelFor(player: Player) { if (this.owner === null || this.owner === player) this.cancel(); }
-  start(site: EventSite, choice: EventChoice | null, player?: Player) { this.site = site; this.choice = choice; this.elapsed = 0; this.owner = player ?? null; }
+  /** Begin a channel owned by `player`. A partner's start must not overwrite the
+   * owner's in-progress channel — it no-ops while another player holds it. */
+  start(site: EventSite, choice: EventChoice | null, player?: Player) {
+    if (this.site && this.owner !== null && this.owner !== player) return;
+    this.site = site; this.choice = choice; this.elapsed = 0; this.owner = player ?? null;
+  }
   advance(dt: number, p: Player, input: Input) {
     if (!this.site)
       return;

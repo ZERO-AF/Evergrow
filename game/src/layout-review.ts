@@ -224,7 +224,7 @@ async function boot() {
     simulation = new Simulation(world, { seed, spawn: false, startX: stage.hero.x, startY: stage.hero.y });
     simulation.player.angle = -.65;
     simulation.time = 12;
-    renderer.reset(); renderer.resize(stage.width, stage.height);
+    renderer.reset(); renderer.resize(stage.width, stage.height, EXPORT_WIDTH, EXPORT_HEIGHT);
     renderer.cameraX = stage.camera.x; renderer.cameraY = stage.camera.y;
     // Advance only presentation settling, once; the paused simulation never runs.
     profiler.reset();frames=0;

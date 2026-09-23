@@ -5,6 +5,7 @@ import { GAME_FEATURES } from './game-features.ts';
 import { drawHUDUtility } from './hud-utility-art.ts';
 import { shade } from './hud-orb.ts';
 import { MOUNTS } from './mount-content.ts';
+import { preferredMount } from './mount-state.ts';
 import { resolveSkill } from './skill-progression.ts';
 import { drawSkillIcon } from './skill-icon-canvas.ts';
 import { SKILL_DEFINITIONS, canUseSkill } from './skill-content.ts';
@@ -14,12 +15,13 @@ import { WOW_COMBAT, isWowClassId } from './wow-types.ts';
 import { WOW_CLASSES, RESOURCE_COLORS } from './wow-classes.ts';
 import type { Player } from './model.ts';
 import type { SkillId } from './character-types.ts';
-import { BAR_KEY_LABELS, BAR_SLOTS, barIndex, type ActionBars, type BarStrip } from './action-bar.ts';
+import { BAR_SLOTS, BAR_TOTAL, barIndex, type ActionBars, type BarStrip } from './action-bar.ts';
 import { drawActionBarCaps } from './action-bar-caps.ts';
 import { CONSUMABLES, consumableCount, } from './consumable-content.ts';
 import { consumableCooldown } from './consumable-command.ts';
 import { consumableShapes } from './consumable-art.ts';
-import { hotbarSlotAt, isHotbarPoint, resolveBarLayout } from './hotbar-layout.ts';
+import { hotbarKeyLabels, hotbarSlotAt, isHotbarPoint, resolveBarLayout, type ResolvedBarStrip } from './hotbar-layout.ts';
+import { controls } from './control-preferences.ts';
 /** WoW action bars (docs/wow-deepening.md §5): the 12-slot main bar shows the
  * active page and rides just above the Astral instrument; two side bars at the
  * right screen edge mirror the inactive pages. All geometry flows through
@@ -164,12 +166,12 @@ function consumableSlot(c: CanvasRenderingContext2D, p: Player, id: string, x: n
   if (keybind !== null) keyBadge(c, x, y, size, keybind, !p.dead);
 }
 
-function strip(c: CanvasRenderingContext2D, p: Player, bars: ActionBars, layout: BarStrip, vertical: boolean, gcd: number, gcdDuration: number, keybinds: boolean, now = 0) {
+function strip(c: CanvasRenderingContext2D, p: Player, bars: ActionBars, layout: BarStrip, vertical: boolean, gcd: number, gcdDuration: number, keybinds: readonly string[] | null, now = 0) {
   for (let i = 0; i < BAR_SLOTS; i++) {
     const x = vertical ? layout.x : layout.x + i * (layout.slot + layout.gap);
     const y = vertical ? layout.y + i * (layout.slot + layout.gap) : layout.y;
     const action = bars.actionAt(p, barIndex(layout.page, i));
-    const keybind = keybinds ? BAR_KEY_LABELS[i] : null;
+    const keybind = keybinds?.[i] || null;
     if (!action) { slotPlate(c, x, y, layout.slot, false, false); if (keybind !== null) keyBadge(c, x, y, layout.slot, keybind, false); continue; }
     if (action.kind === 'skill') skillSlot(c, p, action.id, x, y, layout.slot, gcd, gcdDuration, keybind);
     else if (action.kind === 'potion') potionSlot(c, p, x, y, layout.slot, keybind);
@@ -186,6 +188,40 @@ function pageTag(c: CanvasRenderingContext2D, x: number, y: number, page: number
 
 export interface ActionBarDrawOptions { simTime?: number; }
 
+/** Players who have ridden this session — the summon hint retires once it taught its lesson. */
+const mountedOnce = new WeakSet<Player>();
+
+/** Whether the "summon your mount" chip floats above the main bar: alive,
+ * unmounted, never mounted this session, and no mount parked on any bar slot.
+ * Mounting once marks the player so the hint stays gone after dismounting. */
+export function mountHintVisible(p: Player, bars: ActionBars): boolean {
+  if (p.mounted) { mountedOnce.add(p); return false; }
+  if (p.dead || mountedOnce.has(p)) return false;
+  for (let i = 0; i < BAR_TOTAL; i++) if (bars.actionAt(p, i)?.kind === 'mount') return false;
+  return true;
+}
+
+/** First-run discoverability chip above the main bar. It advertises the mount
+ * key — it is not a button, so it draws as a pill, not a slot plate. */
+function mountHint(c: CanvasRenderingContext2D, p: Player, strip: ResolvedBarStrip): void {
+  const mount = preferredMount(p);
+  const key = controls.label('mount');
+  const label = key === '—' ? 'Summon your mount — bind a key in Controls' : `${key} — summon your ${MOUNTS[mount].name}`;
+  const scale = .9, w = textWidth(label) * scale + 34, h = 17;
+  const cx = strip.x + (strip.vertical ? strip.slot : BAR_SLOTS * strip.slot + (BAR_SLOTS - 1) * strip.gap) / 2;
+  const x = cx - w / 2, y = strip.y - h - 6, r = h / 2;
+  c.save();
+  c.globalAlpha = .92;
+  c.fillStyle = '#0a141cee'; c.strokeStyle = '#4a6573'; c.lineWidth = .8;
+  c.beginPath();
+  c.moveTo(x + r, y); c.lineTo(x + w - r, y); c.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
+  c.lineTo(x + r, y + h); c.arc(x + r, y + r, r, Math.PI / 2, Math.PI * 1.5); c.closePath();
+  c.fill(); c.stroke();
+  mountGlyph(c, mount, x + 12, y + h / 2, 13);
+  text(c, label, x + 23, y + 5, scale, '#d6d7b3');
+  c.restore();
+}
+
 /** Drawn at native display density after the floating HUD; no-ops when the
  * actionBars feature flag is off or the layout cannot fit. */
 export function drawActionBars(c: CanvasRenderingContext2D, p: Player, bars: ActionBars, width: number, height: number, options: ActionBarDrawOptions = {}) {
@@ -197,14 +233,15 @@ export function drawActionBars(c: CanvasRenderingContext2D, p: Player, bars: Act
   c.save();
   if (layout.main.visible) {
     drawActionBarCaps(c, layout.main);
-    strip(c, p, bars, layout.main, layout.main.vertical, gcd, gcdDuration, true, options.simTime ?? 0);
+    strip(c, p, bars, layout.main, layout.main.vertical, gcd, gcdDuration, hotbarKeyLabels(controls), options.simTime ?? 0);
     // WoW's page number rides the main bar's left end, riveted to the cap's lug.
     pageTag(c, layout.main.x - 18, layout.main.y + layout.main.slot - 14, layout.main.page);
   }
   for (const side of layout.sides) {
     if (!side.visible) continue;
-    strip(c, p, bars, side, side.vertical, gcd, gcdDuration, false, options.simTime ?? 0);
+    strip(c, p, bars, side, side.vertical, gcd, gcdDuration, null, options.simTime ?? 0);
     pageTag(c, side.x + side.slot / 2 - 7, side.y - 18, side.page);
   }
   c.restore();
+  if (GAME_FEATURES.mounts && layout.main.visible && mountHintVisible(p, bars)) mountHint(c, p, layout.main);
 }

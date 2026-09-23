@@ -69,7 +69,7 @@ if (pickupView) {
 const draw = () => {
   canvas.width = innerWidth * devicePixelRatio; canvas.height = innerHeight * devicePixelRatio;
   stage.width = canvas.width; stage.height = canvas.height;
-  renderer.resize(1000, 600);
+  renderer.resize(1000, 600, stage.width, stage.height);
   renderer.render(sim, world, 0, { phase: 'ready', reducedMotion: true });
   const c = renderer.ctx;
   if (!pickupView) { c.fillStyle = '#071118d8'; c.fillRect(0, 0, 1000, 600); }
