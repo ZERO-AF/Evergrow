@@ -96,7 +96,7 @@ import { getZoneAt } from './zone-progression.ts';
 import { SaveHub, type SaveMode } from './save-hub.ts';
 import { SAVE_BUNDLE_LIMIT } from './save-bundle.ts';
 import { CharacterSession } from './character-session.ts';
-import { TitleScreen } from './title-screen.ts';
+import { TitleScreen, type CoopEntry } from './title-screen.ts';
 import { InventoryPanel } from './inventory-panel.ts';
 import { SkillTreePanel } from './skill-tree-panel.ts';
 import { executeCharacterCommand, type CharacterCommand } from './character-commands.ts';
@@ -450,9 +450,9 @@ export class Game {
       this.titleScreen = this.lifetime.own(new TitleScreen(this.shell.titleMount, {
         sound: () => this.toggleSound(), muted: () => this.muted,
         volume: channel => this.audio.getVolumes()[channel], setVolume: (channel, value) => this.setAudioVolume(channel, value), panelSound: open => this.audio.panel(open),
-        create: (index, name, classId, raceId, look, seed) => { void this.createCharacter(index, name, classId, raceId, seed, look); },
+        create: (index, name, classId, raceId, look, seed, coop) => { void this.createCharacter(index, name, classId, raceId, seed, look, coop); },
         editAppearance: slot => this.editHallAppearance(slot),
-        continue: index => this.continueCharacter(index), continueRecovery: (index, token) => this.continueCharacter(index, token), remove: (index, expected) => this.deleteCharacter(index, expected),
+        continue: (index, coop) => this.continueCharacter(index, undefined, coop), continueRecovery: (index, token) => this.continueCharacter(index, token), remove: (index, expected) => this.deleteCharacter(index, expected),
         read: index => this.saveClient.inspect(index), source: mode => this.selectSaveSource(mode),
         retry: () => { void this.retryCloudSaves(); },
         leaderboard: order => this.saveClient.leaderboard(order),
@@ -1249,7 +1249,7 @@ export class Game {
       },
     });
   }
-  private async createCharacter(index: number, name: string, classId: WowClassId, raceId: WowRaceId, seed: number, look: CharacterLook): Promise<boolean> {
+  private async createCharacter(index: number, name: string, classId: WowClassId, raceId: WowRaceId, seed: number, look: CharacterLook, coop?: CoopEntry): Promise<boolean> {
     if (this.phase !== 'ready' || this.hallBusy || this.disposed) return false;
     if (!isWorldSeed(seed)) { this.titleScreen.message('Enter a whole world seed from 0 to 4294967295.'); return false; }
     if (!validCharacterLook(look)) return false;
@@ -1262,11 +1262,11 @@ export class Game {
     try {
       if (!await this.session.create(index, name, seed, checkpoint, crypto.randomUUID(), Date.now())) {this.titleScreen.message(this.session.error);return false;}
     } finally {this.hallBusy=false;}
-    await this.continueCharacter(index);
+    await this.continueCharacter(index, undefined, coop);
     return true;
   }
 
-  private async continueCharacter(index: number, recoveryToken?: string) {
+  private async continueCharacter(index: number, recoveryToken?: string, coop?: CoopEntry) {
     if (this.phase !== 'ready' || this.hallBusy || this.disposed) return;
     this.hallBusy = true;
     try {
@@ -1304,12 +1304,46 @@ export class Game {
     this.worldMap.setLootMarkerReader(() => GAME_FEATURES.legendaryMoment ? this.sim.groundItems : []);
     this.worldMap.resize(); this.titleScreen.close(); this.saveError = '';
     this.projectBeacons(); this.enterWorld();
+    if (coop) await this.beginCoop(coop);
     if(this.sim.player.character.treeRefunded){
       this.openCharacterPanel('skills');this.skillPanel.inspectNode('origin');this.skillPanel.setDetailsVisible(true);
       this.shell.setStatus('Your skill points were refunded. Rebuild your skills while the game is paused.');
     }
     this.saveCharacter();
     } finally { this.hallBusy = false; }
+  }
+
+  /** Resolve the partner and bring a second player into the just-loaded world.
+   * A saved slot is read (not session-loaded, so P1 keeps the active session);
+   * 'guest'/'new' partners arrive already minted as a session-only Player. */
+  private async beginCoop(entry: CoopEntry) {
+    const partner = await this.resolveCoopPartner(entry);
+    if (!partner || this.disposed) return;
+    if (!this.sim.enterCoop(partner)) { this.shell.setStatus('Co-op is unavailable right now.'); return; }
+    // Place the partner beside P1 on open ground.
+    const p1 = this.sim.player;
+    let placed = false;
+    for (let r = 40; r <= 200 && !placed; r += 40) for (let i = 0; i < 12 && !placed; i++) {
+      const x = p1.x + Math.cos(i * Math.PI / 6) * r, y = p1.y + Math.sin(i * Math.PI / 6) * r;
+      if (!this.world.blocked(x, y, partner.radius)) { partner.x = x; partner.y = y; placed = true; }
+    }
+    if (!placed) { partner.x = p1.x + 40; partner.y = p1.y; }
+    this.renderer.reset(); this.renderer.snapTo(p1);
+    this.shell.setStatus(`${partner.name ?? 'Player 2'} joined — second controller drives them.`);
+  }
+
+  private async resolveCoopPartner(entry: CoopEntry): Promise<Player | null> {
+    if (entry.p2Player) return entry.p2Player;
+    if (typeof entry.p2Slot !== 'number') return null;
+    const slot = await this.session.repository.read(entry.p2Slot);
+    const record = slot.record;
+    if (!record) { this.shell.setStatus('That partner could not be loaded.'); return null; }
+    // Restore the partner's checkpoint into a throwaway sim, then lift the Player.
+    const temp = new Simulation(this.world, { seed: record.worldSeed, spawn: false });
+    temp.restoreCheckpoint(record.checkpoint);
+    const partner = temp.player;
+    partner.name = record.name;
+    return partner;
   }
 
   private async deleteCharacter(index: number, expected: string | null) {
