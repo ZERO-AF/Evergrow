@@ -1,4 +1,4 @@
-# T03 — MMORPG: online/offline toggle, shared world — OPEN
+# T03 — MMORPG: online/offline toggle, shared world — DONE (implemented; critic P1s fixed)
 
 **Type:** task (AFK) · **Blocks:** — · **Blocked by:** T02
 

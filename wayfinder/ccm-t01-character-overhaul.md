@@ -1,4 +1,4 @@
-# T01 — Character overhaul: race proportions, skin, WoW-grade editor — OPEN
+# T01 — Character overhaul: race proportions, skin, WoW-grade editor — DONE (verified + critic-passed)
 
 **Type:** task (AFK) · **Blocks:** T02, T03 · **Blocked by:** —
 

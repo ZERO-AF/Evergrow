@@ -1,4 +1,4 @@
-# T02 — Couch co-op: two players, split camera, two saves — OPEN
+# T02 — Couch co-op: two players, split camera, two saves — DONE (implemented; critic P1s fixed)
 
 **Type:** task (AFK) · **Blocks:** T03 · **Blocked by:** T01
 
