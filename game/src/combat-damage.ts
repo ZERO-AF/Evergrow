@@ -10,7 +10,7 @@ import { primeSpellweave, primeAfterguard, effectiveArmor } from './affix-combat
 import { applyElementalContact, applyStun, breakCcOnDamage, absorbEnemyHit, applyEnemyBuff, enemyBuffDamageMultiplier, ENEMY_COMBAT_BUFFS, STATUS_RULES } from './combat-status.ts';
 import { resolveElementalReaction, ELEMENTAL_REACTION_RULES } from './elemental-reaction.ts';
 import { schoolProjectileStyle } from './spell-school.ts';
-import { enemyThreat, recordThreat } from './enemy-threat.ts';
+import { enemyThreat, playerThreatSource, recordThreat } from './enemy-threat.ts';
 import type { HitSnapshot, CombatEvent, Enemy, EnemyKind, Player, Projectile, ProjectileEffects, ProjectileStyle, WorldQuery, DamageType } from './model.ts';
 import type { ProjectileDefinition } from './combat-content.ts';
 import type { BuffSpec } from './wow-types.ts';
@@ -238,7 +238,7 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
     targetId: enemy.id, remainingHp: enemy.hp, enemyKind: enemy.kind, enemyName: enemyDisplayName(enemy), heavy: critical || !!reaction });
   // Feed the live threat table: damage (and periodic ticks) accrue threat so the
   // AI holds aggro on the highest-threat combatant, not merely the nearest.
-  recordThreat(enemy, offense?.allyId !== undefined ? `ally:${offense.allyId}` : 'player', actualValue, periodic);
+  recordThreat(enemy, offense?.allyId !== undefined ? `ally:${offense.allyId}` : playerThreatSource(context.player), actualValue, periodic);
   // Legendary weapon procs roll on direct player hits only — never on periodic
   // ticks, ally strikes or proc-sourced damage (offense.proc guards recursion).
   if (!periodic && !offense?.ally && !offense?.proc) context.proc?.(context.player, enemy, context);

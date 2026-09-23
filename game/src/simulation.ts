@@ -91,6 +91,7 @@ import { advanceMount, mountOnOffense, mountOnDamage } from './mount-command.ts'
 import { HearthstoneChannel } from './hearthstone.ts';
 import { restedAccrual } from './rested.ts';
 import { durabilityLoss } from './durability.ts';
+import { NET_SNAPSHOT_HZ } from './net-protocol.ts';
 import { questOnKill, questOnCollect, questExploreScan, type QuestWorld } from './quest-command.ts';
 import { advanceGatherChannel, cancelGatherChannel } from './gather-node.ts';
 import { isRaidBoss } from './raid-boss-content.ts';
@@ -187,9 +188,11 @@ export function initialPlayer(x: number, y: number): Player {
   };
 }
 
-/** A neutral input frame for a co-op partner with no connected device. */
+
+/** A neutral input frame for a co-op partner with no connected device.
+ * `targetId` stays absent — null would clear the partner's target every frame. */
 function emptyInput(): Input {
-  return { moveX: 0, moveY: 0, aimX: 0, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null, targetId: null };
+  return { moveX: 0, moveY: 0, aimX: 0, aimY: 0, attack: false, dodge: false, heal: false, skillSlot: null };
 }
 
 export class Simulation {
@@ -197,7 +200,8 @@ export class Simulation {
   /** Every controlled player in the shared world: [P1] solo, [P1, P2] in co-op.
    * Canonical objects — never the rebound `this.player` alias mid-turn. */
   get players(): readonly Player[] {
-    return this.coopPlayers;
+    // A net client renders remote peers as puppets alongside its own player.
+    return this.netMode === 'client' ? [this.player, ...this.netPeers] : this.coopPlayers;
   }
   /** True while a second local player shares the world. */
   get coop(): boolean { return this.coopRoster !== null && this.coopRoster.length > 1; }
@@ -249,6 +253,12 @@ export class Simulation {
   readonly brokenContainers = new Set<string>();
   groundEffects: ActiveGroundEffect[] = [];
   chains: ChainFlight[] = [];
+  /** Online co-op (wayfinder/T03): 'host' runs the authoritative sim and emits
+   * snapshots; 'client' is a render puppet whose entity arrays are overwritten
+   * from host snapshots and whose update() only interpolates. */
+  netMode: 'host' | 'client' | null = null;
+  /** Client-side remote player puppets (excludes the client's own player). */
+  netPeers: Player[] = [];
   readonly groundPickup = new GroundItemPickup();
   private skillBuffer: { slot: number; until: number; pressed?: boolean; reported?: boolean } | null = null;
   private blockedDrawSlot: number | null = null;
@@ -266,6 +276,9 @@ export class Simulation {
   private options: SimulationOptions;
   private randomState = 1;
   private accumulator = 0;
+  /** Client-mode snapshot interpolation clock: sweeps 0→1 across one snapshot
+   * interval so puppets lerp between the previous and latest host positions. */
+  private netAlpha = 1;
   private nextId = 1;
   private spawnOrdinal = 0;
   private events: CombatEvent[] = [];
@@ -309,6 +322,20 @@ export class Simulation {
   get ghost(): GhostState | null { return this.ghosts.get(this.player) ?? null; }
   set ghost(value: GhostState | null) {
     if (value === null) this.ghosts.delete(this.player); else this.ghosts.set(this.player, value);
+  }
+  /** A specific roster member's ghost state (co-op death UI reads each player). */
+  ghostOf(player: Player): GhostState | null { return this.ghosts.get(player) ?? null; }
+  /** Release a specific roster member's spirit (co-op auto-release on death). */
+  releaseSpiritFor(player: Player, healer: { x: number; y: number; name: string }): boolean {
+    return this.forPlayer(player, () => this.releaseSpirit(healer));
+  }
+  /** Resurrect a specific roster member's ghost at corpse or healer. */
+  resurrectFor(player: Player, mode: 'corpse' | 'healer'): boolean {
+    return this.forPlayer(player, () => mode === 'corpse' ? this.resurrectAtCorpse() : this.resurrectAtHealer());
+  }
+  /** Which resurrection a specific player's ghost is in reach of. */
+  ghostPromptFor(player: Player): 'corpse' | 'healer' | null {
+    return this.forPlayer(player, () => this.ghostPrompt());
   }
   private playerMovement = new PlayerMovement();
 
@@ -390,6 +417,9 @@ export class Simulation {
 
   /** Apply only a decoded checkpoint. Active encounters/attacks restart; character progress does not. */
   restoreCheckpoint(checkpoint: CharacterCheckpoint): void {
+    // A co-op partner survives a checkpoint restore (dungeon entry, travel):
+    // reset() clears the roster, so capture and re-seat them beside the primary.
+    const partner = this.coopRoster?.[1]?.player ?? null;
     this.reset();
     const saved = cloneData(checkpoint) as WowCheckpoint;
     for (const id of saved.brokenContainers ?? []) this.brokenContainers.add(id);
@@ -456,6 +486,12 @@ export class Simulation {
     this.randomState=saved.randomState; this.spawnOrdinal=saved.spawnOrdinal;
     this.events=[];
     if(saved.roaming)this.roaming.restore(saved.roaming,p.x,p.y);else this.roaming.reset(p.x, p.y);
+    // Re-seat the co-op partner beside the restored primary and rebuild the roster.
+    if (partner) {
+      partner.x = partner.prevX = p.x + 48; partner.y = partner.prevY = p.y;
+      partner.attack = null; partner.dash = null; partner.cast = null; partner.castTime = partner.castDuration = 0;
+      this.enterCoop(partner);
+    }
   }
   revive(): void {
     this.ghost = null;
@@ -468,6 +504,15 @@ export class Simulation {
     saved.dodgeCharges = PLAYER_ABILITIES.dodge.charges; saved.dodgeRecharge = 0; saved.skillCooldowns = {};
     saved.allies = []; saved.buffs = []; saved.comboPoints = 0; saved.stealthed = false; saved.autoAttack = false;
     this.restoreCheckpoint(saved);
+    // A full-wipe revive brings the co-op partner back too, beside the primary.
+    const partner = this.coopRoster?.[1]?.player;
+    if (partner) {
+      partner.dead = false; partner.hp = partner.maxHp; partner.mana = partner.maxMana;
+      partner.buffs = []; partner.stealthed = false; partner.autoAttack = false; partner.targetId = null;
+      partner.comboPoints = 0; partner.mounted = null; partner.hitFlash = 0; partner.invulnerable = 0;
+      this.ghosts.delete(partner);
+      partner.x = partner.prevX = this.player.x + 48; partner.y = partner.prevY = this.player.y;
+    }
   }
 
   // ── Spirit release (WoW corpse run) ──────────────────────────────────
@@ -483,7 +528,7 @@ export class Simulation {
     p.hp = p.maxHp; p.mana = p.maxMana;
     p.buffs = []; p.stealthed = false; p.autoAttack = false; p.targetId = null;
     p.comboPoints = 0; p.mounted = null; p.hitFlash = 0;
-    this.relocate(healer.x, healer.y);
+    this.relocatePlayer(p, healer.x, healer.y);
     p.invulnerable = Math.max(p.invulnerable, 1e9);
     return true;
   }
@@ -532,13 +577,22 @@ export class Simulation {
     this.chains.length = 0;
     this.groundEffects = this.groundEffects.filter(effect => effect.kind !== 'storm');
     this.chains.length = 0;
-    const p = this.player;
     this.clearInput(); this.portal.cancel(); this.hearthstone.cancel();
     this.transportRide = null; this.transportArrival = null;
+    // Co-op moves the whole party together; solo is a roster of one.
+    const roster = this.coopRoster?.map(a => a.player) ?? [this.player];
+    for (const [i, p] of roster.entries())
+      this.relocatePlayer(p, x + (i === 0 ? 0 : Math.cos(i * 2.4) * 48), y + (i === 0 ? 0 : Math.sin(i * 2.4) * 48));
+    this.arrivalProtection = PORTAL_RULES.protection;
+    this.spawnExclusion = null; this.combatViewport = null; this.roaming.relocate(x, y);
+  }
+
+  /** Move a single player (spirit release, partner join) without the shared
+   * world reset a party relocate performs. */
+  private relocatePlayer(p: Player, x: number, y: number): void {
     p.x = p.prevX = x; p.y = p.prevY = y;
     p.skillEffects = undefined; p.attack = null; p.dash = null; p.activeSkill = null; p.castTime = p.castDuration = p.dodgeTime = 0; p.cast = null;
-    this.arrivalProtection = PORTAL_RULES.protection; p.invulnerable = Math.max(p.invulnerable, this.arrivalProtection);
-    this.spawnExclusion = null; this.combatViewport = null; this.roaming.relocate(x, y);
+    p.invulnerable = Math.max(p.invulnerable, PORTAL_RULES.protection);
   }
 
   // ── PvP combatants (wayfinder/pvp-t01) ────────────────────────────────────
@@ -642,6 +696,7 @@ export class Simulation {
    * player is already present or a PvP match is live. */
   enterCoop(partner: Player): boolean {
     if (this.coopRoster || this.pvpCombatants) return false;
+    this.netDeltaBaseline = null; // fresh session: re-baseline the world delta
     const primary = this.player;
     const primaryControl: ActorControl = {
       skillBuffer: this.skillBuffer, blockedDrawSlot: this.blockedDrawSlot,
@@ -650,6 +705,13 @@ export class Simulation {
       resourceInitialized: this.resourceInitialized,
       movement: this.playerMovement, allySkillCooldowns: this.allySkillCooldowns,
     };
+    // Stable combatant ids drive per-player threat buckets, taunts and kill credit.
+    primary.id ??= 0;
+    partner.id = 1;
+    // Reserve the partner's pet/ally entity ids so they can't collide with the
+    // live sim's nextId sequence (corrupting ally:<id> threat buckets).
+    this.reserveIdentity(Math.max(1, ...(partner.allies ?? []).map(ally => ally.id + 1),
+      ...(partner.character.pets ? [partner.character.pets.active, ...partner.character.pets.stabled].map(pet => (pet?.id ?? 0) + 1) : [])));
     this.coopRoster = [
       { player: primary, control: primaryControl, pickup: this.groundPickup },
       { player: partner, control: freshActorControl(), pickup: new GroundItemPickup() },
@@ -672,6 +734,334 @@ export class Simulation {
     this.player = primary.player;
     this.coopRoster = null; this.coopPlayers = [primary.player];
     return roster[1]?.player ?? null;
+  }
+
+  // ── Online co-op (wayfinder/T03) ───────────────────────────────────────────
+
+  /** Host: serialize a roster member into its wire puppet shape. */
+  private netPlayerOf(p: Player, id: number): import('./net-protocol.ts').NetPlayer {
+    return {
+      id, name: p.name ?? '', x: p.x, y: p.y, prevX: p.prevX, prevY: p.prevY,
+      vx: p.vx, vy: p.vy, locomotionVX: p.locomotionVX, locomotionVY: p.locomotionVY,
+      angle: p.angle, hp: p.hp, maxHp: p.maxHp, mana: p.mana, maxMana: p.maxMana,
+      level: p.level, dead: p.dead, ghost: this.ghosts.get(p) ?? null,
+      mounted: p.mounted ?? null, stealthed: p.stealthed ?? false,
+      castTime: p.castTime, castDuration: p.castDuration, activeSkill: p.activeSkill,
+      attack: p.attack ? { angle: p.attack.angle, elapsed: p.attack.elapsed, duration: p.attack.duration, kind: String(p.attack.kind ?? '') } : null,
+      dash: p.dash ? { angle: p.dash.angle, remaining: p.dash.remaining, speed: p.dash.speed } : null,
+      dodgeTime: p.dodgeTime, hitFlash: p.hitFlash,
+      character: p.character, derived: p.derived, buffs: p.buffs ?? [],
+    };
+  }
+
+  /** Host: serialize an enemy into its wire puppet shape. */
+  private netEnemyOf(e: Enemy): import('./net-protocol.ts').NetEnemy {
+    return {
+      id: e.id, kind: e.kind, rank: e.rank, level: e.level, biome: e.biome,
+      x: e.x, y: e.y, prevX: e.prevX, prevY: e.prevY, vx: e.vx, vy: e.vy, angle: e.angle,
+      hp: e.hp, maxHp: e.maxHp, state: e.state, stateTime: e.stateTime, stateDuration: e.stateDuration,
+      radius: e.radius, attackAngle: e.attackAngle, attackTargetX: e.attackTargetX, attackTargetY: e.attackTargetY,
+      hitFlash: e.hitFlash, hitAngle: e.hitAngle, faction: e.faction,
+      burnTime: e.burnTime, freezeTime: e.freezeTime, stunTime: e.stunTime, chillTime: e.chillTime,
+      slowTime: e.slowTime, slowFactor: e.slowFactor, stagger: e.stagger,
+      sundered: e.sundered, bossPhases: e.bossPhases, affix: e.affix, campId: e.campId,
+    };
+  }
+
+  /** The roster id the host assigned this client (its own player). */
+  netPeerId = 0;
+
+  /** Public: apply authoritative own-player fields (net client self-sync). */
+  applyNetSelf(fields: import('./character-save.ts').PlayerCheckpointFields): void {
+    this.applyPlayerFields(this.player, fields);
+    this.player.x = fields.x; this.player.y = fields.y;
+    this.player.prevX = fields.x; this.player.prevY = fields.y;
+    // The host assigns this client's roster id; adopt it so threat/kill
+    // attribution and event sourceIds resolve to the right combatant.
+    this.player.id = this.netPeerId;
+  }
+  /** Public: extract a roster member's player-field half (host welcome/snapshot). */
+  netPlayerFields(p: Player): import('./character-save.ts').PlayerCheckpointFields {
+    return this.playerFieldsOf(p);
+  }
+  /** Public: build a remote partner Player from a joining client's fields. */
+  netPartnerFrom(fields: import('./character-save.ts').PlayerCheckpointFields, name: string): Player {
+    const p = initialPlayer(fields.x ?? this.player.x + 48, fields.y ?? this.player.y);
+    p.name = name;
+    this.applyPlayerFields(p, fields);
+    // Pets/summons travel in the checkpoint fields; restore them so pet classes
+    // (hunter, warlock, DK, mage) arrive with their companions. Ids are
+    // re-reserved by enterCoop so they never collide with host entities.
+    p.allies = (fields.allies ?? []).map(ally => ({ ...ally, targetId: null }));
+    p.petCommand = fields.petCommand;
+    return p;
+  }
+
+  /** Client: apply additive world-state deltas from a snapshot (broken
+   * containers, cleared camps, defeated camp members). Merges with existing
+   * state rather than replacing it. */
+  applyNetDelta(delta: import('./net-protocol.ts').NetWorldDelta): void {
+    if (!delta) return;
+    if (delta.brokenContainers) {
+      for (const id of delta.brokenContainers) this.brokenContainers.add(id);
+      this.world.setBrokenContainers?.(this.brokenContainers);
+    }
+    if (delta.clearedCamps?.length)
+      this.camps.restoreCleared([...new Set([...this.camps.clearedIds(), ...delta.clearedCamps])]);
+    if (delta.defeatedCampMembers?.length) {
+      const merged: Record<string, string[]> = this.camps.defeatedMembers();
+      for (const m of delta.defeatedCampMembers) (merged[m.campId] ??= []).push(m.memberId);
+      this.camps.restoreDefeated(merged);
+    }
+  }
+  /** Host: capture a snapshot addressed to one client (its own player rides in
+   * `self`; enemies/loot are culled to that client's radius). */
+  captureNetSnapshot(tick: number, forPlayer: Player, events: import('./model.ts').CombatEvent[]): import('./net-protocol.ts').MsgSnapshot {
+    const near = (x: number, y: number, r: number) => Math.hypot(x - forPlayer.x, y - forPlayer.y) <= r;
+    const roster = this.coopRoster?.map(a => a.player) ?? [this.player];
+    return {
+      type: 'snapshot', tick, time: this.time, kills: this.kills,
+      players: roster.map((p, i) => this.netPlayerOf(p, i)),
+      enemies: this.enemies.filter(e => near(e.x, e.y, 2400)).map(e => this.netEnemyOf(e)),
+      projectiles: this.projectiles.filter(pr => near(pr.x, pr.y, 2400)).map(pr => ({
+        id: pr.id, x: pr.x, y: pr.y, prevX: pr.prevX, prevY: pr.prevY, angle: pr.angle,
+        style: pr.effects?.style, skill: pr.skill, owner: pr.owner, sourceId: pr.sourceId ?? pr.source?.id,
+      })),
+      groundEffects: this.groundEffects.filter(g => near(g.x, g.y, 2400)).map(g => ({
+        id: g.id, kind: String(g.kind), x: g.x, y: g.y, radius: g.radius,
+        delay: g.delay, duration: g.duration, interval: g.interval, tick: g.tick,
+        sourceId: g.source?.id, style: g.style, skill: g.skill,
+      })),
+      groundItems: this.groundItems.filter(g => near(g.x, g.y, 2400)),
+      groundGold: this.groundGold.filter(g => near(g.x, g.y, 2400)),
+      pickups: this.pickups.filter(pk => near(pk.x, pk.y, 2400)),
+      events,
+      self: this.playerFieldsOf(forPlayer),
+      delta: this.netDelta(),
+    };
+  }
+
+  /** World-state delta since the previous snapshot: newly broken containers,
+   * cleared camps and defeated camp members. The baseline is the state at the
+   * first capture (post-join), so pre-join history isn't re-sent — the welcome
+   * checkpoint already carries it. */
+  private netDeltaBaseline: { containers: Set<string>; camps: Set<string>; members: Set<string> } | null = null;
+  private netDelta(): import('./net-protocol.ts').NetWorldDelta | undefined {
+    const containers = this.brokenContainers;
+    const camps = new Set(this.camps.clearedIds());
+    const members = new Set<string>();
+    const defeated = this.camps.defeatedMembers();
+    for (const campId of Object.keys(defeated)) for (const m of defeated[campId]!) members.add(`${campId}${m}`);
+    if (!this.netDeltaBaseline) {
+      this.netDeltaBaseline = { containers: new Set(containers), camps, members };
+      return undefined;
+    }
+    const base = this.netDeltaBaseline;
+    const brokenContainers = [...containers].filter(id => !base.containers.has(id));
+    const clearedCamps = [...camps].filter(id => !base.camps.has(id));
+    const defeatedCampMembers: { campId: string; memberId: string }[] = [];
+    for (const campId of Object.keys(defeated)) for (const memberId of defeated[campId]!)
+      if (!base.members.has(`${campId}${memberId}`)) defeatedCampMembers.push({ campId, memberId });
+    // Advance the baseline so each change is sent once.
+    for (const id of brokenContainers) base.containers.add(id);
+    for (const id of clearedCamps) base.camps.add(id);
+    for (const m of defeatedCampMembers) base.members.add(`${m.campId}${m.memberId}`);
+    if (!brokenContainers.length && !clearedCamps.length && !defeatedCampMembers.length) return undefined;
+    return { brokenContainers, clearedCamps, defeatedCampMembers };
+  }
+
+  /** Client: apply a host snapshot. Rebuilds remote puppets and the client's own
+   * authoritative player; positions are interpolated by netTick(). */
+  applyNetSnapshot(snap: import('./net-protocol.ts').MsgSnapshot): void {
+    // Own position is host-authoritative too (no client prediction in v1). The
+    // rendered position lerps from the previous target toward the new one.
+    this.player.prevX = this.player.x; this.player.prevY = this.player.y;
+    this.player.x = snap.self.x; this.player.y = snap.self.y;
+    this.time = snap.time; this.kills = snap.kills;
+    this.applyPlayerFields(this.player, snap.self);
+    // Presentation-only fields (facing, cast, attack, ghost) ride in the roster
+    // entry for this client, not in the checkpoint `self` block.
+    const selfNet = snap.players.find(np => np.id === this.netPeerId);
+    if (selfNet) this.applyNetPlayerPresentation(this.player, selfNet);
+    const peers: Player[] = [];
+    for (const np of snap.players) {
+      if (np.id === this.netPeerId) continue;
+      const puppet = this.netPeers.find(p => p.id === np.id) ?? this.spawnNetPeer(np);
+      this.applyNetPlayer(puppet, np);
+      peers.push(puppet);
+    }
+    this.netPeers = peers;
+    const seen = new Set<number>();
+    for (const ne of snap.enemies) {
+      seen.add(ne.id);
+      let e = this.enemies.find(en => en.id === ne.id);
+      if (!e) { e = this.spawnNetEnemy(ne); this.enemies.push(e); }
+      this.applyNetEnemy(e, ne);
+    }
+    this.enemies = this.enemies.filter(e => seen.has(e.id));
+    // Projectiles and ground effects are pure puppets: rebuild them each
+    // snapshot so ranged combat and area effects are visible to the client.
+    this.projectiles = snap.projectiles.map(np => this.netProjectileOf(np));
+    this.groundEffects = snap.groundEffects.map(ng => this.netGroundEffectOf(ng));
+    this.groundItems = snap.groundItems; this.groundGold = snap.groundGold; this.pickups = snap.pickups;
+    // Restart the interpolation sweep toward this snapshot's positions.
+    this.netAlpha = 0;
+  }
+
+  /** Client: advance remote puppets between snapshots. The netAlpha clock sweeps
+   * 0→1 across the snapshot interval so the renderer lerps prev→current; only
+   * presentation timers decay here — no combat, spawning or world mutation. */
+  netTick(dt: number): void {
+    this.netAlpha = Math.min(1, this.netAlpha + dt * NET_SNAPSHOT_HZ);
+    for (const e of this.enemies) {
+      e.hitFlash = Math.max(0, e.hitFlash - dt);
+      e.stateTime += dt;
+      if (e.burnTime > 0) e.burnTime = Math.max(0, e.burnTime - dt);
+      if (e.slowTime > 0) e.slowTime = Math.max(0, e.slowTime - dt);
+      if (e.stunTime) e.stunTime = Math.max(0, e.stunTime - dt);
+      if (e.freezeTime) e.freezeTime = Math.max(0, e.freezeTime - dt);
+      if (e.chillTime) e.chillTime = Math.max(0, e.chillTime - dt);
+    }
+    for (const p of this.netPeers) {
+      p.hitFlash = Math.max(0, p.hitFlash - dt);
+      if (p.castDuration > 0) p.castTime = Math.min(p.castDuration, p.castTime + dt);
+      if (p.dodgeTime > 0) p.dodgeTime = Math.max(0, p.dodgeTime - dt);
+      if (p.attack) p.attack.elapsed += dt;
+    }
+    // Own player presentation timers also decay between authoritative snapshots.
+    this.player.hitFlash = Math.max(0, this.player.hitFlash - dt);
+    if (this.player.castDuration > 0) this.player.castTime = Math.min(this.player.castDuration, this.player.castTime + dt);
+    if (this.player.attack) this.player.attack.elapsed += dt;
+  }
+
+  private spawnNetPeer(np: import('./net-protocol.ts').NetPlayer): Player {
+    const p = initialPlayer(np.x, np.y);
+    p.id = np.id; p.name = np.name;
+    return p;
+  }
+  private applyNetPlayer(p: Player, np: import('./net-protocol.ts').NetPlayer): void {
+    // Interpolate: keep the rendered position as the lerp start, the snapshot
+    // position becomes the new target.
+    p.prevX = p.x; p.prevY = p.y;
+    p.x = np.x; p.y = np.y;
+    p.vx = np.vx; p.vy = np.vy; p.locomotionVX = np.locomotionVX; p.locomotionVY = np.locomotionVY;
+    p.hp = np.hp; p.maxHp = np.maxHp; p.mana = np.mana; p.maxMana = np.maxMana;
+    p.level = np.level; p.dead = np.dead; p.mounted = np.mounted as Player['mounted']; p.stealthed = np.stealthed;
+    p.character = np.character; p.buffs = np.buffs as Player['buffs'];
+    refreshCharacter(p); // rebuild equipment so the attack weapon visual resolves
+    p.derived = np.derived; // host-authoritative stats win over the recompute
+    this.applyNetPlayerPresentation(p, np);
+  }
+  /** Presentation-only fields shared by remote puppets and the client's own
+   * player: facing, cast/attack/dash animation, hit flash and ghost state. */
+  private applyNetPlayerPresentation(p: Player, np: import('./net-protocol.ts').NetPlayer): void {
+    p.angle = np.angle;
+    p.castTime = np.castTime; p.castDuration = np.castDuration; p.activeSkill = np.activeSkill;
+    p.dodgeTime = np.dodgeTime; p.hitFlash = np.hitFlash;
+    // Rebuild a minimal attack/dash so swings and dashes animate on the puppet.
+    // The full Attack payload (weapon, offense, hitIds) is host-side only; the
+    // renderer needs angle/elapsed/duration/kind plus the equipped weapon.
+    p.attack = np.attack ? {
+      kind: np.attack.kind === 'ranged' ? 'ranged' : 'melee',
+      weapon: p.equipment?.mainHand ?? p.attack?.weapon,
+      hand: 'main', angle: np.attack.angle, elapsed: np.attack.elapsed, duration: np.attack.duration,
+      activeStart: 0, activeEnd: np.attack.duration, hitIds: new Set<number>(),
+    } as Player['attack'] : null;
+    p.dash = np.dash ? {
+      angle: np.dash.angle, remaining: np.dash.remaining, speed: np.dash.speed,
+      damage: 0, radius: 0, skill: np.activeSkill ?? ('' as SkillId), hitIds: new Set<number>(),
+    } as Player['dash'] : null;
+    // Ghost state lives in the ghosts map, not on the Player.
+    if (np.ghost) this.ghosts.set(p, { corpse: np.ghost.corpse, healer: np.ghost.healer });
+    else this.ghosts.delete(p);
+  }
+
+  /** Rebuild a projectile puppet from its wire shape. */
+  private netProjectileOf(np: import('./net-protocol.ts').NetProjectile): import('./model.ts').Projectile {
+    return {
+      id: np.id, sourceLevel: 1, sourceId: np.sourceId,
+      x: np.x, y: np.y, prevX: np.prevX, prevY: np.prevY,
+      vx: Math.cos(np.angle), vy: Math.sin(np.angle), angle: np.angle,
+      radius: 6, damage: 0, life: 0, maxLife: 1,
+      owner: np.owner, skill: np.skill,
+      effects: np.style ? { style: np.style } as import('./model.ts').ProjectileEffects : undefined,
+      hitIds: new Set<number>(),
+    } as import('./model.ts').Projectile;
+  }
+  /** Rebuild a ground-effect puppet from its wire shape. */
+  private netGroundEffectOf(ng: import('./net-protocol.ts').NetGroundEffect): ActiveGroundEffect {
+    return {
+      id: ng.id, kind: ng.kind as import('./model.ts').GroundEffect['kind'],
+      x: ng.x, y: ng.y, radius: ng.radius,
+      delay: ng.delay, duration: ng.duration, interval: ng.interval, tick: ng.tick,
+      damage: 0, skill: ng.skill ?? ('' as SkillId), style: (ng.style ?? 'arcane') as import('./model.ts').ProjectileStyle,
+      // Presentation-only puppet: pulsesLeft drives remaining-pulse rendering.
+      pulsesLeft: Math.max(0, Math.ceil(ng.duration / Math.max(0.001, ng.interval))),
+    } as ActiveGroundEffect;
+  }
+  private spawnNetEnemy(ne: import('./net-protocol.ts').NetEnemy): Enemy {
+    const stats = scaledEnemyStats(ne.kind, ne.level, ne.rank);
+    return {
+      id: ne.id, level: ne.level, rank: ne.rank, biome: ne.biome, lootSeed: 0,
+      damage: stats.damage, xpReward: stats.xpReward,
+      x: ne.x, y: ne.y, prevX: ne.x, prevY: ne.y, vx: ne.vx, vy: ne.vy,
+      knockbackX: 0, knockbackY: 0, angle: ne.angle, hp: ne.hp, maxHp: ne.maxHp,
+      kind: ne.kind, state: ne.state, stateTime: ne.stateTime, stateDuration: ne.stateDuration,
+      attackAngle: ne.attackAngle, attackTargetX: ne.attackTargetX, attackTargetY: ne.attackTargetY,
+      homeX: ne.x, homeY: ne.y, awareness: 0, lostSightTime: 0, lastSeenX: ne.x, lastSeenY: ne.y,
+      senseTime: 0, seesPlayer: false, patrolPhase: 0, hitFlash: ne.hitFlash, hitAngle: ne.hitAngle,
+      radius: ne.radius, stagger: ne.stagger, attackHit: false, interrupted: false,
+      slowTime: ne.slowTime, slowFactor: ne.slowFactor, burnTime: ne.burnTime, burnDps: 0, burnTick: 0,
+      faction: ne.faction as Enemy['faction'], freezeTime: ne.freezeTime,
+      stunTime: ne.stunTime, chillTime: ne.chillTime, sundered: ne.sundered, bossPhases: ne.bossPhases,
+      affix: ne.affix as Enemy['affix'], campId: ne.campId,
+    } as Enemy;
+  }
+  private applyNetEnemy(e: Enemy, ne: import('./net-protocol.ts').NetEnemy): void {
+    // Interpolate: rendered position is the lerp start, snapshot pos the target.
+    e.prevX = e.x; e.prevY = e.y;
+    e.x = ne.x; e.y = ne.y;
+    e.vx = ne.vx; e.vy = ne.vy; e.angle = ne.angle;
+    e.hp = ne.hp; e.maxHp = ne.maxHp; e.state = ne.state; e.stateTime = ne.stateTime; e.stateDuration = ne.stateDuration;
+    e.attackAngle = ne.attackAngle; e.attackTargetX = ne.attackTargetX; e.attackTargetY = ne.attackTargetY;
+    e.hitFlash = ne.hitFlash; e.hitAngle = ne.hitAngle; e.burnTime = ne.burnTime;
+    e.freezeTime = ne.freezeTime; e.stunTime = ne.stunTime; e.chillTime = ne.chillTime;
+    e.slowTime = ne.slowTime; e.slowFactor = ne.slowFactor; e.stagger = ne.stagger;
+    e.sundered = ne.sundered; e.bossPhases = ne.bossPhases;
+  }
+  /** Apply authoritative own-player fields from a snapshot's `self` block. */
+  private applyPlayerFields(p: Player, fields: import('./character-save.ts').PlayerCheckpointFields): void {
+    if (!fields) return;
+    p.character = fields.character; p.level = fields.level; p.xp = fields.xp;
+    p.hp = fields.hp; p.mana = fields.mana; p.dead = fields.dead;
+    p.flasks = fields.flasks; p.healCooldown = fields.healCooldown;
+    p.dodgeCharges = fields.dodgeCharges; p.dodgeRecharge = fields.dodgeRecharge;
+    p.skillCooldowns = fields.skillCooldowns; p.buffs = fields.buffs; p.comboPoints = fields.comboPoints;
+    p.runes = fields.runes; p.soulShards = fields.soulShards; p.stealthed = fields.stealthed;
+    p.autoAttack = fields.autoAttack; p.mounted = fields.mounted; p.restedXp = fields.restedXp;
+    p.hearthstone = fields.hearthstone; p.professions = fields.professions; p.quests = fields.quests;
+    p.achievements = fields.achievements; p.glyphs = fields.glyphs; p.fishing = fields.fishing;
+    p.durability = fields.durability; p.combatLog = fields.combatLog; p.reputation = fields.reputation;
+    // Facing, pets and pet orders are authoritative too — they were dropped
+    // before, leaving the client's own avatar facing a frozen direction and
+    // pet classes without their companions.
+    if (fields.angle !== undefined) p.angle = fields.angle;
+    if (fields.allies) p.allies = fields.allies.map(ally => ({ ...ally, targetId: null }));
+    if (fields.petCommand !== undefined) p.petCommand = fields.petCommand;
+    refreshCharacter(p);
+  }
+  /** Extract the player-field half of a checkpoint for one roster member. */
+  private playerFieldsOf(p: Player): import('./character-save.ts').PlayerCheckpointFields {
+    return {
+      chronicle: p.chronicle, character: p.character, level: p.level, xp: p.xp,
+      x: p.x, y: p.y, angle: p.angle, hp: p.hp, mana: p.mana, dead: p.dead,
+      flasks: p.flasks, healCooldown: p.healCooldown, dodgeCharges: p.dodgeCharges, dodgeRecharge: p.dodgeRecharge,
+      skillCooldowns: p.skillCooldowns, allies: p.allies, buffs: p.buffs, comboPoints: p.comboPoints,
+      runes: p.runes, petCommand: p.petCommand, soulShards: p.soulShards, stealthed: p.stealthed,
+      autoAttack: p.autoAttack, mounted: p.mounted, restedXp: p.restedXp, hearthstone: p.hearthstone,
+      professions: p.professions, quests: p.quests, achievements: p.achievements, glyphs: p.glyphs,
+      fishing: p.fishing, durability: p.durability, combatLog: p.combatLog, reputation: p.reputation,
+    } as import('./character-save.ts').PlayerCheckpointFields;
   }
 
   /** Combat-clock bump for rage/runic decay, written to the actor's own bag. */
@@ -762,8 +1152,10 @@ export class Simulation {
     if(this.player.skillEffects)delete this.player.skillEffects.draw;
   }
 
-  /** Fraction between the two most recent fixed-tick positions for rendering. */
+  /** Fraction between the two most recent fixed-tick positions for rendering.
+   * A net client interpolates across the snapshot interval instead. */
   get interpolationAlpha(): number {
+    if (this.netMode === 'client') return this.netAlpha;
     return Math.max(0, Math.min(1, this.accumulator / FIXED_STEP));
   }
 
@@ -833,6 +1225,11 @@ export class Simulation {
     return points;
   }
 
+  addRunicPower(amount: number): void {
+    const p = this.player;
+    p.mana = Math.min(100, Math.max(0, p.mana + amount));
+  }
+
   /** Rune slots [blood×2, frost×2, unholy×2] hold ready-at sim times; each spent rune grants runic power. */
   spendRuneCost(cost: Partial<Record<RuneKind, number>>): boolean {
     const p = this.player, runes = p.runes ??= [0, 0, 0, 0, 0, 0];
@@ -849,14 +1246,9 @@ export class Simulation {
     return true;
   }
 
-  addRunicPower(amount: number): void {
-    const p = this.player;
-    p.mana = Math.min(100, Math.max(0, p.mana + amount));
-  }
-
   /** WoW DoT; non-stacking per id (strongest/longest wins), ticks in combat-status. */
   applyDot(enemy: Enemy, spec: DotSpec, baseDamage: number, id = spec.school): void {
-    applyDotStatus(enemy, id, spec, baseDamage, 'player');
+    applyDotStatus(enemy, id, spec, baseDamage, 'player', undefined, this.player.id ?? 0);
   }
 
   /** WoW crowd control; breakOnDamage defaults per kind inside combat-status.
@@ -1103,7 +1495,7 @@ export class Simulation {
     context.prepaid = true;
     if (cast && cast.x !== undefined) { context.aimX = cast.x; context.aimY = cast.y!; }
     const ok = activateSkill(context, slot);
-    if (ok && this.pvpCombatants) for (const flight of this.chains) if (!this.chainSources.has(flight)) this.chainSources.set(flight, p);
+    if (ok && (this.pvpCombatants || this.coopRoster)) for (const flight of this.chains) if (!this.chainSources.has(flight)) this.chainSources.set(flight, p);
     p.targetId = prevTarget;
     if (!ok) return false;
     const kind = SKILL_EXECUTION[id]?.kind;
@@ -1115,14 +1507,17 @@ export class Simulation {
     return true;
   }
 
-  /** True when no controlled player can act: all dead or released as ghosts. */
+  /** True when every controlled player is dead (a full wipe). Released ghosts
+   * still move and act, so they never count as down. */
   private allPlayersDown(): boolean {
-    return this.players.every(p => p.dead || this.ghosts.has(p));
+    return this.players.every(p => p.dead);
   }
 
   update(dt: number, input: Input, partnerInput?: Input): void {
+    // A net client is a render puppet: it never simulates combat, spawning or
+    // world state — it only interpolates toward the host's snapshots.
+    if (this.netMode === 'client') { this.netTick(dt); return; }
     const coop = this.coopRoster;
-    if (!Number.isFinite(dt) || dt <= 0) return;
     if (!coop && this.player.dead && !this.pvpCombatants) return;
     if (coop && this.allPlayersDown()) return;
     // A released spirit moves only: no combat, targeting, potions or channels.
@@ -1296,7 +1691,6 @@ export class Simulation {
     tickRift(this, dt);
     if (currentDungeon(this.expeditions)?.rift?.phase === 'failed') return;
     this.capturePositions();
-    this.player.hitFlash = Math.max(0, this.player.hitFlash - dt);
     for (const enemy of this.enemies) enemy.hitFlash = Math.max(0, enemy.hitFlash - dt);
     for (const actor of roster) actor.player.hitFlash = Math.max(0, actor.player.hitFlash - dt);
     this.time += dt;
@@ -1807,7 +2201,7 @@ export class Simulation {
   /** Chain lightning partitioned per owning combatant so jumps only pick
    * hostiles of the caster's team. Outside PvP it is a single pass. */
   private advanceChains(dt: number): void {
-    if (!this.pvpCombatants) {
+    if (!this.pvpCombatants && !this.coopRoster) {
       advanceChains(this.chains, dt, {
         player: this.player, enemies: this.enemies,
         onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
@@ -1830,7 +2224,7 @@ export class Simulation {
         player: source, enemies: this.hostileTargets(source),
         onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
         visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, false, source),
+        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.forPlayer(source, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, false, source)),
         emit: event => this.emit(event),
       });
       kept.push(...flights);
@@ -1874,13 +2268,15 @@ export class Simulation {
         (actor, amount, school) => this.damageEnemy(actor, amount, 0, false, true, schoolProjectileStyle(school ?? 'fire')))) continue;
       if(isWorldBossActor(enemy)) updateWorldBoss(enemy,dt,context); else if(isRaid7Boss(enemy)) updateRaid7Boss(enemy,dt,context); else if(isRaid8Boss(enemy)) updateRaid8Boss(enemy,dt,context); else if(isRaid9Boss(enemy)) updateRaid9Boss(enemy,dt,context); else if(isRaid5Boss(enemy)) updateRaid5Boss(enemy,dt,context); else if(isRaid6Boss(enemy)) updateRaid6Boss(enemy,dt,context); else if(isRaid4Boss(enemy)) updateRaid4Boss(enemy,dt,context); else if(isRaid3Boss(enemy)) updateRaid3Boss(enemy,dt,context); else if(isRaid2Boss(enemy)) updateRaid2Boss(enemy,dt,context); else if(isRaidBoss(enemy)) updateRaidBoss(enemy,dt,context); else if(isWildernessBoss(enemy.kind)) updateWildernessBoss(enemy,dt,context); else if(enemy.kind==='warden') updateWarden(enemy,dt,context); else updateEnemyAI(enemy, dt, context);
       this.enemyNeighbors.update(enemy);
-      if (p.dead) break;
+      if (this.players.every(pl => pl.dead)) break;
     }
     for (const enemy of this.enemies) {
       enemy.vx = (enemy.x - enemy.prevX) / dt;
       enemy.vy = (enemy.y - enemy.prevY) / dt;
     }
-    if (!this.pvpCombatants) this.updateAllies(dt);
+    // Co-op ticks each actor's allies inside updateCoopActors; only solo/PvP
+    // needs the shared tail pass (which would double-tick P1's allies).
+    if (!this.pvpCombatants && !this.coopRoster) this.updateAllies(dt);
   }
 
   private updateKnockback(enemy: Enemy, dt: number): void {
@@ -2087,7 +2483,7 @@ export class Simulation {
           this.damageEnemy(enemy,burst.damage,Math.atan2(enemy.y-p.y,enemy.x-p.x),false,false,'arcane',undefined,burst.offense);
       },
     }, kind, false, undefined, sourceName, melee)) return;
-    this.portal.cancel(); this.eventChannel.cancel(); this.hearthstone.cancel();
+    this.portal.cancelFor(this.player); this.eventChannel.cancelFor(this.player); this.hearthstone.cancelFor(this.player);
     mountOnDamage(this);
     durabilityLoss(this.player, this.player.dead ? 'death' : 'hit-taken', this.time);
     this.hurtGuard = COMBAT_TIMING.hurtGuard;
@@ -2115,7 +2511,7 @@ export class Simulation {
     if(hawkeye)effects={...effects!,hawkeye:{x,y,crit:this.player.character.allocatedNodes.includes('keystone:measured-force')?0:hawkeye/200}};
     const shot: Projectile = { id: this.nextId++, sourceLevel, sourceKind, sourceName, sourceId, x, y, prevX: x, prevY: y,
       vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, angle, radius, damage, life, maxLife: life, owner, skill,
-      ...(this.pvpCombatants && owner === 'player' ? { source: this.player } : {}),
+      ...(((this.pvpCombatants || this.coopRoster) && owner === 'player') ? { source: this.player } : {}),
       effects: effects ? { ...effects, ...(effects.offense ? { offense: { ...effects.offense } } : {}) } : undefined, hitIds: new Set() };
     if (skill) {
       const p = this.player, weapon = skillWeapon(skill, p.equipment);
@@ -2142,21 +2538,26 @@ export class Simulation {
   }
 
   private updateProjectiles(dt: number): void {
-    if (!this.pvpCombatants) {
-      advanceProjectiles(this.projectiles, dt, {
-        containers: this.containerContext(),
-        player: this.player, enemies: this.enemies, world: this.world,
-        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-        damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn),
-        hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId)),
-        hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
-        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        emit: event => this.emit(event),
-        schedule: effect => this.scheduleGroundEffect(effect),
-      });
-    } else {
-      // Each combatant's shots only collide with that team's hostiles; a shot
-      // without a source (world mobs) keeps the legacy player-only path.
+    // Player shots carry their shooter in `source` (PvP and co-op); partition so
+    // each player's shots resolve damage/kills against that player. Enemy shots
+    // (no source) hit-test the whole roster via `players`.
+    const partitioned = !!(this.pvpCombatants || this.coopRoster);
+    const run = (shots: Projectile[], source: Player | undefined) => advanceProjectiles(shots, dt, {
+      containers: this.containerContext(),
+      player: source ?? this.player, players: this.players,
+      enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
+      onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
+      damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) =>
+        this.forPlayer(source ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source)),
+      hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId, victim) =>
+        this.forPlayer(victim ?? this.player, () => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId))),
+      hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
+      visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
+      emit: event => this.emit(event),
+      schedule: effect => this.scheduleGroundEffect(effect),
+    });
+    if (!partitioned) { run(this.projectiles, undefined); }
+    else {
       const bySource = new Map<Player | undefined, Projectile[]>();
       for (const shot of this.projectiles) {
         const source = shot.owner === 'player' ? shot.source : undefined;
@@ -2164,19 +2565,7 @@ export class Simulation {
         if (!list.length) bySource.set(source, list);
         list.push(shot);
       }
-      for (const [source, shots] of bySource) {
-        advanceProjectiles(shots, dt, {
-          containers: this.containerContext(),
-          player: source ?? this.player, enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
-          onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-          damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source),
-          hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId) => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId)),
-          hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
-          visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-          emit: event => this.emit(event),
-          schedule: effect => this.scheduleGroundEffect(effect),
-        });
-      }
+      for (const [source, shots] of bySource) run(shots, source);
     }
     this.projectiles = this.projectiles.filter(projectile => projectile.life > 0);
   }
@@ -2186,12 +2575,12 @@ export class Simulation {
     scheduleGroundEffect(this.groundEffects, effect, {
       nextId: () => this.nextId++, emit: event => this.emit(event),
     });
-    if (this.pvpCombatants && this.groundEffects.length > before)
+    if ((this.pvpCombatants || this.coopRoster) && this.groundEffects.length > before)
       this.groundEffects[this.groundEffects.length - 1]!.source = this.player;
   }
 
   private updateGroundEffects(dt: number): void {
-    if (!this.pvpCombatants) {
+    if (!this.pvpCombatants && !this.coopRoster) {
       this.groundEffects = advanceGroundEffects(this.groundEffects, dt, {
         containers: this.containerContext(),
         player: this.player,
@@ -2215,7 +2604,7 @@ export class Simulation {
         containers: this.containerContext(),
         player: source ?? this.player,
         enemies: source ? this.hostileTargets(source) : this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn, source),
+        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.forPlayer(source ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn, source)),
         emit: event => this.emit(event),
       }));
     }

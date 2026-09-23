@@ -74,7 +74,7 @@ export function applyStun(enemy: Enemy, duration: number, kind: 'stun' | 'freeze
 }
 
 /** WoW DoT application: non-stacking per id, strongest/longest wins (burn rule). */
-export function applyDot(enemy: Enemy, id: string, spec: DotSpec, baseDamage: number, source: 'player' | 'ally' = 'player', allyId?: number): void {
+export function applyDot(enemy: Enemy, id: string, spec: DotSpec, baseDamage: number, source: 'player' | 'ally' = 'player', allyId?: number, playerId?: number): void {
   if (enemy.state === 'dead') return;
   const dps = spec.flatDps ?? baseDamage * (spec.dpsMultiplier ?? 0);
   if (dps <= 0 || spec.duration <= 0) return;
@@ -89,7 +89,8 @@ export function applyDot(enemy: Enemy, id: string, spec: DotSpec, baseDamage: nu
   }
   dots.push({ id, school: spec.school, dps, remaining: spec.duration, tick: 0,
     interval: spec.interval ?? STATUS_RULES.burnInterval, ramp: spec.ramp, detonate: spec.detonate, source,
-    ...(source === 'ally' && allyId !== undefined ? { allyId } : {}) });
+    ...(source === 'ally' && allyId !== undefined ? { allyId } : {}),
+    ...(source === 'player' && playerId !== undefined ? { playerId } : {}) });
 }
 
 /** WoW crowd control: root/fear/incapacitate/polymorph/silence ride enemy.cc; stun/freeze/slow reuse the legacy fields. */

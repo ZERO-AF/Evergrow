@@ -31,7 +31,7 @@ export interface PlayerSkillEffects {
 }
 export const skillEffects = (p: Player): PlayerSkillEffects => p.skillEffects ??= { echoes: [] };
 export function snapshotSkillOffense(p: Player, skill?: SkillId): HitSnapshot {
-  return { ...(skill ? { skill } : {}), critChance:p.derived.critChance,critMultiplier:p.derived.critMultiplier,lifeOnHit:p.derived.lifeOnHit,directDamageMultiplier:p.derived.directDamageMultiplier ?? 1,hitRating:p.derived.hitRating,expertise:p.derived.expertise };
+  return { ...(skill ? { skill } : {}), playerId:p.id ?? 0, critChance:p.derived.critChance,critMultiplier:p.derived.critMultiplier,lifeOnHit:p.derived.lifeOnHit,directDamageMultiplier:p.derived.directDamageMultiplier ?? 1,hitRating:p.derived.hitRating,expertise:p.derived.expertise };
 }
 /** Consume at manual action commitment, once for a sweep/volley, never per contact. */
 export function consumeRally(p: Player, melee: boolean): number {
@@ -46,7 +46,7 @@ export function queueSkillEcho(p: Player, x:number,y:number,angle:number,definit
   buff.charges--;
   const archer=state.archer;
   if(archer){const reach=definition.speed*definition.life;angle=Math.atan2((aim?.y??y+Math.sin(angle)*reach)-archer.y,(aim?.x??x+Math.cos(angle)*reach)-archer.x);x=archer.x;y=archer.y;archer.angle=angle;archer.shotRemaining=.32;}
-  state.echoes.push({delay:.32,x,y,angle,definition:{...definition,damage:definition.damage*buff.bonus},effects:{style:'arrow',pierce:effects.pierce,chain:effects.chain,chainRange:effects.chainRange,offense:{skill:'ghostHunt',critChance:effects.offense?.critChance??0,critMultiplier:effects.offense?.critMultiplier??1.5,lifeOnHit:0,directDamageMultiplier:effects.offense?.directDamageMultiplier??1}}});
+  state.echoes.push({delay:.32,x,y,angle,definition:{...definition,damage:definition.damage*buff.bonus},effects:{style:'arrow',pierce:effects.pierce,chain:effects.chain,chainRange:effects.chainRange,offense:{skill:'ghostHunt',playerId:p.id ?? 0,critChance:effects.offense?.critChance??0,critMultiplier:effects.offense?.critMultiplier??1.5,lifeOnHit:0,directDamageMultiplier:effects.offense?.directDamageMultiplier??1}}});
 }
 /** Highest stance mitigation wins; a finite ward consumes only the remaining damage. */
 export function mitigateSkillHit(p: Player, amount:number):{damage:number;absorbed:number;burst?:WardBurst} {

@@ -344,6 +344,10 @@ export class Renderer {
   zoomByWheel(deltaY: number, deltaMode: number, viewportHeight: number) {
     this.cameraZoom.wheel(deltaY, deltaMode, viewportHeight);
   }
+  /** The player's wheel-chosen zoom. Shared co-op camera overrides it each frame;
+   * the host saves/restores it across the shared↔split transitions. */
+  get zoomTarget() { return this.cameraZoom.target; }
+  set zoomTarget(v: number) { this.cameraZoom.target = v; }
   screenToWorld(x: number, y: number) {
     // Input targets the last displayed frame, including its small impact impulse.
     return screenToWorld(this.view, x, y);

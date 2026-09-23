@@ -16,8 +16,11 @@ export interface ProjectileContext {
   containers?: ContainerAttackContext;
   schedule(effect: GroundEffectRequest): void;
   player: Player; enemies: Enemy[]; world: WorldQuery;
+  /** Every controlled player; enemy shots hit-test the whole roster. Defaults
+   * to [player] when absent (solo / legacy callers). */
+  players?: readonly Player[];
   damage(enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, offense?: HitSnapshot, authoredBurn?: boolean, elementalDamage?:number): void;
-  hurt(amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number): void;
+  hurt(amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number, victim?: Player): void;
   /** Enemy projectile strikes a player ally (pet/minion/totem). */
   hurtAlly?(ally: import('./model.ts').Ally, amount: number): void;
   onScreen(enemy: Enemy): boolean;
@@ -152,20 +155,38 @@ export function advanceProjectiles(projectiles: Projectile[], dt: number, contex
         if(!turnProjectile(projectile))projectile.life = 0; break;
       }
       if (projectile.owner === 'enemy') {
-        const decoy=p.skillEffects?.decoy;
-        const playerHit=segmentDistanceSquared(p.x,p.y,oldX,oldY,projectile.x,projectile.y)<=(projectile.radius+p.radius)**2;
-        if(decoy&&decoy.hp>0&&segmentDistanceSquared(decoy.x,decoy.y,oldX,oldY,projectile.x,projectile.y)<=(projectile.radius+decoy.radius)**2
-          &&(!playerHit||Math.hypot(decoy.x-oldX,decoy.y-oldY)<Math.hypot(p.x-oldX,p.y-oldY))){
-          hurtDecoy(p,decoy.id,projectile.damage);context.emit({type:'blast',x:decoy.x,y:decoy.y,radius:12,style:'spirit'});projectile.life=0;continue;
+        // Hit-test every roster player (and their decoys/allies); the nearest
+        // struck victim absorbs the shot.
+        const roster = context.players ?? [p];
+        let victim: Player | undefined, victimDist = Infinity;
+        for (const pl of roster) {
+          if (pl.dead) continue;
+          const d2 = segmentDistanceSquared(pl.x, pl.y, oldX, oldY, projectile.x, projectile.y);
+          if (d2 <= (projectile.radius + pl.radius) ** 2) {
+            const dist = Math.hypot(pl.x - oldX, pl.y - oldY);
+            if (dist < victimDist) { victim = pl; victimDist = dist; }
+          }
         }
-        const allyHit = context.hurtAlly ? (p.allies ?? []).filter(ally => ally.hp > 0
+        // Decoys can intercept for their owning player.
+        let decoyOwner: Player | undefined, decoyHit: { id: number; x: number; y: number } | undefined, decoyDist = Infinity;
+        for (const pl of roster) {
+          const decoy = pl.skillEffects?.decoy;
+          if (decoy && decoy.hp > 0 && segmentDistanceSquared(decoy.x, decoy.y, oldX, oldY, projectile.x, projectile.y) <= (projectile.radius + decoy.radius) ** 2) {
+            const dist = Math.hypot(decoy.x - oldX, decoy.y - oldY);
+            if (dist < decoyDist) { decoyOwner = pl; decoyHit = decoy; decoyDist = dist; }
+          }
+        }
+        if (decoyHit && decoyOwner && (!victim || decoyDist < victimDist)) {
+          hurtDecoy(decoyOwner, decoyHit.id, projectile.damage); context.emit({ type: 'blast', x: decoyHit.x, y: decoyHit.y, radius: 12, style: 'spirit' }); projectile.life = 0; continue;
+        }
+        const allyHit = context.hurtAlly ? roster.flatMap(pl => pl.allies ?? []).filter(ally => ally.hp > 0
           && segmentDistanceSquared(ally.x, ally.y, oldX, oldY, projectile.x, projectile.y) <= (projectile.radius + ally.radius) ** 2)
           .sort((a, b) => Math.hypot(a.x - oldX, a.y - oldY) - Math.hypot(b.x - oldX, b.y - oldY) || a.id - b.id)[0] : undefined;
-        if (allyHit && (!playerHit || Math.hypot(allyHit.x - oldX, allyHit.y - oldY) < Math.hypot(p.x - oldX, p.y - oldY))) {
+        if (allyHit && (!victim || Math.hypot(allyHit.x - oldX, allyHit.y - oldY) < victimDist)) {
           context.hurtAlly!(allyHit, projectile.damage); projectile.life = 0; continue;
         }
-        if (playerHit) {
-          context.hurt(projectile.damage, projectile.angle, projectile.sourceLevel, projectileDamageType(projectile.effects?.style ?? 'arcane'), projectile.sourceKind, projectile.sourceName, projectile.sourceId); projectile.life = 0;
+        if (victim) {
+          context.hurt(projectile.damage, projectile.angle, projectile.sourceLevel, projectileDamageType(projectile.effects?.style ?? 'arcane'), projectile.sourceKind, projectile.sourceName, projectile.sourceId, victim); projectile.life = 0;
         }
         continue;
       }

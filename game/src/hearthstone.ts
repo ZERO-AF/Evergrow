@@ -86,6 +86,9 @@ export class HearthstoneChannel {
   elapsed = 0;
   /** Cast length snapshotted at start (Hasty Hearth halves it). */
   private duration: number = HEARTHSTONE_RULES.channel;
+  /** The player channeling; only their input/damage advances or cancels it, so
+   * a co-op partner's actions never interrupt (or double-speed) the cast. */
+  private owner: Player | null = null;
   get active() { return this.origin !== null; }
   get ready() { return this.active && this.elapsed + 1e-9 >= this.duration; }
   get progress() { return Math.min(1, this.elapsed / this.duration); }
@@ -93,11 +96,15 @@ export class HearthstoneChannel {
     if (this.active) { this.cancel(); return null; }
     const problem = hearthstoneProblem(player, world); if (problem) return problem;
     this.duration = HEARTHSTONE_RULES.channel * guildHearthstoneChannelFactor(player);
-    this.origin = { x: player.x, y: player.y }; this.elapsed = 0; return null;
+    this.origin = { x: player.x, y: player.y }; this.elapsed = 0; this.owner = player; return null;
   }
-  cancel() { this.origin = null; this.elapsed = 0; this.duration = HEARTHSTONE_RULES.channel; }
+  cancel() { this.origin = null; this.elapsed = 0; this.duration = HEARTHSTONE_RULES.channel; this.owner = null; }
+  /** Cancel only if `player` owns the channel (or none is set); a partner's
+   * damage/movement leaves another player's channel running. */
+  cancelFor(player: Player) { if (this.owner === null || this.owner === player) this.cancel(); }
   advance(dt: number, player: Player, input: Input): void {
     if (!this.origin) return;
+    if (this.owner !== null && player !== this.owner) return;
     if (player.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
       || player.attack || player.dash || player.castTime > 0 || player.dodgeTime > 0
       || Math.hypot(player.x - this.origin.x, player.y - this.origin.y) > .5) { this.cancel(); return; }

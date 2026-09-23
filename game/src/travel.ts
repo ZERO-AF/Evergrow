@@ -40,17 +40,24 @@ export function portalDepartureProblem(player: Player, world: WorldQuery): strin
 export class PortalChannel {
   origin: { x: number; y: number } | null = null;
   elapsed = 0;
+  /** The player channeling; only their input/damage advances or cancels it, so
+   * a co-op partner's actions never interrupt (or double-speed) the cast. */
+  private owner: Player | null = null;
   get active() { return this.origin !== null; }
   get ready() { return this.active && this.elapsed + 1e-9 >= PORTAL_RULES.channel; }
   get progress() { return Math.min(1, this.elapsed / PORTAL_RULES.channel); }
   start(player: Player, world: WorldQuery): string | null {
     if (this.active) { this.cancel(); return null; }
     const problem = portalDepartureProblem(player, world); if (problem) return problem;
-    this.origin = { x: player.x, y: player.y }; this.elapsed = 0; return null;
+    this.origin = { x: player.x, y: player.y }; this.elapsed = 0; this.owner = player; return null;
   }
-  cancel() { this.origin = null; this.elapsed = 0; }
+  cancel() { this.origin = null; this.elapsed = 0; this.owner = null; }
+  /** Cancel only if `player` owns the channel (or none is set); a partner's
+   * damage/movement leaves another player's channel running. */
+  cancelFor(player: Player) { if (this.owner === null || this.owner === player) this.cancel(); }
   advance(dt: number, player: Player, input: Input): void {
     if (!this.origin) return;
+    if (this.owner !== null && player !== this.owner) return;
     if (player.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
       || player.attack || player.dash || player.castTime > 0 || player.dodgeTime > 0
       || Math.hypot(player.x - this.origin.x, player.y - this.origin.y) > .5) { this.cancel(); return; }

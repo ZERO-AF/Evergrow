@@ -13,13 +13,20 @@ export class EventChannel {
   site: EventSite | null = null;
   choice: EventChoice | null = null;
   elapsed = 0;
+  /** The player channeling; only their input/damage advances or cancels it, so
+   * a co-op partner's actions never interrupt (or double-speed) the channel. */
+  private owner: Player | null = null;
   get duration() { return this.site?.kind === 'watchtower' ? EVENT_RULES.beaconChannel : EVENT_RULES.channel; }
   get ready() { return !!this.site && this.elapsed + 1e-9 >= this.duration; }
-  cancel() { this.site = null; this.choice = null; this.elapsed = 0; }
-  start(site: EventSite, choice: EventChoice | null) { this.site = site; this.choice = choice; this.elapsed = 0; }
+  cancel() { this.site = null; this.choice = null; this.elapsed = 0; this.owner = null; }
+  /** Cancel only if `player` owns the channel (or none is set); a partner's
+   * damage/movement leaves another player's channel running. */
+  cancelFor(player: Player) { if (this.owner === null || this.owner === player) this.cancel(); }
+  start(site: EventSite, choice: EventChoice | null, player?: Player) { this.site = site; this.choice = choice; this.elapsed = 0; this.owner = player ?? null; }
   advance(dt: number, p: Player, input: Input) {
     if (!this.site)
       return;
+    if (this.owner !== null && p !== this.owner) return;
     if (p.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
       || p.attack || p.castTime > 0 || p.dash || p.dodgeTime > 0 || Math.hypot(p.vx, p.vy) > 1
       || Math.hypot(p.x - this.site.x, p.y - this.site.y) > EVENT_RULES.reach) {

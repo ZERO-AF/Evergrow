@@ -11,6 +11,7 @@ export interface PauseActions extends SystemWindowActions {
   openChronicle?(): void;
   openCharacter?(): void; openSkills?(): void; openAppearance?(): void;
   openMap?(): void; openJourneys?(): void; openArena?(): void; editLayout?(): void;
+  leaveCoop?(): void; coopActive?(): boolean;
   save?(): Promise<boolean>;
   returnToTitle(): void | Promise<void>;
 }
@@ -57,8 +58,9 @@ export class PauseMenu {
   refresh(): void {
     for (const key of this.root.querySelectorAll<HTMLElement>('[data-pause-binding]')) key.textContent = controls.label(key.dataset.pauseBinding as ControlAction);
     const board = this.root.querySelector<HTMLButtonElement>('[data-pause-destination="leaderboard"]')!;
-    board.disabled = !this.actions.leaderboard || !this.actions.leaderboardAvailable?.();
     board.querySelector('small')!.textContent = board.disabled ? 'Available in the online game' : 'Cloud character rankings';
+    const coop = this.root.querySelector<HTMLButtonElement>('[data-pause-destination="leaveCoop"]');
+    if (coop) { coop.disabled = !this.actions.leaveCoop || !this.actions.coopActive?.(); coop.querySelector('small')!.textContent = coop.disabled ? 'No second player in this run' : 'Drop the second player and continue solo'; }
     this.windows.refresh();
   }
   back(): boolean {
@@ -92,8 +94,8 @@ export class PauseMenu {
       case 'journeys': this.actions.openJourneys?.(); return;
       case 'chronicle': this.actions.openChronicle?.(); return;
       case 'arena': this.actions.openArena?.(); return;
-      case 'options': case 'controls': case 'leaderboard': case 'changelog': this.windows.open(destination); return;
       case 'editLayout': this.actions.editLayout?.(); return;
+      case 'leaveCoop': this.actions.leaveCoop?.(); return;
     }
   }
   updateGamepad(pad: GamepadInput, now: number): void {

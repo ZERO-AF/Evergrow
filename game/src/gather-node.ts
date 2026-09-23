@@ -156,16 +156,18 @@ export function rollNodeYields(node: GatherNode, attempt: number): { id: string;
 // ── Channel (transient; keyed by Simulation like mount-state's summon cast) ────
 
 export interface GatherChannel { readonly node: GatherNode; elapsed: number }
-const channels = new WeakMap<Simulation, GatherChannel>();
+/** Keyed by the acting player (sim.player resolves per-actor in co-op), so each
+ * player's gather channel is independent — a partner's input never cancels it. */
+const channels = new WeakMap<Player, GatherChannel>();
 
 export function gatherChannelOf(sim: Simulation): GatherChannel | null {
-  return channels.get(sim) ?? null;
+  return channels.get(sim.player) ?? null;
 }
 export function gatherChannelProgress(sim: Simulation): number {
-  const channel = channels.get(sim);
+  const channel = channels.get(sim.player);
   return channel ? Math.min(1, channel.elapsed / GATHER_RULES.channel) : 0;
 }
-export function cancelGatherChannel(sim: Simulation): void { channels.delete(sim); }
+export function cancelGatherChannel(sim: Simulation): void { channels.delete(sim.player); }
 
 /** E on a focused node: validates, then starts the channel. Returns a problem to notify, or null. */
 export function startGather(sim: Simulation, node: GatherNode): string | null {
@@ -175,26 +177,26 @@ export function startGather(sim: Simulation, node: GatherNode): string | null {
     ?? (!hasLineOfSight(sim.world, p.x, p.y, node.x, node.y) ? 'No line of sight.' : null);
   if (problem) return problem;
   sim.eventChannel.cancel(); sim.portal.cancel(); sim.clearCombatInput();
-  channels.set(sim, { node, elapsed: 0 });
+  channels.set(sim.player, { node, elapsed: 0 });
   return null;
 }
 
 /** Fixed-step advance inside Simulation.step, beside eventChannel.advance. */
 export function advanceGatherChannel(sim: Simulation, dt: number, input: Input): void {
-  const channel = channels.get(sim);
+  const channel = channels.get(sim.player);
   if (!channel) return;
   const p = sim.player;
   if (p.dead || input.moveX || input.moveY || input.attack || input.dodge || input.skillSlot !== null
     || p.attack || p.castTime > 0 || p.dash || p.dodgeTime > 0 || p.mounted
     || sim.eventChannel.site || sim.portal.active
     || Math.hypot(p.x - channel.node.x, p.y - channel.node.y) > GATHER_RULES.reach) {
-    channels.delete(sim);
+    channels.delete(sim.player);
     return;
   }
   channel.elapsed = Math.min(GATHER_RULES.channel, channel.elapsed + dt);
 }
 export function gatherChannelReady(sim: Simulation): boolean {
-  const channel = channels.get(sim);
+  const channel = channels.get(sim.player);
   return !!channel && channel.elapsed + 1e-9 >= GATHER_RULES.channel;
 }
 

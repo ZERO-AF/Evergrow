@@ -48,6 +48,7 @@ export const CONTROL_ACTIONS = [
   { id: 'guild', label: 'Guild', group: 'World & menus', defaults: ['F8', null], pad: '—' },
   { id: 'calendar', label: 'Calendar', group: 'World & menus', defaults: ['F4', null], pad: '—' },
   { id: 'damageMeter', label: 'Damage meter', group: 'World & menus', defaults: ['F10', null], pad: '—' },
+  { id: 'net', label: 'Online co-op', group: 'World & menus', defaults: ['Backslash', null], pad: '—' },
 ] as const;
 export type ControlAction = typeof CONTROL_ACTIONS[number]['id'];
 export function isGameplayAction(action: ControlAction | undefined): boolean {
@@ -83,7 +84,7 @@ export function parseControls(raw: string | null): ControlMap {
     for (const { id } of CONTROL_ACTIONS) {
       const pair = map[id];
       if (pair === undefined) {
-        if (id === 'revealLoot' || id === 'petCommand' || id === 'calendar' || id === 'damageMeter') continue;
+        if (id === 'revealLoot' || id === 'petCommand' || id === 'calendar' || id === 'damageMeter' || id === 'net') continue;
         return defaultControls();
       }
       if (!Array.isArray(pair) || pair.length !== 2) return defaultControls();

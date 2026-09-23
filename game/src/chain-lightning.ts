@@ -51,11 +51,12 @@ export function advanceChains(flights: ChainFlight[], dt: number, context: Chain
           lifeOnHit: flight.offense.lifeOnHit * chainLifeOnHitMultiplier(flight.contact, flight.hitIds.has(target.id)) });
       // WoW payload riders (dot/cc/slow/sunder/taunt) apply on every contact, like the old sync loop.
       const r = flight.recipe;
-      if (r.dot) applyDot(target, flight.skill, r.dot, flight.baseDamage);
+      const pid = flight.offense.playerId ?? context.player.id ?? 0;
+      if (r.dot) applyDot(target, flight.skill, r.dot, flight.baseDamage, 'player', undefined, pid);
       if (r.cc) applyCc(target, r.cc.kind, r.cc.duration, r.cc.kind === 'incapacitate' || r.cc.kind === 'polymorph', r.cc.factor);
       if (r.slow) applySlow(target, r.slow);
       if (r.sunder) applySunder(target, r.sunder, 15);
-      if (r.taunt) { target.taunted = { remaining: r.taunt }; target.awareness = Math.max(target.awareness, 1); tauntThreat(target, 'player'); }
+      if (r.taunt) { target.taunted = { remaining: r.taunt, playerId: pid }; target.awareness = Math.max(target.awareness, 1); tauntThreat(target, `player:${pid}`); }
     }
     flight.hitIds.add(flight.targetId); flight.contact++;
     flight.x = flight.toX; flight.y = flight.toY; flight.damage *= flight.recipe.falloff;

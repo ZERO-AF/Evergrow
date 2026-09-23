@@ -23,6 +23,9 @@ export interface WorldQuery {
   readonly dungeonBiome?: BiomeId;
   navigationTarget?(x:number,y:number,tx:number,ty:number,radius?:number):{x:number;y:number};
   readonly seed?: number;
+  /** World-generation version (WorldLandscape.generationVersion); save routing and
+   * net handshakes compare it so peers on different geography refuse to join. */
+  readonly generationVersion?: number;
   /** Optional authored spawn; Simulation uses it when startX/startY are omitted. */
   readonly spawnPoint?: { x: number; y: number };
   blocked(x: number, y: number, radius: number): boolean;

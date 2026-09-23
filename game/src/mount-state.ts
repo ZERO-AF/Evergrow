@@ -80,32 +80,34 @@ export function preferredMount(player: Pick<Player, 'achievements' | 'profession
 // ── Summon cast (transient; never serialized) ────────────────────────────────
 
 export interface SummonCast { readonly id: MountId; elapsed: number }
-const summonCasts = new WeakMap<Simulation, SummonCast>();
+/** Keyed by the acting player (sim.player resolves per-actor in co-op), so each
+ * player's summon cast is independent — a partner's input never cancels it. */
+const summonCasts = new WeakMap<Player, SummonCast>();
 
 export function summonCast(sim: Simulation): SummonCast | null {
-  return summonCasts.get(sim) ?? null;
+  return summonCasts.get(sim.player) ?? null;
 }
 
 /** 0..1 cast progress for the casting pose / cast bar; 0 when not summoning. */
 export function summonProgress(sim: Simulation): number {
-  const cast = summonCasts.get(sim);
+  const cast = summonCasts.get(sim.player);
   return cast ? Math.min(1, cast.elapsed / MOUNT_RULES.cast) : 0;
 }
 
 export function startSummonCast(sim: Simulation, id: MountId): void {
-  summonCasts.set(sim, { id, elapsed: 0 });
+  summonCasts.set(sim.player, { id, elapsed: 0 });
 }
 
 export function cancelSummonCast(sim: Simulation): void {
-  summonCasts.delete(sim);
+  summonCasts.delete(sim.player);
 }
 
 /** Advance the cast clock; returns the finished cast (and clears it) or null. */
 export function advanceSummonCast(sim: Simulation, dt: number): SummonCast | null {
-  const cast = summonCasts.get(sim);
+  const cast = summonCasts.get(sim.player);
   if (!cast) return null;
   cast.elapsed += dt;
   if (cast.elapsed + 1e-9 < MOUNT_RULES.cast) return null;
-  summonCasts.delete(sim);
+  summonCasts.delete(sim.player);
   return cast;
 }

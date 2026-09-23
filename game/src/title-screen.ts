@@ -216,7 +216,13 @@ export class TitleScreen {
       if (action === 'coop') this.armCoop();
       if (action === 'coop-cancel') { this.coop = undefined; this.coopP1 = false; this.renderSelection(); }
       if (action === 'coop-back' && this.coop) { this.coop.stage = 'pick'; this.renderSelection(); }
-      if (action === 'coop-guest' && this.coop?.stage === 'pick') this.pickCoopPartner({ kind: 'guest' });
+      if (action === 'coop-guest' && this.coop?.stage === 'pick') {
+        // A guest is a session-only default partner — a Human Warrior, the
+        // classic WoW pick — minted in memory like a forged partner.
+        const guest = createCoopCharacter('Guest', 'warrior', 'human');
+        if (guest) this.pickCoopPartner({ kind: 'guest', player: guest });
+        else this.message('Could not create the guest partner.');
+      }
       if (action === 'coop-new' && this.coop?.stage === 'pick') { this.coop.stage = 'forge'; this.renderSelection(); }
       if (button.dataset.coopSlot !== undefined && this.coop?.stage === 'pick') this.pickCoopPartner({ kind: 'slot', slot: Number(button.dataset.coopSlot) });
       if (action === 'download' && this.source.mode === 'local') this.actions.download?.(this.selected);

@@ -55,6 +55,7 @@ const PANEL_FRAMES: readonly UiFrameSpec[] = [
   { id: 'calendar', label: 'Calendar' },
   { id: 'damageMeter', label: 'Damage meter' },
   { id: 'socketing', label: 'Socketing' },
+  { id: 'net', label: 'Online co-op' },
 ].map(spec => ({ group: 'Panels' as const, ...spec }));
 
 /** Register all DOM panel frames. Idempotent — safe to call more than once. */

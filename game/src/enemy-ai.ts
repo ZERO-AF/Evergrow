@@ -402,6 +402,14 @@ export function updateEnemyAI(enemy: Enemy, dt: number, context: EnemyAIContext)
     const ally=hostile;
     context={...context,target:{x:ally.x,y:ally.y,radius:ally.radius,dead:ally.hp<=0},
       hurt:(amount,angle,actor)=>context.hurtAlly!(ally,amount,angle,actor)};
+  } else if (context.players.includes(hostile as Player) && hostile !== context.player) {
+    // A roster player (P2 in co-op) won the threat/nearest roll: rebind the
+    // resolved victim so chase, aim, melee arcs, blasts and hurt() all strike
+    // them instead of defaulting to the primary player. Decoy targets (a bare
+    // Pick, not in players) and allies are handled by their own branches.
+    const victim = hostile as Player, base = context.hurt;
+    context = { ...context, player: victim,
+      hurt: (amount, angle, actor, type, v) => base(amount, angle, actor, type, v ?? victim) };
   }
   // Roots hold position without suppressing committed swings or shots.
   if(ccActive(enemy,'root'))context={...context,move:()=>{}};

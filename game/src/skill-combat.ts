@@ -30,7 +30,7 @@ import { RACIAL_SLOT } from './action-bar.ts';
 import { resolvePlayerSkill } from './glyph-state.ts';
 import { tameableFamily, freshPetStable, PET_RULES, demonFamilyForAlly } from './pet-content.ts';
 import { isBossKind } from './wilderness-boss-content.ts';
-import { tauntThreat } from './enemy-threat.ts';
+import { playerThreatSource, tauntThreat } from './enemy-threat.ts';
 
 /** Simulation-owned mechanics the skill handlers drive (frozen contract — implemented in simulation.ts). */
 export interface SkillSimApi {
@@ -212,7 +212,7 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     if (r.slow) applySlow(t, r.slow);
     if (r.sunder) sunder(t, r.sunder);
     if (r.dispel) stripBuffs(r, t);
-    if (r.taunt) { t.taunted = { remaining: r.taunt }; t.awareness = Math.max(t.awareness, 1); tauntThreat(t, 'player'); }
+    if (r.taunt) { t.taunted = { remaining: r.taunt, playerId: p.id ?? 0 }; t.awareness = Math.max(t.awareness, 1); tauntThreat(t, playerThreatSource(p)); }
   };
   /** Offensive dispel: strips recipe.dispel buffs; recipe.steal grants the first to the caster. */
   const stripBuffs = (r: { dispel?: number; steal?: boolean }, t: Enemy) => {
@@ -610,8 +610,8 @@ export function activateSkill(context: SkillContext, slot: number): boolean {
     case 'taunt': {
       const t = target;
       if (!t) { strikeWhiff(); blastAt(p.x, p.y, 56, hitStyle); break; }
-      t.taunted = { remaining: recipe.duration };
-      tauntThreat(t, 'player');
+      t.taunted = { remaining: recipe.duration, playerId: p.id ?? 0 };
+      tauntThreat(t, playerThreatSource(p));
       if (recipe.expose) sunder(t, recipe.expose);
       context.emit({ type: 'skill-strike', x: p.x, y: p.y, skill: id, color, angle: Math.atan2(t.y - p.y, t.x - p.x), range: Math.hypot(t.x - p.x, t.y - p.y), arc: Math.PI / 2, rear: false });
       blastAt(t.x, t.y, 56, hitStyle);

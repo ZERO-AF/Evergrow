@@ -1,0 +1,13 @@
+.net-panel { position:absolute; inset:0; z-index:18; display:grid; place-items:center; padding:18px; background:#040910aa; backdrop-filter:blur(4px); }
+.net-panel[hidden] { display:none; }
+.net-window { width:min(420px,100%); }
+.net-body { display:grid; gap:16px; }
+.net-status { margin:0; }
+.net-room { margin:0; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.net-room-code { font-size:20px; letter-spacing:2px; color:var(--ui-ivory); }
+.net-host { justify-self:start; }
+.net-join { display:grid; gap:10px; margin:0; }
+.net-field { display:grid; gap:6px; font-size:var(--ui-type-small); color:var(--ui-muted); }
+.net-input { height:40px; padding:0 12px; font:inherit; color:#e3ddc4; background:#0b151e99; border:1px solid #8ba5ae2a; border-radius:3px; }
+.net-input:focus-visible { outline:1px solid var(--ui-silver); outline-offset:-1px; }
+.net-leave { justify-self:start; }
