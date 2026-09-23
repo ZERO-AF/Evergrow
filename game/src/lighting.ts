@@ -4,6 +4,26 @@ import type { PointLight } from './light-types.ts';
 export type { PointLight } from './light-types.ts';
 
 const stamps = new Map<string, HTMLCanvasElement>();
+const rgbCache = new Map<string, [number, number, number]>();
+
+/** Parse any CSS color (hex, rgb(), named) into [r,g,b] once — lightStamp
+ * appends alpha stops, which only works on numeric channels. */
+let colorProbe: CanvasRenderingContext2D | null = null;
+function rgbOf(color: string): [number, number, number] {
+  const hit = rgbCache.get(color);
+  if (hit) return hit;
+  const probe = colorProbe ?? (colorProbe = document.createElement('canvas').getContext('2d')!);
+  probe.fillStyle = '#000';
+  probe.fillStyle = color;
+  const normalized = probe.fillStyle; // browser normalizes to #rrggbb or rgb()
+  const m = normalized.startsWith('#')
+    ? [parseInt(normalized.slice(1, 3), 16), parseInt(normalized.slice(3, 5), 16), parseInt(normalized.slice(5, 7), 16)]
+    : normalized.match(/\d+/g)!.slice(0, 3).map(Number);
+  const rgb: [number, number, number] = [m[0], m[1], m[2]];
+  if (rgbCache.size >= 64) rgbCache.delete(rgbCache.keys().next().value!);
+  rgbCache.set(color, rgb);
+  return rgb;
+}
 
 /** Cached, code-generated light cookies are shared by lights and flying sparks. */
 function lightStamp(color: string): HTMLCanvasElement {
@@ -12,11 +32,12 @@ function lightStamp(color: string): HTMLCanvasElement {
   const image = document.createElement('canvas');
   image.width = image.height = 256;
   const c = image.getContext('2d')!;
+  const [r, g, b] = rgbOf(color);
   const gradient = c.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gradient.addColorStop(0, color);
-  gradient.addColorStop(.18, `${color}ce`);
-  gradient.addColorStop(.5, `${color}58`);
-  gradient.addColorStop(1, `${color}00`);
+  gradient.addColorStop(0, `rgba(${r},${g},${b},1)`);
+  gradient.addColorStop(.18, `rgba(${r},${g},${b},.81)`);
+  gradient.addColorStop(.5, `rgba(${r},${g},${b},.35)`);
+  gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
   c.fillStyle = gradient;
   c.fillRect(0, 0, 256, 256);
   if (stamps.size >= 24) stamps.delete(stamps.keys().next().value!);

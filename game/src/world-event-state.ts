@@ -488,8 +488,9 @@ function checkWorldEvents(v: unknown): v is WorldEventState {
   if (!Array.isArray(v.history) || v.history.length > WORLD_EVENT_RULES.historyLimit + WON_HISTORY_LIMIT) return false;
   if (!v.history.every(e => validInvasion(e, false))) return false;
   const ids = new Set<string>();
-  for (const e of [v.active, ...v.history] as InvasionEvent[]) {
-    if (!e || ids.has(e.id)) return false;
+  for (const e of [v.active, ...v.history] as (InvasionEvent | null)[]) {
+    if (!e) continue; // no active invasion — nothing to dedupe
+    if (ids.has(e.id)) return false;
     ids.add(e.id);
   }
   return true;
