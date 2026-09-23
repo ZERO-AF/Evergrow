@@ -214,6 +214,14 @@ export class Renderer {
   height = 600;
   cameraX = 0;
   cameraY = 0;
+  /** The player this renderer frames and reads for subject-local presentation
+   * (camera, reflection, HUD-facing cues). Defaults to the primary player; a
+   * co-op second-view renderer sets it to player two. World state (enemies,
+   * allies, portals, ground loot) is always drawn for the whole roster. */
+  subject: Player | null = null;
+  /** Set by the host when this renderer is one half of a split-screen pair:
+   * the camera follows `subject` directly instead of the shared midpoint. */
+  splitActive = false;
   pointerX = 0;
   pointerY = 0;
   pointerActive = true;
@@ -349,7 +357,7 @@ export class Renderer {
 
   /** Uses the displayed camera/body positions, then returns gameplay ground coordinates. */
   resolvePointerAim(sim: Simulation, world: World, x: number, y: number, enabled: boolean, weapon = basicAttackWeapon(sim.player)): RangedAim | null {
-    const p = sim.player;
+    const p = this.subject ?? sim.player;
     if (!enabled || p.dead || weapon.attackKind === 'melee') { this.rangedAim = null; return null; }
     const cursor = screenToWorld(this.lastDisplayedView, x, y);
     this.rangedAim = resolveRangedAim(p, cursor, sim.enemies, {
@@ -453,8 +461,8 @@ export class Renderer {
   render(sim: Simulation, world: World, dt: number, settings: RenderSettings) {
     this.cryptFloor=sim.dungeonFloor?.rift?null:sim.dungeonFloor;
     const setupStart = this.profiler?.start() ?? 0;
-    const c = this.ctx, p = sim.player, active = settings.phase === 'playing' || settings.phase === 'map' && settings.liveMap === true;
-    // Hit-stop lives entirely in this layer: the timer decays on real frame
+
+    const c = this.ctx, p = this.subject ?? sim.player, active = settings.phase === 'playing' || settings.phase === 'map' && settings.liveMap === true;
     // time while every presentation clock below runs on the dilated delta.
     this.hitStop = Math.max(0, this.hitStop - dt);
     const dilation = this.hitStop > 0 ? .18 : 1;
@@ -488,7 +496,7 @@ export class Renderer {
       if (trail.hold <= 0) trail.value += (enemy.hp - trail.value) * (1 - Math.exp(-step * 8));
       if (Math.abs(trail.value - enemy.hp) < .2) this.damageTrails.delete(id);
     }
-    const coop2 = sim.coop ? sim.players[1] : null;
+    const coop2 = sim.coop && !this.splitActive ? sim.players[1] : null;
     if (active && !settings.fixedCamera) {
       // Velocity-based lookahead does not swing the camera when the player merely aims.
       const follow = 1 - Math.exp(-dt * CAMERA_FOLLOW.response);
@@ -773,7 +781,7 @@ export class Renderer {
 
   /** Draw after world post-processing into the native-resolution transparent UI surface. */
   renderUI(c: CanvasRenderingContext2D, sim: Simulation, world: World, settings: RenderSettings) {
-    const p = sim.player;
+    const p = this.subject ?? sim.player;
     // Project popup anchors, leaving their glyph size and outline independent of camera zoom.
     // Speech draws later and may cover damage numbers; popups never displace a bark.
     this.effects.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y));
@@ -999,7 +1007,7 @@ export class Renderer {
   }
 
   private drawPortalHints(c: CanvasRenderingContext2D, sim: Simulation, world: World) {
-    const p = sim.player, anchor = this.portalAnchors.find(a => withinPortalReach(p, a, world));
+    const p = this.subject ?? sim.player, anchor = this.portalAnchors.find(a => withinPortalReach(p, a, world));
     let label = '', x = p.x, y = p.y - 79;
     if (sim.portal.active) label = `${this.portalDestinations?.home.name ?? 'Home town'} · ${(PORTAL_RULES.channel * (1 - sim.portal.progress)).toFixed(1)}s`;
     else if (anchor) { x = anchor.x; y = anchor.y - (sim.travel.returnTo?.town === anchor.band ? 82 : 28);
@@ -1040,7 +1048,7 @@ export class Renderer {
   }
 
   private actorsAndProps(sim: Simulation, world: World, px: number, py: number, alpha: number, dt: number, settings: RenderSettings) {
-    const c = this.ctx, p = sim.player;
+    const c = this.ctx, p = this.subject ?? sim.player;
     const entries: Array<{ y: number; stage?: FrameStage; draw: () => void }> = this.cachedProps.map(prop => ({ y: prop.y, stage: 'props', draw: () => {
       // Prefetched offscreen props retain collision/light coverage without generating unseen sprites.
       if (prop.x + 115 < this.view.left || prop.x - 115 > this.view.left + this.view.width
@@ -1282,7 +1290,7 @@ export class Renderer {
   }
 
   private sceneLights(sim: Simulation, px: number, py: number, reducedMotion: boolean, alpha: number): PointLight[] {
-    const p = sim.player;
+    const p = this.subject ?? sim.player;
     const heldPose = playerPose(p, sim.time);
     heldPose.effectTime = reducedMotion ? 0 : sim.time;
     const heldLights = this.equipmentEmitters = heldEquipmentLights(heldPose, px, py);
@@ -1457,7 +1465,7 @@ export class Renderer {
   }
 
   private navigation(c: CanvasRenderingContext2D, sim: Simulation, world: World) {
-    const p = sim.player;
+    const p = this.subject ?? sim.player;
     const building = world.getBuildingAt(p.x, p.y);
     const town = world.getSettlements(p.x - 1, p.y - 1, 2, 2).find(town => Math.hypot(p.x - town.x, p.y - town.y) <= town.radius);
     text(c, this.cryptFloor ? `${dungeonTheme(this.cryptFloor.seed,this.cryptFloor.theme).name} · ${currentDungeon(sim.expeditions)!.entrance.level}` : building?.name ?? town?.name ?? world.sampleBiome(p.x, p.y).name, 22, 22, 1.2, '#d7c99d');
@@ -1473,7 +1481,7 @@ export class Renderer {
     if (!this.pointerActive || this.pointerOverHUD()) return;
     if (!this.gamepadActive && !this.touchActive && hoveredGroundLoot(this.groundLootLabels, this.pointerX, this.pointerY)) return;
     const x = this.pointerX, y = this.pointerY;
-    const aim = this.rangedAim, player = sim.player;
+    const aim = this.rangedAim, player = this.subject ?? sim.player;
     const target = aim?.targetId == null ? null : sim.enemies.find(e => e.id === aim.targetId && e.hp > 0);
     if (aim && (basicAttackWeapon(player).attackKind !== 'melee' || this.gamepadActive || this.touchActive)) {
       const origin = worldToScreen(this.view, player.x, player.y - PROJECTILE_HEIGHT);

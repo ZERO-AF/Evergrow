@@ -221,6 +221,13 @@ export class Game {
   private activeFlightMaster: FlightPoint | null = null;
   sim = new Simulation(this.world, { seed: 7319 });
   renderer: Renderer;
+  /** Second world renderer for couch co-op split-screen; created lazily when
+   * the players separate beyond the shared camera's reach. */
+  private renderer2: Renderer | null = null;
+  /** Offscreen canvas the two half-views are composited into before PostFX. */
+  private splitCanvas: HTMLCanvasElement | null = null;
+  /** True while the co-op view is split into two half-screen viewports. */
+  private coopSplit = false;
   audio: GameAudio;
   private exploration: Exploration;
   private titleScreen: TitleScreen;
@@ -1099,6 +1106,66 @@ export class Game {
     this.shell.resizeControls(this.renderer.width, this.renderer.height);
     this.worldMap.resize();
     this.journeys.panel.resize(this.renderer.width, this.renderer.height);
+  }
+
+  /** Renders the world for the frame. Solo and shared-camera co-op draw once;
+   * when the two players separate beyond what the shared camera can frame, the
+   * screen splits into two half-width viewports composited side by side. */
+  private renderCoopWorld(dt: number, settings: Parameters<Renderer['render']>[3]): HTMLCanvasElement {
+    const p2 = this.sim.coop ? this.sim.players[1] : null;
+    if (!p2) {
+      this.coopSplit = false;
+      this.renderer.splitActive = false;
+      this.renderer.subject = null;
+      this.renderer.render(this.sim, this.world, dt, settings);
+      return this.renderer.canvas;
+    }
+    // Decide shared vs split from whether the shared camera can still frame both.
+    const frameable = Math.min(
+      this.renderer.width / 2 / (Math.abs(p2.x - this.sim.player.x) / 2 + 140),
+      this.renderer.height / 2 / (Math.abs(p2.y - this.sim.player.y) / 2 + 110));
+    // Hysteresis: split when the needed zoom drops below the floor, rejoin with margin.
+    const wantSplit = this.coopSplit ? frameable < 1.05 : frameable < 0.82;
+    if (wantSplit !== this.coopSplit) {
+      this.coopSplit = wantSplit;
+      this.renderer.splitActive = wantSplit;
+      if (wantSplit) {
+        this.renderer2 ??= new Renderer(true, this.performance);
+        this.renderer2.splitActive = true;
+        this.renderer.subject = this.sim.player;
+        this.renderer2.subject = p2;
+        const halfW = Math.floor(this.renderer.width / 2);
+        this.renderer.resize(halfW, this.renderer.height);
+        this.renderer2.resize(this.renderer.width - halfW, this.renderer.height);
+        this.renderer.snapTo(this.sim.player);
+        this.renderer2.snapTo(p2);
+      } else {
+        this.renderer.splitActive = false;
+        this.renderer.subject = null;
+        this.renderer.resize(this.renderer.width * 2, this.renderer.height);
+        this.renderer.snapTo(this.sim.player);
+      }
+    }
+    if (!this.coopSplit || !this.renderer2) {
+      this.renderer.render(this.sim, this.world, dt, settings);
+      return this.renderer.canvas;
+    }
+    // Split: render each player's view into its half-width canvas, composite.
+    this.renderer.render(this.sim, this.world, dt, settings);
+    this.renderer2.render(this.sim, this.world, dt, settings);
+    const w = this.renderer.width + this.renderer2.width, h = this.renderer.height;
+    if (!this.splitCanvas) this.splitCanvas = document.createElement('canvas');
+    if (this.splitCanvas.width !== w || this.splitCanvas.height !== h) {
+      this.splitCanvas.width = w; this.splitCanvas.height = h;
+    }
+    const ctx = this.splitCanvas.getContext('2d')!;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.renderer.canvas, 0, 0);
+    ctx.drawImage(this.renderer2.canvas, this.renderer.width, 0);
+    // Divider seam between the two views.
+    ctx.fillStyle = '#050a0e';
+    ctx.fillRect(this.renderer.width - 1, 0, 2, h);
+    return this.splitCanvas;
   }
 
   clearInput(preserveMovement = false) {
@@ -2293,7 +2360,7 @@ export class Game {
       this.renderer.cameraY = -180 + (this.reducedMotion ? 0 : Math.cos(now / 31000) * 25);
     }
     const renderStart = this.performance.start();
-    this.renderer.render(this.sim, this.world, dt, settings);
+    const worldSource = this.renderCoopWorld(dt, settings);
     this.performance.end('world', renderStart);
     // Legendary moment: a fresh epic+ landing gets its stinger here (the collect
     // event re-sounds it for vacuumed drops); named legendaries also toast.
@@ -2305,7 +2372,7 @@ export class Game {
       }
     }
     const fxStart = this.performance.start();
-    this.fx.render(this.renderer.canvas, this.renderer.hurt, this.renderer.emission);
+    this.fx.render(worldSource, this.renderer.hurt, this.renderer.emission);
     this.performance.end('postfx', fxStart);
     const uiStart = this.performance.start();
     const ui = this.uiContext;
