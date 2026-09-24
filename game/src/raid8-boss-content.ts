@@ -1,9 +1,5 @@
-import type { DungeonEntrance, DungeonFloor, DungeonMember, DungeonProp, Room } from './dungeon.ts';
-import { hash2 } from './random-source.ts';
-import { dungeonPassage } from './dungeon-passage.ts';
+import type { DungeonEntrance, DungeonFloor } from './dungeon.ts';
 import type { WorldLandscape } from './world-landscape.ts';
-import { getZoneAt } from './zone-progression.ts';
-import { GAME_FEATURES } from './game-features.ts';
 import { raidEntrances } from './raid-boss-content.ts';
 import { raid2Entrances } from './raid2-boss-content.ts';
 import { raid3Entrances } from './raid3-boss-content.ts';
@@ -11,6 +7,7 @@ import { raid4Entrances } from './raid4-boss-content.ts';
 import { raid5Entrances } from './raid5-boss-content.ts';
 import { raid6Entrances } from './raid6-boss-content.ts';
 import { raid7Entrances } from './raid7-boss-content.ts';
+import { isRaidBossMember, raidArenaFloor as buildArenaFloor, raidArenaCenter, raidEntrancesAt, type RaidSpec } from './raid-kit.ts';
 import type { Enemy } from './model.ts';
 
 /**
@@ -40,10 +37,9 @@ export const isRaid8EntranceId = (id: string | undefined): boolean => id === RAI
 export const isRaid8Entrance = (e: Pick<DungeonEntrance, 'id'> | undefined | null): boolean => !!e && isRaid8EntranceId(e.id);
 /** Live actor check for the AI/warning dispatch: the raid boss is the 'warden' member of a Trial of the Crusader run. */
 export const isRaid8Boss = (e: Pick<Enemy, 'campId' | 'campMemberId'>): boolean =>
-  e.campMemberId === RAID8_BOSS_MEMBER_ID && isRaid8EntranceId(e.campId);
+  isRaidBossMember(e, RAID8_ENTRANCE_ID, RAID8_BOSS_MEMBER_ID);
 export const raid8BossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string | undefined =>
   isRaid8Boss(e) ? RAID8_BOSS_NAME : undefined;
-
 /** Swarm Scarab / Nerubian Burrower member ids admitted by the Submerge wave bits. */
 export const RAID8_SCARAB_IDS: Readonly<Record<string, true>> = Object.freeze({
   'scarab:w:0': true, 'scarab:w:1': true, 'scarab:w:2': true,
@@ -96,92 +92,51 @@ export function raid8BossWarningSpec(e: Pick<Enemy, 'campId' | 'campMemberId' | 
 
 // ── Arena floor ──────────────────────────────────────────────────────────
 // Room ids: 0 = entry antechamber, 1 = the coliseum pit. One corridor links them.
-const ARENA = { x: -1500, y: -1600, width: 3000, height: 2100 } as const;
-const ENTRY = { x: -288, y: 1244, width: 576, height: 512 } as const;
-const BOSS_AT = { x: 0, y: -1050 } as const; // Anub'arak holds the pit's heart, north-center
-export const RAID8_ARENA_CENTER = Object.freeze({ x: ARENA.x + ARENA.width / 2, y: ARENA.y + ARENA.height / 2 });
+const SPEC: RaidSpec = {
+  salt: 0x0a0b11,
+  entranceId: RAID8_ENTRANCE_ID,
+  name: 'Trial of the Crusader',
+  theme: 'nerubian',
+  minZoneLevel: 20,
+  arena: { x: -1500, y: -1600, width: 3000, height: 2100 },
+  bossAt: { x: 0, y: -1050 }, // Anub'arak holds the pit's heart, north-center
+  corridor: [{ x: 0, y: 1500 }, { x: 0, y: 420 }],
+  exitY: 420,
+  members: [
+    // Anub'arak himself — 'warden' id feeds wave gating, the boss chest and the exit portal.
+    { id: RAID8_BOSS_MEMBER_ID, kind: RAID8_BOSS_KIND, rank: 'elite', room: 1, x: 0, y: -1050, salt: 0x0a0b },
+    // First Submerge (bit 1, 75%) — Swarm Scarabs skitter in from the pit rim
+    // (duneScuttler stands in for the scarab) with two Nerubian Burrowers.
+    { id: 'scarab:w:0', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: -1200, salt: 0xa1, wave: 1 },
+    { id: 'scarab:w:1', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: -500, salt: 0xa2, wave: 1 },
+    { id: 'scarab:w:2', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: 150, salt: 0xa3, wave: 1 },
+    { id: 'scarab:e:0', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: -1200, salt: 0xa4, wave: 1 },
+    { id: 'scarab:e:1', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: -500, salt: 0xa5, wave: 1 },
+    { id: 'scarab:e:2', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: 150, salt: 0xa6, wave: 1 },
+    { id: 'burrower:w', kind: 'brute', rank: 'veteran', room: 1, x: -450, y: -1500, salt: 0xa7, wave: 1 },
+    { id: 'burrower:e', kind: 'brute', rank: 'veteran', room: 1, x: 450, y: -1500, salt: 0xa8, wave: 1 },
+    // Second Submerge (bit 2, 45%) — veteran scarabs plus a last Burrower pair.
+    { id: 'scarab:w:3', kind: 'duneScuttler', rank: 'veteran', room: 1, x: -1400, y: -850, salt: 0xa9, wave: 2 },
+    { id: 'scarab:e:3', kind: 'duneScuttler', rank: 'veteran', room: 1, x: 1400, y: -850, salt: 0xaa, wave: 2 },
+    { id: 'burrower:n', kind: 'brute', rank: 'veteran', room: 1, x: 0, y: -1500, salt: 0xab, wave: 2 },
+  ],
+  // Ice pillars, pale crystals and tomb-stones ring the coliseum pit; the center stays clear for the fight.
+  dressing: ['icePillar', 'crystal', 'tomb', 'icePillar', 'crystal', 'tomb', 'icePillar', 'crystal'],
+  entryProps: ['icePillar', 'crystal', 'icePillar'],
+  propPrefix: 'raid8-prop',
+  chests: [
+    { x: -190, y: -860 }, // the Crusader's tribute, gated by surviving arena members
+    { x: 190, y: -860 },
+    { x: 0, y: -800 },    // boss chest — requires run.states.warden.hp <= 0
+  ],
+  prior: [raidEntrances, raid2Entrances, raid3Entrances, raid4Entrances, raid5Entrances, raid6Entrances, raid7Entrances],
+};
+
+export const RAID8_ARENA_CENTER = raidArenaCenter(SPEC);
 
 /** Deterministic single-arena floor; signature mirrors generateDungeon so the integrator can branch on isRaid8Entrance. */
 export function raid8ArenaFloor(seed: number, _level = 1): DungeonFloor {
-  const rooms: Room[] = [
-    { id: 0, kind: 'entry', shape: 'hall', ...ENTRY },
-    { id: 1, kind: 'boss', shape: 'octagon', ...ARENA },
-  ];
-  const corridors: Room[] = [dungeonPassage([{ x: 0, y: 1500 }, { x: 0, y: 420 }], 150, 0)];
-  const members: DungeonMember[] = [
-    // Anub'arak himself — 'warden' id feeds wave gating, the boss chest and the exit portal.
-    { id: RAID8_BOSS_MEMBER_ID, kind: RAID8_BOSS_KIND, rank: 'elite', room: 1, x: BOSS_AT.x, y: BOSS_AT.y, seed: (seed ^ 0x0a0b) >>> 0 },
-    // First Submerge (bit 1, 75%) — Swarm Scarabs skitter in from the pit rim
-    // (duneScuttler stands in for the scarab) with two Nerubian Burrowers.
-    { id: 'scarab:w:0', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: -1200, seed: (seed ^ 0xa1) >>> 0, wave: 1 },
-    { id: 'scarab:w:1', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: -500, seed: (seed ^ 0xa2) >>> 0, wave: 1 },
-    { id: 'scarab:w:2', kind: 'duneScuttler', rank: 'normal', room: 1, x: -1400, y: 150, seed: (seed ^ 0xa3) >>> 0, wave: 1 },
-    { id: 'scarab:e:0', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: -1200, seed: (seed ^ 0xa4) >>> 0, wave: 1 },
-    { id: 'scarab:e:1', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: -500, seed: (seed ^ 0xa5) >>> 0, wave: 1 },
-    { id: 'scarab:e:2', kind: 'duneScuttler', rank: 'normal', room: 1, x: 1400, y: 150, seed: (seed ^ 0xa6) >>> 0, wave: 1 },
-    { id: 'burrower:w', kind: 'brute', rank: 'veteran', room: 1, x: -450, y: -1500, seed: (seed ^ 0xa7) >>> 0, wave: 1 },
-    { id: 'burrower:e', kind: 'brute', rank: 'veteran', room: 1, x: 450, y: -1500, seed: (seed ^ 0xa8) >>> 0, wave: 1 },
-    // Second Submerge (bit 2, 45%) — veteran scarabs plus a last Burrower pair.
-    { id: 'scarab:w:3', kind: 'duneScuttler', rank: 'veteran', room: 1, x: -1400, y: -850, seed: (seed ^ 0xa9) >>> 0, wave: 2 },
-    { id: 'scarab:e:3', kind: 'duneScuttler', rank: 'veteran', room: 1, x: 1400, y: -850, seed: (seed ^ 0xaa) >>> 0, wave: 2 },
-    { id: 'burrower:n', kind: 'brute', rank: 'veteran', room: 1, x: 0, y: -1500, seed: (seed ^ 0xab) >>> 0, wave: 2 },
-  ];
-  const props: DungeonProp[] = [];
-  // Ice pillars, pale crystals and tomb-stones ring the coliseum pit; the center stays clear for the fight.
-  const dressing: DungeonProp['kind'][] = ['icePillar', 'crystal', 'tomb', 'icePillar', 'crystal', 'tomb', 'icePillar', 'crystal'];
-  for (let i = 0; i < 8; i++) {
-    const x = ARENA.x + ARENA.width * (i % 2 ? .86 : .14), y = ARENA.y + ARENA.height * (.16 + Math.floor(i / 2) * .22);
-    props.push({ id: `raid8-prop:${i}`, x, y, kind: dressing[i], seed: (seed + i * 137) >>> 0 });
-  }
-  for (let i = 0; i < 3; i++)
-    props.push({ id: `raid8-prop:entry:${i}`, x: ENTRY.x + ENTRY.width * (.2 + i * .3), y: ENTRY.y + 90, kind: i === 1 ? 'crystal' : 'icePillar', seed: (seed + 900 + i) >>> 0 });
-  const floor: DungeonFloor = {
-    theme: 'nerubian', seed, rooms, edges: [[0, 1]], corridors, members,
-    entry: { x: 0, y: ENTRY.y + ENTRY.height / 2 },
-    exit: { x: 0, y: 420 },
-    chests: [
-      { x: -190, y: -860, room: 1 }, // the Crusader's tribute, gated by surviving arena members
-      { x: 190, y: -860, room: 1 },
-      { x: 0, y: -800, room: 1 },    // boss chest — requires run.states.warden.hp <= 0
-    ],
-    props,
-  };
-  for (const r of corridors) { r.outline?.forEach(Object.freeze); r.path?.forEach(Object.freeze); if (r.outline) Object.freeze(r.outline); if (r.path) Object.freeze(r.path); }
-  for (const v of [...rooms, ...corridors, ...members, ...floor.edges, ...floor.chests, ...props]) Object.freeze(v);
-  Object.freeze(rooms); Object.freeze(corridors); Object.freeze(members); Object.freeze(floor.edges);
-  Object.freeze(floor.chests); Object.freeze(floor.entry); Object.freeze(floor.exit); Object.freeze(props);
-  return Object.freeze(floor);
-}
-
-// ── Entrance placement ───────────────────────────────────────────────────
-/** One deterministic remote gate per world seed: the first far raid-tier cell that holds no other raid gate. */
-const RAID8_MIN_ZONE_LEVEL = 20;
-const gateCache = new Map<number, { x: number; y: number } | null>();
-function raid8GatePoint(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites' | 'blocked' | 'isSanctuary' | 'sampleBiome'>): { x: number; y: number } | null {
-  const cached = gateCache.get(world.seed);
-  if (cached !== undefined) return cached;
-  let point: { x: number; y: number } | null = null;
-  // Spiral outward through wilderness cells; the nearest high-tier cell without another raid gate wins.
-  for (let ring = 9; ring <= 64 && !point; ring++)
-    for (let cy = -ring; cy <= ring && !point; cy++)
-      for (let cx = -ring; cx <= ring && !point; cx++) {
-        if (Math.max(Math.abs(cx), Math.abs(cy)) !== ring) continue;
-        const seed = hash2(cx, cy, world.seed, 0x0a0b11);
-        const x = (cx + .5) * 1400 + ((seed >>> 8) % 900 - 450), y = (cy + .5) * 1400 + ((seed >>> 20) % 900 - 450);
-        if (getZoneAt(x, y, world.seed).originalLevel < RAID8_MIN_ZONE_LEVEL) continue;
-        // Never share a cell with the seven prior raid gates: probe whether any lands inside this cell's bounds.
-        if (raidEntrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid2Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid3Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid4Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid5Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid6Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid7Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        point = { x, y };
-      }
-  gateCache.set(world.seed, point);
-  if (gateCache.size > 8) gateCache.delete(gateCache.keys().next().value!);
-  return point;
+  return buildArenaFloor(SPEC, seed);
 }
 
 /**
@@ -193,17 +148,5 @@ function raid8GatePoint(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites
  */
 export function raid8Entrances(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites' | 'blocked' | 'isSanctuary' | 'sampleBiome'>,
   x: number, y: number, w: number, h: number): DungeonEntrance[] {
-  if (!GAME_FEATURES.raidBoss || ![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0 || w > 100000 || h > 100000)
-    return [];
-  const anchor = raid8GatePoint(world);
-  if (!anchor) return [];
-  for (let i = 0; i < 24; i++) {
-    const a = i * Math.PI / 12, px = anchor.x + Math.cos(a) * (i < 8 ? 60 : 140), py = anchor.y + Math.sin(a) * (i < 8 ? 60 : 140);
-    if (px < x || py < y || px >= x + w || py >= y + h) continue;
-    if (world.blocked(px, py, 40) || world.isSanctuary(px, py)) continue;
-    const zone = getZoneAt(px, py, world.seed);
-    return [{ id: RAID8_ENTRANCE_ID, name: 'Trial of the Crusader', theme: 'nerubian', x: px, y: py,
-      seed: (world.seed ^ 0x0a0b11) >>> 0, level: Math.min(1e6, zone.maxLevel), biome: world.sampleBiome(px, py).id }];
-  }
-  return [];
+  return raidEntrancesAt(SPEC, world, x, y, w, h);
 }

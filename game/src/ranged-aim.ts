@@ -19,7 +19,8 @@ export function resolveRangedAim(origin: Point, cursor: Point, enemies: readonly
   const alpha = Math.max(0, Math.min(1, options.alpha));
   let selected: Enemy | null = null, best = Infinity;
   for (const enemy of enemies) {
-    if (enemy.state === 'dead' || enemy.hp <= 0 || Math.hypot(enemy.x - origin.x, enemy.y - origin.y) > options.range) continue;
+    const odx = enemy.x - origin.x, ody = enemy.y - origin.y;
+    if (enemy.state === 'dead' || enemy.hp <= 0 || odx * odx + ody * ody > options.range * options.range) continue;
     const body = enemyBodyBounds(enemy), view = options.bounds;
     const x = enemy.prevX + (enemy.x - enemy.prevX) * alpha;
     const groundY = enemy.prevY + (enemy.y - enemy.prevY) * alpha;
@@ -53,7 +54,7 @@ export function resolveDirectionalAim(origin: Point, aim: Point, enemies: readon
   const halfCone = 28 * Math.PI / 180, alpha = Math.max(0, Math.min(1, options.alpha));
   let selected: Enemy | null = null, best = Infinity;
   for (const enemy of enemies) {
-    const ex = enemy.x - origin.x, ey = enemy.y - origin.y, distance = Math.hypot(ex, ey);
+    const ex = enemy.x - origin.x, ey = enemy.y - origin.y, distance = Math.sqrt(ex * ex + ey * ey);
     if (enemy.state === 'dead' || enemy.hp <= 0 || distance > options.range || distance < .001) continue;
     const angle = Math.acos(Math.max(-1, Math.min(1, (dx * ex + dy * ey) / (length * distance))));
     if (angle > halfCone) continue;

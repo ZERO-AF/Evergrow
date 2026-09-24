@@ -49,8 +49,12 @@ export function updateDungeon(sim: Simulation, view: SpawnExclusion | null, dt=1
     if(run.rift?.phase==='boss')return;
     sim.enemies = sim.enemies.filter(e => e.state === 'dead' || !(Math.hypot(e.x - sim.player.x, e.y - sim.player.y) > (run.rift?RIFT_FIELD.retirementRange:1400) && isEnemyInactive(e) && isSpawnHidden(e.x, e.y, view, e.radius)));
     const present=new Set(sim.enemies.map(e=>e.campMemberId)), roster=roomRosters(floor);
-    for (const room of [...floor.rooms].sort((a, b) => Math.hypot(a.x + a.width / 2 - sim.player.x, a.y + a.height / 2 - sim.player.y) - Math.hypot(b.x + b.width / 2 - sim.player.x, b.y + b.height / 2 - sim.player.y))) {
-        if (Math.hypot(room.x + room.width / 2 - sim.player.x, room.y + room.height / 2 - sim.player.y) > 2100)
+    // Nearest rooms admit first; precompute each center distance once instead of per-comparison.
+    const roomDist = floor.rooms.map(r => Math.hypot(r.x + r.width / 2 - sim.player.x, r.y + r.height / 2 - sim.player.y));
+    const roomOrder = floor.rooms.map((_, i) => i).sort((a, b) => roomDist[a] - roomDist[b]);
+    for (const ri of roomOrder) {
+        const room = floor.rooms[ri];
+        if (roomDist[ri] > 2100)
             continue;
         const members = (roster.get(room.id)??[]).filter(m => run.states[m.id].hp > 0 && (!run.rift || m.id!=='warden' || run.rift.phase==='boss') && !present.has(m.id) && (m.event===undefined || !!run.events?.[m.event]?.started && !run.events[m.event].finished && run.events[m.event].rest<=0 && run.events[m.event].wave===m.eventWave) && (!m.wave || (run.states.warden?.hp ?? 0) > 0 && ((run.states.warden?.bossPhases ?? 0) & m.wave)));
         if (!members.length)

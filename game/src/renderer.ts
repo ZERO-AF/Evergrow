@@ -906,9 +906,10 @@ export class Renderer {
     // Project popup anchors, leaving their glyph size and outline independent of camera zoom.
     // Speech draws later and may cover damage numbers; popups never displace a bark.
     this.effects.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y));
-    if (GAME_FEATURES.lootBeams) this.vfx.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y), settings.reducedMotion);
-    if (GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off')
-      drawNameplates(c, sim, this.view, nameplateSettings(), settings.reducedMotion);
+    const plates = nameplateSettings();
+    const platesVisible = GAME_FEATURES.nameplates && plates.visible && plates.mode !== 'off';
+    if (platesVisible)
+      drawNameplates(c, sim, this.view, plates, settings.reducedMotion);
     if (settings.phase === 'playing') {
       drawPvpStatus(c, sim, this.width);
       drawPvpMarkers(c, sim, (x, y) => worldToScreen(this.view, x, y));
