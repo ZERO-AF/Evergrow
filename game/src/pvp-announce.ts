@@ -60,6 +60,10 @@ export class PvpAnnouncer {
 
     private say(announcement: PvpAnnouncement): void { this.queue.push(announcement); }
 
+    /** Direct callout for match-loop beats that aren't kills or objective
+     * events: the countdown, time warnings, sudden death. */
+    announce(announcement: PvpAnnouncement): void { this.say(announcement); }
+
     /** Roster names for callouts — combatant actors carry spec identities. */
     bind(roster: readonly Combatant[], match: PvpMatch): void {
         this.names = new Map(roster.map((c, i) => [c, match.roster[i]?.name ?? c.name ?? 'Combatant']));
@@ -150,6 +154,10 @@ export class PvpAnnouncer {
                     flash: { title: 'Flag captured!', subtitle: `${this.nameOf(event.combatant)}${score}`, color: event.team === 'A' ? GOLD : ENEMY }, cue: 'objective' });
                 break;
             }
+            case 'flag-assault':
+                this.say({ text: `${this.nameOf(event.combatant)} is vulnerable — focused assault burns the flag carrier!`, chat: 'system',
+                    flash: { title: 'Focused Assault', subtitle: `${this.nameOf(event.combatant)} burns`, color: ENEMY }, cue: 'warning' });
+                break;
             case 'node-assault':
                 if (event.owner === 'A') this.say({ text: `${event.node} is under attack!`, chat: 'system',
                     flash: { title: `${event.node}`, subtitle: 'under attack!', color: ENEMY }, cue: 'warning' });

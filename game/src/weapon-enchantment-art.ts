@@ -45,6 +45,16 @@ export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisu
     const points: Point[] = Array.from({ length: 8 }, (_, i) => [start + (end - start + 3) * i / 7,
       Math.sin(i * 13.1 + Math.floor(time * 9)) * (i === 0 || i === 7 ? .3 : wand ? .8 : 2.3)]);
     c.globalAlpha *= .7; line(c, points, glow, .9); line(c, points, '#eef5ff', .3);
+    // A second, finer arc jitters off-phase so the charge reads as live current.
+    const arc: Point[] = Array.from({ length: 6 }, (_, i) => [start + (end - start) * i / 5,
+      Math.sin(i * 7.7 + Math.floor(time * 13) + 2) * (wand ? .5 : 1.4)]);
+    c.globalAlpha *= .6; line(c, arc, glow, .5);
+    for (let i = 0; i < 3; i++) {
+      const phase = ((time * 1.4 + i * .33) % 1 + 1) % 1;
+      c.globalAlpha = Math.sin(phase * Math.PI) * .7;
+      c.fillStyle = '#eef5ff';
+      c.fillRect(start + (end - start) * phase - .5, Math.sin(i * 9 + time * 11) * 2 - .5, 1, 1);
+    }
   } else if (element === 'shadow' || element === 'holy') {
     // Seals and stones: slow orbiting motes along the blade instead of flames.
     for (let i = 0; i < 4; i++) {
@@ -52,7 +62,14 @@ export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisu
       const x = start + (end - start) * phase, y = Math.sin(phase * Math.PI * 2) * (wand ? 1.6 : 3);
       c.globalAlpha *= 1;
       c.save(); c.globalAlpha *= Math.sin(phase * Math.PI) * .8;
+      // Shadow motes drag a short dark tail; holy motes sparkle with a cross glint.
+      if (element === 'shadow') line(c, [[x - 2.4, y + 1.2], [x, y]], glow, .7);
       polygon(c, [[x, y - 1.1], [x + .8, y], [x, y + 1.1], [x - .8, y]], glow);
+      if (element === 'holy') {
+        c.globalAlpha *= .8;
+        line(c, [[x - 1.6, y], [x + 1.6, y]], '#fffbe8', .4);
+        line(c, [[x, y - 1.6], [x, y + 1.6]], '#fffbe8', .4);
+      }
       c.restore();
     }
   } else for (let i = 0; i < 4; i++) {
@@ -62,8 +79,25 @@ export function drawWeaponEnchantment(c: CanvasRenderingContext2D, v: WeaponVisu
     if (element === 'fire') {
       const size = wand ? .4 : 1;
       polygon(c, [[x - .7 * size, y], [x + Math.sin(time * 3 + i) * 1.2 * size, y - 2.8 * size], [x + .8 * size, y + .7 * size]], glow);
+      // Ember flecks shed off the flame tongue.
+      c.fillStyle = '#ffd98a';
+      c.fillRect(x + Math.sin(time * 5 + i * 2) * 1.6, y - 3.4 * size - phase * 2, .7 * size, .7 * size);
+    } else if (element === 'frost') {
+      const size = .8 * (wand ? .65 : 1);
+      polygon(c, [[x, y - size], [x + size * .6, y], [x, y + size], [x - size * .6, y]], glow);
+      // A cold glint crosses each shard.
+      c.globalAlpha *= .7;
+      line(c, [[x - size * .8, y], [x + size * .8, y]], '#f2ffff', .35);
+    } else if (element === 'nature') {
+      // Living leaves orbit the blade instead of bare motes.
+      const size = .55 * (wand ? .65 : 1);
+      const rot = phase * Math.PI * 2 + i;
+      c.save(); c.translate(x, y); c.rotate(rot);
+      polygon(c, [[0, -size * 1.4], [size * .8, 0], [0, size * 1.4], [-size * .8, 0]], glow);
+      line(c, [[0, -size], [0, size]], '#d8ffb0', .3);
+      c.restore();
     } else {
-      const size = (element === 'frost' ? .8 : .55) * (wand ? .65 : 1);
+      const size = .55 * (wand ? .65 : 1);
       polygon(c, [[x, y - size], [x + size * .6, y], [x, y + size], [x - size * .6, y]], glow);
     }
     c.restore();

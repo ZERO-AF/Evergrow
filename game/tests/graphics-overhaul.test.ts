@@ -16,8 +16,13 @@ class Context {
   translate(...n: number[]) { this.record(...n); } scale(...n: number[]) { this.record(...n); }
   moveTo(...n: number[]) { this.record(...n); } lineTo(...n: number[]) { this.record(...n); }
   ellipse(...n: number[]) { this.record(...n); } fillRect(...n: number[]) { this.record(...n); }
+  arc(...n: number[]) { this.record(...n); } rect(...n: number[]) { this.record(...n); }
+  quadraticCurveTo(...n: number[]) { this.record(...n); } bezierCurveTo(...n: number[]) { this.record(...n); }
+  rotate(...n: number[]) { this.record(...n); } setTransform(...n: number[]) { this.record(...n); }
   fill() { this.commands.push(typeof this.fillStyle === 'string' ? this.fillStyle : 'gradient'); } stroke() { this.commands.push(this.strokeStyle); }
   createRadialGradient(...n: number[]) { this.record(...n); return { addColorStop: (offset: number, color: string) => this.commands.push([offset, color]) }; }
+  createLinearGradient(...n: number[]) { this.record(...n); return { addColorStop: (offset: number, color: string) => this.commands.push([offset, color]) }; }
+  createPattern() { return null; }
   drawImage() {}
 }
 const prop = (seed: number): Prop => ({ id: String(seed), kind: 'tree', biome: 'verdant', seed,

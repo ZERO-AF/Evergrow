@@ -148,6 +148,7 @@ import { raid9BossName } from './raid9-boss-content.ts';
 import { worldEventsOf, worldEventProgress, worldEventChestAt } from './world-event-state.ts';
 import { drawNecropolis, drawWorldEventChest, worldEventLights, WorldEventCardPresentation, drawWorldEventCard, worldEventChestLabel } from './world-event-art.ts';
 import { drawNameplates } from './nameplate-art.ts';
+import { drawPvpStatus, drawPvpMarkers } from './pvp-hud.ts';
 import { nameplateSettings } from './nameplate-settings.ts';
 import { transportPrompt, vehiclesNear, type VehicleMarker } from './transport.ts';
 import { drawTransport } from './transport-art.ts';
@@ -403,6 +404,8 @@ export class Renderer {
   private vignetteSize = '';
   private hurtGradient: CanvasGradient | null = null;
   private hurtGradientSize = '';
+  private hitGradient: CanvasGradient | null = null;
+  private hitGradientSize = '';
   private lootGradient: CanvasGradient | null = null;
   private lootGradientKey = '';
   private ambientChannels = [0, 0, 0];
@@ -540,6 +543,7 @@ export class Renderer {
         this.cameraShake.impact(e.angle,
           (e.type === 'hurt' ? 5 : e.type === 'kill' ? 2 : 2.6) * magnitude,
           (e.type === 'hurt' ? 1.6 : e.type === 'kill' ? .95 : .65) * (heavy ? 1.5 : 1) * magnitude);
+        this.cameraShake.pulse(e.type === 'kill' ? 1 : heavy ? .8 : .4);
         if (e.type === 'kill' || heavy)
           this.hitStop = Math.max(this.hitStop, e.type === 'kill' ? .06 : .045);
       }
@@ -687,7 +691,7 @@ export class Renderer {
     this.sky = settings.skyHour === undefined ? skyAtTime(sim.time) : skyAtHour(settings.skyHour);
     this.materialKey = sceneClimate(biome.weights, this.cryptFloor ? 1 : this.indoorBlend, this.sky).key;
     this.biomeLife.update(dt, this.visualTime, this.cachedProps, { x: px, y: py, vx: p.vx, vy: p.vy },
-      settings.reducedMotion, (x, y) => world.sampleGroundContact(x, y));
+      settings.reducedMotion, (x, y) => world.sampleGroundContact(x, y), this.sky.daylight);
     const lights = this.sceneLights(sim, px, py, settings.reducedMotion, alpha);
     if (GAME_FEATURES.lootBeams) for (const light of lootBeamLights(this.lootBeams).slice(0, 4)) lights.push(light);
     const materialLights = this.materialLights as PointLight[]; materialLights.length = 0;
@@ -841,7 +845,7 @@ export class Renderer {
     c.save(); c.translate(offsetX, offsetY); c.scale(zoom, zoom);
     this.riftAtmosphere.drawEmission(c,this.view);
     this.biomeArt.drawLight(c, this.cachedProps, this.visualTime, settings.reducedMotion, px, py);
-    this.biomeArt.drawAir(c, this.biomeLife, this.visualTime, settings.reducedMotion);
+    this.biomeArt.drawAir(c, this.biomeLife, this.visualTime, settings.reducedMotion, this.sky);
     this.atmosphere.drawLayer(c, world, this.view, this.visualTime, settings.reducedMotion,
       px, py, true, !!this.cryptFloor, this.indoorBlend, this.sky);
     if (!this.cryptFloor) this.weather.draw(c, biome.weights, this.view, this.visualTime, settings.reducedMotion, this.indoorBlend);
@@ -892,6 +896,7 @@ export class Renderer {
     }
     c.fillStyle = this.vignetteGradient; c.fillRect(0, 0, this.width, this.height);
     this.damageVignette(settings.reducedMotion);
+    this.hitVignette(settings.reducedMotion);
     this.lootVignette(settings.reducedMotion);
   }
 
@@ -904,6 +909,10 @@ export class Renderer {
     if (GAME_FEATURES.lootBeams) this.vfx.drawNumbers(c, (x, y) => worldToScreen(this.view, x, y), settings.reducedMotion);
     if (GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off')
       drawNameplates(c, sim, this.view, nameplateSettings(), settings.reducedMotion);
+    if (settings.phase === 'playing') {
+      drawPvpStatus(c, sim, this.width);
+      drawPvpMarkers(c, sim, (x, y) => worldToScreen(this.view, x, y));
+    }
     const lootPointer = settings.phase === 'playing' && this.pointerActive && !this.gamepadActive && !this.touchActive && !this.pointerOverHUD()
       ? { x: this.pointerX, y: this.pointerY } : null;
     const retainedId = lootPointer ? hoveredGroundLoot(this.groundLootLabels, lootPointer.x, lootPointer.y)?.id : undefined;
@@ -1322,7 +1331,7 @@ export class Renderer {
           moving: Math.min(1, Math.hypot(enemy.vx, enemy.vy) / 70),
           attack: enemy.state === 'windup' ? -Math.max(.001, enemy.stateTime / enemy.stateDuration)
             : enemy.state === 'attack' ? Math.min(1, enemy.stateTime / enemy.stateDuration) : 0,
-          attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime,
+          attackAngle: enemy.attackAngle, hitFlash: enemy.hitFlash, slow: enemy.slowTime, chill: enemy.chillTime, burning: enemy.burnTime, fracture: enemy.fractureTime, frozen: enemy.freezeTime, stunned: enemy.stunTime, staggered: enemy.stagger,
           cc: enemy.cc, dots: enemy.dots, tint: skin?.tint, tintAmount: skin?.tintAmount,
           impact: Math.min(1, enemy.hitFlash / COMBAT_TIMING.hitFlashDuration), impactAngle: enemy.hitAngle, dodging: false },
           scale, riftMechanic(enemy) === 'ritual' ? '#9ae0c7' : riftWardActive(enemy) ? '#80c9b8' : scale > 1 ? (enemy.rank === 'elite' ? '#e9bb70' : enemy.rank === 'rare' ? '#b9d2e2' : '#85c9ee') : undefined);
@@ -1409,14 +1418,23 @@ export class Renderer {
       }
       occluderAlpha = this.occlusion.update(prop.id, occludes, dt, settings.reducedMotion);
     }
-    c.save(); c.translate(prop.x, prop.y); c.scale(prop.scale, prop.scale);
+    // Manual transform composition: the frame base matrix is
+    // translate(offsetX,offsetY)·scale(zoom) — captured once per prop instead of
+    // a save/restore pair plus a getTransform DOMMatrix allocation per layer.
+    const zoom = this.view.zoom, bx = this.view.offsetX, by = this.view.offsetY;
+    const s = prop.scale;
+    const a = zoom * s, d0 = zoom * s;
+    const e = zoom * prop.x + bx, f = zoom * prop.y + by;
     // Trunks stay rooted and opaque. Only the obstructing canopy becomes translucent.
+    let cc = 0, dd = d0;
     if (!sprite.foliage && definition.radius[1] === 0) {
       const wind = biomeWind(prop.x, prop.y, this.visualTime, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway;
       const bend = settings.reducedMotion ? 0 : this.biomeLife.bend(prop.x, prop.y);
-      c.transform(1, 0, -bend * .35, 1 - Math.abs(bend) * .18, 0, 0);
-      c.transform(1, 0, wind * -.012, 1, 0, 0);
+      // B·W = [1 0 (k1+k2) d1] with k1=-bend*.35, d1=1-|b|*.18, k2=-wind*.012
+      cc = a * (-bend * .35 - wind * .012);
+      dd = d0 * (1 - Math.abs(bend) * .18);
     }
+    c.setTransform(a, 0, cc, dd, e, f);
     // Props without foliage layers fade whole; layered trees keep an opaque trunk.
     // The surface-light helpers restore their own state, so alpha is set directly
     // instead of paying a canvas save/restore per sprite layer.
@@ -1426,20 +1444,22 @@ export class Renderer {
     if (!this.cryptFloor && prop.kind === 'rock')
       this.propSurfaceLight.drawOutdoor(c, prop, sprite, sprite.image, world, this.visualTime, settings.reducedMotion, this.sky);
     const foliage = sprite.foliage;
-    if (foliage?.length) {
-      const base = c.getTransform();
+    if (foliage?.length && occluderAlpha > .02) {
+      const detail = zoom * s * Math.max(sprite.width, sprite.height) >= 26;
       for (let layer = 0; layer < foliage.length; layer++) {
         const gust = biomeWind(prop.x, prop.y, this.visualTime - layer * .18, prop.biome ?? 'deadwood', settings.reducedMotion).x * definition.sway * 2.2;
-        c.setTransform(base);
-        c.transform(1, 0, gust * (layer ? -.009 : -.005), 1, 0, 0);
+        // Layer shear on top of the prop transform: c' = a·k + c0, d' = d0.
+        c.setTransform(a, 0, a * (gust * (layer ? -.009 : -.005)), d0, e, f);
         c.globalAlpha = occluderAlpha;
         c.drawImage(foliage[layer], -sprite.anchorX, -sprite.anchorY, sprite.width, sprite.height);
-        if (definition.radius[1] !== 0) this.propSurfaceLight.draw(c, prop, sprite, foliage[layer], this.cryptFloor ? undefined : this.sky);
-        if (!this.cryptFloor && definition.canopy)
+        if (detail && definition.radius[1] !== 0) this.propSurfaceLight.draw(c, prop, sprite, foliage[layer], this.cryptFloor ? undefined : this.sky);
+        if (detail && !this.cryptFloor && definition.canopy)
           this.propSurfaceLight.drawOutdoor(c, prop, sprite, foliage[layer], world, this.visualTime, settings.reducedMotion, this.sky);
       }
     }
-    c.restore();
+    c.setTransform(zoom, 0, 0, zoom, bx, by);
+    c.globalAlpha = 1;
+    // (base transform + alpha already restored above)
   }
 
   private propSprite(prop: Prop) {
@@ -1672,6 +1692,24 @@ export class Renderer {
     c.save(); c.globalAlpha = this.hurt * (reducedMotion ? .13 : .25);
     c.fillStyle = this.hurtGradient; c.fillRect(0, 0, this.width, this.height); c.restore();
   }
+  /** Brief warm edge flash on hits — reads as impact weight, decays ~.18s. */
+  private hitVignette(reducedMotion: boolean) {
+    const pulse = this.cameraShake.pulseAmount;
+    if (pulse < .02) return;
+    const c = this.ctx;
+    const radius = Math.hypot(this.width, this.height) * .55;
+    const key = `${this.width}x${this.height}`;
+    if (!this.hitGradient || this.hitGradientSize !== key) {
+      const gradient = c.createRadialGradient(this.width / 2, this.height / 2, radius * .3,
+        this.width / 2, this.height / 2, radius);
+      gradient.addColorStop(0, '#ffd9a000'); gradient.addColorStop(.55, '#ffb36b00');
+      gradient.addColorStop(1, '#ffcf9e');
+      this.hitGradient = gradient; this.hitGradientSize = key;
+    }
+    c.save(); c.globalAlpha = pulse * (reducedMotion ? .06 : .16);
+    c.fillStyle = this.hitGradient; c.fillRect(0, 0, this.width, this.height); c.restore();
+  }
+
 
   /** Brief screen-edge glow when a legendary/unique drop lands; reduced motion dims it. */
   private lootVignette(reducedMotion: boolean) {

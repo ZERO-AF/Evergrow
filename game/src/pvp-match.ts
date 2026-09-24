@@ -21,12 +21,22 @@ import { pvpOnCombatantKill, type PvpMatchResult } from './pvp-rewards.ts';
 import { PvpScoreTracker, type PvpScoreboard } from './pvp-scoreboard.ts';
 import { attachBattlegroundObjectives } from './pvp-objectives.ts';
 import { PvpAnnouncer, type PvpAnnouncement } from './pvp-announce.ts';
-import { pushChatMessage } from './chat-log.ts';
+import { applyDot } from './combat-status.ts';
 
 /** Seconds the gates stay closed before the fight goes live. */
 export const PVP_PREP_SECONDS = 3;
 /** Hard match cap; on expiry the team ahead on score/alive/hp wins. */
 export const PVP_MATCH_SECONDS = 300;
+/** WoW's stalemate breaker: after this many live seconds every combatant takes
+ * a ramping shadow burn until one side falls. Arena 5:00 → 4:00 left, BGs get
+ * the last minute. */
+export const PVP_SUDDEN_DEATH_SECONDS = 60;
+/** The burn's starting fraction of max hp per second; +25% per tick. */
+const SUDDEN_DEATH_DPS = .02;
+const SUDDEN_DEATH_RAMP = .25;
+const SUDDEN_DEATH_DOT = 'pvp:sudden-death';
+/** Remaining-time callouts (seconds left → fired once each). */
+const TIME_WARNINGS: readonly number[] = [60, 30, 10];
 
 /** Per-match runtime state. Keyed by the match object (WeakMap) so nothing
  * lands on the serialized record; a mid-match reload simply re-initializes it
@@ -34,11 +44,16 @@ export const PVP_MATCH_SECONDS = 300;
 interface MatchRuntime {
   prepUntil: number;
   endsAt: number;
+  /** Sim time sudden death begins (endsAt - PVP_SUDDEN_DEATH_SECONDS). */
+  suddenDeathAt: number;
+  suddenDeath: boolean;
   tracker: PvpScoreTracker;
   announcer: PvpAnnouncer;
   /** The player's own flag captures this match (achievement progress). */
   flagCaptures: number;
   lastCountdown: number;
+  /** Time warnings already fired (seconds-left values). */
+  warned: Set<number>;
 }
 const runtimes = new WeakMap<PvpMatch, MatchRuntime>();
 
@@ -123,10 +138,13 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
     rt = {
       prepUntil: sim.time + PVP_PREP_SECONDS,
       endsAt: sim.time + PVP_MATCH_SECONDS,
+      suddenDeathAt: sim.time + PVP_MATCH_SECONDS - PVP_SUDDEN_DEATH_SECONDS,
+      suddenDeath: false,
       tracker: new PvpScoreTracker(match, roster),
       announcer: new PvpAnnouncer(),
       flagCaptures: 0,
       lastCountdown: Math.ceil(PVP_PREP_SECONDS) + 1,
+      warned: new Set(),
     };
     runtimes.set(match, rt);
     sim.pvpDamageSink = (source, target, dealt) =>
@@ -137,6 +155,7 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
     rt.announcer.update(match, rt.tracker.snapshot(), []);
   }
 
+
   // ── Prep: gates closed — everyone held until the countdown ends. ──
   if (match.phase === 'prep') {
     if (sim.time < rt.prepUntil) {
@@ -144,7 +163,8 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
       const left = Math.ceil(rt.prepUntil - sim.time);
       if (left < rt.lastCountdown && left > 0) {
         rt.lastCountdown = left;
-        pushChatMessage(sim.player, 'system', `The battle begins in ${left}…`, sim.time);
+        rt.announcer.announce({ text: `The battle begins in ${left}…`, chat: 'system',
+          flash: { title: `${left}`, subtitle: 'The battle begins', color: '#e8c15a' }, cue: 'warning' });
       }
       return undefined;
     }
@@ -174,6 +194,27 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
     }
   }
   rt.announcer.update(match, rt.tracker.snapshot(), events);
+
+  // ── Clock: remaining-time callouts, then sudden death. ──
+  const timeLeft = rt.endsAt - sim.time;
+  for (const at of TIME_WARNINGS) {
+    if (timeLeft <= at && !rt.warned.has(at)) {
+      rt.warned.add(at);
+      rt.announcer.announce({ text: `${at >= 60 ? `${Math.round(at / 60)} minute` : `${at} seconds`} remaining.`, chat: 'system',
+        flash: { title: `${at >= 60 ? `${Math.round(at / 60)}:00` : `0:${String(at).padStart(2, '0')}`}`, subtitle: 'remaining', color: '#e8c15a' }, cue: 'warning' });
+    }
+  }
+  if (!rt.suddenDeath && sim.time >= rt.suddenDeathAt) {
+    rt.suddenDeath = true;
+    rt.announcer.announce({ text: 'Sudden death! The arena itself turns on the fighters.', chat: 'system',
+      flash: { title: 'Sudden Death', subtitle: 'The arena burns — finish it', color: '#f34e60' }, cue: 'warning' });
+  }
+  if (rt.suddenDeath) {
+    for (const c of roster) {
+      if (c.dead) continue;
+      applyDot(c, SUDDEN_DEATH_DOT, { school: 'shadow', flatDps: c.maxHp * SUDDEN_DEATH_DPS, duration: 2, interval: .5, ramp: SUDDEN_DEATH_RAMP }, 0);
+    }
+  }
   let winner = objectives.winner();
   const aliveA = aliveCombatants(roster.filter(c => c.team === 'A')).length;
   const aliveB = aliveCombatants(roster.filter(c => c.team === 'B')).length;
@@ -224,6 +265,40 @@ export function pvpScoreboard(sim: Simulation): PvpScoreboard | undefined {
   };
 }
 
+
+/** What the HUD/scoreboard chrome needs each frame: phase, the match clock and
+ * the sudden-death state. `timeLeft`/`suddenDeathIn` are seconds (0 when the
+ * phase doesn't apply). */
+export interface PvpMatchStatus {
+  readonly phase: PvpMatch['phase'];
+  /** Seconds left on the prep countdown (0 once live). */
+  readonly prepLeft: number;
+  /** Seconds left on the match clock (0 after expiry). */
+  readonly timeLeft: number;
+  /** True while the sudden-death burn ticks. */
+  readonly suddenDeath: boolean;
+  /** Seconds until sudden death starts (0 once it has). */
+  readonly suddenDeathIn: number;
+  /** Headline score label for the mode ('Alive', 'Flags', 'Resources'). */
+  readonly scoreLabel: string;
+}
+
+/** Live match status for the HUD and scoreboard chrome; undefined outside a match. */
+export function pvpMatchStatus(sim: Simulation): PvpMatchStatus | undefined {
+  const match = currentPvpMatch(sim);
+  if (!match) return undefined;
+  const rt = runtimes.get(match);
+  const scoreLabel = match.objectives?.scoreLabel ?? 'Alive';
+  if (!rt) return { phase: match.phase, prepLeft: PVP_PREP_SECONDS, timeLeft: PVP_MATCH_SECONDS, suddenDeath: false, suddenDeathIn: PVP_MATCH_SECONDS - PVP_SUDDEN_DEATH_SECONDS, scoreLabel };
+  return {
+    phase: match.phase,
+    prepLeft: Math.max(0, rt.prepUntil - sim.time),
+    timeLeft: Math.max(0, rt.endsAt - sim.time),
+    suddenDeath: rt.suddenDeath,
+    suddenDeathIn: Math.max(0, rt.suddenDeathAt - sim.time),
+    scoreLabel,
+  };
+}
 /** Queued callouts for the live match (announcer lives in the runtime). */
 export function drainPvpAnnouncements(sim: Simulation): PvpAnnouncement[] {
   const match = currentPvpMatch(sim);

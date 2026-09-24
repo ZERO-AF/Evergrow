@@ -226,7 +226,9 @@ export function damageEnemy(enemy: Enemy, damage: number, angle: number, melee: 
   if (!context.player.dead) for (const buff of context.player.buffs ?? []) if (buff.leech) context.player.hp = Math.min(context.player.maxHp, context.player.hp + damage * buff.leech);
   if (!periodic && !context.player.dead) metric(context.player.chronicle,'healing',Math.min(context.player.maxHp-context.player.hp,hitStats.lifeOnHit));
   if (!periodic && !context.player.dead) context.player.hp = Math.min(context.player.maxHp, context.player.hp + hitStats.lifeOnHit);
-  enemy.hitFlash = COMBAT_TIMING.hitFlashDuration;
+  // Presentation only: heavy contacts (crits, reactions) hold the bright-hit
+  // flash ~80% longer so the impact frame reads before the flinch settles.
+  enemy.hitFlash = COMBAT_TIMING.hitFlashDuration * (critical || reaction ? 1.8 : 1);
   enemy.hitAngle = angle;
   const definition = ENEMY_DEFINITIONS[enemy.kind];
   const shove = definition.knockbackDistance * enemyThreat(enemy).knockback;
@@ -331,7 +333,8 @@ export function damageCombatant(amount: number, angle: number, sourceLevel: numb
   }
   const actualValue = Math.min(p.hp, amount);
   p.hp = Math.max(0, p.hp - amount);
-  p.hitFlash = COMBAT_TIMING.hitFlashDuration;
+  // Presentation only: big incoming hits hold the bright-hit flash longer.
+  p.hitFlash = COMBAT_TIMING.hitFlashDuration * (amount >= 20 ? 1.6 : 1);
   p.hitAngle = angle;
   // PvP combatants never gain the PvE hurt guard: focus fire and dot ticks must land.
   if (!periodic && p.team === undefined) p.invulnerable = COMBAT_TIMING.hurtGuard;

@@ -30,6 +30,10 @@ class GeometryContext {
   quadraticCurveTo(x: number, y: number, xx: number, yy: number) { this.point(x, y); this.point(xx, yy); }
   fillRect(x: number, y: number, w: number, h: number) { this.point(x, y); this.point(x + w, y + h); this.commands.push(this.fillStyle); }
   ellipse(x: number, y: number, rx: number, ry: number) { this.point(x - rx, y - ry); this.point(x + rx, y + ry); }
+  arc(x: number, y: number, r: number) { this.point(x - r, y - r); this.point(x + r, y + r); }
+  createRadialGradient() { return { addColorStop: () => {} }; }
+  createLinearGradient() { return { addColorStop: () => {} }; }
+  drawImage() {}
 }
 const prop = (kind: PropKind, seed = 7319): Prop => ({ id: `${kind}:${seed}`, kind, seed, x: 0, y: 0, radius: 0, scale: 1 });
 

@@ -24,17 +24,27 @@ export function drawNPC(c:CanvasRenderingContext2D,npc:TownNPC|Resident,time:num
   const resident='household'in npc,role='role'in npc?npc.role:'resident';
   const look=npcLook(npc.seed,role);
   c.save();c.translate(npc.x,npc.y);const scale=npcArtScale(npc);c.scale(scale,scale);
+  // Service folk carry a faint warm halo at their feet — the WoW "you can talk
+  // to me" cue — while residents stay unlit.
+  if(!resident){
+    const breathe=.5+.5*Math.sin((reduced?0:time)*1.6+npc.seed);
+    c.save();c.globalCompositeOperation='screen';c.globalAlpha=.10+breathe*.05;
+    const g=c.createRadialGradient(0,-4,0,0,-4,26);
+    g.addColorStop(0,'#ffd9a0');g.addColorStop(1,'#ffd9a000');c.fillStyle=g;
+    c.beginPath();c.ellipse(0,-4,26,10,0,0,Math.PI*2);c.fill();c.restore();
+  }
   drawHumanoid(c,{kind:'player',...look,appearance:resident&&npc.child?{...look.appearance!,facialHair:'none'}:look.appearance,
     angle:npc.angle??Math.PI/2,time:reduced?0:time+npc.seed%37,moving:reduced?0:(npc.moving??0),
     gaitPhase:time*2.2,attack:0,attackAngle:Math.PI/2,weapon:UNARMED_WEAPON.visual,offHand:null,hitFlash:0,dodging:false});
   c.restore();
   // WoW-style always-on nameplates: service NPCs carry their title, residents a dimmer name.
   c.save();c.translate(npc.x,npc.y);c.scale(scale,scale);
+  const bob=resident?0:Math.sin((reduced?0:time)*1.6+npc.seed)*.8;
   if(resident){
     c.globalAlpha=.62;text(c,npc.name,0,-64,.78,'#d8dccb','center');
   }else{
-    text(c,npc.name,0,-66,.85,'#ece7d2','center');
-    text(c,NPC_NAMES[(npc as TownNPC).role],0,-57,.68,NPC_COLORS[(npc as TownNPC).role],'center');
+    text(c,npc.name,0,-66+bob,.85,'#ece7d2','center');
+    text(c,NPC_NAMES[(npc as TownNPC).role],0,-57+bob,.68,NPC_COLORS[(npc as TownNPC).role],'center');
   }
   c.restore();
 }

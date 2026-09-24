@@ -3,12 +3,15 @@ import { BIOME_LIFE } from './biome-life-content.ts';
 
 /** Climate changes strength, never the phase of the traveling front at a border. */
 export function biomeWind(x: number, y: number, time: number, climate: BiomeId | BiomeWeights, reducedMotion = false) {
-  if (reducedMotion) return { x: 0, y: 0, gust: 0 };
+  if (reducedMotion) return { x: 0, y: 0, gust: 0, surge: 0 };
   const front = time * .82 - x * .011 - y * .004;
   const gust = Math.pow(Math.max(0, Math.sin(front)), 3);
+  // A slower secondary front: rare strong surges that visibly sweep grass and
+  // canopy, so wind reads as weather rather than a constant breeze.
+  const surge = Math.pow(Math.max(0, Math.sin(time * .21 - x * .0035 + y * .0018)), 6);
   const breath = Math.sin(time * .37 - x * .003 + y * .002);
   const strength = typeof climate === 'string' ? BIOME_LIFE[climate].wind
     : BIOME_IDS.reduce((sum, id) => sum + climate[id] * BIOME_LIFE[id].wind, 0);
-  return { x: (.22 + gust * 1.65 + breath * .16) * strength,
-    y: (.12 + Math.sin(time * .24 + x * .002) * .09) * strength, gust };
+  return { x: (.22 + gust * 1.65 + surge * 1.1 + breath * .16) * strength,
+    y: (.12 + Math.sin(time * .24 + x * .002) * .09 + surge * .1) * strength, gust, surge };
 }

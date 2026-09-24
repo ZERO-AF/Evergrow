@@ -43,8 +43,10 @@ export class CameraShake {
   shake = 0;
   private kickX = 0;
   private kickY = 0;
+  /** Hit flash channel: a brief radial vignette pulse, 1 → 0 over ~.18s. */
+  private hitPulse = 0;
 
-  reset() { this.shake = 0; this.kickX = 0; this.kickY = 0; }
+  reset() { this.shake = 0; this.kickX = 0; this.kickY = 0; this.hitPulse = 0; }
 
   /** Directional impulse away from the hit plus an ambient tremor, both bounded. */
   impact(angle: number, strength: number, ambient: number) {
@@ -53,10 +55,18 @@ export class CameraShake {
     this.shake = Math.max(this.shake, ambient);
   }
 
+  /** A short screen-edge flash on hits; the renderer composites it as a vignette. */
+  pulse(strength: number) { this.hitPulse = Math.max(this.hitPulse, Math.min(1, strength)); }
+
+  /** Current hit-flash strength, 0 when idle. Read by the vignette pass. */
+  get pulseAmount() { return this.hitPulse; }
+
   update(dt: number) {
     this.shake *= Math.exp(-dt * 22);
     this.kickX *= Math.exp(-dt * 18);
     this.kickY *= Math.exp(-dt * 18);
+    this.hitPulse *= Math.exp(-dt / .18);
+    if (this.hitPulse < .004) this.hitPulse = 0;
   }
 
   /** Screen-pixel offset for the current frame; zero under reduced motion. */

@@ -145,6 +145,14 @@ function crown(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry
       polygon(c, [[lx - size, ly], [lx, ly - size * .55], [lx + size * 1.5, ly - .4], [lx + size * .5, ly + size * .5]], colors[l === 0 && group < 4 ? 4 : 3]);
     }
   }
+  // Sky-facing rim: a broken bright arc along the upper-left crown edge, where
+  // the shared key light (SKY_DIRECTION) would catch the leaf tops.
+  for (let rim = 0; rim < 6; rim++) {
+    const a = Math.PI * (1.05 + rim * .14) + between(random, -.05, .05);
+    const ex = x + Math.cos(a) * rx * .97, ey = y + Math.sin(a) * ry * .97;
+    const size = between(random, 2.2, 4.2);
+    polygon(c, [[ex - size, ey + size * .3], [ex - size * .3, ey - size * .6], [ex + size * .8, ey - size * .2], [ex + size * .3, ey + size * .5]], colors[4]);
+  }
   for (let notch = 0; notch < 4; notch++) {
     const nx = x + between(random, -.7, .7) * rx, ny = y + between(random, .1, .6) * ry;
     line(c, [[nx - 3, ny], [nx, ny + 1], [nx + 4, ny - 1]], colors[0], 1.4);

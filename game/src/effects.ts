@@ -34,7 +34,7 @@ interface Spark {
   float: boolean;
 }
 interface Flash { x: number; y: number; life: number; max: number; radius: number; color: string; ring: boolean; radiant?: boolean; }
-interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
+interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; heavy?: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
 /** One dodge-trail sample: an interpolated body position that fades fast. */
 interface TrailPoint { x: number; y: number; life: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
@@ -59,6 +59,11 @@ export class CombatEffects {
   private sparks: Spark[] = [];
   private flashes: Flash[] = [];
   private impacts: Impact[] = [];
+  /** Dead particles recycle through these pools; combat churns hundreds per
+   * second, so fresh literals only appear when a pool is empty. */
+  private sparkPool: Spark[] = [];
+  private flashPool: Flash[] = [];
+  private impactPool: Impact[] = [];
   private popups: CombatPopup[] = [];
   private manaWarningLife = 0;
   private skillFailText = 'Not Enough Mana';
@@ -80,14 +85,17 @@ export class CombatEffects {
   lootPulseColor = LOOT_BEAMS.legendary.color;
 
   reset() {
-    this.sparks = []; this.flashes = []; this.impacts = []; this.popups = [];
+    // Live particles retire into the pools instead of becoming garbage.
+    for (const s of this.sparks) this.sparkPool.push(s);
+    for (const f of this.flashes) this.flashPool.push(f);
+    for (const i of this.impacts) this.impactPool.push(i);
+    this.sparks.length = 0; this.flashes.length = 0; this.impacts.length = 0; this.popups = [];
     this.manaWarningLife = 0;
     this.emitterTime = 0; this.sword.reset(); this.skillEffects.reset(); this.meleeSkills.reset();
     this.seenGroundItems.clear(); this.groundItemsPrimed = false;
     this.seenAllies.clear(); this.alliesPrimed = false;
     this.pendingLootMoments = []; this.lootPulse = 0; this.dodgeTrail = [];
   }
-
   /**
    * Rarity-scaled sparkle burst when a ground drop appears or its treasure
    * flight lands. Presentation only; bounded per tick and by the drop cap.
@@ -120,8 +128,7 @@ export class CombatEffects {
       const spec = LOOT_BEAMS[drop.item.tier];
       for (let i = 0; i < 4 + spec.motes * 2; i++)
         this.spark(drop.x, drop.y, Math.random() * Math.PI * 2, i % 3 === 0 ? spec.core : spec.color, .5 + spec.motes * .12);
-      if (spec.motes >= 4) this.flashes.push({ x: drop.x, y: drop.y, life: .3, max: .3,
-        radius: spec.glow * .9, color: spec.color, ring: spec.motes >= 5 });
+      if (spec.motes >= 4) this.flash(drop.x, drop.y, .3, spec.glow * .9, spec.color, spec.motes >= 5);
     }
     // Collected drops leak ids; rebuild from live drops before the set can grow past the cap.
     if (this.seenGroundItems.size > LOOT_RULES.maxGroundItems * 2) {
@@ -167,11 +174,26 @@ export class CombatEffects {
   private spark(x: number, y: number, angle: number, color: string, strength = 1, airborne = true, luminous = true, float = false) {
     const speed = (40 + Math.random() * 170) * strength;
     const life = float ? .55 + Math.random() * .5 : .2 + Math.random() * .48;
-    this.sparks.push({ x, y, vx: Math.cos(angle) * speed * (float ? .3 : 1), vy: Math.sin(angle) * speed * (float ? .3 : 1),
-      z: airborne ? 15 : 0, vz: float ? 16 + Math.random() * 22 : airborne ? 25 + Math.random() * 95 : 0,
-      curl: (Math.random() - .5) * (luminous ? 5 : 1.2), life, max: life,
-      size: luminous ? .8 + Math.random() * 1.7 : 1.6 + Math.random() * 2, color, luminous, float });
+    const s = this.sparkPool.pop() ?? { x: 0, y: 0, vx: 0, vy: 0, z: 0, vz: 0, curl: 0, life: 0, max: 0, size: 0, color: '', luminous: false, float: false };
+    s.x = x; s.y = y;
+    s.vx = Math.cos(angle) * speed * (float ? .3 : 1); s.vy = Math.sin(angle) * speed * (float ? .3 : 1);
+    s.z = airborne ? 15 : 0; s.vz = float ? 16 + Math.random() * 22 : airborne ? 25 + Math.random() * 95 : 0;
+    s.curl = (Math.random() - .5) * (luminous ? 5 : 1.2); s.life = life; s.max = life;
+    s.size = luminous ? .8 + Math.random() * 1.7 : 1.6 + Math.random() * 2; s.color = color; s.luminous = luminous; s.float = float;
+    this.sparks.push(s);
   }
+  private flash(x: number, y: number, life: number, radius: number, color: string, ring: boolean, radiant?: boolean) {
+    const f = this.flashPool.pop() ?? { x: 0, y: 0, life: 0, max: 0, radius: 0, color: '', ring: false };
+    f.x = x; f.y = y; f.life = life; f.max = life; f.radius = radius; f.color = color; f.ring = ring; f.radiant = radiant;
+    this.flashes.push(f);
+  }
+  private impact(x: number, y: number, angle: number, life: number, color: string, hurt: boolean, lethal: boolean, heavy: boolean, radiant: boolean, style?: ProjectileStyle, cls?: ClassStyle | null) {
+    const i = this.impactPool.pop() ?? { x: 0, y: 0, angle: 0, life: 0, max: 0, color: '', hurt: false, lethal: false };
+    i.x = x; i.y = y; i.angle = angle; i.life = life; i.max = life; i.color = color;
+    i.hurt = hurt; i.lethal = lethal; i.heavy = heavy; i.radiant = radiant; i.style = style; i.cls = cls;
+    this.impacts.push(i);
+  }
+
 
   handleEvents(events: CombatEvent[]) {
     for (const event of events) {
@@ -208,11 +230,21 @@ export class CombatEffects {
       }
       if (event.type === 'hit') {
         // Weight: a fast, tight streak fan along the blow plus a hot core flash.
-        for (let i = 0; i < 6; i++)
+        for (let i = 0; i < (heavy ? 10 : 6); i++)
           this.spark(event.x, event.y - 14, eventAngle + (Math.random() - .5) * .9,
-            i % 2 ? '#fff7db' : color, 1.7 + Math.random() * .5);
-        this.flashes.push({ x: event.x, y: event.y - 16, life: .13, max: .13,
-          radius: heavy ? 36 : 26, color: '#fff4d6', ring: false });
+            i % 2 ? '#fff7db' : color, (heavy ? 2.2 : 1.7) + Math.random() * .5);
+        this.flash(event.x, event.y - 16, heavy ? .17 : .13, heavy ? 44 : 26, '#fff4d6', false);
+        // Heavy contacts (crits, reactions) also kick a ground shock ring so
+        // the blow reads at terrain level, not just at the body.
+        if (heavy) this.flash(event.x, event.y, .3, 62, color, true);
+      }
+      if (event.type === 'block') {
+        // Deflection glint: a tight ring at the contact plus a few short
+        // sparks thrown back along the incoming angle.
+        this.flash(event.x, event.y - 14, .16, 26, event.color ?? '#b4e4ee', true);
+        for (let i = 0; i < 6; i++)
+          this.spark(event.x, event.y - 14, eventAngle + Math.PI + (Math.random() - .5) * 1.1,
+            i % 2 ? '#eafcff' : (event.color ?? '#b4e4ee'), .9);
       }
       if (event.type === 'kill') {
         // Death commitment: pale soul motes stream upward off the falling body.
@@ -225,13 +257,13 @@ export class CombatEffects {
         for (let i = 0; i < 9; i++)
           this.spark(event.x, event.y - 10, eventAngle + Math.PI + (Math.random() - .5) * .55,
             i % 3 === 0 ? '#eaf6ff' : color, 1.5 + Math.random() * .6);
-        this.flashes.push({ x: event.x, y: event.y - 4, life: .2, max: .2, radius: 34, color, ring: true });
+        // (pooled flash above replaces the literal push)
+        this.flash(event.x, event.y - 4, .2, 34, color, true);
       }
       const contactY = event.y - (event.type === 'hurt' ? 24 : enemyKind === 'brute' ? 25 : 18);
-      if (contact) this.impacts.push({ x: event.x, y: contactY, angle: eventAngle,
-        life: event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : .22,
-        max: event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : .22,
-        color, hurt: event.type === 'hurt', lethal: event.type === 'kill', radiant: seal, style: event.style, cls: classStyle(event.classId) });
+      if (contact) this.impact(event.x, contactY, eventAngle,
+        event.type === 'kill' ? (GAME_FEATURES.combatJuice ? .38 : .3) : heavy ? .26 : .22,
+        color, event.type === 'hurt', event.type === 'kill', heavy, seal, event.style, classStyle(event.classId));
       if (count > 5) {
         const max = restoring ? .55 : event.type === 'kill' && GAME_FEATURES.combatJuice ? .24 : event.type === 'kill' ? .16 : event.type === 'blast' ? .34 : .22;
         // Blasts scale with their real gameplay radius; WoW bursts dominate the
@@ -239,22 +271,48 @@ export class CombatEffects {
         const radius = seal ? 58 : event.type === 'kill' ? (GAME_FEATURES.combatJuice ? 96 : 62)
           : event.type === 'blast' ? Math.max(120, blastRadius * 1.15)
           : heavy ? 145 : contact ? 118 : event.type === 'loot' || event.type === 'pickup' ? 35 : event.type === 'cast' ? 110 : 90;
-        this.flashes.push({ x: event.x + (tip?.x ?? 0), y: tip ? event.y + tip.y : contact ? contactY : event.y - 10, life: max, max,
+        this.flash(event.x + (tip?.x ?? 0), tip ? event.y + tip.y : contact ? contactY : event.y - 10, max,
           radius, color,
-          radiant: event.type === 'cast' && seal, ring: restoring || event.type === 'level' || event.skill === 'iceNova' || event.type === 'blast' || (event.type === 'kill' && GAME_FEATURES.combatJuice) });
+          restoring || event.type === 'level' || event.skill === 'iceNova' || event.type === 'blast' || (event.type === 'kill' && GAME_FEATURES.combatJuice),
+          event.type === 'cast' && seal);
       }
+
       // WoW floating combat text: labels/colors/sizes live in combat-text.ts.
-      this.popups.push(...combatTextForEvent(event));
+      this.pushPopups(combatTextForEvent(event));
       // Large event batches must not allocate their entire particle history
       // before enforcing the cap. Keep the same newest effects after each event.
       this.trim();
     }
   }
 
+  /**
+   * Rapid hits on one target merge into a single growing number instead of
+   * stacking a column of small popups (Diablo-style grouping). The merged
+   * popup replays its pop and refreshes its life; crits and word popups
+   * (reactions, blocks, avoids) never merge so their flourish stays readable.
+   */
+  private pushPopups(popups: CombatPopup[]) {
+    for (const popup of popups) {
+      if (popup.targetId !== undefined && popup.amount !== undefined) {
+        const existing = this.popups.find(p => p.targetId === popup.targetId
+          && p.amount !== undefined && p.max - p.life < .45);
+        if (existing) {
+          existing.amount = (existing.amount ?? 0) + popup.amount;
+          existing.value = String(Math.round(existing.amount));
+          existing.life = existing.max;
+          existing.size = Math.min(existing.size + .12, 3.1);
+          continue;
+        }
+      }
+      this.popups.push(popup);
+    }
+  }
+
   private trim() {
-    if (this.sparks.length > 650) this.sparks.splice(0, this.sparks.length - 650);
-    if (this.flashes.length > 22) this.flashes.splice(0, this.flashes.length - 22);
-    if (this.impacts.length > 24) this.impacts.splice(0, this.impacts.length - 24);
+    // Overflowed particles retire into the pools rather than becoming garbage.
+    if (this.sparks.length > 650) { const cut = this.sparks.length - 650; for (let i = 0; i < cut; i++) this.sparkPool.push(this.sparks[i]); this.sparks.copyWithin(0, cut); this.sparks.length = 650; }
+    if (this.flashes.length > 22) { const cut = this.flashes.length - 22; for (let i = 0; i < cut; i++) this.flashPool.push(this.flashes[i]); this.flashes.copyWithin(0, cut); this.flashes.length = 22; }
+    if (this.impacts.length > 24) { const cut = this.impacts.length - 24; for (let i = 0; i < cut; i++) this.impactPool.push(this.impacts[i]); this.impacts.copyWithin(0, cut); this.impacts.length = 24; }
     if (this.popups.length > 35) this.popups.splice(0, this.popups.length - 35);
   }
 
@@ -285,15 +343,15 @@ export class CombatEffects {
       popup.life -= dt; popup.x += popup.vx * dt; popup.y += popup.vy * dt;
       popup.vx *= Math.exp(-dt * 2.5); popup.vy = Math.min(-17, popup.vy + dt * 60);
     }
-    // In-place compaction keeps drawing order without allocating a fresh array per frame.
+    // In-place compaction keeps drawing order; dead particles go back to the pools.
     let write = 0;
-    for (const spark of this.sparks) if (spark.life > 0) this.sparks[write++] = spark;
+    for (const spark of this.sparks) if (spark.life > 0) this.sparks[write++] = spark; else this.sparkPool.push(spark);
     this.sparks.length = write;
     write = 0;
-    for (const flash of this.flashes) if (flash.life > 0) this.flashes[write++] = flash;
+    for (const flash of this.flashes) if (flash.life > 0) this.flashes[write++] = flash; else this.flashPool.push(flash);
     this.flashes.length = write;
     write = 0;
-    for (const impact of this.impacts) if (impact.life > 0) this.impacts[write++] = impact;
+    for (const impact of this.impacts) if (impact.life > 0) this.impacts[write++] = impact; else this.impactPool.push(impact);
     this.impacts.length = write;
     write = 0;
     for (const point of this.dodgeTrail) if (point.life > 0) this.dodgeTrail[write++] = point;
@@ -408,6 +466,24 @@ export class CombatEffects {
       }
       const head = this.dodgeTrail[this.dodgeTrail.length - 1];
       c.globalAlpha = 1;
+      // Direction read: two chevrons point along the roll at its head, so the
+      // evade direction is legible even mid-screen-clutter.
+      const tail = this.dodgeTrail[0];
+      const dx = head.x - tail.x, dy = head.y - tail.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 4) {
+        const ux = dx / len, uy = dy / len;
+        const headLife = Math.min(1, head.life / .26);
+        for (let i = 0; i < 2; i++) {
+          const bx = head.x - ux * (6 + i * 7), by = head.y - 13 - uy * (6 + i * 7);
+          const px = -uy * 3.4, py = ux * 3.4;
+          c.globalAlpha = headLife * (.55 - i * .18);
+          c.strokeStyle = '#eaf6ff'; c.lineWidth = 1.6;
+          c.beginPath(); c.moveTo(bx + px, by + py);
+          c.lineTo(bx + ux * 5, by + uy * 5);
+          c.lineTo(bx - px, by - py); c.stroke();
+        }
+      }
       drawGlow(c, head.x, head.y - 13, 22, '#9fd0ff', Math.min(1, head.life / .26) * .4);
     }
     for (const impact of this.impacts) this.drawImpact(c, impact, reducedMotion);
@@ -431,19 +507,31 @@ export class CombatEffects {
   }
 
   private drawImpact(c: CanvasRenderingContext2D, impact: Impact, reducedMotion: boolean) {
-    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 2 : impact.hurt ? 1.2 : 1.5, reducedMotion, impact.cls)) return;
+    if (GAME_FEATURES.spellVfx && impact.style && drawSchoolImpact(c, impact.x, impact.y, impact.style, impact.max - impact.life, impact.lethal ? 2 : impact.hurt ? 1.2 : impact.heavy ? 1.8 : 1.5, reducedMotion, impact.cls)) return;
     const t = Math.max(0, impact.life / impact.max), elapsed = impact.radiant && reducedMotion ? .4 : 1 - t;
     c.save(); c.translate(impact.x, impact.y); c.rotate(impact.angle);
     c.globalCompositeOperation = 'lighter';
     c.globalAlpha = Math.pow(t, 1.5);
-    const length = (impact.lethal ? (GAME_FEATURES.combatJuice ? 38 : 30) : 27) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
-    const waist = 4.2 * t;
+    const length = (impact.lethal ? (GAME_FEATURES.combatJuice ? 38 : 30) : impact.heavy ? 33 : 27) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
+    const waist = (impact.heavy ? 5.4 : 4.2) * t;
     c.fillStyle = elapsed < .3 ? '#fff8da' : impact.color;
     // The contact has a hard, brief center, followed by an expanding broken star.
     c.beginPath(); c.moveTo(-length * .7, 0); c.lineTo(-waist, -waist);
     c.lineTo(0, -length * .65); c.lineTo(waist, -waist);
     c.lineTo(length, 0); c.lineTo(waist, waist);
     c.lineTo(0, length * .65); c.lineTo(-waist, waist); c.closePath(); c.fill();
+    // Heavy hits throw a second, wider star rotated off-axis so the burst reads
+    // as a detonation rather than a single slash.
+    if (impact.heavy && !impact.radiant) {
+      c.save(); c.rotate(.8);
+      c.globalAlpha = Math.pow(t, 1.8) * .7;
+      const l2 = length * .62, w2 = waist * .7;
+      c.beginPath(); c.moveTo(-l2 * .7, 0); c.lineTo(-w2, -w2);
+      c.lineTo(0, -l2 * .65); c.lineTo(w2, -w2);
+      c.lineTo(l2, 0); c.lineTo(w2, w2);
+      c.lineTo(0, l2 * .65); c.lineTo(-w2, w2); c.closePath(); c.fill();
+      c.restore();
+    }
     // White-hot core dot: the first frames read as a real contact point.
     if (elapsed < .45 && !impact.radiant) {
       c.globalAlpha = Math.pow(t, 2) * .9;
@@ -456,8 +544,8 @@ export class CombatEffects {
     }
     c.rotate(impact.hurt ? -.6 : .65);
     c.strokeStyle = impact.color; c.lineWidth = 1.3 * t;
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.1 + elapsed * .35, r = 11 + elapsed * (impact.hurt ? 29 : 20);
+    for (let i = 0; i < (impact.heavy ? 4 : 3); i++) {
+      const a = i * 2.1 + elapsed * .35, r = 11 + elapsed * (impact.hurt ? 29 : impact.heavy ? 26 : 20);
       c.beginPath(); c.ellipse(0, 0, r, r * .7, 0, a, a + .6); c.stroke();
     }
     c.restore();
@@ -488,9 +576,12 @@ export class CombatEffects {
     c.save();
     for (const popup of this.popups) {
       const elapsed = popup.max - popup.life;
-      const pop = 1 + (popup.crit ? .55 : .35) * Math.exp(-elapsed * (popup.crit ? 16 : 22));
+      const pop = 1 + (popup.crit ? .62 : .35) * Math.exp(-elapsed * (popup.crit ? 14 : 22));
       const size = popup.size * pop;
-      const { x, y } = project(popup.x, popup.y);
+      // Crits shudder for their first frames — a tiny horizontal jitter that
+      // reads as force without moving the number's anchor.
+      const jitter = popup.crit ? Math.sin(elapsed * 70) * Math.exp(-elapsed * 9) * 2.2 : 0;
+      const { x, y } = project(popup.x + jitter, popup.y);
       c.globalAlpha = Math.min(1, popup.life / .2);
       // WoW crit flourish: the number pops with a trailing '!'.
       const value = popup.crit ? `${popup.value}!` : popup.value;

@@ -11,6 +11,7 @@
  * T06/T07 own phase transitions, win checks and rewards; this file owns the
  * chassis: get in, place teams, get out. */
 import { planDungeonTravel, type DungeonResult } from './dungeon-command.ts';
+import { PLAYER_ABILITIES } from './combat-content.ts';
 import { currentDungeon } from './dungeon-state.ts';
 import { generateDungeon, type DungeonFloor } from './dungeon.ts';
 import { pvpEntrance, pvpMap, pvpMapIdFor } from './pvp-floor.ts';
@@ -46,19 +47,36 @@ export interface PvpMatch {
     bracket: PvpBracket;
     mapId: string;
     seed: number;
-    /** Sim time the match was entered; saved buffs decay by the elapsed span. */
+    /** Sim time the match was entered; saved buffs/cooldowns decay by the elapsed span. */
     enteredAt: number;
     phase: PvpMatchPhase;
     score: { A: number; B: number };
     roster: PvpRosterEntry[];
     savedCharacter?: { character: CharacterSheet; level: number; name?: string };
-    /** Pre-match player state, snapshotted for every entry mode. */
+    /** Pre-match player state, snapshotted for every entry mode. Anything the
+     * match can mutate must ride this record — a field left out leaks arena
+     * state into the overworld (or loses pre-match state) on exit. */
     savedState?: {
         hp: number; mana: number;
         flasks: number; healCooldown: number;
         soulShards?: number; runes?: number[];
         buffs?: WowBuff[];
         mounted?: Player['mounted'];
+        /** Remaining skill cooldowns (seconds), decayed by match duration on exit. */
+        skillCooldowns?: Player['skillCooldowns'];
+        comboPoints?: number;
+        /** Pets/minions/totems live at entry; arena summons never leave the match. */
+        allies?: Player['allies'];
+        stealthed?: boolean;
+        autoAttack?: boolean;
+        dodgeCharges?: number; dodgeRecharge?: number;
+        invulnerable?: number; guardTime?: number; guardReduction?: number;
+        gcdReady?: number;
+        /** Timed proc/stance state (spellweave charges, wards, echoes). */
+        affixBuffs?: Player['affixBuffs'];
+        skillEffects?: Player['skillEffects'];
+        /** PvE kill-streak chain; arena kills must not extend it. */
+        killStreak?: Player['killStreak'];
         /** Saved-character path only: gear+pack snapshot (the live sheet stays
          * mutable so honor drip and mid-match progress still land). */
         gear?: { equipped: CharacterSheet['equipped']; inventory: CharacterSheet['inventory']; inventoryLayout?: CharacterSheet['inventoryLayout']; bags?: CharacterSheet['bags'] };
@@ -82,11 +100,34 @@ export interface PvpObjectives {
     /** Peak simultaneous node count per team plus the node total (Arathi);
      * feeds the "hold every node" achievement. */
     peakOwned?: { A: number; B: number; total: number };
+    /** Headline score label for HUD/scoreboard chrome ('Flags', 'Resources');
+     * the arena default reports 'Alive'. */
+    readonly scoreLabel?: string;
+    /** Objective markers for the match minimap (flag stands, carried flags,
+     * nodes). Recomputed per call; undefined on controllers without a map. */
+    markers?(): readonly PvpObjectiveMarker[];
+}
+/** One objective marker for the match minimap. `owner` is the controlling side
+ * (null while neutral or dropped); `contested` marks a hot point — a dropped
+ * flag or a node under assault. */
+export interface PvpObjectiveMarker {
+    readonly kind: 'flag' | 'node';
+    readonly id: string;
+    readonly label: string;
+    readonly x: number;
+    readonly y: number;
+    readonly owner: PvpTeam | null;
+    /** Flag state ('home' | 'carried' | 'dropped'); undefined on nodes. */
+    readonly state?: string;
+    /** Capture progress 0..1 toward `progressTeam` (nodes only). */
+    readonly progress?: number;
+    readonly progressTeam?: PvpTeam | null;
+    readonly contested?: boolean;
 }
 /** One objective beat, emitted by battleground controllers. `team` is the
  * acting team; `flagTeam`/`owner` name the flag's/node's owning side. */
 export interface PvpObjectiveEvent {
-    readonly kind: 'flag-pickup' | 'flag-drop' | 'flag-return' | 'flag-capture' | 'node-assault' | 'node-capture';
+    readonly kind: 'flag-pickup' | 'flag-drop' | 'flag-return' | 'flag-capture' | 'flag-assault' | 'node-assault' | 'node-capture';
     readonly team: PvpTeam;
     /** The acting combatant (carrier, returner); absent for node events. */
     readonly combatant?: Combatant;
@@ -160,15 +201,27 @@ function buildMatch(sim: Simulation, setup: PvpSetup, seed: number, floor: Dunge
         enteredAt: sim.time,
         phase: 'prep', score: { A: 0, B: 0 }, roster,
         ...(setup.custom ? { savedCharacter: { character: p.character, level: p.level, name: p.name } } : {}),
-        // Universal pre-match snapshot: resources, consumables and buffs return
-        // on exit; the saved-character path also banks gear+pack so mid-match
-        // swaps and flask use never touch the real inventory.
+        // Universal pre-match snapshot: resources, consumables, buffs and every
+        // transient combat field the match can touch return on exit; the
+        // saved-character path also banks gear+pack so mid-match swaps and
+        // flask use never touch the real inventory.
         savedState: {
             hp: p.hp, mana: p.mana,
             flasks: p.flasks, healCooldown: p.healCooldown,
             soulShards: p.soulShards, runes: p.runes ? [...p.runes] : undefined,
             buffs: p.buffs?.length ? cloneData(p.buffs) : undefined,
             mounted: p.mounted ?? null,
+            skillCooldowns: cloneData(p.skillCooldowns ?? {}),
+            comboPoints: p.comboPoints ?? 0,
+            allies: p.allies?.length ? cloneData(p.allies) : undefined,
+            stealthed: p.stealthed ?? false,
+            autoAttack: p.autoAttack ?? false,
+            dodgeCharges: p.dodgeCharges, dodgeRecharge: p.dodgeRecharge,
+            invulnerable: p.invulnerable, guardTime: p.guardTime, guardReduction: p.guardReduction,
+            gcdReady: p.gcdReady ?? 0,
+            affixBuffs: p.affixBuffs ? cloneData(p.affixBuffs) : undefined,
+            skillEffects: p.skillEffects ? cloneData(p.skillEffects) : undefined,
+            killStreak: p.killStreak ? cloneData(p.killStreak) : undefined,
             ...(setup.custom ? {} : {
                 gear: cloneData({
                     equipped: p.character.equipped, inventory: p.character.inventory,
@@ -189,12 +242,19 @@ function applySessionCharacter(player: Player, setup: PvpSetup): void {
     player.level = built.player.level;
     player.name = built.player.name;
     refreshCharacter(player);
-    seedResource(player); // rage/runic start empty, mana/energy full — like createCharacter
-    player.skillCooldowns = {};
     player.flasks = built.player.flasks;
-    player.healCooldown = 0;
     player.soulShards = built.player.soulShards;
     player.runes = built.player.runes ? [...built.player.runes] : undefined;
+}
+
+/** WoW arena entry: everyone steps through the gates fresh — topped off,
+ * cooldowns reset, no lingering combat state. The pre-match values are already
+ * banked in match.savedState; exit restores them (buffs/cooldowns decayed by
+ * the match's duration). */
+function prepareMatchEntry(player: Player): void {
+    seedResource(player); // full hp; rage/runic empty, mana/energy full — like createCharacter
+    player.skillCooldowns = {};
+    player.healCooldown = 0;
     player.comboPoints = 0;
     player.buffs = undefined;
     player.dots = undefined;
@@ -202,6 +262,23 @@ function applySessionCharacter(player: Player, setup: PvpSetup): void {
     player.stealthed = undefined;
     player.mounted = null;
     player.allies = [];
+    player.attack = null;
+    player.dash = null;
+    player.cast = null;
+    player.castTime = 0;
+    player.dodgeTime = 0;
+    player.dodgeCharges = PLAYER_ABILITIES.dodge.charges;
+    player.dodgeRecharge = 0;
+    player.guardTime = 0;
+    player.invulnerable = 0;
+    player.gcdReady = 0;
+    player.targetId = null;
+    player.autoAttack = false;
+    player.hitFlash = 0;
+    player.healFlash = 0;
+    player.affixBuffs = undefined;
+    player.skillEffects = undefined;
+    player.killStreak = undefined;
 }
 
 /** Restores the pre-match character and player state: the Custom build's sheet
@@ -235,21 +312,55 @@ function restoreSessionCharacter(sim: Simulation, match: PvpMatch): void {
     p.dead = false;
     sim.ghost = null;
     if (saved) {
+        const elapsed = Math.max(0, sim.time - match.enteredAt);
         p.hp = Math.max(1, Math.min(p.maxHp, saved.hp));
         p.mana = Math.max(0, Math.min(p.maxMana, saved.mana));
         p.flasks = saved.flasks;
-        p.healCooldown = saved.healCooldown;
+        p.healCooldown = Math.max(0, saved.healCooldown - elapsed);
         p.soulShards = saved.soulShards;
         p.runes = saved.runes ? [...saved.runes] : undefined;
         p.mounted = saved.mounted ?? null;
+        // Cooldowns kept ticking while the match ran — same decay rule as buffs.
+        p.skillCooldowns = Object.fromEntries(Object.entries(saved.skillCooldowns ?? {})
+            .map(([id, left]) => [id, (left ?? 0) - elapsed] as const).filter(([, left]) => (left ?? 0) > 0)) as Player['skillCooldowns'];
+        p.comboPoints = saved.comboPoints ?? 0;
+        // Ally timers (despawn, regen, guard, speed, stealth) decayed by elapsed too.
+        const decay = (n: number | undefined) => n == null ? undefined : Math.max(0, n - elapsed);
+        p.allies = saved.allies ? cloneData(saved.allies).map(ally => ({
+            ...ally, targetId: null,
+            remaining: decay(ally.remaining),
+            regen: ally.regen ? { ...ally.regen, remaining: decay(ally.regen.remaining)! } : undefined,
+            guard: ally.guard ? { ...ally.guard, remaining: decay(ally.guard.remaining)! } : undefined,
+            speedBoost: ally.speedBoost ? { ...ally.speedBoost, remaining: decay(ally.speedBoost.remaining)! } : undefined,
+            stealth: ally.stealth ? { ...ally.stealth, remaining: decay(ally.stealth.remaining)! } : undefined,
+        })).filter(ally => ally.remaining == null || ally.remaining > 0) : [];
+        p.stealthed = saved.stealthed || undefined;
+        p.autoAttack = saved.autoAttack ?? false;
+        p.dodgeCharges = saved.dodgeCharges ?? PLAYER_ABILITIES.dodge.charges;
+        p.dodgeRecharge = Math.max(0, (saved.dodgeRecharge ?? 0) - elapsed);
+        p.invulnerable = Math.max(0, (saved.invulnerable ?? 0) - elapsed);
+        p.guardTime = Math.max(0, (saved.guardTime ?? 0) - elapsed);
+        p.guardReduction = saved.guardReduction ?? 0;
+        p.gcdReady = Math.max(0, (saved.gcdReady ?? 0) - elapsed);
+        p.affixBuffs = saved.affixBuffs ? cloneData(saved.affixBuffs) : undefined;
+        p.skillEffects = saved.skillEffects ? cloneData(saved.skillEffects) : undefined;
+        p.killStreak = saved.killStreak ? cloneData(saved.killStreak) : undefined;
     } else {
         seedResource(p);
     }
+    // Match-only state never survives the exit: CC, dots, casts, swings and
+    // channels die with the instance.
     p.cc = undefined;
     p.dots = undefined;
-    p.stealthed = undefined;
+    p.attack = null;
+    p.dash = null;
+    p.cast = null;
+    p.castTime = 0;
+    p.dodgeTime = 0;
+    p.hitFlash = 0;
+    p.healFlash = 0;
     p.targetId = null;
-    p.autoAttack = false;
+    if (!saved) { p.stealthed = undefined; p.autoAttack = false; }
 }
 
 /**
@@ -278,6 +389,7 @@ export async function enterPvpMatch(sim: Simulation, setup: PvpSetup, host: PvpM
     host.restoreWorld(result.checkpoint);
     sim.restoreCheckpoint(result.checkpoint);
     applySessionCharacter(sim.player, setup);
+    prepareMatchEntry(sim.player);
     const roster = sim.enterPvp(built.npcs, built.teams);
     const match = currentPvpMatch(sim)!;
     roster.forEach((combatant, i) => {

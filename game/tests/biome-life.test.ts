@@ -19,7 +19,7 @@ test('nearby foliage shares continuous wind fronts and reduced motion removes wi
     const a = biomeWind(-4500, 2800, t, 'verdant'), b = biomeWind(-4499, 2800, t, 'verdant');
     assert.ok(Math.abs(a.x - b.x) < .08);
     assert.ok(a.gust >= 0 && a.gust <= 1);
-    assert.deepEqual(biomeWind(-4500, 2800, t, 'verdant', true), { x: 0, y: 0, gust: 0 });
+    assert.deepEqual(biomeWind(-4500, 2800, t, 'verdant', true), { x: 0, y: 0, gust: 0, surge: 0 });
   }
 });
 
@@ -84,11 +84,12 @@ test('every climate has frozen material and wildlife recipes and emits its own f
     assert.equal(life.footsteps.length, 1, id);
     assert.ok(life.particles.length > 0, id);
     assert.ok(life.particles.every(p => p.biome === id && p.kind === profile.debris), id);
-    const props = [profile.perches[0], profile.insectAnchors[0]].filter(kind => kind !== undefined)
+    const birdProfile = profile.birds[0], insectProfile = profile.insects[0];
+    const props = [birdProfile?.perches[0], insectProfile?.anchors[0]].filter(kind => kind !== undefined)
       .map((kind, i) => ({ ...prop(i + 10, kind), biome: id }));
     const wildlife = new BiomeLife(); wildlife.update(.05, 0, props, subject(-150, 0), false, contact);
-    assert.equal(wildlife.birds[0]?.kind ?? null, profile.bird, id);
-    assert.equal(wildlife.insects[0]?.kind ?? null, profile.insect, id);
+    assert.equal(wildlife.birds[0]?.kind ?? null, birdProfile?.kind ?? null, id);
+    assert.equal(wildlife.insects[0]?.kind ?? null, insectProfile?.kind ?? null, id);
   }
 });
 
@@ -129,8 +130,8 @@ test('shared wildlife and particle limits hold across mixed-biome streaming and 
   const life = new BiomeLife();
   for (let step = 0; step < 700; step++) {
     const id = BIOME_IDS[Math.floor(step / 100)], profile = BIOME_LIFE[id];
-    const props = Array.from({ length: 80 }, (_, i) => ({ ...prop(i, profile.perches[0] ?? profile.emitters[0]), biome: id, id: id + i }));
-    const insects = Array.from({ length: 50 }, (_, i) => ({ ...prop(i + 100, profile.insectAnchors[0] ?? profile.emitters[0]), biome: id, id: id + '-i' + i }));
+    const props = Array.from({ length: 80 }, (_, i) => ({ ...prop(i, profile.birds[0]?.perches[0] ?? profile.emitters[0]), biome: id, id: id + i }));
+    const insects = Array.from({ length: 50 }, (_, i) => ({ ...prop(i + 100, profile.insects[0]?.anchors[0] ?? profile.emitters[0]), biome: id, id: id + '-i' + i }));
     life.update(.05, step * .05, [...props, ...insects], subject(step % 100 * 4), false,
       () => groundContact(weights(id), .8, 0, 0, false));
     for (const key of ['trails', 'footsteps', 'particles', 'birds', 'insects'] as const) assert.ok(life[key].length <= BIOME_LIFE_LIMITS[key]);

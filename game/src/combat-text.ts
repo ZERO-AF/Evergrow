@@ -21,6 +21,10 @@ export interface CombatPopup {
   life: number; max: number; value: string; color: string; size: number;
   /** Critical flourish: drawNumbers appends the '!' and pops harder. */
   crit?: boolean;
+  /** Damage popups carrying a target id merge rapid hits into one growing number. */
+  targetId?: number;
+  /** Running damage total for merged popups; absent on word popups. */
+  amount?: number;
 }
 
 const WHITE_MELEE = '#f4f1e6';
@@ -66,11 +70,14 @@ export function combatTextForEvent(event: CombatEvent, random: () => number = Ma
       const out: CombatPopup[] = [];
       if (!(heavy && GAME_FEATURES.lootBeams) || crit) out.push({
         x: event.x + (random() - .5) * 10, y: event.y - tall,
-        vx: (random() - .5) * 22, vy: crit ? -58 : -47,
-        life: crit ? 1 : .85, max: crit ? 1 : .85,
+        vx: (random() - .5) * 22, vy: crit ? -62 : -47,
+        life: crit ? 1.15 : .85, max: crit ? 1.15 : .85,
         value: String(Math.round(event.value)), color: hitColor(event, crit),
-        size: crit ? 3.4 : heavy ? 2.6 : event.periodic ? 1.7 : 2,
+        size: crit ? 3.9 : heavy ? 2.6 : event.periodic ? 1.7 : 2,
         ...(crit ? { crit: true } : {}),
+        // Rapid hits on one target merge into a growing total; crits and
+        // reaction numbers always stand alone so the flourish stays readable.
+        ...(!crit && !event.reaction ? { targetId: event.targetId, amount: event.value } : {}),
       });
       if (event.reaction) out.push({ x: event.x, y: event.y - tag, vx: 0, vy: -47,
         life: .75, max: .75, value: event.reaction.toUpperCase(), color: hitColor(event, false), size: 1.6 });
@@ -79,16 +86,19 @@ export function combatTextForEvent(event: CombatEvent, random: () => number = Ma
       return out;
     }
     case 'hurt': {
+      // Damage taken scales with the blow: routine hits stay modest, heavy
+      // hits read bigger and hotter so the player feels the spike.
       const out: CombatPopup[] = [{ x: event.x, y: event.y - 61,
-        vx: Math.cos(event.angle) * 14, vy: -55, life: .95, max: .95,
-        value: `-${Math.round(event.value)}`, color: (event.style ? PROJECTILE_COLORS[event.style] : undefined) ?? HURT_RED, size: 2.5 }];
+        vx: Math.cos(event.angle) * 14, vy: heavy ? -62 : -55, life: heavy ? 1.05 : .95, max: heavy ? 1.05 : .95,
+        value: `-${Math.round(event.value)}`, color: (event.style ? PROJECTILE_COLORS[event.style] : undefined) ?? (heavy ? '#ff6b4e' : HURT_RED), size: heavy ? 3 : 2.5 }];
       if (event.glancing) out.push({ x: event.x, y: event.y - 80,
         vx: 0, vy: -47, life: .75, max: .75, value: 'GLANCING', color: GLANCING_GREY, size: 1.6 });
       return out;
     }
     case 'heal':
+      // Heals pop like a small crit: green, '+'-prefixed, a touch oversized.
       return [{ x: event.x, y: event.y - 61, vx: 14, vy: -55,
-        life: .95, max: .95, value: `+${Math.round(event.value)}`, color: HEAL_GREEN, size: 2 }];
+        life: 1, max: 1, value: `+${Math.round(event.value)}`, color: HEAL_GREEN, size: 2.3 }];
     case 'potion': {
       const out: CombatPopup[] = [];
       if (event.life > 0) out.push({ x: event.x, y: event.y - 61, vx: -9, vy: -35,
@@ -99,22 +109,26 @@ export function combatTextForEvent(event: CombatEvent, random: () => number = Ma
     }
     case 'block': {
       // One event carries shielded immunity, shield blocks, absorb wards and
-      // partial resists; `blocked` picks the WoW label.
+      // partial resists; `blocked` picks the WoW label and its own read:
+      // immune is flat grey, absorb teal, resist violet, block bright blue.
       const kind = event.blocked ?? 'shield';
       const value = kind === 'immune' ? 'IMMUNE'
         : kind === 'absorb' ? `${Math.round(event.value)} ABSORBED`
         : kind === 'resist' ? `${Math.round(event.value)} RESISTED`
-        : 'BLOCK';
-      const color = kind === 'immune' ? IMMUNE_GREY : kind === 'resist' ? RESIST_VIOLET : event.color ?? BLOCK_BLUE;
+        : `${Math.round(event.value)} BLOCKED`;
+      const color = kind === 'immune' ? IMMUNE_GREY : kind === 'resist' ? RESIST_VIOLET
+        : kind === 'absorb' ? '#9ed6d5' : event.color ?? BLOCK_BLUE;
+      const size = kind === 'immune' ? 1.9 : kind === 'shield' ? 1.9 : 1.8;
       return [{ x: event.x, y: event.y - 58, vx: 0, vy: -25,
-        life: .65, max: .65, value, color, size: 1.7 }];
+        life: kind === 'immune' ? .8 : .7, max: kind === 'immune' ? .8 : .7, value, color, size }];
     }
     case 'avoid':
       // Attack-table whiffs read as WoW floating text: MISS over the target,
-      // DODGE/PARRY over whoever avoided the blow.
+      // DODGE/PARRY over whoever avoided the blow — dodge/parry read brighter.
       return [{ x: event.x, y: event.y - (event.incoming ? 58 : tall), vx: 0, vy: -25,
-        life: .65, max: .65, value: event.outcome.toUpperCase(),
-        color: event.outcome === 'miss' ? AVOID_GREY : BLOCK_BLUE, size: 1.7 }];
+        life: .7, max: .7, value: event.outcome.toUpperCase(),
+        color: event.outcome === 'miss' ? AVOID_GREY : BLOCK_BLUE,
+        size: event.outcome === 'miss' ? 1.6 : 1.8 }];
     default:
       return [];
   }

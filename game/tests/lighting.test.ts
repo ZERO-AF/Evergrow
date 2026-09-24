@@ -10,16 +10,30 @@ class RecordingContext {
   clearRect() { this.draws = []; this.shadowPoints = []; }
   fillRect() { this.draws = []; }
   createRadialGradient() { return { addColorStop() {} }; }
+  createLinearGradient() { return { addColorStop() {} }; }
+  createPattern() { return null; }
   save() {}
   restore() {}
   setTransform() {}
+  resetTransform() {}
+  transform() {}
   translate() {}
   scale() {}
+  rotate() {}
   beginPath() {}
   moveTo(...point: number[]) { this.shadowPoints.push(point); }
   lineTo(...point: number[]) { this.shadowPoints.push(point); }
+  quadraticCurveTo() {}
+  bezierCurveTo() {}
+  arc() {}
+  arcTo() {}
+  ellipse() {}
+  rect() {}
   closePath() {}
   fill() {}
+  stroke() {}
+  clip() {}
+  setLineDash() {}
 }
 
 class RecordingCanvas {

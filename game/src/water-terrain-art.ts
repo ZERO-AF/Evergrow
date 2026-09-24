@@ -28,6 +28,18 @@ export function* waterTerrainSteps(c: CanvasRenderingContext2D, left: number, to
         c.strokeStyle = '#94b3a452'; c.lineWidth = 1; c.stroke();
       }
       const random = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453, pick = random - Math.floor(random);
+      // A damp band hugs the shoreline: darker, cooler ground just above the
+      // waterline and pale foam flecks just below it.
+      const bank = (a.bank + b.bank + d.bank + e.bank) * .25;
+      if (bank > .3 && a.coverage < .4) {
+        c.fillStyle = `rgba(10,26,30,${(bank * .16).toFixed(3)})`;
+        c.fillRect(x, y, step, step);
+      }
+      if (a.coverage > .3 && a.coverage < .62 && pick > .6) {
+        const fx = x + pick * 6, fy = y + (pick * 7 % 1) * 6;
+        c.strokeStyle = '#cfe4d840'; c.lineWidth = .8;
+        c.beginPath(); c.moveTo(fx - 2.4, fy); c.lineTo(fx + 1.8, fy - .6); c.stroke();
+      }
       if (a.coverage > .75 && a.depth < .8 && pick > .77) {
         const px = x + pick * 5, py = y + pick * 3, r = 1 + pick * 3;
         c.fillStyle = '#112d3660'; c.beginPath(); c.ellipse(px, py, r * 1.4, r * .65, pick * 2, 0, Math.PI * 2); c.fill();

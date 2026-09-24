@@ -2,6 +2,7 @@ import { roadPaths } from '../src/road-shape.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { World, TILE_SIZE, pathDistance, type Prop } from '../src/world.ts';
+import { stubContext } from './stub-context.ts';
 
 test('world queries are reproducible, order-independent, and safe without a DOM', () => {
   const first = new World();
@@ -92,13 +93,7 @@ test('unobstructed movement preserves requested displacement and rejects invalid
 
 test('ground tiles use an injected canvas and a bounded LRU cache', () => {
   let created = 0;
-  const context = {
-    fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
-    createImageData(width: number, height: number) { return { width, height, data: new Uint8ClampedArray(width * height * 4) }; },
-    createRadialGradient() { return { addColorStop() {} }; },
-    putImageData() {}, translate() {}, scale() {}, save() {}, restore() { this.globalAlpha = 1; }, rect() {}, clip() {}, closePath() {}, fill() {},
-    fillRect() {}, beginPath() {}, moveTo() {}, lineTo() {}, quadraticCurveTo() {}, stroke() {},
-  };
+  const context = stubContext();
   const factory = () => {
     created++;
     return { width: 0, height: 0, getContext: () => context } as unknown as HTMLCanvasElement;

@@ -384,7 +384,14 @@ export function characterTransform(pose: CharacterPose): Affine {
     // recoil away from the hit and then settle, independently of locomotion.
     const impact: Affine = [1 + recoil * 0.025, 0, -Math.cos(angle) * recoil * 4.2 / height,
       1 - (Math.sin(angle) * 3.4 + 1.1) * recoil / height, 0, 0];
-    return compose(base, impact);
+    base = compose(base, impact);
+  }
+  // Staggered actors reel: a decaying side-to-side sway that reads as lost
+  // footing without moving the ground anchor. Composes under the hit recoil.
+  if (!pose.dead && (pose.staggered ?? 0) > 0) {
+    const sway = Math.min(1, pose.staggered! / .5) * Math.sin(pose.time * 13);
+    const height = pose.kind === 'player' ? 48 : 38;
+    base = compose(base, [1, 0, sway * 3.4 / height, 1, 0, 0]);
   }
   return base;
 }

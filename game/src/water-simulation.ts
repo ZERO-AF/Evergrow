@@ -27,8 +27,8 @@ export class WaterSimulation {
   private scratch = new Float32Array(this.height.length);
   readonly droplets: WaterDroplet[] = [];
   cell = 8; left = Infinity; top = Infinity; time = 0;
-  private remainder = 0; private emissions = 0; private serial = 0;
-  reset() { this.height.fill(0); this.u.fill(0); this.v.fill(0); this.wet.fill(0); this.depth.fill(0); this.flowX.fill(0); this.flowY.fill(0); this.left = this.top = Infinity; this.remainder = this.time = this.emissions = 0; this.droplets.length = 0; this.wetCells = 0; this.waterBounds = undefined; this.hasWater = this.awake = false; this.bedRevision++; this.waveRevision++; }
+  private remainder = 0; private emissions = 0; private serial = 0; private ambient = 0;
+  reset() { this.height.fill(0); this.u.fill(0); this.v.fill(0); this.wet.fill(0); this.depth.fill(0); this.flowX.fill(0); this.flowY.fill(0); this.left = this.top = Infinity; this.remainder = this.time = this.emissions = this.ambient = 0; this.droplets.length = 0; this.wetCells = 0; this.waterBounds = undefined; this.hasWater = this.awake = false; this.bedRevision++; this.waveRevision++; }
   fit(bounds: { x: number; y: number; width: number; height: number }, sample: WaterSampler) {
     const cell = 8 * 2 ** Math.max(0, Math.ceil(Math.log2(Math.max(bounds.width / ((this.columns - 16) * 8), bounds.height / ((this.rows - 16) * 8)))));
     const left = Math.floor((bounds.x + bounds.width / 2) / (cell * 4)) * cell * 4 - this.columns / 2 * cell;
@@ -104,6 +104,16 @@ export class WaterSimulation {
     if (!Number.isFinite(dt) || dt <= 0) return;
     const step = Math.min(WATER_LIMITS.tick * WATER_LIMITS.substeps, dt);
     this.time += step; this.remainder += step;
+    // Ambient micro-ripples: a seeded drip keeps ponds and rivers breathing
+    // even when no actor touches the surface. One small impulse per interval.
+    this.ambient -= step;
+    if (this.hasWater && this.ambient <= 0) {
+      this.ambient = .55;
+      const seed = Math.floor(this.time * 1.8) * 2654435761;
+      const x = this.left + ((seed >>> 8) % 1000 / 1000) * this.columns * this.cell;
+      const y = this.top + ((seed >>> 20) % 1000 / 1000) * this.rows * this.cell;
+      if (this.wetAt(x, y) > .3) this.disturb({ x, y, radius: 16, strength: .12 }, false);
+    }
     for (let ticks = 0; this.remainder + 1e-9 >= WATER_LIMITS.tick && ticks < WATER_LIMITS.substeps; ticks++) {
       this.remainder = Math.max(0, this.remainder - WATER_LIMITS.tick);
       if (this.awake) { this.tick(); this.waveRevision++; }

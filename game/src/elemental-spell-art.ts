@@ -47,6 +47,20 @@ export function drawElementalMissile(c: CanvasRenderingContext2D, frost: boolean
     if(frost) drawIceCrystal(c,x,y,2+phase*4,phase*3+i);
     else line(c,[[x+4,y],[x,y-2-phase*4]],i%3?'#ff9642':'#ffe8ad',1.5);
   }
+  // Element signature in the wake: frost sheds a cold mist, fire drops embers.
+  if (!reduced) for(let i=0;i<5;i++) {
+    const phase=(t*(frost?.9:1.4)+i/5+seed*.31)%1;
+    const x=-(26+phase*70)*wake, y=Math.sin(i*5.3+seed)*phase*12;
+    if (frost) {
+      c.globalAlpha=(1-phase)*.28;
+      c.strokeStyle='#bfe8f5';c.lineWidth=1.4;
+      c.beginPath();c.arc(x,y,3+phase*6,phase*4,phase*4+2.2);c.stroke();
+    } else {
+      c.globalAlpha=(1-phase)*.8;
+      c.fillStyle=i%2?'#ffcf7a':'#ff8a3c';
+      c.fillRect(x,y-phase*6,1.3,1.3);
+    }
+  }
   c.globalAlpha=1;
 }
 
@@ -63,6 +77,14 @@ export function drawFrostBloom(c: CanvasRenderingContext2D, radius: number, life
     for(const side of [-1,1]) line(c,[[dx*extent*.65,dy*extent*.65],[dx*extent*.48-dy*side*12,dy*extent*.48+dx*side*12]],'#aee5f2',.8);
   }
   c.globalAlpha=life*.7;c.strokeStyle='#c7f6ff';c.lineWidth=1.5;
+  // Lingering frost: a pale ground patch with hairline rime cracks outlives the flash.
+  c.globalCompositeOperation='source-over';
+  c.globalAlpha=life*.22;c.fillStyle='#a8d8e8';
+  c.beginPath();c.ellipse(0,2,radius*.8*spread,radius*.5*spread,0,0,TAU);c.fill();
+  c.globalAlpha=life*.3;c.strokeStyle='#d8f4ff';c.lineWidth=.7;
+  for(let i=0;i<5;i++){const a=i*2.4+seed;c.beginPath();c.moveTo(Math.cos(a)*radius*.2,Math.sin(a)*radius*.14+2);c.lineTo(Math.cos(a+.3)*radius*.55*spread,Math.sin(a+.3)*radius*.36*spread+2);c.stroke();}
+  c.globalCompositeOperation='lighter'; // Ring + shards glow additively, not opaque.
+  c.globalAlpha=1;drawGlow(c,0,0,radius*.7,'#78c9f5',life*.2);
   c.beginPath();c.arc(0,0,radius*spread,0,TAU);c.stroke();
   if(!reduced) for(let i=0;i<18;i++) {
     const a=i*2.399+seed,d=radius*(.35+p*.65),x=Math.cos(a)*d,y=Math.sin(a)*d;
@@ -104,6 +126,19 @@ export function drawFireImpact(c: CanvasRenderingContext2D, radius: number, life
       }
     }
   }
+  // Aftermath: a scorch ring on the ground and two lazy smoke curls rising.
+  c.globalCompositeOperation='source-over';
+  c.globalAlpha=life*.35;c.strokeStyle='#1c1410';c.lineWidth=2.2;
+  c.beginPath();c.ellipse(0,3,radius*.7,radius*.42,0,0,TAU);c.stroke();
+  c.globalAlpha=life*.18;c.fillStyle='#241a12';
+  c.beginPath();c.ellipse(0,3,radius*.62,radius*.36,0,0,TAU);c.fill();
+  if(!reduced) for(let i=0;i<2;i++){
+    const rise=(p*.7+i*.5+seed*.13)%1;
+    c.globalAlpha=Math.sin(rise*Math.PI)*life*.22;
+    c.strokeStyle='#4a423c';c.lineWidth=1.6;
+    c.beginPath();c.arc(-4+i*8+Math.sin(rise*6)*3,-6-rise*22,3+rise*5,rise*4,rise*4+2.4);c.stroke();
+  }
+  c.globalCompositeOperation='lighter';c.globalAlpha=1;
   c.globalAlpha=1;drawGlow(c,0,-8,radius*.55,'#ffb15a',Math.pow(life,3)*.6);
   if(meteor) {
     c.globalCompositeOperation='source-over';c.globalAlpha=life*.18;c.fillStyle='#342222';

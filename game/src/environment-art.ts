@@ -184,6 +184,41 @@ export class EnvironmentArt {
           c.strokeStyle = '#c7c2ae'; c.lineWidth = .65; c.beginPath();
           c.moveTo(x + Math.sin(t * .3 + phase) * 20, y); c.lineTo(x + 4 + Math.sin(t * .3 + phase) * 20, y - 1.5); c.stroke();
         }
+        if (weights.deadwood > .05 && seed % 2 === 0) {
+          // Pale spores sink slowly through the gloom; a rare teal mote glows.
+          const fall = (t * 3.1 + phase * 40) % 90;
+          c.globalAlpha = opacity * weights.deadwood * .5;
+          c.fillStyle = '#a8b8a4';
+          c.fillRect(x + Math.sin(t * .5 + phase) * 9, y - 45 + fall, 1.1, 1.1);
+          if (seed % 7 === 0) {
+            const pulse = .4 + .6 * Math.max(0, Math.sin(t * .9 + phase * 2));
+            drawGlow(c, x - 24, y + Math.sin(t * .4 + phase) * 12, 7, '#7fd8c0', weights.deadwood * pulse * .3);
+          }
+        }
+        if (weights.verdant > .05 && seed % 5 === 0) {
+          // Sunlit pollen: tiny warm specks hovering over the undergrowth.
+          const hover = Math.sin(t * .7 + phase * 3) * 6;
+          c.globalAlpha = opacity * weights.verdant * .5;
+          c.fillStyle = '#f0e6a8';
+          c.fillRect(x - 17 + Math.sin(t * .4 + phase) * 11, y - 26 + hover, 1, 1);
+          c.fillRect(x + 9 + Math.cos(t * .5 + phase) * 8, y - 33 - hover * .6, .9, .9);
+        }
+        if (weights.steppe > .05) {
+          // Wind-torn seeds streak sideways in short dashes.
+          const gust = (t * 26 + phase * 60) % 190;
+          c.globalAlpha = opacity * weights.steppe * .42;
+          c.strokeStyle = '#e3d9a8'; c.lineWidth = .6;
+          c.beginPath();
+          c.moveTo(x - 95 + gust, y - 12 + Math.sin(t + phase) * 5);
+          c.lineTo(x - 95 + gust + 5, y - 13 + Math.sin(t + phase) * 5); c.stroke();
+        }
+        if (weights.sunscar > .05 && seed % 3 === 0) {
+          // Heat shimmer: faint dust rising off the baked flats.
+          const rise = (t * 9 + phase * 30) % 60;
+          c.globalAlpha = opacity * weights.sunscar * .3;
+          c.fillStyle = '#e8c9a0';
+          c.fillRect(x + Math.sin(t * 1.1 + phase) * 7, y - rise, 1.2, .8);
+        }
         c.globalAlpha = opacity;
       }
     }

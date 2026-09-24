@@ -17,12 +17,12 @@
  * (a function-valued enumerable field would throw DataCloneError on autosave).
  * A reloaded match record simply has no controller; `attachBattlegroundObjectives`
  * re-creates one, restoring the headline score from `match.score`. */
-import { applySlow } from './combat-status.ts';
+import { applyDot, applySlow } from './combat-status.ts';
 import { currentDungeon } from './dungeon-state.ts';
 import type { DungeonFloor } from './dungeon.ts';
 import { BG_FLAG_PROP_IDS, BG_NODE_NAMES, BG_NODE_PROP_PREFIX } from './bg-maps.ts';
 import type { Combatant, PvpTeam } from './pvp-combatant.ts';
-import { attachPvpObjectives, type PvpMatch, type PvpObjectiveEvent, type PvpObjectives } from './pvp-instance.ts';
+import { attachPvpObjectives, type PvpMatch, type PvpObjectiveEvent, type PvpObjectiveMarker, type PvpObjectives } from './pvp-instance.ts';
 import type { Simulation } from './simulation.ts';
 
 // ── NPC objective directives ─────────────────────────────────────────────────
@@ -62,11 +62,22 @@ export class WarsongGulchObjectives implements PvpObjectives {
     events: PvpObjectiveEvent[] = [];
     /** First to this many captures wins. */
     target = 3;
+    /** HUD/scoreboard headline label. */
+    readonly scoreLabel = 'Flags';
     /** Touch distance for pickup/return; capture distance to the own stand. */
     touchRadius = 40;
     captureRadius = 80;
     /** Carrier movement penalty, refreshed each update. */
     carrierSlow = 0.7;
+    /** WoW's Focused Assault: a carrier holding the flag this long burns. */
+    assaultAfter = 60;
+    /** Sim time each flag was picked up (focused-assault timer). */
+    private readonly carrierSince: Record<PvpTeam, number | null> = { A: null, B: null };
+    /** Focused-assault event fired per flag (reset on drop/return/capture). */
+    private readonly assaultFired: Record<PvpTeam, boolean> = { A: false, B: false };
+    /** Focused-assault burn: fraction of carrier max hp per second, ramping. */
+    private readonly assaultDps = .03;
+    private readonly assaultRamp = .2;
     constructor(standA: { x: number; y: number }, standB: { x: number; y: number }) {
         this.flags = {
             A: { carrier: null, state: 'home', x: standA.x, y: standA.y, stand: standA },
@@ -76,6 +87,18 @@ export class WarsongGulchObjectives implements PvpObjectives {
     score(): { A: number; B: number } { return { ...this.captures }; }
     winner(): PvpTeam | null {
         return this.captures.A >= this.target ? 'A' : this.captures.B >= this.target ? 'B' : null;
+    }
+    /** Flag markers for the match minimap: each flag at its live position,
+     * contested while dropped. */
+    markers(): readonly PvpObjectiveMarker[] {
+        return (['A', 'B'] as const).map(team => {
+            const flag = this.flags[team];
+            return {
+                kind: 'flag' as const, id: `flag-${team}`, label: `${team} Flag`,
+                x: flag.x, y: flag.y, owner: flag.state === 'dropped' ? null : team,
+                state: flag.state, contested: flag.state === 'dropped',
+            };
+        });
     }
     update(sim: Simulation, match: PvpMatch, _dt: number): void {
         const roster = sim.pvpCombatants ?? [];
@@ -90,6 +113,8 @@ export class WarsongGulchObjectives implements PvpObjectives {
                 flag.state = 'dropped';
                 flag.x = flag.carrier.x; flag.y = flag.carrier.y;
                 flag.carrier = null;
+                this.carrierSince[team] = null;
+                this.assaultFired[team] = false;
                 this.events.push({ kind: 'flag-drop', team, owner: team });
             }
         }
@@ -99,6 +124,8 @@ export class WarsongGulchObjectives implements PvpObjectives {
             // Capture: carrying the enemy flag onto your own stand while your flag is home.
             if (theirs.carrier === c && own.state === 'home' && dist(c, own.stand) <= this.captureRadius) {
                 theirs.state = 'home'; theirs.x = theirs.stand.x; theirs.y = theirs.stand.y; theirs.carrier = null;
+                this.carrierSince[other(c.team)] = null;
+                this.assaultFired[other(c.team)] = false;
                 this.captures[c.team] += 1;
                 this.events.push({ kind: 'flag-capture', team: c.team, combatant: c, score: { ...this.captures }, target: this.target });
                 continue;
@@ -106,12 +133,15 @@ export class WarsongGulchObjectives implements PvpObjectives {
             // Return: touching your own dropped flag sends it home.
             if (own.state === 'dropped' && dist(c, own) <= this.touchRadius) {
                 own.state = 'home'; own.x = own.stand.x; own.y = own.stand.y;
+                this.carrierSince[c.team] = null;
+                this.assaultFired[c.team] = false;
                 this.events.push({ kind: 'flag-return', team: c.team, combatant: c });
                 continue;
             }
             // Pickup: touching a free enemy flag (on its stand or dropped) carries it.
             if (theirs.state !== 'carried' && dist(c, theirs) <= this.touchRadius) {
                 theirs.state = 'carried'; theirs.carrier = c;
+                this.carrierSince[other(c.team)] = sim.time;
                 this.events.push({ kind: 'flag-pickup', team: c.team, combatant: c });
             }
         }
@@ -120,6 +150,15 @@ export class WarsongGulchObjectives implements PvpObjectives {
             if (flag.state === 'carried' && flag.carrier) {
                 flag.x = flag.carrier.x; flag.y = flag.carrier.y;
                 applySlow(flag.carrier, { duration: 0.35, factor: this.carrierSlow });
+                // Focused Assault: a carrier who turtles too long starts burning.
+                const since = this.carrierSince[team];
+                if (since !== null && sim.time - since >= this.assaultAfter) {
+                    if (!this.assaultFired[team]) {
+                        this.assaultFired[team] = true;
+                        this.events.push({ kind: 'flag-assault', team, combatant: flag.carrier });
+                    }
+                    applyDot(flag.carrier, `pvp:flag-assault:${team}`, { school: 'shadow', flatDps: flag.carrier.maxHp * this.assaultDps, duration: 2, interval: .5, ramp: this.assaultRamp }, 0);
+                }
             }
         }
         match.score.A = this.captures.A; match.score.B = this.captures.B;
@@ -184,6 +223,8 @@ export class ArathiBasinObjectives implements PvpObjectives {
     readonly peakOwned = { A: 0, B: 0, total: 0 };
     /** First to this many resources wins. */
     target = 1600;
+    /** HUD/scoreboard headline label. */
+    readonly scoreLabel = 'Resources';
     /** Seconds of uncontested presence to capture a node. */
     captureTime = 4;
     /** Resources per second per owned node. */
@@ -200,6 +241,16 @@ export class ArathiBasinObjectives implements PvpObjectives {
     score(): { A: number; B: number } { return { A: Math.floor(this.resources.A), B: Math.floor(this.resources.B) }; }
     winner(): PvpTeam | null {
         return this.resources.A >= this.target ? 'A' : this.resources.B >= this.target ? 'B' : null;
+    }
+    /** Node markers for the match minimap: owner color, capture progress,
+     * contested while under assault. */
+    markers(): readonly PvpObjectiveMarker[] {
+        return this.nodes.map(node => ({
+            kind: 'node' as const, id: node.id, label: node.name,
+            x: node.x, y: node.y, owner: node.owner,
+            progress: node.progress, progressTeam: node.progressTeam,
+            contested: node.progress > 0 && node.progressTeam !== node.owner,
+        }));
     }
     update(sim: Simulation, match: PvpMatch, dt: number): void {
         const roster = sim.pvpCombatants ?? [];

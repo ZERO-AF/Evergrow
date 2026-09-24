@@ -30,6 +30,21 @@ function crystal(c: CanvasRenderingContext2D, random: Random) {
     polygon(c, [[tip, y - h], [x + width * .5, y - h * .7], [x, y - h * .67]], '#e1f1e9');
     line(c, [[x - width * .46, y - h * .77], [x, y - h * .67], [x, y - 3]], '#e3f2ec', .85);
     line(c, [[x + width * .1, y - 9], [x + width * .38, y - 14]], '#73c0d2', 1);
+    // Inner vein and shed splinters at the base keep the cluster grounded.
+    line(c, [[tip - 1, y - h * .88], [x - width * .1, y - h * .4], [x - width * .3, y - 4]], '#c8ecf280', .6);
+  }
+  // Cold inner light: a faint cyan bloom at each shard tip sells the ice as lit.
+  c.save(); c.globalCompositeOperation = 'screen'; c.globalAlpha = .3;
+  for (const [x, y, , baseHeight] of shards) {
+    const h = baseHeight + 2;
+    const g = c.createRadialGradient(x + 2, y - h, 0, x + 2, y - h, 9);
+    g.addColorStop(0, '#bfeef8'); g.addColorStop(1, '#bfeef800');
+    c.fillStyle = g; c.fillRect(x - 7, y - h - 9, 18, 18);
+  }
+  c.restore();
+  for (let chip = 0; chip < 4; chip++) {
+    const cx = between(random, -20, 20), cy = between(random, -3, 1);
+    polygon(c, [[cx - 1.6, cy], [cx, cy - 2.2], [cx + 1.8, cy - .6]], chip % 2 ? '#7fb3c4' : '#a8d4d8');
   }
 }
 
@@ -44,6 +59,9 @@ function basalt(c: CanvasRenderingContext2D, random: Random, ember: boolean) {
     if (ember) {
       line(c, [[x - 5, y - 3], [x - 3, top + 12], [x + 1, top + 8], [x + 4, top + 10]], '#c67150', 1.2);
       line(c, [[x - 4, y - 7], [x - 3, top + 13], [x + 1, top + 9]], '#f3b477', .55);
+      // A second hairline of heat splits off the main vein.
+      line(c, [[x + 2, y - 5], [x + 4, top + 16], [x + 7, top + 12]], '#e8935c', .7);
+      c.fillStyle = '#ffb87a55'; c.fillRect(x + 1, top + 9, 1.4, 1.4);
     } else line(c, [[x - width / 2 + 1, y - 9], [x - 3, y - 7], [x - 1, y - 13]], '#242b31', .9);
   }
 }
@@ -90,6 +108,16 @@ function mushrooms(c: CanvasRenderingContext2D, random: Random) {
     polygon(c, [[x - radius, y - height + 1], [x - radius * .5, y - height - radius * .5], [x + 1, y - height - radius * .7], [x + radius * .85, y - height - radius * .15], [x + radius, y - height + 1], [x + 1, y - height + 3]], '#769989');
     line(c, [[x - radius + 1, y - height + 1], [x + 1, y - height + 2], [x + radius - 1, y - height + .8]], '#d1dfbe', .75);
     c.fillStyle = '#e2e2c4'; c.fillRect(x - 1, y - height - 2, 1.4, 1.3);
+    // Bioluminescent gill dots under the cap rim — the deadwood's night light.
+    for (let dot = 0; dot < 3; dot++) {
+      c.fillStyle = '#9fe8c855';
+      c.fillRect(x - radius * .5 + dot * radius * .5, y - height + 1.6, 1, .8);
+    }
+  }
+  // A ring of shed spores around the cluster.
+  for (let spore = 0; spore < 5; spore++) {
+    c.fillStyle = '#cfe0b830';
+    c.fillRect(between(random, -18, 18), between(random, -2, 2), 1, .8);
   }
 }
 
@@ -98,9 +126,17 @@ function stump(c: CanvasRenderingContext2D, random: Random) {
   polygon(c, [[-11, -27], [0, -30], [13, -24], [7, -18], [-5, -20]], '#9c8b66');
   polygon(c, [[1, -26], [7, -25], [8, -22], [1, -20], [-5, -23]], '#604f3e');
   line(c, [[-8, -25], [-4, -27], [6, -25], [9, -22]], '#ceba86', .75);
+  // Growth rings on the cut face read as age.
+  line(c, [[-6, -24], [-2, -26], [4, -25]], '#7a6a4c', .55);
+  line(c, [[-4, -22], [0, -24], [5, -23]], '#7a6a4c', .5);
   line(c, [[-8, -21], [-8, -7], [-17, 0]], '#aa9164', 1);
   line(c, [[4, -18], [5, -6], [10, 0]], '#352f2d', 1.5);
   for (let growth = 0; growth < 4; growth++) leaf(c, 10 + between(random, -2, 7), -5 + between(random, -7, 5), 3, growth % 2 ? '#87955e' : '#596e52');
+  // Moss collar where the bark meets the soil.
+  for (let moss = 0; moss < 6; moss++) {
+    const mx = between(random, -20, 20);
+    polygon(c, [[mx - 3, 0], [mx - 1, -2.4], [mx + 3, -1], [mx + 1, 1]], moss % 2 ? '#5d7a4a55' : '#7d8f5a44');
+  }
 }
 
 function lilies(c: CanvasRenderingContext2D, random: Random) {
@@ -216,6 +252,32 @@ export function drawBiomeGroundAccent(c: CanvasRenderingContext2D, biome: BiomeI
     line(c, [[x, y], [x + 2, y - length * .55], [x + 7, y - length]], '#a2ad8255', .65);
     line(c, [[x + 2, y], [x + 5, y - length * .7]], '#818e7a55', .6);
     if (pick < .14) leaf(c, x + 6, y - length + 1, 1.2, '#b99eb659', -.5);
+    return true;
+  }
+  if (biome === 'deadwood') {
+    // Rotting litter: pale fungi dots, bone splinters and moss smears.
+    if (pick < .3) {
+      polygon(c, [[x - 2, y], [x, y - 2.4], [x + 2.4, y], [x + .6, y + 1.2]], '#8d967b40');
+      if (pick < .09) { c.fillStyle = '#cfd8b455'; c.fillRect(x + 3, y - 2, 1.4, 1.4); c.fillRect(x + 4.6, y - 1.4, 1, 1); }
+    } else if (pick > .82) {
+      line(c, [[x - 3, y], [x + 1, y - 1.4], [x + 5, y - .4]], '#b9b39a38', .7);
+    }
+    return true;
+  }
+  if (biome === 'verdant') {
+    // Clover patches and fallen petals under the canopy.
+    if (pick < .34) {
+      for (let n = 0; n < 3; n++) leaf(c, x + n * 3 - 3, y - n, 1.1 + random() * .9, n % 2 ? '#5d8f4c44' : '#74a85a44', between(random, -.6, .6));
+    } else if (pick > .86) {
+      c.fillStyle = '#e8d8f044'; c.fillRect(x, y - 1, 1.6, 1.2); c.fillRect(x + 2.4, y - .4, 1.2, 1);
+    }
+    return true;
+  }
+  if (biome === 'swamp' && pick > .9) {
+    // Algae film and a bubble breaking the surface film of the mire.
+    c.strokeStyle = '#7fa48c30'; c.lineWidth = .8;
+    c.beginPath(); c.ellipse(x, y, 4.5, 1.8, 0, 0, TAU); c.stroke();
+    if (pick > .965) { c.fillStyle = '#b8dcc440'; c.fillRect(x + 1, y - 2, 1.2, 1.2); }
     return true;
   }
   return false;

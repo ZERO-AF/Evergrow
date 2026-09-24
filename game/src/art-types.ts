@@ -99,6 +99,8 @@ export interface CharacterPose {
   impact?: number;
   /** Direction away from the attacker; recoil never moves the ground anchor. */
   impactAngle?: number;
+  /** Remaining stagger timer in seconds; drives a reeling sway while interrupted. */
+  staggered?: number;
   dodging: boolean;
   /** Normalized dodge progress, from launch through recovery. */
   dodgeProgress?: number;

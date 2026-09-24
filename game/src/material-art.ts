@@ -21,5 +21,12 @@ export function weatherStone(c: CanvasRenderingContext2D, outline: readonly Poin
     const size = 1.2 + random() * 2;
     polygon(c, [[px - size, py], [px - .4, py - size], [px + size, py - .4], [px + size * .7, py + 1]], patch % 4 ? moss + '88' : light + '70');
   }
+  // Lichen speckle climbs the shaded face; a thin lit rim keeps the top edge readable.
+  for (let dot = 0; dot < 9; dot++) {
+    const px = left + random() * w, py = top + h * (.25 + random() * .5);
+    c.fillStyle = dot % 3 ? moss + '55' : light + '40';
+    c.beginPath(); c.arc(px, py, .7 + random() * 1.1, 0, Math.PI * 2); c.fill();
+  }
+  line(c, [[left + w * .12, top + 1], [left + w * .45, top - 1], [right - w * .15, top + 1]], light + '70', .8);
   c.restore();
 }

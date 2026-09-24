@@ -10,21 +10,24 @@ function boot(ctx: CanvasRenderingContext2D, x: number, y: number, width: number
 }
 
 /**
- * Brief whole-body flinch on a confirmed hit: the creature is shoved a few
- * pixels away from the blow, squashes, and leans back. Feet stay near the
- * ground anchor; the shared characterTransform recoil composes on top.
- * Returns the jolt strength so kinds can flare eyes/jaws on top.
+ * Whole-body flinch on a confirmed hit: the creature is shoved away from the
+ * blow, squashes, and leans back, then settles with a short residual wobble.
+ * Feet stay near the ground anchor; the shared characterTransform recoil
+ * composes on top. Returns the jolt strength so kinds can flare eyes/jaws.
  */
 function flinch(ctx: CanvasRenderingContext2D, pose: CharacterPose): number {
   const impact = pose.impact ?? 0;
   if (impact <= 0) return 0;
   const elapsed = 1 - clamp(impact);
-  const jolt = Math.sin(Math.min(1, elapsed * 1.9) * Math.PI);
-  if (jolt <= 0.01) return 0;
+  // A harder, slightly longer jolt than a bare sine: fast shove, slower settle.
+  const jolt = Math.sin(Math.min(1, elapsed * 1.55) * Math.PI);
+  const wobble = elapsed > .5 ? Math.sin((elapsed - .5) * 14) * (1 - elapsed) * .5 : 0;
+  const shove = jolt + wobble;
+  if (shove <= 0.01) return 0;
   const angle = pose.impactAngle ?? pose.angle + Math.PI;
   const pushX = Math.cos(angle), pushY = Math.sin(angle);
-  ctx.transform(1 + jolt * 0.045, 0, -pushX * jolt * 0.085, 1 - jolt * 0.07,
-    pushX * jolt * 2.6, pushY * jolt * 1.5);
+  ctx.transform(1 + shove * 0.055, 0, -pushX * shove * 0.11, 1 - shove * 0.085,
+    pushX * shove * 3.4, pushY * shove * 1.9);
   return jolt;
 }
 
@@ -76,6 +79,12 @@ export function stalker(ctx: CanvasRenderingContext2D, pose: CharacterPose, colo
   ctx.fillStyle = color(jolt > .3 || windup > 0.65 ? '#ffe798' : '#ddc769');
   ctx.fillRect(faceX - 1.5, headY - 1, 1, 1);
   ctx.fillRect(faceX + 2, headY - 1, 1, 1);
+  // Hungry dead: a faint eye shine and a drool strand swinging from the jaw.
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3 + jolt * .5 + windup * .3;
+  ctx.fillStyle = color('#e8d98a'); ctx.fillRect(faceX - 1.9, headY - 1.4, 1.8, 1.8); ctx.fillRect(faceX + 1.6, headY - 1.4, 1.8, 1.8);
+  ctx.restore();
+  const drool = Math.sin(pose.time * 2.1) * .8;
+  line(ctx, [[faceX + 3.4, headY + 3.6], [faceX + 3.8 + drool, headY + 7.5]], color('#9fb08e'), .55);
 }
 
 export function brute(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
@@ -130,6 +139,17 @@ export function brute(ctx: CanvasRenderingContext2D, pose: CharacterPose, color:
   polygon(ctx, [[headX - 6, -32 + bob], [headX - 4, -38 + bob], [headX, -38 + bob], [headX - 1, -28 + bob], [headX - 3, -27 + bob]], color('#797f65'));
   line(ctx, [[headX - 3.5, -32 + bob], [headX + 4, -32 + bob]], color('#29352e'), 2);
   line(ctx, [[headX - 2, -28 + bob], [headX + 2, -28 + bob]], color('#4c503e'), 1);
+  // Slow breath steaming from the nostrils; heavier while winding up.
+  if (pose.moving < .6) {
+    const breath = (pose.time * .45) % 1;
+    ctx.save(); ctx.globalAlpha = Math.sin(breath * Math.PI) * .16;
+    ctx.fillStyle = '#c8d4cc';
+    ctx.beginPath(); ctx.ellipse(headX + 5 + breath * 7, -27 + bob - breath * 5, 1.6 + breath * 3, 1.1 + breath * 2, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  polygon(ctx, [[headX - 6, -32 + bob], [headX - 4, -38 + bob], [headX, -38 + bob], [headX - 1, -28 + bob], [headX - 3, -27 + bob]], color('#797f65'));
+  line(ctx, [[headX - 3.5, -32 + bob], [headX + 4, -32 + bob]], color('#29352e'), 2);
+  line(ctx, [[headX - 2, -28 + bob], [headX + 2, -28 + bob]], color('#4c503e'), 1);
 }
 export function caster(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
   flinch(ctx, pose);
@@ -148,6 +168,15 @@ export function caster(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
   polygon(ctx, [[-2.6, -25 + bob], [-.9, -25 + bob], [-1, -6], [-3, -2], [-4, -6]], color('#746d58'));
   polygon(ctx, [[1.8, -25 + bob], [3, -24 + bob], [5, -6], [3, -3], [2, -7]], color('#a0926a'));
   for (let seal = 0; seal < 3; seal++) line(ctx, [[2.2 + seal * .2, -18 + seal * 4], [3.3 + seal * .2, -16.8 + seal * 4], [2.7 + seal * .2, -15.8 + seal * 4]], color('#294644'), .7);
+  // Hexer's focus: two rune sparks circling the staff headstone, brighter mid-cast.
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let spark = 0; spark < 2; spark++) {
+    const a = pose.time * 2.6 + spark * Math.PI;
+    const sx = side * 11.5 + Math.cos(a) * 4.5, sy = -35 + bob * .5 + Math.sin(a) * 2.2;
+    ctx.globalAlpha = .4 + attack * .5;
+    polygon(ctx, [[sx, sy - 1.4], [sx + 1, sy], [sx, sy + 1.4], [sx - 1, sy]], color(spark ? '#a4f8ce' : '#77dcb8'));
+  }
+  ctx.restore();
   polygon(ctx, [[-1, -23 + bob], [1, -21 + bob], [-1, -18 + bob], [-3, -21 + bob]], color('#c9bc8c'));
   polygon(ctx, [[-1, -22 + bob], [0, -21 + bob], [-1, -19.5 + bob], [-2, -21 + bob]], color('#93cdb0'));
   const staffHand: Point = [side * 10.5, -17 - attack * 2];
@@ -230,6 +259,10 @@ export function hound(ctx: CanvasRenderingContext2D, pose: CharacterPose, color:
     const eye = p(11.2, side * 3.15, skull + 3.7);
     polygon(ctx, [[eye[0] - 1.7, eye[1] - .8], [eye[0] + 1.5, eye[1] - .5], [eye[0] + .8, eye[1] + 1.6], [eye[0] - 1.3, eye[1] + 1.1]], color('#263833'));
     line(ctx, [[eye[0] - .7, eye[1] + .1], [eye[0] + .7, eye[1] + .1]], color(jolt > .3 || windup ? '#fff7a2' : '#e9bd63'), .9);
+    // Ember eyes: a soft flare inside each socket that brightens on the lunge.
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .35 + jolt * .5 + leap * .4;
+    ctx.fillStyle = color('#f0c96a'); ctx.fillRect(eye[0] - 1.1, eye[1] - .5, 2.2, 1.5);
+    ctx.restore();
     taper(ctx, p(15, side * 2.4, skull), p(15.7, side * 2.4, skull - 2.5), 1.1, .15, color('#ede0ba'));
   }
 }
@@ -322,13 +355,17 @@ export function wisp(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: 
   line(ctx, [[-6, 6.3], [0, 7.7], [6, 6.3]], color('#c7b889'), .9);
   polygon(ctx, [[-1.4, 10], [1.4, 10], [2, 12], [0, 15], [-2, 12]], color('#9ca488'));
   line(ctx, [[-2, -12], [-3, -15], [0, -17], [3, -15], [2, -12]], color('#9aa88b'), 1.2);
-  if (charge > .05) {
-    const radius = 10 + charge * 3;
-    for (let mote = 0; mote < 4; mote++) {
-      const angle = pose.time * 2 + mote * TAU / 4;
-      const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius * .45;
-      polygon(ctx, [[x - 1, y], [x, y - 2], [x + 1, y], [x, y + 2]], color('#d2f2be'));
-    }
+  // The living flame never rests: a faint mote ring always orbits the cage and
+  // tightens into a brighter halo while it charges.
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const moteCount = charge > .05 ? 5 : 3;
+  for (let mote = 0; mote < moteCount; mote++) {
+    const angle = pose.time * (charge > .05 ? 2.6 : 1.1) + mote * TAU / moteCount;
+    const radius = charge > .05 ? 10 + charge * 3 : 12 + Math.sin(pose.time * 1.4 + mote) * 1.5;
+    const x = Math.cos(angle) * radius, y = Math.sin(angle) * radius * .45;
+    ctx.globalAlpha = charge > .05 ? .9 : .4 + pulse * .25;
+    polygon(ctx, [[x - 1, y], [x, y - 2], [x + 1, y], [x, y + 2]], color(charge > .05 ? '#d2f2be' : '#9fd8b8'));
   }
+  ctx.restore();
   ctx.restore();
 }

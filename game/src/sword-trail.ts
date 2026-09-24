@@ -7,9 +7,15 @@ import { drawGlow } from './lighting.ts';
 interface RibbonPoint {
   x: number; y: number; nx: number; ny: number;
   width: number; born: number; stroke: number; color: string;
+  /** 0 = windup anticipation, 1 = active sweep, 2 = follow-through. */
+  phase: 0 | 1 | 2;
 }
 const LIFETIME = .23;
 const SAMPLE_STEP = 1 / 120;
+/** Windup sampling covers the last 40% of the windup; follow-through fades over
+ * the first 90 ms after the active window. Both read as swing weight. */
+const WINDUP_TRAIL = .4;
+const FOLLOW_THROUGH = .09;
 
 /** A world-space ribbon records the moving blade, then tapers and disperses behind it. */
 export class SwordTrail {
@@ -49,8 +55,12 @@ export class SwordTrail {
   }
 
   private sample(player: Player, attack: Attack, previous: number, current: number, dt: number, simulationTime: number, x: number, y: number) {
-    const from = Math.max(attack.activeStart, previous);
-    const to = Math.min(attack.activeEnd, current);
+    // The ribbon covers the windup's last stretch, the active sweep, and a
+    // short follow-through — anticipation and settle are what sell the weight.
+    const windupFrom = attack.activeStart * (1 - WINDUP_TRAIL);
+    const followTo = attack.activeEnd + FOLLOW_THROUGH;
+    const from = Math.max(windupFrom, previous);
+    const to = Math.min(followTo, current);
     if (to <= from) return;
     const count = Math.max(1, Math.ceil((to - from) / SAMPLE_STEP));
     const angleAt = (elapsed: number) => playerMotion(playerPose(player, simulationTime, attack, elapsed)).activeWeaponAngle;
@@ -65,15 +75,17 @@ export class SwordTrail {
       const delta = angleAt(Math.min(attack.activeEnd, elapsed + .003)) - angleAt(Math.max(attack.activeStart, elapsed - .003));
       const speed = Math.abs(Math.atan2(Math.sin(delta), Math.cos(delta))) / .006;
       const nx = Math.cos(angle), ny = Math.sin(angle);
+      const phase: 0 | 1 | 2 = elapsed < attack.activeStart ? 0 : elapsed > attack.activeEnd ? 2 : 1;
       const pose = playerPose(player, simulationTime - behind, attack, elapsed);
       pose.gaitPhase = (pose.gaitPhase ?? 0) - Math.hypot(player.vx, player.vy) * behind / 22;
       const tip = getPlayerSwordTip(pose);
+      // Windup points are thin and faint; follow-through tapers off quickly.
+      const phaseWidth = phase === 0 ? .45 : phase === 2 ? Math.max(0, 1 - (elapsed - attack.activeEnd) / FOLLOW_THROUGH) * .8 : 1;
       this.points.push({ x: cx + tip.x, y: cy + tip.y,
-        nx, ny, width: 3.6 + Math.min(8.5, speed * .3), born: this.time - behind,
-        stroke: this.stroke, color });
+        nx, ny, width: (3.6 + Math.min(8.5, speed * .3)) * phaseWidth, born: this.time - behind,
+        stroke: this.stroke, color, phase });
     }
   }
-
   draw(c: CanvasRenderingContext2D) {
     if (this.points.length < 2) return;
     c.save(); c.globalCompositeOperation = 'lighter'; c.lineJoin = 'round';
@@ -88,7 +100,10 @@ export class SwordTrail {
     for (let i = 1; i < shaped.length; i++) {
       const a = shaped[i - 1], b = shaped[i];
       if (a.stroke !== b.stroke || a.life <= 0 || Math.hypot(a.x - b.x, a.y - b.y) < .04) continue;
-      const alpha = Math.pow(Math.min(a.life, b.life), .8);
+      // Windup reads as a faint ghost of the coming arc; follow-through is a
+      // dimmer echo of the strike; the active sweep stays full strength.
+      const phaseAlpha = b.phase === 0 ? .3 : b.phase === 2 ? .55 : 1;
+      const alpha = Math.pow(Math.min(a.life, b.life), .8) * phaseAlpha;
       c.globalAlpha = alpha * .55; c.fillStyle = b.color;
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y);
       c.lineTo(b.x - b.nx * b.width, b.y - b.ny * b.width);

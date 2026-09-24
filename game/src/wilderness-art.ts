@@ -60,6 +60,26 @@ export function drawSiteGround(c: CanvasRenderingContext2D, site: WildernessSite
     c.fillStyle = i % 4 === 0 ? '#a8a18a' : i % 3 === 0 ? '#141e1c' : '#75806b';
     c.fillRect(x, y, 1 + random() * 3, .7 + random() * 1.3);
   }
+  // Occupied ground wears down: a trampled core, foot-drag arcs between decor
+  // and scattered lived-in debris (twigs, scraps, ash) around the anchors.
+  if (site.kind !== 'bossLair') {
+    const wear = c.createRadialGradient(0, 0, 0, 0, 0, site.radius * .5);
+    wear.addColorStop(0, `rgba(${earth},.12)`); wear.addColorStop(.7, `rgba(${earth},.05)`); wear.addColorStop(1, `rgba(${earth},0)`);
+    c.fillStyle = wear; c.fillRect(-site.radius * .5, -site.radius * .5, site.radius, site.radius);
+    for (const d of site.decor.slice(0, 6)) {
+      const dx = d.x - site.x, dy = d.y - site.y;
+      c.globalAlpha = .1 + random() * .1;
+      c.strokeStyle = '#141c18'; c.lineWidth = 1.4;
+      c.beginPath(); c.ellipse(dx, dy, 9 + random() * 8, 4 + random() * 3, random() * TAU, 0, TAU); c.stroke();
+      for (let bit = 0; bit < 4; bit++) {
+        const bx = dx + (random() - .5) * 26, by = dy + (random() - .5) * 14;
+        c.globalAlpha = .2 + random() * .2;
+        c.fillStyle = bit % 3 ? '#6d6a52' : '#3a3f34';
+        c.fillRect(bx, by, 1 + random() * 2.4, .8 + random());
+      }
+    }
+    c.globalAlpha = 1;
+  }
   c.globalAlpha = 1;
   for (const decor of site.decor) {
     if (!['standingStone', 'gravestone', 'tower', 'wagon'].includes(decor.kind)) continue;

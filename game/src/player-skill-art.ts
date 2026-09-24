@@ -15,12 +15,21 @@ export function drawPlayerSkillEffects(c:CanvasRenderingContext2D,p:Player,x:num
  const auras=AURA_IDS.filter(id=>auraPower(p,id)>0);
  if(auras.length){
    c.save();c.translate(x,y+2);c.lineWidth=1.4;c.globalAlpha=.65;
+   // A faint pooled glow under the ring sells the aura as ground-bound magic.
+   drawGlow(c,0,0,34,AURAS[auras[0]].color,.12);
    for(let i=0;i<auras.length;i++){
      const angle=(reducedMotion?0:time*.18)+i*Math.PI*2/auras.length;
      c.strokeStyle=c.fillStyle=AURAS[auras[i]].color;
      c.beginPath();c.ellipse(0,0,29,11,0,angle,angle+Math.PI*2/auras.length*.82);c.stroke();
      const ax=Math.cos(angle)*29,ay=Math.sin(angle)*11;
      c.beginPath();c.moveTo(ax,ay-3);c.lineTo(ax+2,ay);c.lineTo(ax,ay+3);c.lineTo(ax-2,ay);c.closePath();c.fill();
+     // Inner tick marks rotate against the arcs so the ring reads as engraved.
+     for(let tick=0;tick<3;tick++){
+       const ta=-(reducedMotion?0:time*.3)+i*2.1+tick*Math.PI*2/3;
+       const tx=Math.cos(ta)*21,ty=Math.sin(ta)*8;
+       c.globalAlpha=.4;line(c,[[tx*.9,ty*.9],[tx,ty]],AURAS[auras[i]].color,.8);
+     }
+     c.globalAlpha=.65;
    }
    c.restore();
  }
@@ -89,6 +98,9 @@ export function drawPlayerSkillEffects(c:CanvasRenderingContext2D,p:Player,x:num
  for(const [id,b]of Object.entries(s.shelters??{})){c.strokeStyle=id==='smokeVeil'?'#9bbfc6':'#f0d5a2';c.globalAlpha=Math.min(.7,b.remaining*2);for(let i=0;i<6;i++){const a=i*Math.PI/3+time*.1;c.beginPath();c.ellipse(0,-8,27+i%2*3,16+i%2*4,0,a,a+.55);c.stroke();}}
  if(s.embers?.length){for(let i=0;i<s.embers.length;i++){
    const a=time*1.2+i*Math.PI*2/s.embers.length,ex=Math.cos(a)*27,ey=-22+Math.sin(a)*12;
+   // Each ember drags a short tail behind its orbit.
+   const ta=a-.35,tx=Math.cos(ta)*27,ty=-22+Math.sin(ta)*12;
+   c.globalAlpha=.35;line(c,[[tx,ty],[ex,ey]],'#bc518b',1.6);
    c.globalAlpha=.8;c.fillStyle='#bc518b';c.beginPath();c.arc(ex,ey,5,0,Math.PI*2);c.fill();
    c.fillStyle='#ffc288';c.beginPath();c.arc(ex,ey,2.5,0,Math.PI*2);c.fill();
  }}

@@ -467,6 +467,8 @@ export class SettlementArt {
     line(c, [[0, -12], [0, 6]], '#5b634f', 1.3);
     line(c, [[-7, -1], [7, -1]], '#5b634f', 1.2);
     line(c, [[-10, 9], [10, 9]], '#b0a080', 2);
+    // Lamplight spills a warm pool down the wall beneath each lit window.
+    if (!chapel) drawGlow(c, 0, 14, 22, '#ffcf8a', .12 + Math.sin(time * 3.7 + seed) * .02);
     if (chapel) {
       line(c, [[-7, -6], [0, -1], [7, -6]], '#626e59', .8);
       polygon(c, [[0, -9], [2, -7], [0, -5], [-2, -7]], '#efc77b');

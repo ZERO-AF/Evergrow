@@ -17,6 +17,12 @@ export function drawWildernessDetail(c: CanvasRenderingContext2D, d: SiteDecor, 
         line(c, [[-20, -60], [-8, -78], [12, -80], [28, -61]], '#b2b59a', 1.3);
         weatherStone(c, [[-21, -57], [-8, -78], [12, -80], [28, -61], [17, -54], [3, -64], [-11, -52]], d.seed);
         line(c, [[-25, 2], [-22, -11], [-24, -24]], '#8e987454', 3);
+        // Hanging moss strands sway under the lintel.
+        for (let strand = 0; strand < 4; strand++) {
+            const sx = -12 + strand * 9 + random() * 3, len = 9 + random() * 12;
+            const sway = inert ? 0 : Math.sin(time * .9 + strand * 1.7 + d.seed) * 2;
+            line(c, [[sx, -56], [sx + sway * .4, -56 + len * .6], [sx + sway, -56 + len]], strand % 2 ? '#5d7050aa' : '#71825aaa', 1.1);
+        }
         groundShade(c, 0, 3, 30, 9, '#14201b70');
     }
     else if (d.kind === 'cottage') {
@@ -37,6 +43,23 @@ export function drawWildernessDetail(c: CanvasRenderingContext2D, d: SiteDecor, 
         c.fillRect(-29, -28, 8, 9);
         drawGlow(c, -25, -24, 26, '#e3ba74', .15);
         line(c, [[25, -41], [33, -2]], '#91836b', 3);
+        // Chimney smoke: soft wisps that rise and thin, frozen under reduced motion.
+        if (!inert) for (let wisp = 0; wisp < 3; wisp++) {
+            const life = ((time * .16 + wisp * .33 + d.seed % 7) % 1);
+            const sx = 29 + Math.sin(life * 5 + wisp * 2) * (2 + life * 7), sy = -44 - life * 34;
+            c.globalAlpha = Math.sin(life * Math.PI) * .16;
+            c.fillStyle = '#b9c2bb';
+            c.beginPath(); c.ellipse(sx, sy, 2.5 + life * 6, 1.8 + life * 4.5, 0, 0, Math.PI * 2); c.fill();
+            c.globalAlpha = 1;
+        }
+        // A chopped wood pile against the wall.
+        for (let log = 0; log < 4; log++) {
+            const lx = -36 + (log % 2) * 5, ly = -2 - Math.floor(log / 2) * 4;
+            c.save(); c.translate(lx, ly); c.rotate((log % 2 ? -1 : 1) * .12);
+            c.fillStyle = '#6a5138'; c.fillRect(-7, -2, 14, 4);
+            c.fillStyle = '#a8895e'; c.beginPath(); c.ellipse(7, 0, 1.6, 2, 0, 0, Math.PI * 2); c.fill();
+            c.restore();
+        }
     }
     else if (d.kind === 'nest') {
         // A shallow leaf-lined hollow, with a broken rim rather than a cut-out disk.

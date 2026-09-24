@@ -163,7 +163,7 @@ test('combat text maps attack-table outcomes to WoW labels', () => {
   assert.deepEqual(at({ type: 'avoid', outcome: 'parry', x: 0, y: 0, angle: 0, enemyKind: 'stalker' }), ['PARRY']);
   assert.deepEqual(at({ type: 'hit', x: 0, y: 0, angle: 0, value: 65, targetId: 1,
     remainingHp: 35, enemyKind: 'stalker', heavy: false, glancing: true }), ['65', 'GLANCING']);
-  assert.deepEqual(at({ type: 'block', x: 0, y: 0, angle: 0, value: 30 }), ['BLOCK']);
+  assert.deepEqual(at({ type: 'block', x: 0, y: 0, angle: 0, value: 30 }), ['30 BLOCKED']);
   assert.deepEqual(at({ type: 'block', x: 0, y: 0, angle: 0, value: 0, blocked: 'immune' }), ['IMMUNE']);
   assert.deepEqual(at({ type: 'block', x: 0, y: 0, angle: 0, value: 40, blocked: 'absorb' }), ['40 ABSORBED']);
   assert.deepEqual(at({ type: 'block', x: 0, y: 0, angle: 0, value: 22, blocked: 'resist' }), ['22 RESISTED']);

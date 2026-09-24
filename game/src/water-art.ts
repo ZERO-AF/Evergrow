@@ -94,14 +94,19 @@ export class WaterArt {
       const wx = left + x * cell, wy = top + y * cell;
       const ripple = (Math.sin(wx * .11 + time * 1.9) + Math.sin(wy * .13 - time * 1.4 + wx * .05)) * .5;
       const glint = Math.max(0, ripple) * (0.35 + crest * 1.4);
+      // Sun glitter: sparse bright flecks riding the ripple crests.
+      const sparkle = ((x * 19349663 ^ y * 73856093 ^ 4211) >>> 0) % 100 / 100;
+      const glitter = sparkle > .93 && ripple > .3 ? (sparkle - .93) * 14 * ripple : 0;
       // Shore foam: a bright band where the wet mask thins, broken by a
       // deterministic hash so the edge reads as foam flecks, not a stripe.
       const shore = Math.max(0, 1 - (depth?.[i] ?? 0) / .5) * Math.min(1, wet[i] * 2.4);
       const fleck = ((x * 73856093 ^ y * 19349663 ^ 7319) >>> 0) % 100 / 100;
       const foam = shore * (fleck > .55 ? .5 : .18) * (0.7 + 0.3 * Math.sin(time * 2.4 + fleck * 9));
-      pixels[p] = Math.min(255, 28 + crest * 90 + glint * 60 + foam * 190);
-      pixels[p + 1] = Math.min(255, 66 + crest * 135 + glint * 95 + foam * 195);
-      pixels[p + 2] = Math.min(255, 79 + crest * 145 + glint * 80 + foam * 175);
+      // Deeper water cools and darkens toward the channel.
+      const deep = Math.min(1, (depth?.[i] ?? 0) / 1.4);
+      pixels[p] = Math.min(255, 28 + crest * 90 + glint * 60 + foam * 190 + glitter * 160 - deep * 14);
+      pixels[p + 1] = Math.min(255, 66 + crest * 135 + glint * 95 + foam * 195 + glitter * 150 - deep * 8);
+      pixels[p + 2] = Math.min(255, 79 + crest * 145 + glint * 80 + foam * 175 + glitter * 120 + deep * 10);
       pixels[p + 3] = wet[i] * 130;
       mask[p] = mask[p + 1] = mask[p + 2] = 255; mask[p + 3] = wet[i] * 255;
     }

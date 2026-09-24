@@ -65,6 +65,7 @@ uniform sampler2D u_scene;
 uniform sampler2D u_bloom;
 uniform vec2 u_size;
 uniform vec2 u_texel;
+uniform float u_time;
 void main() {
   vec3 original = texture2D(u_scene, v_uv).rgb;
   float edge = smoothstep(.17, .7, length(v_uv - .5));
@@ -84,8 +85,10 @@ void main() {
   color = max(color, 0.);
   vec3 bloom = texture2D(u_bloom, v_uv).rgb;
   // Soft phosphor light surrounds bright cores while preserving their material color.
-  color += bloom * .62 * (1. - clamp(color, 0., 1.) * .38);
+  color += bloom * .68 * (1. - clamp(color, 0., 1.) * .38);
   color = pow(max(color, 0.), vec3(.96));
+  // A whisper of vignette settles the frame edges toward the scene's shadow.
+  color *= 1. - smoothstep(.52, .98, length(v_uv - .5)) * .16;
   // Shallow scanlines track the display rows and a low-contrast RGB grille combines both treatments.
   // Attenuate the grille in shadow so it never becomes a colored mesh over the woods.
   float scan = .967 + .033 * cos(v_uv.y * u_size.y * 3.14159265);
@@ -94,7 +97,9 @@ void main() {
   vec3 mask = column < 1. ? vec3(1.045, .9775, .9775)
              : column < 2. ? vec3(.9775, 1.045, .9775) : vec3(.9775, .9775, 1.045);
   color *= mix(vec3(1.), mask, .4 + .6 * smoothstep(.04, .55, luma));
-  color *= vec3(1.02, 1.01, 1.);
+  // Faint animated grain keeps large flat fills from banding; invisible in motion.
+  float grain = fract(sin(dot(gl_FragCoord.xy + mod(u_time, 10.) * 61.7, vec2(12.9898, 78.233))) * 43758.5453);
+  color += (grain - .5) * .028 * (1. - luma * .5);
   gl_FragColor = vec4(damageTint(color), 1.);
 }`;
 
@@ -198,7 +203,7 @@ export class PostFX {
     try {
       this.bright = this.makePass(brightFragment, ['u_scene', 'u_size', 'u_emission', 'u_selective']);
       this.blur = this.makePass(blurFragment, ['u_scene', 'u_direction']);
-      this.composite = this.makePass(compositeFragment, ['u_scene', 'u_bloom', 'u_size', 'u_texel', 'u_hurt']);
+      this.composite = this.makePass(compositeFragment, ['u_scene', 'u_bloom', 'u_size', 'u_texel', 'u_hurt', 'u_time']);
       this.buffer = gl.createBuffer();
       if (!this.buffer) throw new Error('Could not allocate the display geometry');
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
@@ -284,7 +289,8 @@ export class PostFX {
       gl.uniform2f(this.composite.uniforms.u_size, this.canvas.width, this.canvas.height);
       gl.uniform2f(this.composite.uniforms.u_texel, 1 / this.sourceWidth, 1 / this.sourceHeight);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, a.texture);
-      gl.uniform1f(this.composite.uniforms.u_hurt, hurtAmount); gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.uniform1f(this.composite.uniforms.u_hurt, hurtAmount);
+      gl.uniform1f(this.composite.uniforms.u_time, performance.now() / 1000); gl.drawArrays(gl.TRIANGLES, 0, 6);
     } else if (this.fallback) {
       this.fallback.imageSmoothingEnabled = false;
       this.fallback.drawImage(source, 0, 0, this.canvas.width, this.canvas.height);

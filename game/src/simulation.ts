@@ -1,4 +1,4 @@
-import { advanceChains, type ChainFlight } from './chain-lightning.ts';
+import { advanceChains, type ChainFlight, type ChainContext } from './chain-lightning.ts';
 import { RiftTactics } from './rift-tactics.ts';
 import { EnemyNeighbors } from './enemy-neighbors.ts';
 import { applyEnemyModifiers } from './enemy-modifiers.ts';
@@ -64,9 +64,9 @@ import { awardKillRewards } from './combat-rewards.ts';
 import { advanceEnemyStatuses, applyDot as applyDotStatus, applyCc as applyCcStatus, applySunder as applySunderStatus, applyStun, applySlow } from './combat-status.ts';
 import { recordHealThreat, tauntThreat } from './enemy-threat.ts';
 import type { HitSnapshot } from './model.ts';
-import { scheduleGroundEffect, advanceGroundEffects, type ActiveGroundEffect } from './ground-effects.ts';
+import { scheduleGroundEffect, advanceGroundEffects, type ActiveGroundEffect, type GroundEffectContext } from './ground-effects.ts';
 import { activateSkill, schoolProjectileStyle, type SkillContext } from './skill-combat.ts';
-import { advanceProjectiles, MAX_PROJECTILES } from './projectile-combat.ts';
+import { advanceProjectiles, MAX_PROJECTILES, type ProjectileContext } from './projectile-combat.ts';
 import type { GroundItem, SkillId } from './character-types.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { encounterScaleAt, encounterMemberLevel, isBossKind, type EncounterScale } from './encounter-scaling.ts';
@@ -403,6 +403,7 @@ export class Simulation {
       mounted: p.mounted, restedXp: p.restedXp, hearthstone: p.hearthstone, professions: p.professions,
       worldEvents: this.worldEvents, worldBosses: this.worldBosses, holiday: this.holiday,
       quests: p.quests, achievements: p.achievements, glyphs: p.glyphs, fishing: p.fishing,
+      durability: p.durability, combatLog: p.combatLog,
       reputation: p.reputation,
       randomState: this.randomState, spawnOrdinal: this.spawnOrdinal, killRecharge: this.killRecharge,
       allies: p.allies, buffs: p.buffs, comboPoints: p.comboPoints, runes: p.runes, soulShards: p.soulShards, petCommand: p.petCommand,
@@ -2216,15 +2217,23 @@ export class Simulation {
 
   /** Chain lightning partitioned per owning combatant so jumps only pick
    * hostiles of the caster's team. Outside PvP it is a single pass. */
+  private chainSource: Player | undefined;
+  private chainCtx: ChainContext | null = null;
   private advanceChains(dt: number): void {
+    // Persistent context: `damage` reads this.chainSource at call time, so one
+    // allocation serves the solo pass and every partitioned source.
+    const ctx = this.chainCtx ??= {
+      player: this.player, enemies: this.enemies,
+      onScreen: (enemy: Enemy) => enemyInCombatViewport(enemy, this.combatViewport),
+      visible: (ax: number, ay: number, bx: number, by: number) => this.lineOfSight(ax, ay, bx, by),
+      damage: (enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, elementalDamage?: number, offense?: HitSnapshot) =>
+        this.forPlayer(this.chainSource ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, false, this.chainSource)),
+      emit: (event: CombatEvent) => this.emit(event),
+    };
     if (!this.pvpCombatants && !this.coopRoster) {
-      advanceChains(this.chains, dt, {
-        player: this.player, enemies: this.enemies,
-        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense),
-        emit: event => this.emit(event),
-      });
+      this.chainSource = undefined;
+      ctx.player = this.player; ctx.enemies = this.enemies;
+      advanceChains(this.chains, dt, ctx);
       return;
     }
     const bySource = new Map<Player, ChainFlight[]>();
@@ -2236,15 +2245,12 @@ export class Simulation {
     }
     const kept: ChainFlight[] = [];
     for (const [source, flights] of bySource) {
-      advanceChains(flights, dt, {
-        player: source, enemies: this.hostileTargets(source),
-        onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-        visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, elementalDamage, offense) => this.forPlayer(source, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, false, source)),
-        emit: event => this.emit(event),
-      });
+      this.chainSource = source;
+      ctx.player = source; ctx.enemies = this.hostileTargets(source);
+      advanceChains(flights, dt, ctx);
       kept.push(...flights);
     }
+    this.chainSource = undefined;
     this.chains = kept;
     for (const flight of this.chainSources.keys()) if (!kept.includes(flight)) this.chainSources.delete(flight);
   }
@@ -2418,10 +2424,12 @@ export class Simulation {
       p.character.pets = { ...p.character.pets!, active: adjustPetLoyalty(active, -PET_RULES.deathLoyaltyLoss) };
     this.compactList(allies, ally => ally.hp > 0 && (ally.remaining === undefined || ally.remaining > 0));
     if (this.allySkillCooldowns.size) {
-      const live = new Set(allies.map(ally => ally.id));
+      const live = this.allyIdScratch; live.clear();
+      for (const ally of allies) live.add(ally.id);
       for (const id of this.allySkillCooldowns.keys()) if (!live.has(id)) this.allySkillCooldowns.delete(id);
     }
   }
+  private allyIdScratch = new Set<number>();
 
   private fireAllySkills(ally: Ally, target: Enemy, pet: PetRecord | undefined): void {
     const demon = demonFamilyForAlly(ally.kind);
@@ -2561,8 +2569,11 @@ export class Simulation {
     return shot;
   }
 
+  private containerCtx: ContainerAttackContext | null = null;
   private containerContext(): ContainerAttackContext {
-    return { world: this.world, break: (target, angle) => {
+    // One persistent context: `break` reads this.player dynamically, so the
+    // withActor swap still resolves the acting player without re-allocating.
+    const ctx = this.containerCtx ??= { world: this.world, break: (target, angle) => {
       const level = this.world.dungeonLevel ?? encounterScaleAt(target.x, target.y, this.world.seed ?? this.options.seed!, this.player.level).base;
       if (breakContainer(target, angle, level, this.brokenContainers, this.groundGold,
         () => this.nextId++, event => this.emit(event), this.player.derived.goldFindMultiplier)) {
@@ -2570,27 +2581,41 @@ export class Simulation {
         this.playerMovement.clear();
       }
     } };
+    ctx.world = this.world;
+    return ctx;
   }
 
+  private projSource: Player | undefined;
+  private projectileCtx: ProjectileContext | null = null;
   private updateProjectiles(dt: number): void {
     // Player shots carry their shooter in `source` (PvP and co-op); partition so
     // each player's shots resolve damage/kills against that player. Enemy shots
     // (no source) hit-test the whole roster via `players`.
     const partitioned = !!(this.pvpCombatants || this.coopRoster);
-    const run = (shots: Projectile[], source: Player | undefined) => advanceProjectiles(shots, dt, {
+    // Persistent context: the closures read this.projSource at call time, so
+    // one allocation serves every tick and every partitioned source.
+    const ctx = this.projectileCtx ??= {
       containers: this.containerContext(),
-      player: source ?? this.player, players: this.players,
-      enemies: source ? this.hostileTargets(source) : this.enemies, world: this.world,
-      onScreen: enemy => enemyInCombatViewport(enemy, this.combatViewport),
-      damage: (enemy, amount, angle, melee, style, offense, authoredBurn, elementalDamage) =>
-        this.forPlayer(source ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, source)),
-      hurt: (amount, angle, sourceLevel, damageType, sourceKind, sourceName, sourceId, victim) =>
+      player: this.player, players: this.players,
+      enemies: this.enemies, world: this.world,
+      onScreen: (enemy: Enemy) => enemyInCombatViewport(enemy, this.combatViewport),
+      damage: (enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, offense?: HitSnapshot, authoredBurn?: boolean, elementalDamage?: number) =>
+        this.forPlayer(this.projSource ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, false, style, elementalDamage, offense, authoredBurn, this.projSource)),
+      hurt: (amount: number, angle: number, sourceLevel: number, damageType: DamageType, sourceKind?: EnemyKind, sourceName?: string, sourceId?: number, victim?: Player) =>
         this.forPlayer(victim ?? this.player, () => this.takeDamage(amount, angle, sourceLevel, damageType, sourceKind, sourceName, false, sourceId === undefined ? undefined : this.enemies.find(e => e.id === sourceId))),
-      hurtAlly: (ally, amount) => this.damageAlly(ally, amount),
-      visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-      emit: event => this.emit(event),
-      schedule: effect => this.scheduleGroundEffect(effect),
-    });
+      hurtAlly: (ally: Ally, amount: number) => this.damageAlly(ally, amount),
+      visible: (ax: number, ay: number, bx: number, by: number) => this.lineOfSight(ax, ay, bx, by),
+      emit: (event: CombatEvent) => this.emit(event),
+      schedule: (effect: Omit<GroundEffect, 'id' | 'tick'>) => this.scheduleGroundEffect(effect),
+    };
+    ctx.containers = this.containerContext(); ctx.world = this.world;
+    const run = (shots: Projectile[], source: Player | undefined) => {
+      this.projSource = source;
+      ctx.player = source ?? this.player; ctx.players = this.players;
+      ctx.enemies = source ? this.hostileTargets(source) : this.enemies;
+      advanceProjectiles(shots, dt, ctx);
+    };
+    // (context tail removed — the persistent ctx above carries these hooks)
     if (!partitioned) { run(this.projectiles, undefined); }
     else {
       const bySource = new Map<Player | undefined, Projectile[]>();
@@ -2614,15 +2639,28 @@ export class Simulation {
       this.groundEffects[this.groundEffects.length - 1]!.source = this.player;
   }
 
+  private groundSource: Player | undefined;
+  private groundCtx: GroundEffectContext | null = null;
   private updateGroundEffects(dt: number): void {
+    // Persistent context: `damage` reads this.groundSource at call time, so one
+    // allocation serves the solo pass and every partitioned source.
+    const ctx = this.groundCtx ??= {
+      containers: this.containerContext(),
+      player: this.player,
+      enemies: this.enemies, visible: (ax: number, ay: number, bx: number, by: number) => this.lineOfSight(ax, ay, bx, by),
+      damage: (enemy: Enemy, amount: number, angle: number, melee: boolean, style?: ProjectileStyle, periodic = false, offense?: HitSnapshot, authoredBurn?: boolean) =>
+        this.forPlayer(this.groundSource ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn, this.groundSource)),
+      emit: (event: CombatEvent) => this.emit(event),
+    };
+    ctx.containers = this.containerContext();
+    const run = (effects: ActiveGroundEffect[], source: Player | undefined) => {
+      this.groundSource = source;
+      ctx.player = source ?? this.player;
+      ctx.enemies = source ? this.hostileTargets(source) : this.enemies;
+      return advanceGroundEffects(effects, dt, ctx);
+    };
     if (!this.pvpCombatants && !this.coopRoster) {
-      this.groundEffects = advanceGroundEffects(this.groundEffects, dt, {
-        containers: this.containerContext(),
-        player: this.player,
-        enemies: this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn),
-        emit: event => this.emit(event),
-      });
+      this.groundEffects = run(this.groundEffects, undefined);
       return;
     }
     // Per-source partition: a ground effect only damages its team's hostiles and
@@ -2634,15 +2672,7 @@ export class Simulation {
       list.push(effect);
     }
     const kept: ActiveGroundEffect[] = [];
-    for (const [source, effects] of bySource) {
-      kept.push(...advanceGroundEffects(effects, dt, {
-        containers: this.containerContext(),
-        player: source ?? this.player,
-        enemies: source ? this.hostileTargets(source) : this.enemies, visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
-        damage: (enemy, amount, angle, melee, style, periodic = false, offense, authoredBurn) => this.forPlayer(source ?? this.player, () => this.damageEnemy(enemy, amount, angle, melee, periodic, style, undefined, offense, authoredBurn, source)),
-        emit: event => this.emit(event),
-      }));
-    }
+    for (const [source, effects] of bySource) kept.push(...run(effects, source));
     this.groundEffects = kept;
   }
 

@@ -6,7 +6,7 @@ import type { StatusPose } from './status-art.ts';
 import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
 import { playerLegRig, projectLegPoint } from './player-leg-rig.ts';
 import { STARTER_OUTFIT, heldWeapon, heldShield, heldFocus, upperArm, forearm, gauntlet, armorBoot, armorSegment, kneeArmor, drawGearShapes, chestArmor, shoulderArmor, headArmor } from './equipment-art.ts';
-import { hash, polygon, line, taper, mixColor, type Color, type Point } from './art-primitives.ts';
+import { hash, polygon, line, taper, mixColor, TAU, type Color, type Point } from './art-primitives.ts';
 import { WOW_RACES } from './wow-races.ts';
 import { appearancePalette, HAIR_PALETTES, SKIN_PALETTES } from './appearance-content.ts';
 import { raceAppearance } from './character-look.ts';
@@ -210,9 +210,47 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
     }
     ctx.restore();
   }
+  // Contact shadow: a soft blob grounding the actor, WoW-style. Squashes with
+  // the gait so it reads as attached to the feet, not a painted decal.
+  ctx.save();
+  ctx.globalAlpha = .34;
+  ctx.fillStyle = '#0a0f0d';
+  ctx.beginPath();
+  ctx.ellipse(0, 2.5, 13 + Math.abs(step) * 2, 4.6 - Math.abs(step) * .4, 0, 0, TAU);
+  ctx.fill();
+  ctx.restore();
   // A faint warm halo behind the torso keeps the small figure readable against
   // dark ground without touching the authored palette.
   drawGlow(ctx, 0, -18, 24, '#ffe9b8', .14);
+  // Cast rune: a school-colored magic circle under the feet while channeling —
+  // two counter-rotating tick rings and a diamond lattice, WoW-style.
+  if (cast > 0.04) {
+    const runeColor = pose.castColor ?? '#c0acf0';
+    const t = pose.effectTime ?? pose.time;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const strength = Math.min(1, cast * 1.4);
+    ctx.globalAlpha = .5 * strength;
+    ctx.strokeStyle = color(runeColor); ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.ellipse(0, 2, 21, 8.5, 0, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = .28 * strength;
+    ctx.beginPath(); ctx.ellipse(0, 2, 15, 6, 0, 0, TAU); ctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = t * 1.1 + i * TAU / 8;
+      const rx = Math.cos(a) * 21, ry = Math.sin(a) * 8.5 + 2;
+      ctx.globalAlpha = .7 * strength;
+      line(ctx, [[rx * .88, (ry - 2) * .88 + 2], [rx, ry]], color(runeColor), .9);
+      if (i % 2 === 0) polygon(ctx, [[rx, ry - 1.6], [rx + 1.2, ry], [rx, ry + 1.6], [rx - 1.2, ry]], color(runeColor));
+    }
+    for (let i = 0; i < 4; i++) {
+      const a = -t * .7 + i * TAU / 4;
+      const rx = Math.cos(a) * 10, ry = Math.sin(a) * 4 + 2;
+      ctx.globalAlpha = .55 * strength;
+      polygon(ctx, [[rx, ry - 1.3], [rx + 1, ry], [rx, ry + 1.3], [rx - 1, ry]], color('#f4edff'));
+    }
+    drawGlow(ctx, 0, 0, 26, runeColor, .18 * strength);
+    ctx.restore();
+  }
   for (const leg of legs) {
     const hip = projectLegPoint(leg.hip), knee = projectLegPoint(leg.knee), ankle = projectLegPoint(leg.ankle);
     const thighFill = fur ? skin.shadow : bareLegs ? bareLegs.shadow : '#293d39';
@@ -303,7 +341,10 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   if (pose.offHand && offArm.hand[1] < 0) offEquipment();
   ctx.save();
   ctx.translate(0, PLAYER_ATTACHMENTS.chest[1]);
-  ctx.transform(1 - Math.abs(torsoTurn) * 0.08, torsoTurn * 0.12, 0, 1, 0, 0);
+  // Idle breathing: a slow chest swell when the rig is at rest, suppressed while
+  // moving or mid-swing so it never fights the gait.
+  const breathe = 1 + Math.sin(pose.time * 1.9) * .012 * (1 - moving) * (1 - Math.abs(pose.attack));
+  ctx.transform(1 - Math.abs(torsoTurn) * 0.08, torsoTurn * 0.12, 0, breathe, 0, 0);
   ctx.translate(0, -PLAYER_ATTACHMENTS.chest[1]);
   chestArmor(ctx, outfit.chest, outfit.chest ? gear : color, bodyAngle, bulk, skin);
   if (outfit.cloak && !back) {
@@ -321,6 +362,22 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   const caps = [weaponArm, offArm].sort((a, b) => a.shoulder[1] - b.shoulder[1]);
   for (const arm of caps) {
     shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, gear, bulk);
+  }
+  // Rare specular glint sweeping the nearer pauldron — a tiny star flash that
+  // reads as polished metal catching the key light, never while moving fast.
+  if (outfit.shoulders && moving < .4) {
+    const glint = Math.pow(Math.max(0, Math.sin(pose.time * .55 + 1.3)), 24);
+    if (glint > .02) {
+      const cap = projectArmPoint(caps[caps.length - 1].shoulder);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = glint * .8;
+      const gx = cap[0] + 2, gy = cap[1] - 4;
+      line(ctx, [[gx - 3.4, gy], [gx + 3.4, gy]], '#fff6dc', .7);
+      line(ctx, [[gx, gy - 3.4], [gx, gy + 3.4]], '#fff6dc', .7);
+      line(ctx, [[gx - 1.8, gy - 1.8], [gx + 1.8, gy + 1.8]], gear(outfit.shoulders.material.trim), .5);
+      line(ctx, [[gx - 1.8, gy + 1.8], [gx + 1.8, gy - 1.8]], gear(outfit.shoulders.material.trim), .5);
+      ctx.restore();
+    }
   }
   // The head seats on the torso's top edge: the chest plate crests at -28 in
   // body space and the collar hangs ~9.4 below the scaled head mount, so a

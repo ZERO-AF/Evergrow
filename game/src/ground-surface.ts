@@ -25,6 +25,7 @@ export function* groundSurfaceSteps(c: CanvasRenderingContext2D, originX: number
   for (let y = 0; y < size; y++) {
     const row = Math.floor(y / step) * stride * 3;
     const ty = ((y % step) + .5) / step;
+    const wy = originY + y;
     for (let cell = 0; cell < cells; cell++) {
       const a = row + cell * 3, b = a + stride * 3;
       const red = colors[a] + (colors[b] - colors[a]) * ty;
@@ -35,9 +36,13 @@ export function* groundSurfaceSteps(c: CanvasRenderingContext2D, originX: number
       const db = colors[a + 5] + (colors[b + 5] - colors[a + 5]) * ty - blue;
       for (let x = 0; x < step && cell * step + x < size; x++) {
         const tx = (x + .5) / step;
-        pixels[pixel++] = red + dr * tx;
-        pixels[pixel++] = green + dg * tx;
-        pixels[pixel++] = blue + db * tx;
+        // World-anchored grain: a ±4 dither breaks the bilinear banding without
+        // any per-tile state, and identical world pixels share identical grain.
+        const wx = originX + cell * step + x;
+        const grain = (((Math.imul(wx | 0, 73856093) ^ Math.imul(wy | 0, 19349663)) >>> 0) % 9) - 4;
+        pixels[pixel++] = red + dr * tx + grain;
+        pixels[pixel++] = green + dg * tx + grain;
+        pixels[pixel++] = blue + db * tx + grain;
         pixels[pixel++] = 255;
       }
     }

@@ -23,18 +23,19 @@ test('a single full-weight biome yields its own recipe at its authored intensity
   assert.deepEqual(mix.colors, recipe.colors);
   assert.equal(mix.fall, recipe.fall);
   assert.equal(mix.intensity, recipe.density);
-  const clear = weatherMix(weights({ steppe: 1 }));
-  assert.equal(clear.kind, 'none');
-  assert.equal(clear.intensity, 0);
+  // Every climate now carries some weather; a sub-threshold weight still clears.
+  const faint = weatherMix(weights({ steppe: .0005 }));
+  assert.equal(faint.kind, 'none');
+  assert.equal(faint.intensity, 0);
 });
 
 test('blended weights pick the dominant kind and share-average the numbers', () => {
   const mix = weatherMix(weights({ swamp: .6, frostpine: .4 }));
-  // Swamp share .6*.9=.54 vs frostpine .4*.85=.34 — swamp dominates.
-  assert.equal(mix.kind, 'rain');
-  const intensity = .6 * WEATHER_RECIPES.swamp.density + .4 * WEATHER_RECIPES.frostpine.density;
+  const swampShare = .6 * WEATHER_RECIPES.swamp.density, frostShare = .4 * WEATHER_RECIPES.frostpine.density;
+  assert.equal(mix.kind, 'rain', 'swamp dominates');
+  const intensity = swampShare + frostShare;
   assert.ok(Math.abs(mix.intensity - intensity) < 1e-9);
-  const expectedFall = (WEATHER_RECIPES.swamp.fall * .54 + WEATHER_RECIPES.frostpine.fall * .34) / intensity;
+  const expectedFall = (WEATHER_RECIPES.swamp.fall * swampShare + WEATHER_RECIPES.frostpine.fall * frostShare) / intensity;
   assert.ok(Math.abs(mix.fall - expectedFall) < 1e-9);
 });
 

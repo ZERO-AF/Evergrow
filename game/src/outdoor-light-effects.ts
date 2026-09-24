@@ -86,19 +86,25 @@ void main(){
     }
     shaft/=8.;
     float ribbon=noise(vec2(dot(world,vec2(-sun.y,sun.x))*.047,time*.018));
-    float rays=pow(shaft,4.)*pow(ribbon,3.5)*(1.-overhead(world)*.97);
+    float rays=pow(shaft,3.4)*pow(ribbon,3.1)*(1.-overhead(world)*.97);
     // Banked air around damp ground; keep clear paths legible instead of a uniform screen veil.
     vec3 haze=vec3(.26,.36,.27)*climate.r+vec3(.20,.40,.43)*mire+vec3(.34,.40,.48)*dead
       +vec3(.51,.67,.85)*frost+vec3(.35,.20,.19)*ember+vec3(.53,.37,.16)*autumn
       +vec3(.40,.42,.58)*hills+vec3(.52,.47,.28)*steppe+vec3(.66,.43,.22)*desert;
     float density=.06*climate.r+.13*mire+.20*dead+.08*frost+.10*ember+.06*autumn+.20*hills*lands.a+.018*steppe+.06*desert;
     result=haze*skyTint*mist*(density+climate.b*.09)*(.42+.58*daylight);
+    // Looking sunward through the haze brightens it — a soft directional bloom.
+    float sunFace=pow(.5+.5*dot(normalize(world-focus),sun),3.);
+    result+=sky*mist*sunFace*.055*skyPower*daylight*strength;
     float beam=climate.r*.95+mire*.055+autumn*.85+frost*.38+dead*.15+hills*.05;
-    result+=sky*rays*mist*cloud*beam*skyPower;
+    result+=sky*rays*mist*cloud*beam*skyPower*1.15;
     // Windblown powder and sand stay low in narrow, broken ribbons.
     float drift=pow(noise((world+vec2(time*14.,time*2.))*vec2(.009,.075)),4.);
     result+=haze*drift*(frost*.25+desert*.28+steppe*.07)*(.35+.65*daylight);
-    // Sparse embers rise only near actual warm emissive fixtures/props.
+    // Dust motes drift through canopy light gaps — sparse, sun-warmed specks.
+    vec2 moteGrid=(world+vec2(time*6.,-time*2.4))*.16;
+    float mote=pow(hash(floor(moteGrid)),42.)*(1.-smoothstep(.03,.10,length(fract(moteGrid)-.5)));
+    result+=sky*mote*shaft*light*(climate.r+autumn+frost*.5)*skyPower*daylight*1.4;
     vec2 sparkGrid=(world+vec2(sin(time*.4)*5.,time*17.))*.075;
     float spark=pow(hash(floor(sparkGrid)),55.)*(1.-smoothstep(.04,.14,length(fract(sparkGrid)-.5)));
     float heat=0.;

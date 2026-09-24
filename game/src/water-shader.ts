@@ -80,11 +80,25 @@ void main(){
     color+=lightColor[i]*pow(falloff,2.5)*glint*light.w*.7;
   }
   float crest=smoothstep(.16,.8,length(slope))*smoothstep(-.12,.6,h);
-  float shore=(1.-smoothstep(.09,.36,depth))*.42;
   vec3 foamPhase=flowPhases(time);
   float foamNoise=mix(noise(world*.18-flow*foamPhase.y*.069+gradient),noise(world*.18-flow*foamPhase.x*.069+gradient),foamPhase.z);
-  float foam=(crest*.8+shore)*smoothstep(.38,.72,foamNoise);
-  color=mix(color,vec3(.82,.93,.86),clamp(foam,0.,.8));
+  // Two shore bands: a bright lace right at the waterline and a softer inner
+  // wash, both broken by animated noise so the edge never reads as a stripe.
+  float shoreLace=(1.-smoothstep(.02,.14,depth))*smoothstep(.30,.62,noise(world*.42+vec2(time*.35,-time*.22)));
+  float shoreWash=(1.-smoothstep(.09,.36,depth))*.42;
+  float foam=(crest*.8+shoreWash+shoreLace*.9)*smoothstep(.38,.72,foamNoise);
+  foam+=shoreLace*smoothstep(.55,.8,noise(world*.9-vec2(time*.5,time*.3)))*.5;
+  color=mix(color,vec3(.82,.93,.86),clamp(foam,0.,.85));
+  // Flow-aligned streaks stretch noise along the current so rivers read as moving.
+  float flowLen=length(flow);
+  if(flowLen>.02){
+    vec2 along=flow/max(flowLen,.001);
+    float streak=noise(vec2(dot(world,along)*.055-flowLen*time*.9,dot(world,vec2(-along.y,along.x))*.16));
+    color+=vec3(.10,.16,.15)*smoothstep(.62,.95,streak)*min(1.,flowLen*2.2)*coverage;
+  }
+  // Sun glitter: sparse high-frequency sparkle on top of the broad specular.
+  float sparkle=pow(noise(world*.9+gradient*6.+vec2(time*.7,-time*.5)),14.);
+  color+=vec3(.9,.95,.9)*skyTint*skyPower*sparkle*1.4*(.3+fresnel);
   gl_FragColor=vec4(color,coverage*.96);
 }`;
 

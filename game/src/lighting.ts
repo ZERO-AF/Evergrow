@@ -48,10 +48,16 @@ function lightStamp(color: string): HTMLCanvasElement {
   image.width = image.height = 256;
   const c = image.getContext('2d')!;
   const [r, g, b] = rgbOf(color);
+  // WoW-style point light: a white-hot core, a tight colored shoulder, then a
+  // long soft falloff. The hot center keeps flames and spell cores luminous
+  // instead of uniformly tinted.
+  const hot = `rgba(${Math.min(255, r + (255 - r) * .62 | 0)},${Math.min(255, g + (255 - g) * .62 | 0)},${Math.min(255, b + (255 - b) * .62 | 0)}`;
   const gradient = c.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gradient.addColorStop(0, `rgba(${r},${g},${b},1)`);
-  gradient.addColorStop(.18, `rgba(${r},${g},${b},.81)`);
-  gradient.addColorStop(.5, `rgba(${r},${g},${b},.35)`);
+  gradient.addColorStop(0, `${hot},1)`);
+  gradient.addColorStop(.09, `rgba(${r},${g},${b},.96)`);
+  gradient.addColorStop(.22, `rgba(${r},${g},${b},.72)`);
+  gradient.addColorStop(.48, `rgba(${r},${g},${b},.30)`);
+  gradient.addColorStop(.74, `rgba(${r},${g},${b},.09)`);
   gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
   c.fillStyle = gradient;
   c.fillRect(0, 0, 256, 256);
@@ -74,6 +80,23 @@ export function drawGlow(c: CanvasRenderingContext2D, x: number, y: number, radi
 /** Shadow wedge passes: [softness, alpha] — hoisted so the per-light path allocates nothing. */
 const SHADOW_PASSES: readonly (readonly [number, number])[] = [[.035, .2], [0, .65]];
 
+/** One shared soft dark ellipse for prop contact occlusion (multiply composite). */
+let occlusion: HTMLCanvasElement | null = null;
+function occlusionStamp(): HTMLCanvasElement {
+  if (occlusion) return occlusion;
+  const image = document.createElement('canvas');
+  image.width = image.height = 128;
+  const c = image.getContext('2d')!;
+  const gradient = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gradient.addColorStop(0, 'rgb(96,102,110)');
+  gradient.addColorStop(.45, 'rgb(158,163,168)');
+  gradient.addColorStop(.78, 'rgb(228,230,232)');
+  gradient.addColorStop(1, 'rgb(255,255,255)');
+  c.fillStyle = gradient;
+  c.fillRect(0, 0, 128, 128);
+  return occlusion = image;
+}
+
 /** Half-resolution surface illumination with bounded trunk/rock shadow casting. */
 export class Lighting {
   private map = document.createElement('canvas');
@@ -84,6 +107,8 @@ export class Lighting {
   private cookies = new Map<string, HTMLCanvasElement>();
   private cookieProps: Prop[] | null = null;
   private scratchContext: CanvasRenderingContext2D;
+  private grade: CanvasGradient | null = null;
+  private gradeKey = '';
 
   constructor() {
     this.scratch.width = this.scratch.height = 256;
@@ -107,7 +132,18 @@ export class Lighting {
     c.globalCompositeOperation = 'source-over';
     c.globalAlpha = 1;
     // Cool moonlight keeps unlit combat terrain readable; warm sources change its color.
-    c.fillStyle = ambient;
+    // A faint vertical grade (sky overhead, settled shade below) gives the flat
+    // ambient a day-mood depth cue for free.
+    const [ar, ag, ab] = rgbOf(ambient);
+    const gradeKey = `${mw}x${mh}:${ar},${ag},${ab}`;
+    if (this.gradeKey !== gradeKey) {
+      const grade = c.createLinearGradient(0, 0, 0, mh);
+      grade.addColorStop(0, `rgb(${Math.min(255, ar * 1.07 | 0)},${Math.min(255, ag * 1.07 | 0)},${Math.min(255, ab * 1.07 | 0)})`);
+      grade.addColorStop(.55, ambient);
+      grade.addColorStop(1, `rgb(${ar * .93 | 0},${ag * .93 | 0},${ab * .93 | 0})`);
+      this.grade = grade; this.gradeKey = gradeKey;
+    }
+    c.fillStyle = this.grade!;
     c.fillRect(0, 0, mw, mh);
     c.globalCompositeOperation = 'lighter';
     this.nextObserved.clear();
@@ -158,6 +194,23 @@ export class Lighting {
         (light.y - light.radius - top) * scaleY, light.radius * 2 * scaleX, light.radius * 2 * scaleY);
     }
     const previous = this.observed; this.observed = this.nextObserved; this.nextObserved = previous;
+
+    // Contact occlusion: a soft multiply patch where each prop meets the ground.
+    // Drawn after the additive lights so trunks and rocks stay grounded even
+    // inside a torch pool — the same read as WoW's baked blob shadows.
+    c.globalCompositeOperation = 'multiply';
+    c.globalAlpha = 1; // Contact shadows are full-strength, not the last light's power.
+    const stamp = occlusionStamp();
+    let contacts = 0;
+    for (const prop of props) {
+      if (prop.radius <= 0 || prop.kind === 'shrine') continue;
+      if (prop.x < left - 40 || prop.x > left + worldWidth + 40
+        || prop.y < top - 40 || prop.y > top + worldHeight + 40) continue;
+      if (contacts++ >= 72) break;
+      const rx = Math.min(46, prop.radius * 1.9) * prop.scale * scaleX;
+      const ry = Math.min(20, prop.radius * .82) * prop.scale * scaleY;
+      c.drawImage(stamp, (prop.x - left) * scaleX - rx, (prop.y - top) * scaleY - ry * .55, rx * 2, ry * 2);
+    }
 
     c.globalAlpha = 1;
     target.save();

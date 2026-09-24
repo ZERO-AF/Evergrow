@@ -45,6 +45,10 @@ export function drawRoofCourses(c: CanvasRenderingContext2D, b: Building, edge: 
     polygon(c, [project(x - 6, back + b.height * .27), project(x + 6, back + b.height * .27),
       project(x + 13, back + b.height * .52), project(x + 1, back + b.height * .63)], '#14232938');
   }
+  // A sun-catching ridge line along the peak gives the roof a readable spine.
+  const ridgeY = back - 6;
+  line(c, [project(left + 4, ridgeY), project((left + right) / 2, ridgeY - 2), project(right - 4, ridgeY)],
+    side < 0 ? palette[2] + 'cc' : palette[3] + '99', 1.4);
 }
 
 /** Flat activity marks and foundation skirts. All upright architecture stays on its shared walls. */

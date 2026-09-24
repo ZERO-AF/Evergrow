@@ -49,7 +49,7 @@ export function drawGroundPatches(c: CanvasRenderingContext2D, originX: number, 
       const biome = biomeAt(x, y), palette = GROUND_PALETTES[biome], cover = random() > .36;
       patch(c, x, y, rx, ry, localSeed, cover ? palette.cover : palette.soil, biome === 'frostpine' ? .2 : .16);
       // Marks belong to a deposit instead of filling every cell with the same grass symbol.
-      for (let mark = 0; mark < 32; mark++) {
+      for (let mark = 0; mark < 40; mark++) {
         const a = random() * Math.PI * 2, r = Math.sqrt(random()) * .9;
         const mx = x + Math.cos(a) * rx * r, my = y + Math.sin(a) * ry * r;
         const length = 1.5 + random() * 4;
@@ -63,6 +63,38 @@ export function drawGroundPatches(c: CanvasRenderingContext2D, originX: number, 
           c.fillRect(Math.floor(mx - length), Math.floor(my), Math.ceil(length * 1.6), 1);
         } else {
           line(c, [[mx - length, my], [mx, my - 1], [mx + length * .6, my - .5]], mark % 3 ? palette.light : palette.dark, .9);
+        }
+      }
+      // A second sparser pass adds the biome's signature debris: pebbles,
+      // twigs, petals, bone chips — the marks that make zones read differently.
+      for (let mark = 0; mark < 14; mark++) {
+        const a = random() * Math.PI * 2, r = Math.sqrt(random()) * .95;
+        const mx = x + Math.cos(a) * rx * r, my = y + Math.sin(a) * ry * r;
+        c.globalAlpha = alpha * (.3 + random() * .3);
+        if (biome === 'verdant' || biome === 'swamp') {
+          // Clover dots and tiny petals.
+          c.fillStyle = mark % 4 ? palette.light : palette.litter;
+          c.fillRect(mx, my, 1.4, 1.4); c.fillRect(mx + 1.6, my + .8, 1.1, 1.1);
+        } else if (biome === 'deadwood') {
+          // Pale bone chips and twig shards.
+          if (mark % 3) line(c, [[mx - 3, my], [mx + 2, my - 1]], '#b8b19a55', .7);
+          else { c.fillStyle = '#c9c2a840'; c.fillRect(mx, my, 2.2, 1); }
+        } else if (biome === 'emberfall') {
+          // Charcoal flakes with the odd warm ember fleck.
+          if (mark % 5) { c.fillStyle = '#1c181d50'; c.fillRect(mx, my, 2.4, 1.2); }
+          else { c.fillStyle = '#d98a4e55'; c.fillRect(mx, my, 1.2, 1.2); }
+        } else if (biome === 'frostpine') {
+          // Snow sparkle and exposed stone.
+          c.fillStyle = mark % 3 ? '#eef4f040' : '#5d748055';
+          c.fillRect(mx, my, 1.2, 1.2);
+        } else if (biome === 'sunscar' || biome === 'steppe') {
+          // Pebbles and dry seed husks.
+          c.fillStyle = mark % 3 ? palette.dark : palette.litter;
+          c.beginPath(); c.ellipse(mx, my, 1.6, 1, a, 0, Math.PI * 2); c.fill();
+        } else {
+          // autumn/highlands: pebbles and petal flecks
+          c.fillStyle = mark % 3 ? palette.litter : palette.light;
+          c.beginPath(); c.ellipse(mx, my, 1.8, 1.1, a, 0, Math.PI * 2); c.fill();
         }
       }
       c.globalAlpha = alpha;
@@ -123,6 +155,29 @@ export class GroundDressing {
         const x = (random() - .5) * 37, y = (random() - .4) * 16;
         polygon(c, [[x - 3, y], [x - 2, y - 3], [x + 2, y - 4], [x + 4, y - 1], [x, y + 1]], palette.soil);
         line(c, [[x - 2, y - 3], [x + 2, y - 4], [x + 3, y - 2]], palette.light, .7);
+      }
+    }
+    // Signature ground extras per climate, still inside the prop's footprint.
+    if (biome === 'frostpine') {
+      for (let i = 0; i < 8; i++) {
+        const x = (random() - .5) * rx * 1.6, y = (random() - .5) * ry * 1.4;
+        c.fillStyle = '#e8f0ec55'; c.fillRect(x, y, 2.2, 1);
+      }
+    } else if (biome === 'emberfall') {
+      for (let i = 0; i < 3; i++) {
+        const x = (random() - .5) * rx * 1.4, y = (random() - .4) * ry;
+        line(c, [[x - 5, y + 1], [x, y - 1], [x + 6, y]], '#120d1255', .9);
+        if (i === 0) line(c, [[x - 1, y], [x + 3, y - .5]], '#d98a4e40', .6);
+      }
+    } else if (biome === 'swamp') {
+      for (let i = 0; i < 4; i++) {
+        const x = (random() - .5) * rx * 1.5, y = (random() - .5) * ry;
+        line(c, [[x, y], [x + 2, y - 4], [x + 5, y - 6]], '#6f8f6a50', .7);
+      }
+    } else if (biome === 'autumn' || biome === 'verdant') {
+      for (let i = 0; i < 5; i++) {
+        const x = (random() - .5) * rx * 1.7, y = (random() - .5) * ry * 1.5;
+        polygon(c, [[x - 2, y], [x, y - 1.4], [x + 2.4, y - .4], [x + .8, y + 1.2]], i % 2 ? palette.litter : palette.light);
       }
     }
     const definition = propDefinition(prop.kind);
