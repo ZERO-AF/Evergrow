@@ -15,20 +15,24 @@
 .pvp-score-banner.is-draw { color:#e3ddc4; }
 .pvp-score-banner span { color:#8fa1a8; font-size:12px; }
 .pvp-score-rewards { padding:4px 16px 8px; text-align:center; font-size:12px; color:#c9b98a; border-bottom:1px solid #8ba5ae22; }
-.pvp-score-body { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:10px 16px; }
-.pvp-score-team h3 { margin:0 0 6px; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; }
-.pvp-score-team.is-ally h3 { color:#8fd18a; }
-.pvp-score-team.is-enemy h3 { color:#f34e60; }
-.pvp-score-cols, .pvp-score-row { display:grid; grid-template-columns:1fr 34px 30px 52px 52px 34px; align-items:center; gap:6px; }
-.pvp-score-cols { padding:0 8px 4px; color:#8fa1a8; font-size:10px; letter-spacing:.1em; text-transform:uppercase; border-bottom:1px solid #8ba5ae22; }
+.pvp-score-body { flex:1; min-height:0; overflow:auto; padding:6px 12px 12px; }
+/* WotLK column grid: name flexible, numerics right-aligned to content. */
+.pvp-score-cols, .pvp-score-row { display:grid; grid-template-columns:minmax(0,1fr) repeat(4, minmax(58px, auto)); align-items:center; gap:10px; }
+.pvp-score-cols.has-obj, .pvp-score-row.has-obj { grid-template-columns:minmax(0,1fr) repeat(5, minmax(52px, auto)); }
+.pvp-score-cols { position:sticky; top:0; z-index:1; padding:4px 10px 5px; color:#8fa1a8; font-size:10px; letter-spacing:.08em; text-transform:uppercase; background:var(--ui-panel,#0c141d); border-bottom:1px solid #8ba5ae33; }
 .pvp-score-cols span:not(:first-child), .pvp-score-num { text-align:right; }
-.pvp-score-row { padding:4px 8px; border-radius:3px; font-size:12.5px; color:#cfd8d3; }
+.pvp-score-team { margin-top:8px; }
+.pvp-score-team h3 { display:flex; align-items:center; justify-content:space-between; margin:0 0 2px; padding:4px 10px; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; border-radius:3px; }
+.pvp-score-team.is-ally h3 { color:#8fd18a; background:linear-gradient(90deg,#8fd18a1f,#8fd18a08 70%,transparent); box-shadow:inset 2px 0 0 #8fd18a66; }
+.pvp-score-team.is-enemy h3 { color:#f34e60; background:linear-gradient(90deg,#f34e601f,#f34e6008 70%,transparent); box-shadow:inset 2px 0 0 #f34e6066; }
+.pvp-score-team-kills { font-size:10px; letter-spacing:.08em; opacity:.75; }
+.pvp-score-row { padding:4px 10px; border-radius:3px; font-size:12.5px; color:#cfd8d3; }
 .pvp-score-row:nth-child(odd) { background:#0b151e55; }
-.pvp-score-row.is-player { background:#1a242e; box-shadow:inset 0 0 0 1px #e8c15a33; }
+.pvp-score-row.is-player { background:linear-gradient(90deg,#e8c15a14,#e8c15a06 60%,transparent); box-shadow:inset 3px 0 0 #e8c15a, inset 0 0 0 1px #e8c15a22; }
 .pvp-score-row.is-dead { opacity:.55; }
 .pvp-score-row.is-dead .pvp-score-name strong { text-decoration:line-through; text-decoration-color:#f34e6088; }
 .pvp-score-name { display:flex; align-items:center; gap:7px; min-width:0; }
-.pvp-score-name strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:#e3ddc4; }
+.pvp-score-name strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
 .pvp-score-class { flex:none; width:9px; height:9px; border-radius:2px; background:var(--class-color,#8fa1a8); box-shadow:0 0 6px var(--class-color,#8fa1a8); }
 .pvp-score-you, .pvp-score-role { color:#8fa1a8; font-size:10px; letter-spacing:.06em; text-transform:uppercase; flex:none; }
 .pvp-score-you { color:#e8c15a; }
@@ -38,5 +42,6 @@
 .pvp-score-hint { color:#8fa1a8; font-size:11.5px; }
 @media (max-width:760px) {
   .pvp-scoreboard { inset:8vh 10px; }
-  .pvp-score-body { grid-template-columns:1fr; }
+  .pvp-score-cols, .pvp-score-row { grid-template-columns:minmax(0,1fr) repeat(4, minmax(44px, auto)); gap:6px; }
+  .pvp-score-cols.has-obj, .pvp-score-row.has-obj { grid-template-columns:minmax(0,1fr) repeat(5, minmax(40px, auto)); }
 }

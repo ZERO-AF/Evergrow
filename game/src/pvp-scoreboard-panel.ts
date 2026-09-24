@@ -76,27 +76,28 @@ export class PvpScoreboardPanel {
     close(): void { this.element.hidden = true; this.match = null; this.board = null; this.end = null; }
     dispose(): void { this.close(); this.life.abort(); this.element.remove(); }
 
-    private row(row: PvpScoreRow): string {
+    private row(row: PvpScoreRow, obj: boolean): string {
         const cls = row.classId ? WOW_CLASSES[row.classId] : undefined;
         const color = cls?.color ?? '#8fa1a8';
         const role = row.role ? `<small class="pvp-score-role">${esc(pvpRoleLabel(row.role as PvpRole))}</small>` : '';
-        return `<div class="pvp-score-row${row.isPlayer ? ' is-player' : ''}${row.alive ? '' : ' is-dead'}" role="row">
-      <span class="pvp-score-name" role="cell"><i class="pvp-score-class" style="--class-color:${color}"></i><strong>${esc(row.name)}</strong>${row.isPlayer ? '<small class="pvp-score-you">You</small>' : role}</span>
+        return `<div class="pvp-score-row${obj ? ' has-obj' : ''}${row.isPlayer ? ' is-player' : ''}${row.alive ? '' : ' is-dead'}" role="row">
+      <span class="pvp-score-name" role="cell"><i class="pvp-score-class" style="--class-color:${color}"></i><strong style="color:${color}">${esc(row.name)}</strong>${row.isPlayer ? '<small class="pvp-score-you">You</small>' : role}</span>
       <span class="pvp-score-num" role="cell">${row.kills}</span>
       <span class="pvp-score-num" role="cell">${row.deaths}</span>
       <span class="pvp-score-num" role="cell">${compact(row.damageDone)}</span>
       <span class="pvp-score-num" role="cell">${compact(row.healingDone)}</span>
-      <span class="pvp-score-num" role="cell">${row.objectives}</span>
+      ${obj ? `<span class="pvp-score-num" role="cell">${row.objectives}</span>` : ''}
     </div>`;
     }
 
-    private teamTable(team: 'A' | 'B', rows: readonly PvpScoreRow[]): string {
+    /** One team block: a faction-tinted band header over the WotLK column grid. */
+    private teamTable(team: 'A' | 'B', rows: readonly PvpScoreRow[], obj: boolean): string {
         const label = team === 'A' ? 'Your team' : 'Enemy team';
-        return `<div class="pvp-score-team is-${team === 'A' ? 'ally' : 'enemy'}">
-      <h3>${esc(label)}</h3>
-      <div class="pvp-score-cols" role="row"><span role="columnheader">Name</span><span role="columnheader" title="Killing blows">KB</span><span role="columnheader" title="Deaths">D</span><span role="columnheader" title="Damage done">Dmg</span><span role="columnheader" title="Healing done">Heal</span><span role="columnheader" title="Objective score">Obj</span></div>
-      ${rows.map(r => this.row(r)).join('') || '<div class="pvp-score-empty">No combatants</div>'}
-    </div>`;
+        const kills = rows.reduce((sum, r) => sum + r.kills, 0);
+        return `<section class="pvp-score-team is-${team === 'A' ? 'ally' : 'enemy'}">
+      <h3><span>${esc(label)}</span><span class="pvp-score-team-kills">${kills} KB</span></h3>
+      ${rows.map(r => this.row(r, obj)).join('') || '<div class="pvp-score-empty">No combatants</div>'}
+    </section>`;
     }
 
     private render(force = false): void {
@@ -109,6 +110,8 @@ export class PvpScoreboardPanel {
         const scoreA = Math.floor(match.score.A), scoreB = Math.floor(match.score.B);
         const teamA = (board?.rows ?? []).filter(r => r.team === 'A');
         const teamB = (board?.rows ?? []).filter(r => r.team === 'B');
+        // Objective score only exists on battlegrounds; arenas get pure WotLK columns.
+        const obj = match.mode !== 'arena';
         const rewards = this.end?.rewards;
         const rewardLine = rewards ? `<div class="pvp-score-rewards">Rewards: ${[
             `${num(rewards.honor)} Honor`,
@@ -130,7 +133,10 @@ export class PvpScoreboardPanel {
         <span class="pvp-score-points" aria-label="Score"><b>${scoreA}</b> – <b>${scoreB}</b></span>
       </header>
       ${banner}
-      <div class="pvp-score-body ui-scroll-area">${this.teamTable('A', teamA)}${this.teamTable('B', teamB)}</div>
+      <div class="pvp-score-body ui-scroll-area">
+        <div class="pvp-score-cols${obj ? ' has-obj' : ''}" role="row"><span role="columnheader">Name</span><span role="columnheader" title="Killing blows">Killing Blows</span><span role="columnheader" title="Deaths">Deaths</span><span role="columnheader" title="Damage done">Damage Done</span><span role="columnheader" title="Healing done">Healing Done</span>${obj ? '<span role="columnheader" title="Objective score">Objectives</span>' : ''}</div>
+        ${this.teamTable('A', teamA, obj)}${this.teamTable('B', teamB, obj)}
+      </div>
       <footer class="ui-window-footer">${footer}</footer>
     </div>`;
     }
