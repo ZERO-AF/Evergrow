@@ -1,5 +1,6 @@
 import type { Item, ItemTier } from './character-types.ts';
 import type { EnemyRank } from './progression-content.ts';
+import { lcgRandom } from './random-source.ts';
 export const RIFT_RULES = Object.freeze({ minimumLevel:20, guardianArrival:2.4, duration:600, progress:600, offset:10, rewards:8, bountyCap:20, keyTierGrowth:1.12, fastClear:300, goldMultiplier:6 });
 export interface RiftTag { attempt:number; layout?:'clearings'; keySeed?:number; keyTier?:number }
 export interface RiftProgress { elapsed:number; points:number; phase:'hunt'|'boss'|'complete'|'failed'; claimed:boolean; guardian?:{x:number;y:number;at:number}; treasure?:{x:number;y:number}; exit?:{x:number;y:number} }
@@ -7,7 +8,6 @@ export interface RiftRecord { level:number; seconds:number; keyTier:number }
 export interface RiftLedger { attempts:number; clears:number; highest:number; best:RiftRecord[] }
 export const freshRiftLedger=():RiftLedger=>({attempts:0,clears:0,highest:0,best:[]});
 export const riftPoints=(rank:EnemyRank)=>rank==='elite'?8:rank==='rare'?6:rank==='veteran'?4:1;
-export function riftRandom(seed:number) { let n=seed>>>0; return ()=>{ n=(Math.imul(n,1664525)+1013904223)>>>0;return n/4294967296; }; }
 export const RIFT_HAZARDS = [
   {id:'vital',name:'Unyielding',label:'Monster life',unit:'%',base:20,step:12},
   {id:'savage',name:'Savage',label:'Monster damage',unit:'%',base:8,step:5},
@@ -26,7 +26,7 @@ const NO_MODIFIERS:readonly RiftModifier[]=Object.freeze([]);
 export function riftModifiers(tag:RiftTag):readonly RiftModifier[] {
   if(tag.keySeed===undefined||tag.keyTier===undefined)return NO_MODIFIERS;
   const cached=modifierCache.get(tag);if(cached&&cached.seed===tag.keySeed&&cached.tier===tag.keyTier)return cached.modifiers;
-  const random=riftRandom(tag.keySeed^0x719bef21), tier=tag.keyTier;
+  const random=lcgRandom(tag.keySeed^0x719bef21), tier=tag.keyTier;
   const hazards=[...RIFT_HAZARDS],boons=[...RIFT_BOONS];
   const roll=(pool:typeof hazards|typeof boons,count:number,beneficial:boolean)=>Array.from({length:count},()=>{
     const d=pool.splice(Math.floor(random()*pool.length),1)[0];

@@ -1,7 +1,7 @@
 /** World gather nodes (docs/wow-deepening.md §3): deterministic per-cell placement like
  * wilderness sites, a fixed-step gather channel, and the procedural node art.
  * Gathered state persists on `player.professions[prof].gathered` (node id → sim time). */
-import { hash } from './world-landscape.ts';
+import { hash2 } from './random-source.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { randomSource } from './items.ts';
@@ -43,7 +43,7 @@ function zoneSkillAt(world: WorldQuery, x: number, y: number): number {
 /** Deterministic cell contents: kind by biome affinity, def by zone skill band. */
 function cellNodes(world: WorldQuery, cx: number, cy: number): readonly GatherNode[] {
   const seed = world.seed ?? 7319;
-  const roll = (salt: number) => hash(cx, cy, seed, salt) / 0x100000000;
+  const roll = (salt: number) => hash2(cx, cy, seed, salt) / 0x100000000;
   const countRoll = roll(0x6a17);
   const count = countRoll < .45 ? 0 : countRoll < .85 ? 1 : 2;
   if (!count) return [];
@@ -70,7 +70,7 @@ function cellNodes(world: WorldQuery, cx: number, cy: number): readonly GatherNo
     let pick = roll(0x3000 + i) * groups.reduce((s, g) => s + g.weight, 0);
     const group = groups.find(g => (pick -= g.weight) < 0) ?? groups[groups.length - 1]!;
     const def = group.pool[Math.floor(roll(0x4000 + i) * group.pool.length)]!;
-    nodes.push({ id: `gather:${seed}:${cx}:${cy}:${i}`, def, x, y, zoneSkill, seed: hash(cx, cy, seed, 0x5000 + i) });
+    nodes.push({ id: `gather:${seed}:${cx}:${cy}:${i}`, def, x, y, zoneSkill, seed: hash2(cx, cy, seed, 0x5000 + i) });
   }
   return nodes;
 }

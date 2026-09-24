@@ -3,6 +3,8 @@ import { sampleBiome, type BiomeId } from './biomes.ts';
 import { settlementBenefits, type SettlementTier } from './settlement-services.ts';
 import { placeId, type Place } from './world-geography.ts';
 import type { WorldPOI } from './world-pois.ts';
+import { smoothstep } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 export type POI = WorldPOI;
 
 export interface Rect { x: number; y: number; width: number; height: number; }
@@ -80,15 +82,6 @@ export function circleHitsRect(x: number, y: number, radius: number, rect: Rect)
   return radius === 0 ? contains(rect, x, y) : dx * dx + dy * dy < radius * radius - 1e-7;
 }
 
-function rng(seed: number) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let x = Math.imul(state ^ state >>> 15, state | 1);
-    x ^= x + Math.imul(x ^ x >>> 7, x | 61);
-    return ((x ^ x >>> 14) >>> 0) / 4294967296;
-  };
-}
 
 function building(id: string, seed: number, kind: BuildingKind, rect: Rect): Building {
   const { x, y, width, height } = rect;
@@ -118,7 +111,7 @@ function building(id: string, seed: number, kind: BuildingKind, rect: Rect): Bui
 
 /** Seeded plots surround an open commons. Walkways are routed around the actual footprints. */
 export function generateSettlement(seed: number, place: Place): Settlement {
-  const random = rng(place.seed), { x, y } = place, id = `town:${seed}:${place.id}`;
+  const random = randomSource(place.seed), { x, y } = place, id = `town:${seed}:${place.id}`;
   // Authored atlas towns carry band ids (id !== placeId(cx,cy)); they are named
   // towns and must never downgrade to a tent camp. Procedural places always
   // satisfy id === placeId(cx,cy), so the seed%3 camp roll still applies there.
@@ -338,10 +331,6 @@ function routeSettlementPath(buildings:Building[],start:[number,number],end:[num
   return result;
 }
 
-function smoothstep(a: number, b: number, value: number): number {
-  const t = Math.max(0, Math.min(1, (value - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-}
 
 /** Worn continuous tracks, shared by terrain tiles and review maps. No rectangular street masks. */
 export function settlementPavingWeight(town:Settlement,x:number,y:number,_road:number):number {

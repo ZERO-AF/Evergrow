@@ -3,7 +3,8 @@ import type { DungeonFloor, DungeonMember, Room } from './dungeon.ts';
 import type { BiomeId } from './biomes.ts';
 import { bossForBiome } from './wilderness-boss-content.ts';
 import { ENEMY_DEFINITIONS } from './combat-content.ts';
-import { riftBonus, riftRandom, type RiftTag } from './rift-content.ts';
+import { riftBonus, type RiftTag } from './rift-content.ts';
+import { lcgRandom } from './random-source.ts';
 import { WorldLandscape } from './world-landscape.ts';
 
 import { RIFT_FIELD, riftPackCount } from './rift-field.ts';
@@ -29,7 +30,7 @@ export function buildRiftFloor(seed:number,biome:BiomeId,rift:RiftTag):DungeonFl
   if(rift.layout==='clearings')return buildClearingRiftFloor(seed,biome,rift);
   const key=`${seed}:${biome}:${rift.attempt}:${rift.keySeed}:${rift.keyTier}`,cached=floors.get(key);
   if(cached)return cached;
-  const random=riftRandom(seed),world=new WorldLandscape(seed,true),members:DungeonMember[]=[],rooms:Room[]=[];
+  const random=lcgRandom(seed),world=new WorldLandscape(seed,true),members:DungeonMember[]=[],rooms:Room[]=[];
   const dry=(x:number,y:number,radius:number)=>world.sampleWater(x,y).coverage<.12&&!world.blocked(x,y,radius);
   const clearNear=(x:number,y:number,radius:number)=>{
     for(let i=0;i<2000;i++){

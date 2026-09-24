@@ -3,6 +3,7 @@ import type { EnemyRank } from './progression-content.ts';
 import type { CombatEvent, Player, WorldQuery } from './model.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { creditGold, goldBalance } from './wallet.ts';
+import { randomSource } from './random-source.ts';
 
 export interface GroundGold { flight?: import('./treasure-flight.ts').TreasureFlight; id: number; x: number; y: number; amount: number; age: number; }
 export const GOLD_RULES = { maxPiles: 128, magnetRadius: 100, collectRadius: 15, settleTime: .3 } as const;
@@ -12,13 +13,7 @@ const TABLE: Record<EnemyRank, { chance: number; min: number; max: number }> = {
 };
 /** Independent seed stream: currency tuning cannot change equipment rolls or encounter RNG. */
 export function rollEnemyGold(seed: number, level: number, rank: EnemyRank): number {
-  let state = (seed ^ 0x67a19f35) >>> 0;
-  const random = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(state ^ state >>> 15, 1 | state);
-    t ^= t + Math.imul(t ^ t >>> 7, 61 | t);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
+  const random = randomSource(seed ^ 0x67a19f35);
   const row = TABLE[rank];
   if (random() >= row.chance) return 0;
   // Copper economy (1g = 10_000c): level^1.5 growth lands a level-80 normal at

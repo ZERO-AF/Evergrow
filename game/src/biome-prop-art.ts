@@ -1,7 +1,8 @@
 import { dryGrass, thornBrush, openStone } from './open-biome-art.ts';
 import { weatherStone } from './material-art.ts';
 import type { PropKind } from './biome-props.ts';
-import { randomFromSeed, polygon, line, taper, type Point, type Random } from './art-primitives.ts';
+import { polygon, line, taper, type Point, type Random } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { BiomeId } from './biomes.ts';
 
 type Family = 'sandstoneShard' | 'dryGrass' | 'desertScrub' | 'sandstone' | 'steppeStone' | 'thornBrush' | 'iceCrystal' | 'basalt' | 'emberRock'
@@ -197,7 +198,7 @@ function giantMushroom(c: CanvasRenderingContext2D, random: Random) {
 
 /** Geometry is generated once per cached family/variant, never loaded as an image asset. */
 export function drawBiomeProp(c: CanvasRenderingContext2D, kind: PropKind, seed: number): void {
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   const draw: Record<Family, (c: CanvasRenderingContext2D, random: Random) => void> = {
     sandstoneShard: (ctx,r) => openStone(ctx,r,true,true),
     dryGrass, desertScrub: (ctx,r) => dryGrass(ctx,r,true), thornBrush, sandstone: (ctx,r) => openStone(ctx,r,true), steppeStone: (ctx,r) => openStone(ctx,r,false),
@@ -212,7 +213,7 @@ export function drawBiomeProp(c: CanvasRenderingContext2D, kind: PropKind, seed:
 /** World-aligned small accents are cropped by terrain tiles. They never own collision. */
 export function drawBiomeGroundAccent(c: CanvasRenderingContext2D, biome: BiomeId, x: number, y: number,
   pick: number, seed: number, onRoad: boolean): boolean {
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   if (onRoad) return false;
   if (biome === 'sunscar') {
     if(pick<.45) line(c,[[x-6,y],[x,y-1],[x+9,y]],'#e8c89725',.6);

@@ -2,7 +2,8 @@ import { riftRewardMask } from './rift-content.ts';
 import { withUniqueChance } from './unique-content.ts';
 import { EXPEDITION_MODIFIER_IDS } from './expedition-modifiers.ts';
 import { dungeonTheme, DUNGEON_THEME_IDS } from './dungeon-content.ts';
-import { dungeonRandom, type DungeonEntrance } from './dungeon.ts';
+import { lcgRandom } from './random-source.ts';
+import type { DungeonEntrance } from './dungeon.ts';
 import type { Item, ItemTier } from './character-types.ts';
 import { rollEnemyLoot, selectLootWeight } from './loot.ts';
 import type { Expeditions, DungeonRun } from './dungeon-state.ts';
@@ -19,7 +20,7 @@ export function expeditionChoices(route:ExpeditionRoute,point={x:0,y:0}):Dungeon
   let stageSeed=(route.seed+Math.imul(route.cleared+1,731991))>>>0;
   stageSeed=Math.imul(stageSeed^(stageSeed>>>16),0x7feb352d);
   stageSeed=Math.imul(stageSeed^(stageSeed>>>15),0x846ca68b);
-  const random=dungeonRandom((stageSeed^(stageSeed>>>16))>>>0);
+  const random=lcgRandom((stageSeed^(stageSeed>>>16))>>>0);
   const count=random()<.65?2:1, first=Math.floor(random()*DUNGEON_THEME_IDS.length);
   const remainingModifiers=[...EXPEDITION_MODIFIER_IDS];
   return Array.from({length:count},(_,choice)=>{
@@ -31,7 +32,7 @@ export function expeditionChoices(route:ExpeditionRoute,point={x:0,y:0}):Dungeon
   });
 }
 export function expeditionRewardItems(entrance:DungeonEntrance,playerLevel=entrance.level):Item[] {
-  const grand=entrance.expedition?.stage===9, random=dungeonRandom(entrance.seed^0x47c593a1);
+  const grand=entrance.expedition?.stage===9, random=lcgRandom(entrance.seed^0x47c593a1);
   const weights=grand?EXPEDITION_RULES.grandRarity:EXPEDITION_RULES.stageRarity;
   return Array.from({length:grand?EXPEDITION_RULES.grandRewards:EXPEDITION_RULES.stageRewards},(_,i)=>{
     return rollEnemyLoot({playerLevel,tierOverride:selectLootWeight(weights,random()) as ItemTier,seed:(entrance.seed+Math.imul(i+1,0x6d2b79f5))>>>0,level:entrance.level+3,rank:'normal',biome:entrance.biome,kind:'stalker',firstKill:true,encounter:'bossChest'})[0];

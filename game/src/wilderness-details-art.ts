@@ -1,10 +1,11 @@
 import { weatherStone } from './material-art.ts';
-import { polygon, line, randomFromSeed } from './art-primitives.ts';
+import { polygon, line, } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { drawGlow } from './lighting.ts';
 import type { SiteDecor } from './wilderness-sites.ts';
 /** Shared procedural assemblies: their solid anchors are authored by the site blueprint. */
 export function drawWildernessDetail(c: CanvasRenderingContext2D, d: SiteDecor, time: number, inert = false): void {
-    const random = randomFromSeed(d.seed);
+    const random = randomSource(d.seed);
     if (d.kind === 'arch') {
         for (const side of [-1, 1])
             for (let i = 0; i < 4; i++) {

@@ -1,4 +1,5 @@
-import { hash, randomFromSeed, polygon, line, type Point } from './art-primitives.ts';
+import { hash, polygon, line, type Point } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { BiomeId } from './biomes.ts';
 import type { World } from './world.ts';
 import type { RiftProgress } from './rift-content.ts';
@@ -23,7 +24,7 @@ export interface RiftScar {x:number; y:number; seed:number; biome:BiomeId; point
  * progress admits more six-second windows without accelerating or restarting a bolt. */
 export function riftLightning(seed:number,time:number,progress:number,reduced:boolean):number {
   if(reduced||time<0)return 0;
-  const window=Math.floor(time/RIFT_ATMOSPHERE.stormPeriod),random=randomFromSeed(hash(seed^Math.imul(window,7919)^819));
+  const window=Math.floor(time/RIFT_ATMOSPHERE.stormPeriod),random=randomSource(hash(seed^Math.imul(window,7919)^819));
   const chance=.2+.75*Math.max(0,Math.min(1,progress));
   if(random()>chance)return 0;
   const age=time-window*RIFT_ATMOSPHERE.stormPeriod-(.8+random()*2.8);
@@ -59,7 +60,7 @@ export class RiftAtmosphereArt {
     }
   }
   private create(world:World,cx:number,cy:number):RiftScar|null {
-    const seed=hash(Math.imul(cx,73856093)^Math.imul(cy,19349663)^world.seed^7119),random=randomFromSeed(seed),cell=RIFT_ATMOSPHERE.cell;
+    const seed=hash(Math.imul(cx,73856093)^Math.imul(cy,19349663)^world.seed^7119),random=randomSource(seed),cell=RIFT_ATMOSPHERE.cell;
     for(let i=0;i<RIFT_ATMOSPHERE.candidates;i++){
       let x=(cx+random())*cell,y=(cy+random())*cell;
       if(world.riftShape){const edge=world.riftShape.distance(x,y);if(edge < -65||edge>100)continue;}
@@ -128,7 +129,7 @@ export class RiftAtmosphereArt {
     const progress=this.state.points/RIFT_RULES.progress;
     const envelope=this.state.phase==='hunt'?riftLightning(this.world.seed,this.time,progress,this.reduced):0;
     if(envelope){
-      const random=randomFromSeed(hash(this.world.seed^Math.imul(Math.floor(this.time/RIFT_ATMOSPHERE.stormPeriod),7919)^928));
+      const random=randomSource(hash(this.world.seed^Math.imul(Math.floor(this.time/RIFT_ATMOSPHERE.stormPeriod),7919)^928));
       const x=view.left+view.width*(.16+random()*.68),y=view.top+view.height*.08,h=Math.min(150,view.height*.21),points:Point[]=[];
       for(let n=0;n<8;n++)points.push([x+(random()-.5)*27,y+h*n/7]);
       c.globalAlpha=envelope*.45;line(c,points,'#6d48aa',10);

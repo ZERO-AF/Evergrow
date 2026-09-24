@@ -6,6 +6,7 @@ import type { Simulation } from './simulation.ts';
 import { text, textWidth } from './font.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { shade } from './hud-orb.ts';
+import { clamp, lerp } from './art-primitives.ts';
 
 /**
  * Canvas pass for per-enemy cast bars (docs/wow-deepening.md — WoW nameplate
@@ -16,8 +17,6 @@ import { shade } from './hud-orb.ts';
  */
 
 const UI = UI_THEME.palette;
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
 const BAR_WIDTH = 64;
 const BAR_HEIGHT = 7;

@@ -3,13 +3,13 @@ import { UI_THEME } from './ui-theme.ts';
 import { getHUDLayout } from './hud-layout.ts';
 import { shade } from './hud-orb.ts';
 import { BOSS_WARNING_FLASH_SECONDS, BOSS_WARNING_OUTCOME_FADE, type BossWarning, type BossWarnings } from './boss-warnings.ts';
+import { clamp } from './art-primitives.ts';
 
 /** Center-screen DBM pass (docs/wow-deepening.md §10): a brief "⚠ Ability — advice!"
  * flash per new telegraph, plus countdown bars while casts wind up. Drawn at
  * native HUD resolution inside the renderer's HUD pass. */
 
 const UI = UI_THEME.palette;
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
 const BAR_WIDTH = 232;
 const BAR_HEIGHT = 13;
 const BAR_STEP = 17;

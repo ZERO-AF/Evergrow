@@ -1,8 +1,8 @@
 import type { DungeonEntrance, DungeonFloor, DungeonMember, DungeonProp, Room } from './dungeon.ts';
+import { hash2 } from './random-source.ts';
 import { dungeonPassage } from './dungeon-passage.ts';
 import type { WorldLandscape } from './world-landscape.ts';
 import { getZoneAt } from './zone-progression.ts';
-import { siteHash } from './wilderness-sites.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { raidEntrances } from './raid-boss-content.ts';
 import { raid2Entrances } from './raid2-boss-content.ts';
@@ -166,7 +166,7 @@ function raid8GatePoint(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites
     for (let cy = -ring; cy <= ring && !point; cy++)
       for (let cx = -ring; cx <= ring && !point; cx++) {
         if (Math.max(Math.abs(cx), Math.abs(cy)) !== ring) continue;
-        const seed = siteHash(cx, cy, world.seed, 0x0a0b11);
+        const seed = hash2(cx, cy, world.seed, 0x0a0b11);
         const x = (cx + .5) * 1400 + ((seed >>> 8) % 900 - 450), y = (cy + .5) * 1400 + ((seed >>> 20) % 900 - 450);
         if (getZoneAt(x, y, world.seed).originalLevel < RAID8_MIN_ZONE_LEVEL) continue;
         // Never share a cell with the seven prior raid gates: probe whether any lands inside this cell's bounds.

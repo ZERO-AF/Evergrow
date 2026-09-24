@@ -3,9 +3,9 @@
  * Runtime/admission lives in world-event-state.ts, rewards in world-event-command.ts,
  * presentation in world-event-art.ts. */
 import type { EnemyKind } from './model.ts';
+import { hash2 } from './random-source.ts';
 import type { EnemyRank } from './progression-content.ts';
 import { getZoneAt, scaledEnemyStats, type ZoneProgression } from './zone-progression.ts';
-import { siteHash } from './wilderness-sites.ts';
 import { BOSS_CHEST_LOOT_TABLES } from './loot-content.ts';
 import { generateRewardItem } from './items.ts';
 import type { ItemTier } from './character-types.ts';
@@ -55,21 +55,21 @@ export const worldEventCampId = (eventId: string): string => `${WORLD_EVENT_CAMP
 
 /** Stable per-invasion seed; independent of spawn order and traversal. */
 export function invasionSeed(worldSeed: number, index: number): number {
-  return siteHash(index, 0, worldSeed, 0x1e4f) >>> 0;
+  return hash2(index, 0, worldSeed, 0x1e4f) >>> 0;
 }
 
 /** Deterministic zone pick: a ring cell 1–4 regions out, resolved to its district. */
 export function invasionZone(worldSeed: number, index: number): ZoneProgression {
-  const ring = 1 + siteHash(index, 1, worldSeed, 0x77aa) % 4;
-  const angle = (siteHash(index, 2, worldSeed, 0x31c9) / 4294967296) * Math.PI * 2;
+  const ring = 1 + hash2(index, 1, worldSeed, 0x77aa) % 4;
+  const angle = (hash2(index, 2, worldSeed, 0x31c9) / 4294967296) * Math.PI * 2;
   const cx = Math.round(Math.cos(angle) * ring), cy = Math.round(Math.sin(angle) * ring);
   return getZoneAt(cx * 3600, cy * 3600, worldSeed);
 }
 
 /** Preferred necropolis point before collision probing: near the zone heart. */
 export function invasionAnchorHint(worldSeed: number, index: number, zone: ZoneProgression): { x: number; y: number } {
-  const angle = (siteHash(index, 3, worldSeed, 0x9a3c) / 4294967296) * Math.PI * 2;
-  const distance = 240 + (siteHash(index, 4, worldSeed, 0x5d11) / 4294967296) * 720;
+  const angle = (hash2(index, 3, worldSeed, 0x9a3c) / 4294967296) * Math.PI * 2;
+  const distance = 240 + (hash2(index, 4, worldSeed, 0x5d11) / 4294967296) * 720;
   return { x: zone.x + Math.cos(angle) * distance, y: zone.y + Math.sin(angle) * distance };
 }
 
@@ -92,7 +92,7 @@ export function invasionGuardians(seed: number, scale: EncounterScale): Invasion
   for (let wave = 0; wave < WORLD_EVENT_RULES.waveCount; wave++) {
     const size = Math.min(18, WORLD_EVENT_RULES.waveSize + wave * WORLD_EVENT_RULES.waveGrowth);
     for (let i = 0; i < size; i++) {
-      const gSeed = siteHash(seed, wave * 32 + i, 0x5eed) >>> 0;
+      const gSeed = hash2(seed, wave * 32 + i, 0x5eed) >>> 0;
       const final = wave === WORLD_EVENT_RULES.waveCount - 1;
       const rank: EnemyRank = i === 0 ? (final ? 'elite' : 'veteran') : i === 1 && wave >= 2 ? 'veteran' : 'normal';
       const kind = INVASION_ROSTER[(i + wave * 3 + (gSeed % 5)) % INVASION_ROSTER.length]!;
@@ -111,7 +111,7 @@ export const invasionBossLevel = (scale: EncounterScale): number => encounterMem
 
 /** Deterministic reward bundle for a repelled invasion; mirrors poi-rewards' seeded rolls. */
 export function worldEventRewards(event: { seed: number; level: number }, playerLevel: number) {
-  const random = (salt: number) => siteHash(event.seed, salt, 0x37518) / 4294967296;
+  const random = (salt: number) => hash2(event.seed, salt, 0x37518) / 4294967296;
   const items = Array.from({ length: 3 }, (_, i) => {
     const table = BOSS_CHEST_LOOT_TABLES.raid[i]!;
     let roll = random(10 + i) * 100, tier: ItemTier = 'common';
@@ -119,7 +119,7 @@ export function worldEventRewards(event: { seed: number; level: number }, player
       roll -= weight;
       if (roll < 0) { tier = key; break; }
     }
-    const item = generateRewardItem(siteHash(event.seed, i, 497), tier === 'unique' ? playerLevel : Math.min(1e6, event.level + 1),
+    const item = generateRewardItem(hash2(event.seed, i, 497), tier === 'unique' ? playerLevel : Math.min(1e6, event.level + 1),
       undefined, undefined, tier, undefined, { level: event.level, encounter: 'bossChest' });
     item.id = `worldEvent:${event.seed}:${i}`;
     return item;

@@ -1,32 +1,16 @@
+import { hash2, random2 } from './random-source.ts';
+import { smoothstep } from './art-primitives.ts';
 type RoadSample = { road: number; paved: number };
 const COLUMN = 19, ROW = 12;
-const UINT_RANGE = 0x100000000;
 const STONE_COLORS = ['#4c514a', '#53534a', '#514d43', '#444c48', '#58564c', '#464941'];
 const GRAVEL_COLORS = ['#747368', '#625f53', '#858071'];
 
-function hash(x: number, y: number, seed: number, salt = 0): number {
-  let value = (seed ^ salt ^ Math.imul(x | 0, 0x45d9f3b) ^ Math.imul(y | 0, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / UINT_RANGE), 0x165667b1)
-    ^ Math.imul(Math.floor(y / UINT_RANGE), 0x85ebca77)) >>> 0;
-  value = Math.imul(value ^ value >>> 16, 0x7feb352d);
-  value = Math.imul(value ^ value >>> 15, 0x846ca68b);
-  return (value ^ value >>> 16) >>> 0;
-}
-
-function random(x: number, y: number, seed: number, salt: number): number {
-  return hash(x, y, seed, salt) / UINT_RANGE;
-}
-
-function smooth(low: number, high: number, value: number): number {
-  const t = Math.max(0, Math.min(1, (value - low) / (high - low)));
-  return t * t * (3 - 2 * t);
-}
 
 function wearNoise(x: number, y: number, seed: number): number {
   const ix = Math.floor(x), iy = Math.floor(y);
-  const tx = smooth(0, 1, x - ix), ty = smooth(0, 1, y - iy);
-  const a = random(ix, iy, seed, 703), b = random(ix + 1, iy, seed, 703);
-  const c = random(ix, iy + 1, seed, 703), d = random(ix + 1, iy + 1, seed, 703);
+  const tx = smoothstep(0, 1, x - ix), ty = smoothstep(0, 1, y - iy);
+  const a = random2(ix, iy, seed, 703), b = random2(ix + 1, iy, seed, 703);
+  const c = random2(ix, iy + 1, seed, 703), d = random2(ix + 1, iy + 1, seed, 703);
   return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
 }
 
@@ -63,12 +47,12 @@ export function drawRoadDetails(c: CanvasRenderingContext2D, originX: number, or
   const firstRow = Math.floor((originY - 8) / ROW);
   const lastRow = Math.floor((originY + tileSize + 8) / ROW);
   for (let row = firstRow; row <= lastRow; row++) {
-    const rowPhase = random(0, row, seed, 701) * Math.PI * 2;
+    const rowPhase = random2(0, row, seed, 701) * Math.PI * 2;
     const stagger = (row & 1) * COLUMN / 2 + Math.sin(rowPhase) * 1.4;
     const firstColumn = Math.floor((originX - stagger - 12) / COLUMN);
     const lastColumn = Math.floor((originX + tileSize - stagger + 12) / COLUMN);
     for (let column = firstColumn; column <= lastColumn; column++) {
-      const position = hash(column, row, seed, 702);
+      const position = hash2(column, row, seed, 702);
       const jitterX = ((position & 1023) / 1023 - .5) * 2.8;
       const jitterY = (((position >>> 10) & 1023) / 1023 - .5) * 1.1;
       const wx = (column + .5) * COLUMN + stagger + jitterX;
@@ -78,14 +62,14 @@ export function drawRoadDetails(c: CanvasRenderingContext2D, originX: number, or
       const road = Math.max(0, Math.min(1, material.road));
       if (paved <= .015 && road <= .03) continue;
       const px = wx - originX, py = wy - originY;
-      const pick = random(column, row, seed, 704);
+      const pick = random2(column, row, seed, 704);
 
       if (paved > .015) {
-        const worn = smooth(.42, .82, wearNoise(wx / 118, wy / 104, seed));
-        const fadeStart = .02 + random(column, row, seed, 705) * .17;
-        const opacity = smooth(fadeStart, .67 + fadeStart, paved) * (.92 - worn * .3);
+        const worn = smoothstep(.42, .82, wearNoise(wx / 118, wy / 104, seed));
+        const fadeStart = .02 + random2(column, row, seed, 705) * .17;
+        const opacity = smoothstep(fadeStart, .67 + fadeStart, paved) * (.92 - worn * .3);
         if (opacity > .006 && pick > .025 + worn * .14) {
-          const detail = hash(column, row, seed, 706);
+          const detail = hash2(column, row, seed, 706);
           const width = 16 + (detail & 255) / 255 * 2.7;
           const height = 9.2 + ((detail >>> 8) & 255) / 255 * 2.5;
           const corner = 1 + ((detail >>> 16) & 255) / 255 * 1.15;
@@ -120,10 +104,10 @@ export function drawRoadDetails(c: CanvasRenderingContext2D, originX: number, or
         }
       }
 
-      const dirt = smooth(.04, .78, road) * (1 - smooth(.08, .75, paved));
+      const dirt = smoothstep(.04, .78, road) * (1 - smoothstep(.08, .75, paved));
       if (dirt <= .006) continue;
       if (pick > .77) {
-        const gravel = hash(column, row, seed, 707);
+        const gravel = hash2(column, row, seed, 707);
         const size = .8 + (gravel & 255) / 255 * 1.5;
         c.globalAlpha = alpha * dirt * (.25 + ((gravel >>> 8) & 255) / 255 * .2);
         c.fillStyle = GRAVEL_COLORS[gravel % GRAVEL_COLORS.length];
@@ -131,8 +115,8 @@ export function drawRoadDetails(c: CanvasRenderingContext2D, originX: number, or
         c.lineTo(px + size * .8, py - .1); c.lineTo(px + .4, py + size * .55);
         c.closePath(); c.fill();
       } else if (pick < .052) {
-        const angle = random(column, row, seed, 708) * Math.PI;
-        const length = 3.5 + random(column, row, seed, 709) * 3.5;
+        const angle = random2(column, row, seed, 708) * Math.PI;
+        const length = 3.5 + random2(column, row, seed, 709) * 3.5;
         const dx = Math.cos(angle) * length, dy = Math.sin(angle) * length * .6;
         c.globalAlpha = alpha * dirt * .19;
         c.strokeStyle = '#2c3029'; c.lineWidth = .75;

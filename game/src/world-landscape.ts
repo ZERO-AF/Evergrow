@@ -31,6 +31,8 @@ import { isWorldCoordinate, validWorldRectangle, WORLD_QUERY_LIMITS } from './wo
 import { generateWildernessSite, startingEnemyCamp, wildernessPOI, WILDERNESS_RULES, type WildernessSite, type EnemyCamp } from './wilderness-sites.ts';
 export { pathDistance } from './road-shape.ts';
 import { nearestPlace, placeCell, queryPlaces, settlementPlace, type Place } from './world-geography.ts';
+import { smoothstep } from './art-primitives.ts';
+import { hash2, random2, noise2 } from './random-source.ts';
 
 /** All coordinates are world pixels; prop positions are their ground contacts. */
 export interface Prop {
@@ -59,40 +61,6 @@ const PROP_CACHE_LIMIT = 8192;
 const COLLISION_CACHE_LIMIT = 256;
 const COLLISION_CELL = 256;
 const SETTLEMENT_CACHE_LIMIT = 32;
-const UINT_RANGE = 0x100000000;
-
-
-export function hash(x: number, y: number, seed: number, salt = 0): number {
-  // Include the high coordinate bits instead of repeating every 2^32 cells.
-  let value = (seed ^ salt ^ Math.imul(x | 0, 0x45d9f3b) ^ Math.imul(y | 0, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / UINT_RANGE), 0x165667b1)
-    ^ Math.imul(Math.floor(y / UINT_RANGE), 0x85ebca77)) >>> 0;
-  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
-  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
-  return (value ^ (value >>> 16)) >>> 0;
-}
-
-export function random(x: number, y: number, seed: number, salt = 0): number {
-  return hash(x, y, seed, salt) / UINT_RANGE;
-}
-
-export function smoothstep(a: number, b: number, value: number): number {
-  const t = Math.max(0, Math.min(1, (value - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-}
-
-export function noise(x: number, y: number, seed: number): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const tx = smoothstep(0, 1, x - ix);
-  const ty = smoothstep(0, 1, y - iy);
-  const a = random(ix, iy, seed);
-  const b = random(ix + 1, iy, seed);
-  const c = random(ix, iy + 1, seed);
-  const d = random(ix + 1, iy + 1, seed);
-  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-}
-
 function inRectangle(prop: { x: number; y: number }, x: number, y: number, width: number, height: number): boolean {
   return prop.x >= x && prop.x < x + width && prop.y >= y && prop.y < y + height;
 }
@@ -269,7 +237,7 @@ export class WorldLandscape {
       const sample = this.sampleBiome(x, y), weights = sample.weights;
       // Coarse relief + shoreline shading keep the world map from reading as
       // flat zone rectangles; two low-frequency noise taps stay cheap per cell.
-      const relief = (noise(x / 700, y / 700, this.seed + 205) - .5) * 22;
+      const relief = (noise2(x / 700, y / 700, this.seed + 205) - .5) * 22;
       const shore = smoothstep(.02, .3, water) * (1 - smoothstep(.3, .6, water));
       const shallows = Math.max(0, 1 - hydro.depth / .65);
       const pool = [17 + shallows * 22, 51 + shallows * 25, 60 + shallows * 16];
@@ -301,7 +269,7 @@ export class WorldLandscape {
   }
 
   protected surfaceColor(x: number, y: number, towns: Settlement[], detail: boolean): number[] {
-    const damp = noise(x / 180, y / 180, this.seed + 201);
+    const damp = noise2(x / 180, y / 180, this.seed + 201);
     const sample = this.sampleBiome(x, y), weights = sample.weights;
     const profile = roadSurface(x, y, this.seed), road = (this.riftShape ? this.roadWeight(x,y) : profile.weight) * (towns.some(t=>Math.hypot(x-t.x,y-t.y)<t.radius-100)?0:1);
     const paved = this.pavingWeight(towns, x, y, road);
@@ -317,9 +285,9 @@ export class WorldLandscape {
     const strength=town?.kind==='city'?.5:town?.kind==='village'?.34:.25;
     const earth=[58+weights.sunscar*40,51+weights.sunscar*33,39+weights.sunscar*22];
     const stone=base.map((v,i)=>v*(1-strength)+earth[i]*strength+(town?.kind==='city'?3:0));
-    const weather = detail ? (noise(x / 93, y / 93, this.seed + 203) - .5) * 18 : (noise(x / 320, y / 320, this.seed + 203) - .5) * 10;
-    const relief = (detail ? landscapeRelief(x,y,this.seed,weights) : (noise(x / 700, y / 700, this.seed + 205) - .5) * 22) - (this.riftShape ? smoothstep(-20,100,this.riftShape.distance(x,y))*17 : 0);
-    const grain = detail ? (noise(x / 18, y / 18, this.seed + 202) - .5) * 5 : 0;
+    const weather = detail ? (noise2(x / 93, y / 93, this.seed + 203) - .5) * 18 : (noise2(x / 320, y / 320, this.seed + 203) - .5) * 10;
+    const relief = (detail ? landscapeRelief(x,y,this.seed,weights) : (noise2(x / 700, y / 700, this.seed + 205) - .5) * 22) - (this.riftShape ? smoothstep(-20,100,this.riftShape.distance(x,y))*17 : 0);
+    const grain = detail ? (noise2(x / 18, y / 18, this.seed + 202) - .5) * 5 : 0;
     const track = profile.tracks * road * (1 - paved) * 3;
     const bank = hydro.bank * .7 + (detail ? weights.swamp * (smoothstep(.40, .50, damp) - smoothstep(.50, .64, damp)) * (1 - road) : 0);
     const dryRoad = road * (1 - hydro.coverage * .88);
@@ -352,7 +320,7 @@ export class WorldLandscape {
   sampleGroundContact(x: number, y: number): GroundContact {
     const weights = this.sampleBiome(x, y).weights;
     const road = this.roadWeight(x, y), towns = this.getSettlements(x, y, .01, .01);
-    const contact = groundContact(weights, noise(x / 180, y / 180, this.seed + 201), road,
+    const contact = groundContact(weights, noise2(x / 180, y / 180, this.seed + 201), road,
       this.pavingWeight(towns, x, y, road), !!this.getBuildingAt(x, y));
     const river = this.sampleWater(x, y).coverage;
     return { ...contact, simulatedWater: river > .1, water: contact.indoors ? 0 : Math.max(contact.water*(this.riftShape?smoothstep(-30,120,this.riftShape.distance(x,y)):1), river) };
@@ -380,7 +348,7 @@ export class WorldLandscape {
 
     const firstShrine: Prop = {
       id: 'shrine:origin', x: -85, y: -95, radius: 15, kind: 'shrine',
-      seed: hash(0, 0, this.seed, 301), scale: 1,
+      seed: hash2(0, 0, this.seed, 301), scale: 1,
     };
     if (!this.wildernessOnly && inRectangle(firstShrine, x, y, width, height)) result.push(firstShrine);
     return result.sort(compareProps);
@@ -397,8 +365,8 @@ export class WorldLandscape {
 
   private generateCellProp(cx: number, cy: number): Prop | null {
     if(this.riftShape){
-      const x=(cx+.5+(random(cx,cy,this.seed,1)-.5)*.12)*PROP_CELL_SIZE;
-      const y=(cy+.5+(random(cx,cy,this.seed,2)-.5)*.12)*PROP_CELL_SIZE;
+      const x=(cx+.5+(random2(cx,cy,this.seed,1)-.5)*.12)*PROP_CELL_SIZE;
+      const y=(cy+.5+(random2(cx,cy,this.seed,2)-.5)*.12)*PROP_CELL_SIZE;
       const edge=this.riftShape.distance(x,y);
       if(edge<65)return null;
       if(edge>320)return null; // A bounded natural ridge, not an infinite prop field.
@@ -406,11 +374,11 @@ export class WorldLandscape {
       const stone:PropKind=biome==='sunscar'?'sandstone':biome==='emberfall'?'basalt':biome==='frostpine'?'iceCrystal':biome==='highlands'?'limestone':'rock';
       const tree:PropKind=biome==='verdant'?'canopy':biome==='swamp'?'willow':biome==='frostpine'?'snowPine':biome==='autumn'?'autumnTree':biome==='emberfall'?'charredTree':'deadTree';
       const wooded=['verdant','swamp','frostpine','autumn','deadwood'].includes(biome);
-      const kind=wooded&&edge>155&&random(cx,cy,this.seed,9)>.3?tree:stone;
-      return {id:`rift-ridge:${cx}:${cy}`,x,y,radius:58,kind,biome,seed:hash(cx,cy,this.seed,7),scale:kind===tree?1.35:2.7+random(cx,cy,this.seed,8)*.7};
+      const kind=wooded&&edge>155&&random2(cx,cy,this.seed,9)>.3?tree:stone;
+      return {id:`rift-ridge:${cx}:${cy}`,x,y,radius:58,kind,biome,seed:hash2(cx,cy,this.seed,7),scale:kind===tree?1.35:2.7+random2(cx,cy,this.seed,8)*.7};
     }
-    const x = (cx + 0.18 + random(cx, cy, this.seed, 1) * 0.64) * PROP_CELL_SIZE;
-    const y = (cy + 0.18 + random(cx, cy, this.seed, 2) * 0.64) * PROP_CELL_SIZE;
+    const x = (cx + 0.18 + random2(cx, cy, this.seed, 1) * 0.64) * PROP_CELL_SIZE;
+    const y = (cy + 0.18 + random2(cx, cy, this.seed, 2) * 0.64) * PROP_CELL_SIZE;
     if ((x / 180) ** 2 + (y / 140) ** 2 < 1) return null;
     // Keep generous shoulders clear as well as the visibly compacted road.
     if (pathDistance(x, y, this.seed) < 76) return null;
@@ -418,12 +386,12 @@ export class WorldLandscape {
     if (this.getWildernessSites(x - 18, y - 18, 36, 36).some(site => Math.hypot(x - site.x, y - site.y) < site.radius + 18)) return null;
     if (this.roadShrines(x - 44, y - 44, 88, 88).some(shrine => Math.hypot(x - shrine.x, y - shrine.y) < 44)) return null;
     if (this.terrainWater(x, y).coverage > .12) return null;
-    const choice = random(cx, cy, this.seed, 4);
+    const choice = random2(cx, cy, this.seed, 4);
     const weights = this.sampleBiome(x, y).weights;
-    const { biome, kind } = chooseBiomeProp(weights, random(cx, cy, this.seed, 41), choice);
-    if (random(cx, cy, this.seed, 3) > landscapePropProbability(x,y,this.seed,kind,biome)) return null;
+    const { biome, kind } = chooseBiomeProp(weights, random2(cx, cy, this.seed, 41), choice);
+    if (random2(cx, cy, this.seed, 3) > landscapePropProbability(x,y,this.seed,kind,biome)) return null;
     const definition = propDefinition(kind);
-    const scale = definition.scale[0] + random(cx, cy, this.seed, 5) * (definition.scale[1] - definition.scale[0]);
+    const scale = definition.scale[0] + random2(cx, cy, this.seed, 5) * (definition.scale[1] - definition.scale[0]);
     const towns=this.getSettlements(x-180,y-180,360,360),settlementClearance=definition.radius[1]+22;
     for(const town of towns){
       if(Math.hypot(x-town.x,y-town.y)<155)return null;
@@ -439,10 +407,10 @@ export class WorldLandscape {
       if (this.getWildernessSites(crownX - crownMargin, crownY - crownMargin, crownMargin * 2, crownMargin * 2)
         .some(site => Math.hypot(crownX - site.x, crownY - site.y) < site.radius + crownMargin)) return null;
     }
-    const radius = definition.radius[0] + random(cx, cy, this.seed, 6) * (definition.radius[1] - definition.radius[0]);
+    const radius = definition.radius[0] + random2(cx, cy, this.seed, 6) * (definition.radius[1] - definition.radius[0]);
     const clearance=radius+18;
     if(this.getWildernessSites(x-clearance,y-clearance,clearance*2,clearance*2).some(site=>Math.hypot(x-site.x,y-site.y)<site.radius+clearance))return null;
-    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome, seed: hash(cx, cy, this.seed, 7), scale };
+    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome, seed: hash2(cx, cy, this.seed, 7), scale };
   }
 
   private roadShrines(x: number, y: number, width: number, height: number): Prop[] {

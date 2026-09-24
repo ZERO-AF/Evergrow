@@ -8,6 +8,7 @@ import { ENEMY_RANKS } from './progression-content.ts';
 import { drawRankCrest } from './enemy-rank-art.ts';
 import { COMBAT_TIMING } from './combat-content.ts';
 import { shade } from './hud-orb.ts';
+import { clamp } from './art-primitives.ts';
 
 /**
  * Canvas pass for WoW-style floating enemy nameplates. Drawn in screen space
@@ -22,7 +23,6 @@ import { shade } from './hud-orb.ts';
  */
 
 const UI = UI_THEME.palette;
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
 const PLATE_W = 84;
 const BOSS_W = 110;

@@ -1,4 +1,5 @@
 import type { SkyState } from './world-time.ts';
+import { hash1 } from './random-source.ts';
 import { shadowProjection } from './scene-light-style.ts';
 import { drawFortificationShadows } from './settlement-wall-art.ts';
 import { vendorIdentity } from './vendor-identity.ts';
@@ -23,11 +24,7 @@ const WALL_HEIGHT = 42;
 const TAU = Math.PI * 2;
 const MAX_CACHED_BUILDINGS = 32;
 
-function hash(seed: number): number {
-  let n = seed | 0; n = Math.imul(n ^ n >>> 16, 0x45d9f3b);
-  n = Math.imul(n ^ n >>> 16, 0x45d9f3b); return (n ^ n >>> 16) >>> 0;
-}
-function rand(seed: number, salt: number) { return hash(seed + Math.imul(salt, 7879)) / 0x100000000; }
+function rand(seed: number, salt: number) { return hash1(seed + Math.imul(salt, 7879)) / 0x100000000; }
 function inside(b: Rect, x: number, y: number, margin = 0) {
   return x >= b.x - margin && x <= b.x + b.width + margin && y >= b.y - margin && y <= b.y + b.height + margin;
 }

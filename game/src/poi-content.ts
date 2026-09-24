@@ -1,7 +1,8 @@
 import { eventRecipe, sealPoint, isTrialKind } from './event-recipes.ts';
 import { eventProgress } from './event-progress.ts';
 import type { WaveProgress } from './wave-system.ts';
-import { siteHash, type WildernessSite, type WildernessKind } from './wilderness-sites.ts';
+import { type WildernessSite, type WildernessKind } from './wilderness-sites.ts';
+import { hash2 } from './random-source.ts';
 import type { BiomeId } from './biomes.ts';
 import type { EnemyKind, Enemy, WorldQuery, Player } from './model.ts';
 import type { EnemyRank } from './progression-content.ts';
@@ -76,7 +77,7 @@ export const BLESSINGS: Readonly<Record<BlessingKind, {
 export function blessingChoices(site: EventSite): BlessingKind[] {
   const favored: Record<BiomeId, BlessingKind> = { steppe: 'fleet', sunscar: 'wellspring', deadwood: 'haste', verdant: 'fleet', swamp: 'wellspring', frostpine: 'bulwark', emberfall: 'haste', autumn: 'fleet', highlands: 'bulwark' };
   const first = favored[site.biome], others = (Object.keys(BLESSINGS) as BlessingKind[]).filter(k => k !== first);
-  return [first, others[siteHash(site.seed, 0, 39) % others.length]];
+  return [first, others[hash2(site.seed, 0, 39) % others.length]];
 }
 export function eventSite(site: WildernessSite, worldSeed = 7319): EventSite {
   if(site.kind==='bossLair')return {id:site.id,kind:site.kind,name:site.name,x:site.x,y:site.y+155,seed:site.seed,biome:site.biome,level:getZoneAt(site.x,site.y,worldSeed).level};

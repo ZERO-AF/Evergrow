@@ -1,5 +1,7 @@
 import { CONTINENTS, zoneAt, type AtlasZone } from './world-atlas.ts';
 import { terrainTint, type ZoneTint } from './zone-palettes.ts';
+import { hash2, noise2 } from './random-source.ts';
+import { smooth } from './art-primitives.ts';
 
 export const BIOME_IDS = Object.freeze(['deadwood', 'verdant', 'swamp', 'frostpine', 'emberfall', 'autumn', 'highlands', 'steppe', 'sunscar'] as const);
 export type BiomeId = typeof BIOME_IDS[number];
@@ -41,24 +43,11 @@ for (const id of BIOME_IDS) {
 export const BIOME_FIELD_RULES = Object.freeze({ regionSize: 6400, influenceRadius: 1.18,
   startingCore: 1100, startingBlendEnd: 2600, cacheLimit: 512 });
 const TAU = Math.PI * 2, UINT_RANGE = 0x100000000;
-const smooth = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
-function hash(x: number, y: number, seed: number): number {
-  let n = seed ^ Math.imul(x | 0, 0x45d9f3b) ^ Math.imul(y | 0, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / UINT_RANGE), 0x165667b1) ^ Math.imul(Math.floor(y / UINT_RANGE), 0x85ebca77);
-  n = Math.imul(n ^ n >>> 16, 0x7feb352d); n = Math.imul(n ^ n >>> 15, 0x846ca68b);
-  return (n ^ n >>> 16) >>> 0;
-}
 /** Equal starting-climate chances, independent of terrain density and town suitability. */
 export function startingBiome(seed: number): BiomeId {
-  return BIOME_IDS[hash(0, 0, seed ^ 0x5f3759df) % BIOME_IDS.length];
+  return BIOME_IDS[hash2(0, 0, seed ^ 0x5f3759df) % BIOME_IDS.length];
 }
 
-function noise(x: number, y: number, seed: number): number {
-  const ix = Math.floor(x), iy = Math.floor(y), tx = smooth(x - ix), ty = smooth(y - iy);
-  const a = hash(ix, iy, seed) / UINT_RANGE, b = hash(ix + 1, iy, seed) / UINT_RANGE;
-  const c = hash(ix, iy + 1, seed) / UINT_RANGE, d = hash(ix + 1, iy + 1, seed) / UINT_RANGE;
-  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-}
 interface Region { readonly x: number; readonly y: number; readonly biome: BiomeId; }
 // Pure memoization: every value is regenerated from its full seed/cell identity.
 // A shared bounded cache avoids recomputing climate for every ground pixel.
@@ -66,16 +55,16 @@ const regions = new Map<string, Region>();
 function region(cx: number, cy: number, seed: number): Region {
   const key = `${seed}:${cx}:${cy}`, found = regions.get(key);
   if (found) return found;
-  const temperature = noise(cx / 2.35 + 17.3, cy / 2.35 - 9.7, seed + 311);
-  const moisture = noise(cx / 2.05 - 13.6, cy / 2.05 + 5.1, seed + 773);
-  const elevation = noise(cx / 1.9 + 6.8, cy / 1.9 + 21.4, seed + 1297);
+  const temperature = noise2(cx / 2.35 + 17.3, cy / 2.35 - 9.7, seed + 311);
+  const moisture = noise2(cx / 2.05 - 13.6, cy / 2.05 + 5.1, seed + 773);
+  const elevation = noise2(cx / 1.9 + 6.8, cy / 1.9 + 21.4, seed + 1297);
   const biome: BiomeId = temperature > .54 && moisture < .44 ? 'sunscar'
     : temperature >= .30 && moisture < .44 ? 'steppe' : temperature < .30 ? 'frostpine' : temperature > .72 ? 'emberfall'
     : elevation > .66 ? 'highlands' : moisture > .61 ? 'swamp'
       : temperature < .52 && moisture < .53 ? 'deadwood'
       : temperature > .52 && moisture < .57 ? 'autumn' : moisture > .40 ? 'verdant' : 'deadwood';
-  const value = Object.freeze({ x: cx + .5 + (hash(cx, cy, seed + 89) / UINT_RANGE - .5) * .52,
-    y: cy + .5 + (hash(cx, cy, seed + 197) / UINT_RANGE - .5) * .52, biome });
+  const value = Object.freeze({ x: cx + .5 + (hash2(cx, cy, seed + 89) / UINT_RANGE - .5) * .52,
+    y: cy + .5 + (hash2(cx, cy, seed + 197) / UINT_RANGE - .5) * .52, biome });
   if (regions.size >= BIOME_FIELD_RULES.cacheLimit) regions.delete(regions.keys().next().value!);
   regions.set(key, value); return value;
 }

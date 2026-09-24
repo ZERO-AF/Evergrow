@@ -1,4 +1,5 @@
-import { randomFromSeed } from './art-primitives.ts';
+import { } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { biomeWind } from './biome-wind.ts';
 import { drawGlow } from './lighting.ts';
 import { weatherMix } from './weather-content.ts';
@@ -20,7 +21,7 @@ export class WeatherArt {
   private readonly rings = new Float32Array(96 * 3);
   private ringCount = 0;
   constructor() {
-    const random = randomFromSeed(41731);
+    const random = randomSource(41731);
     for (let i = 0; i < WEATHER_PARTICLE_LIMIT; i++) {
       const o = i * 5;
       this.pool[o] = random(); this.pool[o + 1] = random();

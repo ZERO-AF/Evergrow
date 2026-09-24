@@ -1,11 +1,12 @@
 import { architectureStyle, roofVariant } from './settlement-style.ts';
-import { polygon, line, randomFromSeed, hash, type Point } from './art-primitives.ts';
+import { polygon, line, hash, type Point } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { Building, Rect } from './settlements.ts';
 
 /** Roof coordinates follow each slope: courses and repairs share the building's actual roof plane. */
 export function drawRoofCourses(c: CanvasRenderingContext2D, b: Building, edge: number, center: number,
   back: number, front: number, rise: number, side: number) {
-  const random = randomFromSeed(hash(b.seed + (side < 0 ? 183 : 319)));
+  const random = randomSource(hash(b.seed + (side < 0 ? 183 : 319)));
   const left = Math.min(edge, center), right = Math.max(edge, center), span = right - left;
   const palette=architectureStyle(b).roof;
   const project = (x: number, y: number): Point => [x, y - rise * Math.abs((x - edge) / span)];
@@ -53,7 +54,7 @@ export function drawRoofCourses(c: CanvasRenderingContext2D, b: Building, edge: 
 
 /** Flat activity marks and foundation skirts. All upright architecture stays on its shared walls. */
 export function drawBuildingApron(c: CanvasRenderingContext2D, b: Building) {
-  const random = randomFromSeed(b.seed + 7867), w = b.width, h = b.height;
+  const random = randomSource(b.seed + 7867), w = b.width, h = b.height;
   for (let strip = 0; strip < 4; strip++) {
     const spread = 13 - strip * 2.5;
     c.fillStyle = `rgba(14,28,29,${.045 + strip * .025})`;

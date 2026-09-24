@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import type { EnemyAIContext } from '../src/enemy-ai.ts';
 import type { CombatEvent, Enemy, WorldQuery } from '../src/model.ts';
-import { dungeonRandom } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { raidBossLoot, raidLootTable, RAID_BOSS_LOOT, RAID_LOOT_TABLES } from '../src/raid-loot-content.ts';
 import { setPieceOf } from '../src/item-set-content.ts';
 import {
@@ -199,7 +199,7 @@ test('Yogg-Saron maps to his named loot table', () => {
 
 test('Yogg-Saron chest rolls Tier-8 head/chest pieces deterministically', () => {
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID7_ENTRANCE_ID, dungeonRandom(4000 + i), 80, 'priest')!;
+    const loot = raidBossLoot(RAID7_ENTRANCE_ID, lcgRandom(4000 + i), 80, 'priest')!;
     assert.equal(loot.items.length, 3);
     for (const item of loot.items) {
       const piece = setPieceOf(item);
@@ -208,7 +208,7 @@ test('Yogg-Saron chest rolls Tier-8 head/chest pieces deterministically', () => 
     }
   }
   // Determinism: same seed, same haul.
-  const a = raidBossLoot(RAID7_ENTRANCE_ID, dungeonRandom(77), 80, 'warlock')!;
-  const b = raidBossLoot(RAID7_ENTRANCE_ID, dungeonRandom(77), 80, 'warlock')!;
+  const a = raidBossLoot(RAID7_ENTRANCE_ID, lcgRandom(77), 80, 'warlock')!;
+  const b = raidBossLoot(RAID7_ENTRANCE_ID, lcgRandom(77), 80, 'warlock')!;
   assert.deepEqual(a.items.map(i => i.id), b.items.map(i => i.id));
 });

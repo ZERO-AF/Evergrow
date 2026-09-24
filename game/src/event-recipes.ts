@@ -2,7 +2,8 @@ import { hasLineOfSight } from './combat-geometry.ts';
 import type { WorldQuery } from './model.ts';
 import type { EventSite } from './poi-content.ts';
 import type { EnemyKind } from './model.ts';
-import { CAMP_BIOME_ROSTERS, siteHash } from './wilderness-sites.ts';
+import { CAMP_BIOME_ROSTERS } from './wilderness-sites.ts';
+import { hash2 } from './random-source.ts';
 import type { EnemyRank } from './progression-content.ts';
 import type { WaveRules } from './wave-system.ts';
 export interface EventRecipe {
@@ -52,7 +53,7 @@ export function recipeMembers(site: EventSite) {
         const roster = r.roster ?? CAMP_BIOME_ROSTERS[site.biome];
         const final = wave === r.rules.count - 1 || r.mode === 'timed' && wave % 3 === 2;
         const rank: EnemyRank = i === 0 ? final && (site.scaling || site.level >= 3) && r.elite ? 'elite' : 'veteran' : i === 1 && wave > 1 ? 'veteran' : 'normal';
-        return { wave, kind: roster[(i + wave) % roster.length], rank, seed: siteHash(site.seed, wave * 32 + i, 8791) };
+        return { wave, kind: roster[(i + wave) % roster.length], rank, seed: hash2(site.seed, wave * 32 + i, 8791) };
     })).flat();
 }
 export function sealPoint(site: EventSite & {

@@ -1,4 +1,6 @@
-import { WorldLandscape, TILE_SIZE, hash, random, noise, smoothstep } from './world-landscape.ts';
+import { WorldLandscape, TILE_SIZE } from './world-landscape.ts';
+import { hash2, random2, noise2 } from './random-source.ts';
+import { smoothstep } from './art-primitives.ts';
 import { waterTerrainSteps } from './water-terrain-art.ts';
 import { groundSurfaceSteps } from './ground-surface.ts';
 import { drawGroundPatches } from './ground-art.ts';
@@ -82,7 +84,7 @@ export class World extends WorldLandscape {
     drawRoadDetails(context, originX, originY, TILE_SIZE, this.seed, (x, y) => {
       if (buildings.some(building => contains(building, x, y, 10))) return { road: 0, paved: 0 };
       const road = this.roadWeight(x, y);
-      return { road:towns.some(t=>Math.hypot(x-t.x,y-t.y)<t.radius-100)?0:road, paved: towns.some(t=>t.kind==='city')?this.pavingWeight(towns,x,y,road)*smoothstep(.48,.76,noise(x/125,y/125,this.seed+941))*.6:0 };
+      return { road:towns.some(t=>Math.hypot(x-t.x,y-t.y)<t.radius-100)?0:road, paved: towns.some(t=>t.kind==='city')?this.pavingWeight(towns,x,y,road)*smoothstep(.48,.76,noise2(x/125,y/125,this.seed+941))*.6:0 };
     });
 
     yield;
@@ -92,18 +94,18 @@ export class World extends WorldLandscape {
       cy <= Math.floor((originY + TILE_SIZE + margin) / detailCell); cy++) {
       for (let cx = Math.floor((originX - margin) / detailCell);
         cx <= Math.floor((originX + TILE_SIZE + margin) / detailCell); cx++) {
-        const wx = (cx + random(cx, cy, this.seed, 211)) * detailCell;
-        const wy = (cy + random(cx, cy, this.seed, 212)) * detailCell;
+        const wx = (cx + random2(cx, cy, this.seed, 211)) * detailCell;
+        const wy = (cy + random2(cx, cy, this.seed, 212)) * detailCell;
         const px = wx - originX;
         const py = wy - originY;
-        const pick = random(cx, cy, this.seed, 213);
+        const pick = random2(cx, cy, this.seed, 213);
         const onRoad = pathDistance(wx, wy, this.seed) < 37;
         if (this.terrainWater(wx, wy).coverage > .08 || buildings.some(building => contains(building, wx, wy, 9))
           || this.pavingWeight(towns, wx, wy, this.roadWeight(wx, wy)) > .08) continue;
         const weights = this.sampleBiome(wx, wy).weights;
-        const { biome } = chooseBiomeProp(weights, random(cx, cy, this.seed, 217), 0);
-        if (drawBiomeGroundAccent(context, biome, px, py, pick, hash(cx, cy, this.seed, 218), onRoad)) continue;
-        if (biome === 'swamp' && !onRoad && noise(wx / 180, wy / 180, this.seed + 201) > .64) {
+        const { biome } = chooseBiomeProp(weights, random2(cx, cy, this.seed, 217), 0);
+        if (drawBiomeGroundAccent(context, biome, px, py, pick, hash2(cx, cy, this.seed, 218), onRoad)) continue;
+        if (biome === 'swamp' && !onRoad && noise2(wx / 180, wy / 180, this.seed + 201) > .64) {
           if (pick > .8) {
             context.strokeStyle = 'rgba(90,160,161,0.22)'; context.lineWidth = .7;
             context.beginPath(); context.moveTo(px - 4, py); context.lineTo(px + 5, py);
@@ -115,9 +117,9 @@ export class World extends WorldLandscape {
           continue;
         }
 
-        if (pick < (onRoad ? 0.08 : 0.18 + noise(wx / 83, wy / 83, this.seed + 239) * .23)) {
-          const length = 3 + random(cx, cy, this.seed, 214) * 5;
-          const lean = random(cx, cy, this.seed, 215) * 5 - 2.5;
+        if (pick < (onRoad ? 0.08 : 0.18 + noise2(wx / 83, wy / 83, this.seed + 239) * .23)) {
+          const length = 3 + random2(cx, cy, this.seed, 214) * 5;
+          const lean = random2(cx, cy, this.seed, 215) * 5 - 2.5;
           context.strokeStyle = biome === 'swamp' ? 'rgba(111,155,132,0.31)' : biome === 'verdant' ? 'rgba(99,180,87,0.36)'
             : biome === 'autumn' ? 'rgba(161,151,83,0.33)' : biome === 'highlands' ? 'rgba(155,160,122,0.35)'
               : biome === 'frostpine' ? 'rgba(139,174,176,0.25)' : biome === 'emberfall' ? 'rgba(133,115,104,0.24)' : 'rgba(90,144,96,0.26)';
@@ -129,7 +131,7 @@ export class World extends WorldLandscape {
           context.lineTo(px + 3 + lean * 0.3, py - length * 0.55);
           context.stroke();
         } else if (pick > 0.78) {
-          const size = 0.8 + random(cx, cy, this.seed, 216) * 1.4;
+          const size = 0.8 + random2(cx, cy, this.seed, 216) * 1.4;
           context.fillStyle = onRoad ? 'rgba(104,98,79,0.23)' : 'rgba(76,85,77,0.17)';
           context.fillRect(px, py, size * 1.6, size);
           context.fillStyle = 'rgba(5,11,12,0.15)';

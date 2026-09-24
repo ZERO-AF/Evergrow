@@ -9,14 +9,11 @@ import type { Simulation } from './simulation.ts';
 import type { ActionResult, CharacterSheet, Item, ItemKind, ItemTier } from './character-types.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { MountId } from './mount-content.ts';
-import { getZoneAt } from './zone-progression.ts';
-import { canInteractNPC, hashService, type TownNPC } from './npcs.ts';
+import { canInteractNPC, focusNPC, memoFixture, npcsNear, serviceFixture, type TownNPC } from './npcs.ts';
 import { generateItem } from './items.ts';
-import { factionAt } from './factions.ts';
 import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
-import { refreshCharacter } from './character.ts';
-import { pushChatMessage } from './chat-log.ts';
+import { commitPurchase } from './vendor-buy.ts';
 import { MOUNT_RULES } from './mount-state.ts';
 import {
   arenaPointsBalance, formatPvpPoints, honorBalance, pvpEnabled, spendArenaPoints, spendHonor,
@@ -29,22 +26,14 @@ import {
  * battlemaster — a standalone service NPC like the stable master. */
 export type PvpVendor = TownNPC & { role: 'pvpVendor' };
 const PVP_VENDOR_NAMES = ['Vixton', 'Sergeant', 'Kazzim', 'Drol', 'Herwin', 'Zeg', 'Myla', 'Borok'] as const;
-export function pvpVendorFor(building: Building): PvpVendor | null {
-  if (building.kind !== 'noble') return null;
-  const x = building.door.x - 70, y = building.door.y + 24, id = `${building.id}:pvpVendor`;
-  const seed = hashService(id);
-  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'pvpVendor', x, y, seed,
-    name: PVP_VENDOR_NAMES[seed % PVP_VENDOR_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+export const pvpVendorFor = memoFixture((building: Building): PvpVendor | null =>
+  serviceFixture(building, 'noble', 'pvpVendor', -70, 24, PVP_VENDOR_NAMES));
 export function pvpVendorsNear(world: WorldQuery, x: number, y: number, width: number, height: number): PvpVendor[] {
-  return (world.getBuildings?.(x, y, width, height) ?? [])
-    .map(pvpVendorFor).filter((vendor): vendor is PvpVendor => vendor !== null);
+  return npcsNear(world, x, y, width, height, pvpVendorFor);
 }
 export function focusedPvpVendor(vendors: readonly PvpVendor[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
   pointer?: { x: number; y: number }): PvpVendor | null {
-  return vendors.filter(vendor => canInteractNPC(vendor, player, world) && (!pointer || Math.hypot(pointer.x - vendor.x, pointer.y - (vendor.y - 17)) <= 28))
-    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+  return focusNPC(vendors, player, world, pointer);
 }
 
 // ── Static stock ─────────────────────────────────────────────────────────────
@@ -131,13 +120,9 @@ export async function executePvpBuy(sim: Simulation, npc: TownNPC, stockId: stri
     checkpoint.achievements = { ...p.achievements, [MOUNT_RULES.drakeAchievement]: 1 };
   }
   checkpoint.character.commerce.operations++;
-  const saved = await persist(checkpoint);
-  if (!saved.ok) return { ok: false, message: saved.message ?? 'Could not save. No currency was spent.' };
-  p.character = checkpoint.character;
-  if (checkpoint.achievements) p.achievements = checkpoint.achievements;
-  refreshCharacter(p);
   const label = entry.currency === 'honor' ? 'honor' : 'arena points';
   const message = `Bought ${entry.name} for ${formatPvpPoints(entry.price)} ${label}.`;
-  pushChatMessage(p, 'loot', message, sim.time);
-  return { ok: true, message };
+  return commitPurchase(sim, checkpoint, persist,
+    staged => { if (staged.achievements) p.achievements = staged.achievements; },
+    message, 'Could not save. No currency was spent.');
 }

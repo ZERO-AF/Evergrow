@@ -1,8 +1,8 @@
 import type { Building } from './settlements.ts';
+import { hash2 } from './random-source.ts';
 import type { CombatEvent, WorldQuery } from './model.ts';
 import { circleIntersectsSector, hasLineOfSight, segmentDistanceSquared } from './combat-geometry.ts';
 import { dropGold, type GroundGold } from './gold.ts';
-import { siteHash } from './wilderness-sites.ts';
 
 export interface BreakableContainer {
   readonly id: string; readonly kind: 'crate' | 'barrel'; readonly x: number; readonly y: number;
@@ -13,7 +13,7 @@ export function furnitureContainer(building: Building, index: number): Breakable
   const item = building.furniture[index];
   if (item.kind !== 'barrel') return null;
   return { id: furnitureContainerId(building, index), kind: 'barrel', x: item.x + item.width / 2,
-    y: item.y + item.height / 2, radius: Math.hypot(item.width, item.height) / 2, seed: siteHash(building.seed, index, 6751) };
+    y: item.y + item.height / 2, radius: Math.hypot(item.width, item.height) / 2, seed: hash2(building.seed, index, 6751) };
 }
 export interface ContainerAttackContext {
   world: WorldQuery;
@@ -22,8 +22,8 @@ export interface ContainerAttackContext {
 export const CONTAINER_RULES = Object.freeze({ goldChance: .35, minGold: 2, maxGold: 7 });
 /** Currency has its own stable stream; attacks and save reloads cannot reroll a container. */
 export function containerGold(seed: number, level: number): number {
-  if (siteHash(seed, 0, 0x714c) / 0x100000000 >= CONTAINER_RULES.goldChance) return 0;
-  return Math.round((CONTAINER_RULES.minGold + siteHash(seed, 1, 0x714c) % (CONTAINER_RULES.maxGold - CONTAINER_RULES.minGold + 1))
+  if (hash2(seed, 0, 0x714c) / 0x100000000 >= CONTAINER_RULES.goldChance) return 0;
+  return Math.round((CONTAINER_RULES.minGold + hash2(seed, 1, 0x714c) % (CONTAINER_RULES.maxGold - CONTAINER_RULES.minGold + 1))
     * (1 + .1 * (Math.max(1, Math.min(1_000_000, level)) - 1)));
 }
 export function breakContainer(target: BreakableContainer, angle: number, level: number,

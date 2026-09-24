@@ -5,13 +5,13 @@
  * (the first week of each month, like Darkmoon's monthly visit). Runtime flags
  * and the ticket wallet live in holiday-state.ts, durable commands in
  * holiday-command.ts, and the faire window in holiday-panel.ts. */
-import { siteHash } from './wilderness-sites.ts';
 import { hashService, memoFixture, type TownNPC } from './npcs.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { generateItem } from './items.ts';
 import type { WorldQuery } from './model.ts';
 import type { Settlement } from './settlements.ts';
 import type { WildernessSite } from './wilderness-sites.ts';
+import { hash2 } from './random-source.ts';
 import type { Attribute, Item, ItemKind, ItemTier } from './character-types.ts';
 import type { CompanionId } from './companion-content.ts';
 import type { MountId } from './mount-content.ts';
@@ -128,7 +128,7 @@ export const faireActivity = (id: string): FaireActivity | undefined =>
 /** Deterministic 0–99 roll for one activity attempt; `flag` is the day key or
  * faire index the attempt is stamped with, so replays never re-roll. */
 export function activityRoll(siteSeed: number, activityId: string, flag: number): number {
-  return siteHash(siteSeed, flag, hashService(`faire:${activityId}`), 0xd4a7) % 100;
+  return hash2(siteSeed, flag, hashService(`faire:${activityId}`), 0xd4a7) % 100;
 }
 
 export interface FaireOutcome {
@@ -216,7 +216,7 @@ export function faireSite(world: FaireWorld): FaireSite {
   const town = world.getNearestSettlement?.(0, 0)
     ?? (world.getSettlements?.(-60000, -60000, 120000, 120000) ?? [])
       .slice().sort((a, b) => Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y))[0] ?? null;
-  const siteSeed = siteHash(0, 0, seed, 0xfae1) >>> 0;
+  const siteSeed = hash2(0, 0, seed, 0xfae1) >>> 0;
   const angle = siteSeed / 4294967296 * Math.PI * 2;
   const hint = town
     ? { x: town.x + Math.cos(angle) * (town.radius + HOLIDAY_RULES.townMargin + 170), y: town.y + Math.sin(angle) * (town.radius + HOLIDAY_RULES.townMargin + 170) }
@@ -234,7 +234,7 @@ export function faireBooths(site: FaireSite): FaireBooth[] {
     return { id: `${site.id}:booth:${def.id}`, activityId: def.id,
       x: site.x + Math.cos(angle) * HOLIDAY_RULES.boothRing,
       y: site.y + Math.sin(angle) * HOLIDAY_RULES.boothRing,
-      seed: siteHash(site.seed, i, 0xb007) >>> 0, site };
+      seed: hash2(site.seed, i, 0xb007) >>> 0, site };
   });
 }
 

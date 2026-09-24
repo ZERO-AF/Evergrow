@@ -6,29 +6,18 @@
  * picks the interactable NPC nearest the player. */
 import type { Building } from './settlements.ts';
 import type { WorldQuery } from './model.ts';
-import { getZoneAt } from './zone-progression.ts';
-import { canInteractNPC, hashService, memoFixture, type TownNPC } from './npcs.ts';
-import { factionAt } from './factions.ts';
+import { focusNPC, memoFixture, npcsNear, serviceFixture, type TownNPC } from './npcs.ts';
 
 /** Quartermasters stand beside the Count's Hall in cities — a standalone
  * service NPC like the battlemaster, not a building kind. */
 export type Quartermaster = TownNPC & { role: 'quartermaster' };
 const QUARTERMASTER_NAMES = ['Aliocha', 'Mendora', 'Corik', 'Fedryen', 'Grella', 'Mera', 'Nakodu', 'Sloane'] as const;
-export const quartermasterFor = memoFixture((building: Building): Quartermaster | null => {
-  if (building.kind !== 'noble') return null;
-  const x = building.door.x - 70, y = building.door.y + 78, id = `${building.id}:quartermaster`;
-  const seed = hashService(id);
-  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
-  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'quartermaster', x, y, seed,
-    name: QUARTERMASTER_NAMES[seed % QUARTERMASTER_NAMES.length],
-    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
-});
+export const quartermasterFor = memoFixture((building: Building): Quartermaster | null =>
+  serviceFixture(building, 'noble', 'quartermaster', -70, 78, QUARTERMASTER_NAMES));
 export function quartermastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Quartermaster[] {
-  return (world.getBuildings?.(x, y, width, height) ?? [])
-    .map(quartermasterFor).filter((master): master is Quartermaster => master !== null);
+  return npcsNear(world, x, y, width, height, quartermasterFor);
 }
 export function focusedQuartermaster(masters: readonly Quartermaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
   pointer?: { x: number; y: number }): Quartermaster | null {
-  return masters.filter(master => canInteractNPC(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
-    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+  return focusNPC(masters, player, world, pointer);
 }

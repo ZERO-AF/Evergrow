@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import type { EnemyAIContext } from '../src/enemy-ai.ts';
 import type { CombatEvent, Enemy, WorldQuery } from '../src/model.ts';
-import { dungeonRandom } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { raidBossLoot, raidLootTable, RAID_BOSS_LOOT, RAID_LOOT_TABLES } from '../src/raid-loot-content.ts';
 import { setPieceOf } from '../src/item-set-content.ts';
 import { AuthoredWorld } from '../src/authored-world.ts';
@@ -269,7 +269,7 @@ test('Halion maps to his named loot table', () => {
 
 test('Halion chest rolls twilight spoils and Tier-10 boots', () => {
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID9_ENTRANCE_ID, dungeonRandom(4000 + i), 80, 'warrior')!;
+    const loot = raidBossLoot(RAID9_ENTRANCE_ID, lcgRandom(4000 + i), 80, 'warrior')!;
     assert.equal(loot.items.length, 3);
     for (const item of loot.items) {
       const piece = setPieceOf(item);
@@ -277,7 +277,7 @@ test('Halion chest rolls twilight spoils and Tier-10 boots', () => {
     }
   }
   // Determinism.
-  const a = raidBossLoot(RAID9_ENTRANCE_ID, dungeonRandom(77), 80, 'priest')!;
-  const b = raidBossLoot(RAID9_ENTRANCE_ID, dungeonRandom(77), 80, 'priest')!;
+  const a = raidBossLoot(RAID9_ENTRANCE_ID, lcgRandom(77), 80, 'priest')!;
+  const b = raidBossLoot(RAID9_ENTRANCE_ID, lcgRandom(77), 80, 'priest')!;
   assert.deepEqual(a.items.map(i => i.id), b.items.map(i => i.id));
 });

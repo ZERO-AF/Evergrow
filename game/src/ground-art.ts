@@ -1,4 +1,5 @@
-import { polygon, line, taper, randomFromSeed, hash, type Point, type CanvasFactory } from './art-primitives.ts';
+import { polygon, line, taper, hash, type Point, type CanvasFactory } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { BiomeId } from './biomes.ts';
 import { propDefinition } from './biome-props.ts';
 import type { Prop } from './world.ts';
@@ -17,7 +18,7 @@ export const GROUND_PALETTES: Readonly<Record<BiomeId, GroundPalette>> = Object.
 });
 
 function patch(c: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, seed: number, color: string, opacity: number) {
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   const contour: Point[] = Array.from({ length: 22 }, (_, i) => {
     const a = i / 22 * Math.PI * 2, r = .75 + random() * .3;
     return [Math.cos(a) * rx * r, Math.sin(a) * ry * r];
@@ -41,7 +42,7 @@ export function drawGroundPatches(c: CanvasRenderingContext2D, originX: number, 
   for (let cy = Math.floor((originY - margin) / step); cy <= Math.floor((originY + size + margin) / step); cy++) {
     for (let cx = Math.floor((originX - margin) / step); cx <= Math.floor((originX + size + margin) / step); cx++) {
       const localSeed = hash(seed ^ Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663));
-      const random = randomFromSeed(localSeed);
+      const random = randomSource(localSeed);
       const x = (cx + random()) * step, y = (cy + random()) * step;
       const rx = 32 + random() * 52, ry = 18 + random() * 26;
       if (!clear(x, y) || !clear(x - rx, y - ry) || !clear(x + rx, y + ry)
@@ -122,7 +123,7 @@ export class GroundDressing {
     if (cached) { this.cache.delete(key); this.cache.set(key, cached); return cached; }
     const image = this.factory(192, 112);
     const c = image.getContext('2d')!; c.translate(96, 68);
-    const random = randomFromSeed(hash(variant + prop.kind.length * 731));
+    const random = randomSource(hash(variant + prop.kind.length * 731));
     const palette = GROUND_PALETTES[biome], tree = !!propDefinition(prop.kind).canopy;
     const rx = tree ? 40 : 25, ry = tree ? 23 : 13;
     patch(c, 1, 0, rx, ry, variant, palette.soil, .3);

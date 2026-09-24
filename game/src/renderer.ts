@@ -30,6 +30,7 @@ import { PropSurfaceLight } from './prop-surface-light.ts';
 import { sceneClimate } from './scene-light-style.ts';
 import type { Prop } from './world.ts';
 import { drawEnemyWarning, enemyWarningLight } from './enemy-warning-art.ts';
+import { lerp } from './art-primitives.ts';
 import { drawGroundSpell, groundSpellLights } from './ground-spell-art.ts';
 import { enemyTraitBuffs, enemyDebuffs, type EnemyDebuff } from './enemy-debuffs.ts';
 import { basicAttackWeapon } from './equipment.ts';
@@ -189,7 +190,6 @@ export interface RenderSettings {
   skyHour?: number;
   phase: GamePhase;
 }
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const TAU = Math.PI * 2;
 /** Settlement mailbox prop: a small post-mounted box beside the stash door. */
 function drawMailbox(c: CanvasRenderingContext2D, box: Mailbox) {

@@ -1,10 +1,9 @@
 import { weaponGlowColor } from './radiant-content.ts';
 import { gearSurface, materializeGear, gearMaterialStops, gearMaterialMarks, type GearMaterial, type GearSurface } from './gear-material.ts';
 import type { ShieldDefinition, WeaponVisual } from './model.ts';
-import { mixColor, type Point } from './art-primitives.ts';
+import { clamp, mixColor, type Point } from './art-primitives.ts';
 
 export interface GearShape { points: readonly Point[]; fill?: string; stroke?: string; width?: number; fine?: boolean; surface?: GearSurface; }
-const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
 const poly = (points: readonly Point[], fill: string): GearShape => ({ points, fill });
 const stroke = (points: readonly Point[], color: string, width = .7): GearShape => ({ points, stroke: color, width });
 const gem = (x: number, y: number, rx: number, ry: number): Point[] => [[x - rx, y], [x, y - ry], [x + rx, y], [x, y + ry]];

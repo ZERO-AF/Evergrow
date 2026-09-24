@@ -12,7 +12,7 @@
  */
 import type { AllyKind, WowClassId } from './wow-types.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
-import { hash } from './world-landscape.ts';
+import { hash2 } from './random-source.ts';
 
 export type PartyRole = 'tank' | 'healer' | 'dps';
 
@@ -71,17 +71,17 @@ const pick = <T>(pool: readonly T[], roll: number): T => pool[roll % pool.length
 
 /** The four AI members for one dungeon run, deterministic on the entrance seed. */
 export function partyComposition(seed: number): readonly PartyMemberSpec[] {
-  const tankClass = pick(TANK_CLASSES, hash(1, 0, seed, 0x9a17));
-  const healerClass = pick(HEALER_CLASSES, hash(2, 0, seed, 0x9a17));
-  const dpsA = pick(DPS_CLASSES, hash(3, 0, seed, 0x9a17));
+  const tankClass = pick(TANK_CLASSES, hash2(1, 0, seed, 0x9a17));
+  const healerClass = pick(HEALER_CLASSES, hash2(2, 0, seed, 0x9a17));
+  const dpsA = pick(DPS_CLASSES, hash2(3, 0, seed, 0x9a17));
   // Second dps re-rolls until it differs from the first — two mages is legal in
   // WoW but reads as a bug in a five-man.
-  let dpsB = pick(DPS_CLASSES, hash(4, 0, seed, 0x9a17));
-  if (dpsB === dpsA) dpsB = pick(DPS_CLASSES, hash(4, 1, seed, 0x9a17));
+  let dpsB = pick(DPS_CLASSES, hash2(4, 0, seed, 0x9a17));
+  if (dpsB === dpsA) dpsB = pick(DPS_CLASSES, hash2(4, 1, seed, 0x9a17));
   const usedNames = new Set<string>();
   const member = (role: PartyRole, classId: WowClassId, index: number): PartyMemberSpec => {
     // Hash the first pick, then walk forward until free — always terminates.
-    let nameIndex = hash(10 + index, 0, seed, 0x5eED) % PARTY_NAMES.length;
+    let nameIndex = hash2(10 + index, 0, seed, 0x5eED) % PARTY_NAMES.length;
     while (usedNames.has(PARTY_NAMES[nameIndex]!)) nameIndex = (nameIndex + 1) % PARTY_NAMES.length;
     const name = PARTY_NAMES[nameIndex]!;
     usedNames.add(name);

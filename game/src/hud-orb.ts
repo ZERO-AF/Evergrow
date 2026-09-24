@@ -1,6 +1,6 @@
+import { saturate as clamp } from './art-primitives.ts';
 const TAU = Math.PI * 2;
 const GLASS_RADIUS = 25;
-const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 
 /** Mix a hex resource color toward white (positive) or black (negative). */
 export function shade(hex: string, amount: number): string {

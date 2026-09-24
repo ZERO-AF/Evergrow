@@ -1,5 +1,7 @@
 import { sampleBiome } from './biomes.ts';
 import { isWorldCoordinate, validWorldRectangle } from './world-query.ts';
+import { clamp, smooth } from './art-primitives.ts';
+import { random2, noise2 } from './random-source.ts';
 
 export const HYDROLOGY = Object.freeze({ spacing: 4800, bucket: 512, nodes: 4096, features: 1024, buckets: 512 });
 export interface WaterSample { coverage: number; depth: number; flowX: number; flowY: number; bank: number; kind: 'river' | 'lake' | 'dry'; }
@@ -10,19 +12,6 @@ export interface WaterFeature { readonly id: string; readonly kind: 'river' | 'l
 interface Segment { ax: number; ay: number; bx: number; by: number; aw: number; bw: number; flowAX: number; flowAY: number; flowBX: number; flowBY: number; }
 interface Lake { x: number; y: number; rx: number; ry: number; phase: number; }
 interface Bucket { segments: Segment[]; lakes: Lake[]; }
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
-const smooth = (n: number) => { const t = clamp(n); return t * t * (3 - 2 * t); };
-function hash(x: number, y: number, seed: number) {
-  let n = seed ^ Math.imul(x, 0x45d9f3b) ^ Math.imul(y, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / 4294967296), 0x165667b1) ^ Math.imul(Math.floor(y / 4294967296), 0x85ebca77);
-  n = Math.imul(n ^ n >>> 16, 0x7feb352d); n = Math.imul(n ^ n >>> 15, 0x846ca68b);
-  return ((n ^ n >>> 16) >>> 0) / 4294967296;
-}
-function noise(x: number, y: number, seed: number) {
-  const ix = Math.floor(x), iy = Math.floor(y), tx = smooth(x - ix), ty = smooth(y - iy);
-  return (hash(ix, iy, seed) * (1 - tx) + hash(ix + 1, iy, seed) * tx) * (1 - ty)
-    + (hash(ix, iy + 1, seed) * (1 - tx) + hash(ix + 1, iy + 1, seed) * tx) * ty;
-}
 function remember<T>(cache: Map<string, T>, key: string, value: T, max: number): T {
   if (cache.size >= max) cache.delete(cache.keys().next().value!);
   cache.set(key, value); return value;
@@ -42,13 +31,13 @@ export class Hydrology {
   get cacheStats() { return { nodes: this.nodes.size, drains: this.drains.size, runoff: this.runoff.size, features: this.features.size, buckets: this.buckets.size }; }
   private node(cx: number, cy: number): Node {
     const key = `${cx}:${cy}`, cached = this.nodes.get(key); if (cached) return cached;
-    const x = (cx + .5 + (hash(cx, cy, this.seed + 11) - .5) * .46) * HYDROLOGY.spacing;
-    const y = (cy + .5 + (hash(cx, cy, this.seed + 29) - .5) * .46) * HYDROLOGY.spacing;
+    const x = (cx + .5 + (random2(cx, cy, this.seed + 11) - .5) * .46) * HYDROLOGY.spacing;
+    const y = (cy + .5 + (random2(cx, cy, this.seed + 29) - .5) * .46) * HYDROLOGY.spacing;
     const w = sampleBiome(x, y, this.seed).weights;
-    const elevation = clamp(noise(cx * .43, cy * .43, this.seed + 701) * .57 + hash(cx, cy, this.seed + 73) * .43 + w.highlands * .12);
+    const elevation = clamp(noise2(cx * .43, cy * .43, this.seed + 701) * .57 + random2(cx, cy, this.seed + 73) * .43 + w.highlands * .12);
     const tier = Math.min(5, Math.floor(elevation * 6));
     const wet = .17 + w.swamp * .22 + w.verdant * .08 + w.frostpine * .04 - w.emberfall * .13 - w.sunscar * .14 - w.steppe * .04;
-    const rain = hash(cx, cy, this.seed + 101) < wet && tier > 0 ? 1 + w.swamp * .6 : 0;
+    const rain = random2(cx, cy, this.seed + 101) < wet && tier > 0 ? 1 + w.swamp * .6 : 0;
     return remember(this.nodes, key, Object.freeze({ cx, cy, x, y, tier, rain }), HYDROLOGY.nodes);
   }
   private drain(n: Node): Node | null {
@@ -80,7 +69,7 @@ export class Hydrology {
     if (b) {
       const dx = b.x - a.x, dy = b.y - a.y, length = Math.hypot(dx, dy), nx = -dy / length, ny = dx / length;
       const width = 32 + Math.sqrt(runoff) * 26, source = runoff <= a.rain, endWidth = 32 + Math.sqrt(this.discharge(b)) * 26;
-      const phase = hash(cx, cy, this.seed + 37) * Math.PI * 2;
+      const phase = random2(cx, cy, this.seed + 37) * Math.PI * 2;
       const count = Math.ceil(length / 100);
       for (let i = 0; i <= count; i++) {
         const t = i / count;
@@ -105,9 +94,9 @@ export class Hydrology {
     for (let iy = cy - 2; iy <= cy + 2; iy++) for (let ix = cx - 2; ix <= cx + 2; ix++) {
       const f = this.feature(ix, iy); if (!f) continue;
       if (f.kind === 'lake') {
-        const p = f.points[0], rx = p.width, ry = rx * (.62 + hash(ix, iy, this.seed + 53) * .3);
+        const p = f.points[0], rx = p.width, ry = rx * (.62 + random2(ix, iy, this.seed + 53) * .3);
         if (p.x + rx * 1.2 < left || p.x - rx * 1.2 > left + 512 || p.y + ry * 1.2 < top || p.y - ry * 1.2 > top + 512) continue;
-        result.lakes.push({ x: p.x, y: p.y, rx, ry, phase: hash(ix, iy, this.seed + 79) * Math.PI * 2 });
+        result.lakes.push({ x: p.x, y: p.y, rx, ry, phase: random2(ix, iy, this.seed + 79) * Math.PI * 2 });
       } else for (let i = 1; i < f.points.length; i++) {
         const a = f.points[i - 1], b = f.points[i], margin = Math.max(a.width, b.width) + 80;
         if (Math.max(a.x, b.x) + margin < left || Math.min(a.x, b.x) - margin > left + 512 || Math.max(a.y, b.y) + margin < top || Math.min(a.y, b.y) - margin > top + 512) continue;

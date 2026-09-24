@@ -1,6 +1,6 @@
 import { metric, syncRiftChronicle } from './chronicle.ts';
 import { dungeonRunChest, dungeonRunExit } from './dungeon-locations.ts';
-import { RIFT_RULES, freshRiftLedger, riftRandom, riftBonus } from './rift-content.ts';
+import { RIFT_RULES, freshRiftLedger, riftBonus } from './rift-content.ts';
 import { riftRewardItems } from './rift-rewards.ts';
 import { startingBiome, BIOMES } from './biomes.ts';
 import { BOSS_CHEST_LOOT_TABLES } from './loot-content.ts';
@@ -11,7 +11,8 @@ import { treasureLanding } from './treasure-flight.ts';
 import { stageJourneyCompletion } from './journey-rewards.ts';
 import type { Simulation } from './simulation.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
-import { dungeonRandom, type DungeonEntrance } from './dungeon.ts';
+import { lcgRandom } from './random-source.ts';
+import type { DungeonEntrance } from './dungeon.ts';
 import { isRaidEntranceAny, raidLockedOut, raidLockoutMessage, recordRaidLockout, resetRaidRun } from './raid-lockout.ts';
 import { raidBossLoot } from './raid-loot-content.ts';
 import { sartharionDrakesAlive } from './raid6-boss-content.ts';
@@ -96,7 +97,7 @@ export async function planDungeonTravel(sim: Simulation, action: DungeonAction, 
             syncRiftChronicle(checkpoint.chronicle,ledger);
             metric(checkpoint.chronicle,'riftAttempts');if(key)metric(checkpoint.chronicle,'riftKeysUsed');
             ledger.attempts++;
-            const random=riftRandom(((surface.seed??0)^Math.imul(ledger.attempts,0x9e3779b9))>>>0),seed=Math.floor(random()*4294967296),biome=startingBiome(seed);
+            const random=lcgRandom(((surface.seed??0)^Math.imul(ledger.attempts,0x9e3779b9))>>>0),seed=Math.floor(random()*4294967296),biome=startingBiome(seed);
             expeditionEntrance={id:`dungeon:rift:${ledger.attempts}`,name:`Fractured ${BIOMES[biome].name}`,seed,biome,level:Math.max(1,Math.min(1e6,p.level+action.offset)),x:portal.door.x,y:portal.door.y,rift:{attempt:ledger.attempts,layout:'clearings',...(key?{keySeed:key.seed,keyTier:key.recipe.riftKeyTier}:{})}};
             state.runs=state.runs.filter(r=>!r.entrance.rift);
         }
@@ -226,7 +227,7 @@ export async function claimDungeonChest(sim: Simulation, index: number, persist:
     const floor = sim.dungeonFloor!, chest = dungeonRunChest(floor,run,index);
     const rewardLevel = run.entrance.scaling ? encounterRewardLevel(run.entrance.scaling, index === 2 ? 3 : 1) : run.entrance.level;
     const ranks = index === 2 ? ['normal', 'veteran', 'elite'] as const : ['veteran'] as const;
-    const raidLoot = index === 2 ? raidBossLoot(run.entrance.id, dungeonRandom(run.entrance.seed), rewardLevel, sim.player.character.classId, { drakesAlive: sartharionDrakesAlive(run) }) : undefined;
+    const raidLoot = index === 2 ? raidBossLoot(run.entrance.id, lcgRandom(run.entrance.seed), rewardLevel, sim.player.character.classId, { drakesAlive: sartharionDrakesAlive(run) }) : undefined;
     const items = raidLoot?.items ?? (run.entrance.rift ? riftRewardItems(run.entrance,sim.player.level,run.rift?.elapsed) : index===2 && run.entrance.expedition ? expeditionRewardItems(run.entrance,sim.player.level) : ranks.map((rank, i) => rollEnemyLoot({ playerLevel:sim.player.level, seed: (run.entrance.seed + index * 1777 + i * 97) >>> 0, level: rewardLevel, biome: run.entrance.biome, kind: 'stalker', rank, firstKill: true, tierWeights: index === 2 ? BOSS_CHEST_LOOT_TABLES.dungeon[i] : undefined, encounter:index===2?'bossChest':'chest' })[0]));
     const gold = Math.round((run.entrance.rift ? RIFT_RULES.goldMultiplier*(1+riftBonus(run.entrance.rift,'gold')/100) : 1)*(index === 2 ? 110 + run.entrance.seed % 60 : 30 + run.entrance.seed % 15) * Math.pow(rewardLevel, 1.5));
     const goldBit=run.entrance.rift ? 1 << items.length : index===2 && run.entrance.expedition?.stage===9 ? 64 : 8;

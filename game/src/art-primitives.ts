@@ -30,6 +30,19 @@ export function smooth(value: number): number {
   return t * t * (3 - 2 * t);
 }
 
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+export function smoothstep(low: number, high: number, value: number): number {
+  return smooth((value - low) / (high - low));
+}
+
+/** Unit-interval clamp that also sanitizes non-finite input to 0. */
+export function saturate(value: number): number {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
 export function hash(value: number): number {
   let x = value | 0;
   x = Math.imul(x ^ (x >>> 16), 0x21f0aaad);
@@ -37,15 +50,6 @@ export function hash(value: number): number {
   return (x ^ (x >>> 15)) >>> 0;
 }
 
-export function randomFromSeed(seed: number): Random {
-  let state = seed >>> 0;
-  return () => {
-    state += 0x6d2b79f5;
-    let value = Math.imul(state ^ (state >>> 15), 1 | state);
-    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 export function between(random: Random, min: number, max: number): number {
   return min + (max - min) * random();

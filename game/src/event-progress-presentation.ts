@@ -1,9 +1,8 @@
 import type { eventProgress } from './event-progress.ts';
+import { smooth } from './art-primitives.ts';
 
 export type EventProgress = NonNullable<ReturnType<typeof eventProgress>>;
 export const EVENT_CARD_MOTION = { expand: .36, fade: .24, duration: .6 } as const;
-const clamp = (value: number) => Math.max(0, Math.min(1, value));
-const ease = (value: number) => value * value * (3 - 2 * value);
 
 /** Renderer-owned reveal clock. Retains the last projection only while closing. */
 export class EventProgressPresentation {
@@ -27,8 +26,8 @@ export class EventProgressPresentation {
     if (!this.progress) return null;
     return {
       progress: this.progress,
-      width: ease(clamp(this.elapsed / EVENT_CARD_MOTION.expand)),
-      opacity: ease(clamp((this.elapsed - EVENT_CARD_MOTION.expand) / EVENT_CARD_MOTION.fade)),
+      width: smooth(this.elapsed / EVENT_CARD_MOTION.expand),
+      opacity: smooth((this.elapsed - EVENT_CARD_MOTION.expand) / EVENT_CARD_MOTION.fade),
     };
   }
 }

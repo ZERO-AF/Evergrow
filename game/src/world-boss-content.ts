@@ -11,11 +11,11 @@
  * reuse 'ashColossus'/'graveMarshal' (raid-boss-content.ts): the def's `name`
  * is the display identity, `kind` picks the rig and base stats. */
 import type { DamageType, EnemyKind } from './model.ts';
+import { hash2 } from './random-source.ts';
 import type { MountId } from './mount-content.ts';
 import type { CompanionId } from './companion-content.ts';
 import { WORLD_TIME } from './world-time.ts';
 import { CONTINENTS, ZONES } from './world-atlas.ts';
-import { siteHash } from './wilderness-sites.ts';
 export type WorldBossId = 'kazzak' | 'azuregos' | 'emeriss' | 'ysondre';
 
 /** One signature move in the boss's committed cycle (world-boss.ts resolves
@@ -189,12 +189,12 @@ export function worldBossAnchor(def: WorldBossDef): { x: number; y: number } | n
 
 /** Stable per-boss loot seed; independent of spawn order and traversal. */
 export function worldBossLootSeed(worldSeed: number, id: WorldBossId): number {
-  return siteHash(worldSeed, WORLD_BOSS_IDS.indexOf(id), 0x9e3779b9) >>> 0;
+  return hash2(worldSeed, WORLD_BOSS_IDS.indexOf(id), 0x9e3779b9) >>> 0;
 }
 
 /** Deterministic rare-drop roll for one kill: same boss + kill timestamp
  * always yields the same answer, so a replayed checkpoint cannot re-roll. */
 export function worldBossRareRoll(def: WorldBossDef, killedAt: number): boolean {
-  const seed = siteHash(Math.floor(killedAt * 1000), 0, worldBossLootSeed(0, def.id) ^ 0x5f3759df, 0x7a11) >>> 0;
+  const seed = hash2(Math.floor(killedAt * 1000), 0, worldBossLootSeed(0, def.id) ^ 0x5f3759df, 0x7a11) >>> 0;
   return seed / 4294967296 < def.loot.rareChance;
 }

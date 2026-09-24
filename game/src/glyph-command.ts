@@ -10,6 +10,7 @@ import { spendGold } from './wallet.ts';
 import { itemPrice } from './commerce.ts';
 import { canInteractNPC, type TownNPC } from './npcs.ts';
 import { pushChatMessage } from './chat-log.ts';
+import { commitPurchase } from './vendor-buy.ts';
 
 /** Checkpoint extension carrying socketed glyphs; the integrator adds `glyphs` to
  * captureCheckpoint/restoreCheckpoint so the field round-trips through saves. */
@@ -87,10 +88,6 @@ export async function executeGlyphBuy(sim: Simulation, npc: TownNPC, glyphId: st
   const item = createGlyphItem(def.id, ((checkpoint.character.commerce.operations + 1) * 0x9e3779b1 + (checkpoint.character.gold ?? 0)) >>> 0);
   if (!addInventoryItem(checkpoint.character, item)) return { ok: false, message: 'No room in your bag.' };
   checkpoint.character.commerce.operations++;
-  const saved = await persist(checkpoint);
-  if (!saved.ok) return { ok: false, message: saved.message ?? 'Could not save. No gold was spent.' };
-  p.character = checkpoint.character;
   const message = `Bought ${def.name} for ${price} gold.`;
-  pushChatMessage(p, 'loot', message, sim.time);
-  return { ok: true, message };
+  return commitPurchase(sim, checkpoint, persist, () => {}, message, 'Could not save. No gold was spent.', false);
 }

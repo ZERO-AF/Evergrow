@@ -1,4 +1,5 @@
 import { getZoneAt } from './zone-progression.ts';
+import { hash2 } from './random-source.ts';
 import { bossForBiome, BOSS_NAMES, LAIR_RULES } from './wilderness-boss-content.ts';
 import { withGoblinWarband } from './goblin-camps.ts';
 import { sampleBiome, type BiomeId } from './biomes.ts';
@@ -65,14 +66,7 @@ export const CAMP_BIOME_ROSTERS: Readonly<Record<BiomeId, readonly [EnemyKind, E
   highlands: Object.freeze(['brute', 'archer', 'hound', 'stalker', 'archer', 'stalker'] as const),
 });
 
-const UINT_RANGE = 0x100000000;
-export function siteHash(x: number, y: number, seed: number, salt = 0): number {
-  let n = (seed ^ salt ^ Math.imul(x | 0, 0x45d9f3b) ^ Math.imul(y | 0, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / UINT_RANGE), 0x165667b1) ^ Math.imul(Math.floor(y / UINT_RANGE), 0x85ebca77)) >>> 0;
-  n = Math.imul(n ^ n >>> 16, 0x7feb352d); n = Math.imul(n ^ n >>> 15, 0x846ca68b);
-  return (n ^ n >>> 16) >>> 0;
-}
-const random = (seed: number, salt: number) => siteHash(seed, salt, 97183) / UINT_RANGE;
+const random = (seed: number, salt: number) => hash2(seed, salt, 97183) / 0x100000000;
 const KINDS: readonly WildernessKind[] = ['camp', 'camp', 'watchtower', 'graveyard', 'standingStones', 'caravan', 'cursedChest', 'ruinedChapel', 'beastDen', 'quarry', 'hamlet', 'crossing', 'corruptedGrove'];
 const DESCRIPTIONS: Record<WildernessKind, string> = {
   bossLair: 'A wilderness boss and its elite retinue. Clear the perimeter, then challenge the ruler for a rare hoard.',
@@ -98,7 +92,7 @@ function makeSite(seed: number, id: string, kind: WildernessKind, x: number, y: 
   const decor: SiteDecor[] = [], members: CampMember[] = [];
   const add = (kind: SiteDecorKind, dx: number, dy: number, radius: number, scale = 1, angle = 0) => {
     decor.push(Object.freeze({ id: `${id}:decor:${decor.length}`, kind, x: x + dx, y: y + dy, radius, scale, angle,
-      seed: siteHash(seed, decor.length, 3167) }));
+      seed: hash2(seed, decor.length, 3167) }));
   };
   const member = (kind: EnemyKind, dx: number, dy: number, rank: EnemyRank = 'normal') => {
     members.push(Object.freeze({ id: `${id}:member:${members.length}`, kind, rank, dx, dy }));
@@ -202,11 +196,11 @@ export function startingEnemyCamp(seed: number): WildernessSite {
 
 /** Each cell owns at most one immutable site; placement never depends on query order or live entities. */
 export function generateWildernessSite(worldSeed: number, cx: number, cy: number, reserved: SiteReservation): WildernessSite | null {
-  const seed = siteHash(cx, cy, worldSeed, 0x87231);
+  const seed = hash2(cx, cy, worldSeed, 0x87231);
   const centerX=(cx+.5)*WILDERNESS_RULES.cellSize,centerY=(cy+.5)*WILDERNESS_RULES.cellSize;
   const biome=sampleBiome(centerX,centerY,worldSeed).id;
   const favored:Record<BiomeId,readonly WildernessKind[]>={steppe:['beastDen','crossing'],sunscar:['quarry','cursedChest'],deadwood:['graveyard','ruinedChapel','cursedChest'],verdant:['beastDen','corruptedGrove'],swamp:['corruptedGrove','standingStones'],frostpine:['beastDen','quarry'],emberfall:['quarry','cursedChest'],autumn:['hamlet','caravan'],highlands:['quarry','watchtower']};
-  const region=siteHash(Math.floor(cx/4),Math.floor(cy/4),worldSeed,819);
+  const region=hash2(Math.floor(cx/4),Math.floor(cy/4),worldSeed,819);
   const pool=[...KINDS,...favored[biome],KINDS[region%KINDS.length],KINDS[region%KINDS.length]];
   const kind=pool[seed%pool.length],radius=['hamlet','quarry','ruinedChapel'].includes(kind)?270:205;
   const roadside=['caravan','crossing','hamlet'].includes(kind);
@@ -230,7 +224,7 @@ export function generateWildernessSite(worldSeed: number, cx: number, cy: number
  * `members` replaces the biome roster; `name` replaces the generated label. */
 export function authoredSite(worldSeed: number, id: string, kind: WildernessKind, x: number, y: number, biome: BiomeId,
   name?: string, members?: readonly EnemyKind[], faction?: FactionTag | 'contested'): WildernessSite {
-  const seed = siteHash(Math.floor(x), Math.floor(y), worldSeed, 0xa71a5);
+  const seed = hash2(Math.floor(x), Math.floor(y), worldSeed, 0xa71a5);
   const site = makeSite(seed, id, kind, x, y, false, biome, worldSeed);
   const tag = faction === 'contested' ? 'neutral' : faction;
   const roster = members?.length
@@ -253,11 +247,11 @@ export function wildernessPOI(site: WildernessSite): WorldPOI {
 
 /** A separate sparse layer preserves all existing landmark IDs and event recipes. */
 export function bossLairCell(worldSeed:number,cx:number,cy:number):boolean {
-  return ((cx%3+3)%3===1)&&((cy%3+3)%3===1)&&random(siteHash(cx,cy,worldSeed,0xb055),772)<.65;
+  return ((cx%3+3)%3===1)&&((cy%3+3)%3===1)&&random(hash2(cx,cy,worldSeed,0xb055),772)<.65;
 }
 export function generateBossLair(worldSeed:number,cx:number,cy:number,reserved:SiteReservation):WildernessSite|null {
   if(!bossLairCell(worldSeed,cx,cy))return null;
-  const seed=siteHash(cx,cy,worldSeed,0xb055),radius=LAIR_RULES.radius;
+  const seed=hash2(cx,cy,worldSeed,0xb055),radius=LAIR_RULES.radius;
   let lowRegion: {x:number;y:number} | undefined;
   for(let attempt=0;attempt<24;attempt++){
     const x=(cx+.5)*WILDERNESS_RULES.cellSize+(random(seed,attempt*2+1)-.5)*1200;

@@ -14,7 +14,8 @@ import { uiIcon } from '../ui-components.ts';
 import { downloadJSON, reportRoute } from './common.ts';
 import { World } from '../world.ts';
 import { AuthoredWorld } from '../authored-world.ts';
-import { noise, random, smoothstep } from '../world-landscape.ts';
+import { noise2, random2 } from '../random-source.ts';
+import { smoothstep } from '../art-primitives.ts';
 import { WorldMap, projectMapPoint, type MapPlayer, type MapView, type MapWorld } from '../world-map.ts';
 import { drawMapZoneLevels, mapZoneLabels } from '../map-zone-art.ts';
 import { MAP_OVERVIEW_ZOOM } from '../atlas-overview.ts';
@@ -65,7 +66,7 @@ const tuning = defaultTuning();
 /** Deterministic keep/drop keyed on the feature's own position, so density
  * changes are stable across queries and never query-order dependent. */
 function keep(seed: number, salt: number, x: number, y: number, density: number): boolean {
-  return random(Math.round(x), Math.round(y), seed, salt) < density;
+  return random2(Math.round(x), Math.round(y), seed, salt) < density;
 }
 
 /** Blend a biome ground color toward an authored zone tint (mirrors world-landscape). */
@@ -131,7 +132,7 @@ class StudioWorld extends World {
 
   /** Same composition as WorldLandscape.surfaceColor with the road weight tuned. */
   protected override surfaceColor(x: number, y: number, towns: Settlement[], detail: boolean): number[] {
-    const damp = noise(x / 180, y / 180, this.seed + 201);
+    const damp = noise2(x / 180, y / 180, this.seed + 201);
     const sample = this.sampleBiome(x, y), weights = sample.weights;
     const profile = roadSurface(x, y, this.seed);
     const road = profile.weight * this.tuning.roadDensity * (towns.some(t => Math.hypot(x - t.x, y - t.y) < t.radius - 100) ? 0 : 1);
@@ -147,9 +148,9 @@ class StudioWorld extends World {
     const strength = town?.kind === 'city' ? .5 : town?.kind === 'village' ? .34 : .25;
     const earth = [58 + weights.sunscar * 40, 51 + weights.sunscar * 33, 39 + weights.sunscar * 22];
     const stone = base.map((v, i) => v * (1 - strength) + earth[i] * strength + (town?.kind === 'city' ? 3 : 0));
-    const weather = detail ? (noise(x / 93, y / 93, this.seed + 203) - .5) * 18 : (noise(x / 320, y / 320, this.seed + 203) - .5) * 10;
-    const relief = (detail ? landscapeRelief(x, y, this.seed, weights) : (noise(x / 700, y / 700, this.seed + 205) - .5) * 22);
-    const grain = detail ? (noise(x / 18, y / 18, this.seed + 202) - .5) * 5 : 0;
+    const weather = detail ? (noise2(x / 93, y / 93, this.seed + 203) - .5) * 18 : (noise2(x / 320, y / 320, this.seed + 203) - .5) * 10;
+    const relief = (detail ? landscapeRelief(x, y, this.seed, weights) : (noise2(x / 700, y / 700, this.seed + 205) - .5) * 22);
+    const grain = detail ? (noise2(x / 18, y / 18, this.seed + 202) - .5) * 5 : 0;
     const track = profile.tracks * road * (1 - paved) * 3;
     const bank = hydro.bank * .7 + (detail ? weights.swamp * (smoothstep(.40, .50, damp) - smoothstep(.50, .64, damp)) * (1 - road) : 0);
     const dryRoad = road * (1 - hydro.coverage * .88);

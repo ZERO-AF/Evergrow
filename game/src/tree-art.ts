@@ -1,4 +1,5 @@
-import { polygon, line, taper, randomFromSeed, between, type Point, type Random, type CanvasFactory } from './art-primitives.ts';
+import { polygon, line, taper, between, type Point, type Random, type CanvasFactory } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { Sprite } from './art-types.ts';
 import type { PropKind } from './biome-props.ts';
 
@@ -31,7 +32,7 @@ export function createTreeSprite(factory: CanvasFactory, kind: TreeKind, seed: n
     c.translate(anchorX, anchorY);
     return { image, c };
   });
-  const random = randomFromSeed(seed), habit = Math.floor(random() * 3);
+  const random = randomSource(seed), habit = Math.floor(random() * 3);
   const palette = PALETTES[kind], pine = kind === 'snowPine', wind = kind === 'windTree';
   const bare = palette.leaf.length === 0;
   const tall = (height - 18) * (habit === 0 ? .91 : habit === 1 ? .97 : .82);

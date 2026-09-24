@@ -1,4 +1,5 @@
-import { hash, randomFromSeed } from './art-primitives.ts';
+import { hash, } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { biomeWind } from './biome-wind.ts';
 import { BIOME_LIFE, biomeForDebris, type ParticleKind, type BirdKind, type InsectKind, type CritterKind } from './biome-life-content.ts';
 import type { GroundContact } from './ground-material.ts';
@@ -74,7 +75,7 @@ export class BiomeLife {
         const y = subject.y + Math.sin(angle + Math.PI / 2) * this.side * 3;
         const contact = groundAt(x, y);
         if (!contact.indoors && !contact.simulatedWater) {
-          const random = randomFromSeed(hash(++this.serial + Math.floor(x * 7 + y * 13)));
+          const random = randomSource(hash(++this.serial + Math.floor(x * 7 + y * 13)));
           const biome = biomeForDebris(contact.weights, random());
           const wet = contact.water, natural = random() < contact.natural;
           const material: ParticleKind = wet > .18 ? 'droplet' : natural ? BIOME_LIFE[biome].debris : 'dust';
@@ -109,7 +110,7 @@ export class BiomeLife {
         if (!prop.biome) continue;
         if (!BIOME_LIFE[prop.biome].emitters.includes(prop.kind) || hash(prop.seed) % 3 !== 0 || Math.hypot(prop.x - subject.x, prop.y - subject.y) > 600) continue;
         if (biomeWind(prop.x, prop.y, time, prop.biome).gust < .52 || emitted++ >= 3) continue;
-        const random = randomFromSeed(hash(prop.seed + this.serial));
+        const random = randomSource(hash(prop.seed + this.serial));
         const crown = ['tree', 'canopy', 'willow', 'snowPine', 'autumnTree', 'deadTree', 'charredTree', 'windTree'].includes(prop.kind);
         const kind = prop.kind === 'emberRock' ? 'ember' : prop.kind === 'snowPine' ? 'snow' : BIOME_LIFE[prop.biome].debris;
         this.particle(prop.x + (random() - .5) * (crown ? 65 : 18), prop.y - 12,
@@ -215,7 +216,7 @@ export class BiomeLife {
       fish.ring = Math.max(0, fish.ring - step * .8);
       if (fish.elapsed > 2.2 + (fish.phase % 1) * 3) {
         fish.elapsed = 0;
-        const random = randomFromSeed(hash(++this.serial + Math.floor(fish.homeX + fish.homeY)));
+        const random = randomSource(hash(++this.serial + Math.floor(fish.homeX + fish.homeY)));
         const a = random() * Math.PI * 2, r = 12 + random() * 42;
         const tx = fish.homeX + Math.cos(a) * r, ty = fish.homeY + Math.sin(a) * r * .6;
         // Fish stay in water: a dry target keeps them circling the home pool.
@@ -236,7 +237,7 @@ export class BiomeLife {
     if (items.length > limit) items.splice(0, items.length - limit);
   }
   private particle(x: number, y: number, z: number, time: number, kicked: boolean, biome: BiomeId, kind: ParticleKind) {
-    const random = randomFromSeed(hash(++this.serial + Math.floor(x * 7 + y * 13)));
+    const random = randomSource(hash(++this.serial + Math.floor(x * 7 + y * 13)));
     const palette = kind === 'droplet' ? ['#91bdbf', '#78a5b4', '#bddad6']
       : kind === 'ember' ? ['#e9a563', '#f4c68c', '#cc7956']
       : kind === 'dust' ? ['#9a9078', '#777f79', '#a9a593'] : BIOME_LIFE[biome].colors;
@@ -296,7 +297,7 @@ export class BiomeLife {
           if (this.fish.length >= BIOME_LIFE_LIMITS.fish) break;
           const seed = hash(Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ 5011);
           if (seed % 5 > 1) continue;
-          const random = randomFromSeed(seed);
+          const random = randomSource(seed);
           const x = (cx + .2 + random() * .6) * cell, y = (cy + .2 + random() * .6) * cell;
           const contact = this.groundAt(x, y);
           if (contact.indoors || contact.water < .3) continue;

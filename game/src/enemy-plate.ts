@@ -10,6 +10,7 @@ import { getHUDLayout } from './hud.ts';
 import { getMinimapRect } from './map-view.ts';
 import { drawRankCrest, RANK_METALS } from './enemy-rank-art.ts';
 import { enemyDisplayName } from './zone-roster.ts';
+import { saturate as clamp } from './art-primitives.ts';
 
 export interface EnemyPlateOptions {
   name?:string;
@@ -32,7 +33,6 @@ export interface EnemyPlateOptions {
 }
 
 const UI = UI_THEME.palette;
-const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 const compactNumber = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 const compact = (value: number) => value >= 10_000 ? compactNumber.format(value) : `${Math.ceil(value)}`;
 

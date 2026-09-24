@@ -6,7 +6,8 @@ import { UI_THEME } from './ui-theme.ts';
 import { drawCachedUIArt } from './ui-art-cache.ts';
 import { drawGlow, type PointLight } from './lighting.ts';
 import { ChestArt } from './chest-art.ts';
-import { randomFromSeed, TAU } from './art-primitives.ts';
+import { TAU } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { projectMapPoint, type MapView } from './map-view.ts';
 import { INVASION_NAME } from './world-event-content.ts';
 import { worldEventMapMarkers, type InvasionEvent, type WorldEventProgress, type WorldEventState } from './world-event-state.ts';
@@ -22,7 +23,7 @@ export function drawNecropolis(c: CanvasRenderingContext2D, event: InvasionEvent
   const t = reduced ? 0 : time;
   c.save();
   c.translate(anchor.x, anchor.y);
-  const random = randomFromSeed(event.seed);
+  const random = randomSource(event.seed);
 
   // Blighted ground: a soft plague stain with a cracked summoning ring.
   const stain = c.createRadialGradient(0, 0, 0, 0, 0, 190);

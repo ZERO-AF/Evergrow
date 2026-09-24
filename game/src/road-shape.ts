@@ -3,6 +3,7 @@ import { geoHash, parentPlace, queryPlaces, settlementPlace, type Place } from '
 import { validWorldRectangle } from './world-query.ts';
 import { zoneAt } from './world-atlas.ts';
 import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect } from './zone-content.ts';
+import { clamp, smoothstep } from './art-primitives.ts';
 export interface RoadPath {
   id: string;
   main: boolean;
@@ -15,8 +16,6 @@ export interface RoadPath {
   length: number;
 }
 const paths = new Map<string, RoadPath>();
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
-const smooth = (a: number, b: number, n: number) => { const t = clamp((n - a) / (b - a)); return t * t * (3 - 2 * t); };
 /** One polyline is shared by terrain, atlas, prop clearance and regional travel costs. */
 export function connectingRoad(seed: number, from: Place, to: Place): RoadPath {
   if (from.id > to.id)
@@ -144,7 +143,7 @@ export function roadSurface(x: number, y: number, seed: number): {
   const distance = pathDistance(x, y, seed), phase = seed % 997 / 997 * Math.PI * 2;
   const width = 28 + Math.sin(x / 211 + y / 257 + phase) * 3;
   const erosion = Math.sin(x / 43 + Math.sin(y / 61) + phase) * 1.8 + Math.sin(y / 19 - x / 37 + phase * 2) * .8;
-  return { distance, weight: 1 - smooth(width - 5, width + 19, distance + erosion), tracks: (1 - smooth(1, 4.5, Math.abs(distance - 10.5))) * (.5 + .25 * Math.sin((x + y) / 83 + phase)) };
+  return { distance, weight: 1 - smoothstep(width - 5, width + 19, distance + erosion), tracks: (1 - smoothstep(1, 4.5, Math.abs(distance - 10.5))) * (.5 + .25 * Math.sin((x + y) / 83 + phase)) };
 }
 const costs = new Map<string, number>();
 export function placeTravel(seed: number, p: Place): number {

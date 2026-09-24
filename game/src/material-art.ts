@@ -1,9 +1,10 @@
-import { polygon, line, randomFromSeed, type Point } from './art-primitives.ts';
+import { polygon, line, type Point } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 
 /** Broad fractures, strata and lichen describe stone; all marks are clipped to the authored face. */
 export function weatherStone(c: CanvasRenderingContext2D, outline: readonly Point[], seed: number,
   light = '#a9b3a0', dark = '#273b3e', moss = '#71825a') {
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   const left = Math.min(...outline.map(p => p[0])), right = Math.max(...outline.map(p => p[0]));
   const top = Math.min(...outline.map(p => p[1])), bottom = Math.max(...outline.map(p => p[1]));
   const w = right - left, h = bottom - top;

@@ -1,6 +1,7 @@
 import { drawWildernessDetail } from './wilderness-details-art.ts';
 import { weatherStone } from './material-art.ts';
-import { line, polygon, randomFromSeed, type Point } from './art-primitives.ts';
+import { line, polygon, type Point } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { drawGlow, type PointLight } from './lighting.ts';
 import { WILDERNESS_BIOME_THEMES, type WildernessSite, type SiteDecor } from './wilderness-sites.ts';
 import type { SiteAftermath } from './poi-aftermath.ts';
@@ -11,7 +12,7 @@ const palette = { stone: '#596665', edge: '#a7b2a0', dark: '#273637', wood: '#66
 /** World-space ground layer; actor/decor drawing happens later in shared depth order. */
 export function drawSiteGround(c: CanvasRenderingContext2D, site: WildernessSite, time: number, aftermath: SiteAftermath = 'none'): void {
   c.save(); c.translate(site.x, site.y);
-  const random = randomFromSeed(site.seed);
+  const random = randomSource(site.seed);
   const points: Point[] = Array.from({ length: 26 }, (_, i) => {
     const angle = i / 26 * TAU, r = site.radius * (.79 + random() * .15);
     return [Math.cos(angle) * r, Math.sin(angle) * r * .91];

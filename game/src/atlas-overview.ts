@@ -1,9 +1,10 @@
 import { CONTINENT_BOUNDS, CONTINENTS, ZONES, zoneAt, zoneRect, type AtlasRect, type ContinentId } from './world-atlas.ts';
 import { BIOMES, zoneBiome } from './biomes.ts';
-import { hash, noise } from './world-landscape.ts';
+import { hash2, noise2 } from './random-source.ts';
 import type { Exploration } from './exploration.ts';
 import { text, textWidth } from './font.ts';
 import { projectMapPoint, type MapView } from './map-view.ts';
+import { clamp } from './art-primitives.ts';
 
 /** Below this zoom the chart swaps terrain tiles for the authored atlas silhouette. */
 export const MAP_OVERVIEW_ZOOM = .02;
@@ -41,10 +42,10 @@ const segKey = (a: string, b: string) => a < b ? `${a}|${b}` : `${b}|${a}`;
 
 /** Seeded 2D displacement field; identical for a point regardless of which zone samples it. */
 function displaced(x: number, y: number, amp: number): Pt {
-  const dx = (noise(x / 46000, y / 46000, OVERVIEW_SEED + 11) - .5) * 1.7
-    + (noise(x / 13000, y / 13000, OVERVIEW_SEED + 23) - .5) * 1.1;
-  const dy = (noise(x / 46000, y / 46000, OVERVIEW_SEED + 37) - .5) * 1.7
-    + (noise(x / 13000, y / 13000, OVERVIEW_SEED + 51) - .5) * 1.1;
+  const dx = (noise2(x / 46000, y / 46000, OVERVIEW_SEED + 11) - .5) * 1.7
+    + (noise2(x / 13000, y / 13000, OVERVIEW_SEED + 23) - .5) * 1.1;
+  const dy = (noise2(x / 46000, y / 46000, OVERVIEW_SEED + 37) - .5) * 1.7
+    + (noise2(x / 13000, y / 13000, OVERVIEW_SEED + 51) - .5) * 1.1;
   return [x + dx * amp, y + dy * amp];
 }
 
@@ -202,7 +203,7 @@ function overviewGeometry(): ReadonlyMap<ContinentId, OverviewContinent> {
       const path = new Path2D();
       smoothClosed(path, outline);
       const rect = zoneRect(zone.id)!;
-      const jitter = (hash(Math.round(rect.x / 5000), Math.round(rect.y / 5000), OVERVIEW_SEED, 7) % 13) - 6;
+      const jitter = (hash2(Math.round(rect.x / 5000), Math.round(rect.y / 5000), OVERVIEW_SEED, 7) % 13) - 6;
       const rgb = [1, 3, 5].map(i => parseInt(BIOMES[zoneBiome(zone.terrain)].color.slice(i, i + 2), 16));
       // Saturate the biome hue, then lift toward parchment: WoW atlas zones keep
       // their identity color under the aged-paper wash.
@@ -313,7 +314,6 @@ export function drawMapOverviewLabels(c: CanvasRenderingContext2D, view: MapView
   const region = viewBounds(view), placed: LabelBox[] = [];
   const free = (box: LabelBox) => !placed.some(b => box.x < b.x + b.w + 10 && box.x + box.w + 10 > b.x
     && box.y < b.y + b.h + 8 && box.y + box.h + 8 > b.y);
-  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   c.save();
   c.shadowColor = '#030b10'; c.shadowBlur = 5;
   if (view.zoom <= .002) for (const id of Object.keys(CONTINENT_BOUNDS) as ContinentId[]) {

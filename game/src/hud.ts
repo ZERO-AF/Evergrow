@@ -10,6 +10,7 @@ import { basicAttackWeapon } from './equipment.ts';
 import { basicAttackManaCost } from './equipment.ts';
 import { resolveSkill } from './skill-progression.ts';
 import { PAD_SKILL_LABELS } from './gamepad-input.ts';
+import { clamp } from './art-primitives.ts';
 import { drawSkillIcon } from './skill-icon-canvas.ts';
 import { SKILL_ICON_RECIPES } from './skill-icon-content.ts';
 import { SKILL_DEFINITIONS, canUseSkill, skillWeapon } from './skill-content.ts';
@@ -46,7 +47,6 @@ export interface HUDOptions { inventory?: boolean; groundEffects?: readonly Grou
 
 const UI = UI_THEME.palette;
 const TAU = Math.PI * 2;
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
 /** Blend two hex colors; amount 0 keeps `a`, 1 keeps `b`. */
 function mixHex(a: string, b: string, amount: number): string {
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16), t = clamp(amount);

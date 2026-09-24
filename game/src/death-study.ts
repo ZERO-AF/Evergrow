@@ -1,7 +1,8 @@
 import { isRegionalEnemy } from './combat-content.ts';
 import './death-study.css';
 import { loadGameFont } from './font.ts';
-import { randomFromSeed, polygon, line } from './art-primitives.ts';
+import { polygon, line } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import { drawHumanoid } from './art.ts';
 import { PostFX } from './postfx.ts';
 import { DEATH_KINDS, DEATH_VARIANTS, ENEMY_DEATHS } from './death-content.ts';
@@ -54,7 +55,7 @@ const bg=readyBackground.getContext('2d')!;
 const wash=bg.createRadialGradient(245,137,15,245,130,270);
 wash.addColorStop(0,'#263b30');wash.addColorStop(.65,'#17271f');wash.addColorStop(1,'#101c19');
 bg.fillStyle=wash;bg.fillRect(0,0,480,224);
-const random=randomFromSeed(831);
+const random=randomSource(831);
 for(let i=0;i<1000;i++) {
   const x=random()*480,y=random()*224,s=.3+random()*1.5;
   bg.globalAlpha=.12+random()*.2;bg.fillStyle=i%3?'#81916a':'#0a1712';bg.fillRect(x,y,s,s*.6);

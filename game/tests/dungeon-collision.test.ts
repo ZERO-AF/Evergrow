@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateDungeon, dungeonBlocked, DungeonGeometry, dungeonRandom } from '../src/dungeon.ts';
+import { generateDungeon, dungeonBlocked, DungeonGeometry } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { cryptFloorContains, cryptOutline } from '../src/dungeon-contours.ts';
 import { DUNGEON_THEME_IDS } from '../src/dungeon-content.ts';
 import { DungeonCollision } from '../src/dungeon-collision.ts';
@@ -14,7 +15,7 @@ const exact=(floor:DungeonFloor,x:number,y:number,r:number)=>{
 
 test('indexed collision exactly matches dungeon outlines at walls, corners, seams and negative grid boundaries',()=>{
   for(const theme of DUNGEON_THEME_IDS)for(const seed of [7319,342]){
-    const floor=generateDungeon(seed,20,{theme,expedition:{attempt:1,stage:0,choice:0,modifier:'elite'}}),index=new DungeonCollision(floor),random=dungeonRandom(seed);
+    const floor=generateDungeon(seed,20,{theme,expedition:{attempt:1,stage:0,choice:0,modifier:'elite'}}),index=new DungeonCollision(floor),random=lcgRandom(seed);
     const radii=[0,1,10,18,28,60,120,1000];
     const points:{x:number;y:number}[]=[];
     for(const room of [...floor.rooms,...floor.corridors]){

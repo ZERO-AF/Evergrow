@@ -1,7 +1,8 @@
 import { weatherStone } from './material-art.ts';
 import { createTreeSprite } from './tree-art.ts';
 import type { Sprite } from './art-types.ts';
-import { hash, randomFromSeed, between, polygon, line, taper, type CanvasFactory, type Point, type Random } from './art-primitives.ts';
+import { hash, between, polygon, line, taper, type CanvasFactory, type Point, type Random } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 
 /** Three bounded raster sizes; geometry and world-space anchors never change. */
 export const propRasterScale = (scale: number): number => scale > 2 ? 4 : scale > 1.25 ? 2 : 1;
@@ -60,7 +61,7 @@ export class ArtLibrary {
     const variant = hash(seed) % ROCK_VARIANTS, resolution = propRasterScale(scale), key = variant + resolution * ROCK_VARIANTS;
     let sprite = this.rocks.get(key);
     if (!sprite) {
-      sprite = this.drawRock(randomFromSeed(hash(variant + 6169)), resolution);
+      sprite = this.drawRock(randomSource(hash(variant + 6169)), resolution);
       this.rocks.set(key, sprite);
     }
     return sprite;
@@ -70,7 +71,7 @@ export class ArtLibrary {
     const variant = hash(seed) % GRASS_VARIANTS;
     let sprite = this.grasses.get(variant);
     if (!sprite) {
-      const random = randomFromSeed(hash(variant + 9923));
+      const random = randomSource(hash(variant + 9923));
       sprite = makeSprite(this.factory, 22, 17);
       sprite.anchorY = 14;
       const ctx = context(sprite);

@@ -17,7 +17,7 @@
 import { ZONES } from './world-atlas.ts';
 import { zoneContent } from './zone-content.ts';
 import { zoneBiome, type BiomeId } from './biomes.ts';
-import { hash } from './world-landscape.ts';
+import { hash2 } from './random-source.ts';
 import { DUNGEON_THEME_IDS, dungeonTheme, type DungeonThemeId } from './dungeon-content.ts';
 import type { DungeonEntrance } from './dungeon.ts';
 import type { EncounterScale } from './encounter-scaling.ts';
@@ -190,7 +190,7 @@ export function dungeonFinderWaitSeconds(id: string): number {
  * zone the player happens to be standing in.
  */
 export function dungeonFinderEntrance(entry: DungeonFinderEntry, player: Pick<Player, 'x' | 'y' | 'level'>, worldSeed: number, heroic = false): DungeonEntrance {
-  const seed = hash(ZONE_INDEX[entry.zoneId] ?? 0, entry.index, worldSeed, 0xd0e7) >>> 0;
+  const seed = hash2(ZONE_INDEX[entry.zoneId] ?? 0, entry.index, worldSeed, 0xd0e7) >>> 0;
   const heroicMode = heroic && entry.kind !== 'raid';
   const base = heroicMode ? HEROIC_RULES.level : Math.max(entry.levelMin, Math.min(entry.levelMax, Math.floor(player.level)));
   const scaling: EncounterScale = heroicMode

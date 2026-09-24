@@ -1,15 +1,12 @@
-import type { DungeonEntrance, DungeonFloor, DungeonMember, DungeonProp, Room } from './dungeon.ts';
-import { dungeonPassage } from './dungeon-passage.ts';
+import type { DungeonEntrance, DungeonFloor } from './dungeon.ts';
 import type { WorldLandscape } from './world-landscape.ts';
-import { getZoneAt } from './zone-progression.ts';
-import { siteHash } from './wilderness-sites.ts';
-import { GAME_FEATURES } from './game-features.ts';
 import { raidEntrances } from './raid-boss-content.ts';
 import { raid2Entrances } from './raid2-boss-content.ts';
 import { raid3Entrances } from './raid3-boss-content.ts';
 import { raid4Entrances } from './raid4-boss-content.ts';
 import { raid5Entrances } from './raid5-boss-content.ts';
 import type { Enemy } from './model.ts';
+import { isRaidBossMember, raidArenaFloor as buildArenaFloor, raidArenaCenter, raidEntrancesAt, type RaidSpec } from './raid-kit.ts';
 
 /**
  * Sixth raid boss (docs/wow-deepening.md §15, sixth wave): Sartharion the
@@ -43,7 +40,7 @@ export const isRaid6EntranceId = (id: string | undefined): boolean => id === RAI
 export const isRaid6Entrance = (e: Pick<DungeonEntrance, 'id'> | undefined | null): boolean => !!e && isRaid6EntranceId(e.id);
 /** Live actor check for the AI/warning dispatch: the raid boss is the 'warden' member of an Obsidian Sanctum run. */
 export const isRaid6Boss = (e: Pick<Enemy, 'campId' | 'campMemberId'>): boolean =>
-  e.campMemberId === RAID6_BOSS_MEMBER_ID && isRaid6EntranceId(e.campId);
+  isRaidBossMember(e, RAID6_ENTRANCE_ID, RAID6_BOSS_MEMBER_ID);
 export const raid6BossName = (e: Pick<Enemy, 'campId' | 'campMemberId'>): string | undefined =>
   isRaid6Boss(e) ? RAID6_BOSS_NAME : undefined;
 /** The three drake lieutenants: member id → drake name (call-down announcements). */
@@ -114,93 +111,54 @@ export function raid6BossWarningSpec(e: Pick<Enemy, 'campId' | 'campMemberId' | 
 
 // ── Arena floor ──────────────────────────────────────────────────────────
 // Room ids: 0 = entry antechamber, 1 = the lava sanctum arena. One corridor links them.
-const ARENA = { x: -1500, y: -1600, width: 3000, height: 2100 } as const;
-const ENTRY = { x: -288, y: 1244, width: 576, height: 512 } as const;
-const BOSS_AT = { x: 0, y: -1050 } as const; // Sartharion holds the lava platform, north-center
-export const RAID6_ARENA_CENTER = Object.freeze({ x: ARENA.x + ARENA.width / 2, y: ARENA.y + ARENA.height / 2 });
+const SPEC: RaidSpec = {
+  salt: 0x0b51a7,
+  entranceId: RAID6_ENTRANCE_ID,
+  name: 'Obsidian Sanctum',
+  theme: 'blackrock',
+  minZoneLevel: 20,
+  arena: { x: -1500, y: -1600, width: 3000, height: 2100 },
+  bossAt: { x: 0, y: -1050 }, // Sartharion holds the lava platform, north-center
+  corridor: [{ x: 0, y: 1500 }, { x: 0, y: 420 }],
+  exitY: 420,
+  members: [
+    // Sartharion himself — 'warden' id feeds wave gating, the boss chest and the exit portal.
+    { id: RAID6_BOSS_MEMBER_ID, kind: RAID6_BOSS_KIND, rank: 'elite', room: 1, x: 0, y: -1050, salt: 0x0b51 },
+    // The drake lieutenants — ordinary members on the sanctum rim, never
+    // wave-gated: the '3D' choice is leaving them alive for the pull.
+    { id: 'drake:tenebron', kind: 'stalker', rank: 'veteran', room: 1, x: -1150, y: -1250, salt: 0x81 },
+    { id: 'drake:shadron', kind: 'wisp', rank: 'veteran', room: 1, x: 1150, y: -1250, salt: 0x82 },
+    { id: 'drake:vesperon', kind: 'brute', rank: 'veteran', room: 1, x: 0, y: -1500, salt: 0x83 },
+    // Twilight Whelps — wave bit 1 (65%), swarming in from the lava rim.
+    { id: 'whelp:w:0', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: -1200, salt: 0x84, wave: 1 },
+    { id: 'whelp:w:1', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: -500, salt: 0x85, wave: 1 },
+    { id: 'whelp:w:2', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: 150, salt: 0x86, wave: 1 },
+    { id: 'whelp:e:0', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: -1200, salt: 0x87, wave: 1 },
+    { id: 'whelp:e:1', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: -500, salt: 0x88, wave: 1 },
+    { id: 'whelp:e:2', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: 150, salt: 0x89, wave: 1 },
+    // Wave bit 2 (30%) — veteran whelps plus Onyx Guardians at the ledges.
+    { id: 'whelp:w:3', kind: 'stalker', rank: 'veteran', room: 1, x: -1400, y: -850, salt: 0x8a, wave: 2 },
+    { id: 'whelp:e:3', kind: 'stalker', rank: 'veteran', room: 1, x: 1400, y: -850, salt: 0x8b, wave: 2 },
+    { id: 'guardian:w', kind: 'brute', rank: 'veteran', room: 1, x: -450, y: -1500, salt: 0x8c, wave: 2 },
+    { id: 'guardian:e', kind: 'brute', rank: 'veteran', room: 1, x: 450, y: -1500, salt: 0x8d, wave: 2 },
+  ],
+  // Slag furnaces, lava pools and black iron dressing around the sanctum walls.
+  dressing: ['furnace', 'pool', 'anvil', 'furnace', 'crystal', 'pool', 'anvil', 'furnace'],
+  entryProps: ['furnace', 'crystal', 'furnace'],
+  propPrefix: 'raid6-prop',
+  chests: [
+    { x: -190, y: -860 }, // cache of the Onyx Guardian, gated by surviving arena members
+    { x: 190, y: -860 },
+    { x: 0, y: -800 },    // boss chest — requires run.states.warden.hp <= 0
+  ],
+  prior: [raidEntrances, raid2Entrances, raid3Entrances, raid4Entrances, raid5Entrances],
+};
+
+export const RAID6_ARENA_CENTER = raidArenaCenter(SPEC);
 
 /** Deterministic single-arena floor; signature mirrors generateDungeon so the integrator can branch on isRaid6Entrance. */
 export function raid6ArenaFloor(seed: number, _level = 1): DungeonFloor {
-  const rooms: Room[] = [
-    { id: 0, kind: 'entry', shape: 'hall', ...ENTRY },
-    { id: 1, kind: 'boss', shape: 'octagon', ...ARENA },
-  ];
-  const corridors: Room[] = [dungeonPassage([{ x: 0, y: 1500 }, { x: 0, y: 420 }], 150, 0)];
-  const members: DungeonMember[] = [
-    // Sartharion himself — 'warden' id feeds wave gating, the boss chest and the exit portal.
-    { id: RAID6_BOSS_MEMBER_ID, kind: RAID6_BOSS_KIND, rank: 'elite', room: 1, x: BOSS_AT.x, y: BOSS_AT.y, seed: (seed ^ 0x0b51) >>> 0 },
-    // The drake lieutenants — ordinary members on the sanctum rim, never
-    // wave-gated: the '3D' choice is leaving them alive for the pull.
-    { id: 'drake:tenebron', kind: 'stalker', rank: 'veteran', room: 1, x: -1150, y: -1250, seed: (seed ^ 0x81) >>> 0 },
-    { id: 'drake:shadron', kind: 'wisp', rank: 'veteran', room: 1, x: 1150, y: -1250, seed: (seed ^ 0x82) >>> 0 },
-    { id: 'drake:vesperon', kind: 'brute', rank: 'veteran', room: 1, x: 0, y: -1500, seed: (seed ^ 0x83) >>> 0 },
-    // Twilight Whelps — wave bit 1 (65%), swarming in from the lava rim.
-    { id: 'whelp:w:0', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: -1200, seed: (seed ^ 0x84) >>> 0, wave: 1 },
-    { id: 'whelp:w:1', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: -500, seed: (seed ^ 0x85) >>> 0, wave: 1 },
-    { id: 'whelp:w:2', kind: 'stalker', rank: 'normal', room: 1, x: -1400, y: 150, seed: (seed ^ 0x86) >>> 0, wave: 1 },
-    { id: 'whelp:e:0', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: -1200, seed: (seed ^ 0x87) >>> 0, wave: 1 },
-    { id: 'whelp:e:1', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: -500, seed: (seed ^ 0x88) >>> 0, wave: 1 },
-    { id: 'whelp:e:2', kind: 'stalker', rank: 'normal', room: 1, x: 1400, y: 150, seed: (seed ^ 0x89) >>> 0, wave: 1 },
-    // Wave bit 2 (30%) — veteran whelps plus Onyx Guardians at the ledges.
-    { id: 'whelp:w:3', kind: 'stalker', rank: 'veteran', room: 1, x: -1400, y: -850, seed: (seed ^ 0x8a) >>> 0, wave: 2 },
-    { id: 'whelp:e:3', kind: 'stalker', rank: 'veteran', room: 1, x: 1400, y: -850, seed: (seed ^ 0x8b) >>> 0, wave: 2 },
-    { id: 'guardian:w', kind: 'brute', rank: 'veteran', room: 1, x: -450, y: -1500, seed: (seed ^ 0x8c) >>> 0, wave: 2 },
-    { id: 'guardian:e', kind: 'brute', rank: 'veteran', room: 1, x: 450, y: -1500, seed: (seed ^ 0x8d) >>> 0, wave: 2 },
-  ];
-  const props: DungeonProp[] = [];
-  // Slag furnaces, lava pools and black iron dressing around the sanctum walls; the center stays clear for the fight.
-  const dressing: DungeonProp['kind'][] = ['furnace', 'pool', 'anvil', 'furnace', 'crystal', 'pool', 'anvil', 'furnace'];
-  for (let i = 0; i < 8; i++) {
-    const x = ARENA.x + ARENA.width * (i % 2 ? .86 : .14), y = ARENA.y + ARENA.height * (.16 + Math.floor(i / 2) * .22);
-    props.push({ id: `raid6-prop:${i}`, x, y, kind: dressing[i], seed: (seed + i * 137) >>> 0 });
-  }
-  for (let i = 0; i < 3; i++)
-    props.push({ id: `raid6-prop:entry:${i}`, x: ENTRY.x + ENTRY.width * (.2 + i * .3), y: ENTRY.y + 90, kind: i === 1 ? 'crystal' : 'furnace', seed: (seed + 900 + i) >>> 0 });
-  const floor: DungeonFloor = {
-    theme: 'blackrock', seed, rooms, edges: [[0, 1]], corridors, members,
-    entry: { x: 0, y: ENTRY.y + ENTRY.height / 2 },
-    exit: { x: 0, y: 420 },
-    chests: [
-      { x: -190, y: -860, room: 1 }, // cache of the Onyx Guardian, gated by surviving arena members
-      { x: 190, y: -860, room: 1 },
-      { x: 0, y: -800, room: 1 },    // boss chest — requires run.states.warden.hp <= 0
-    ],
-    props,
-  };
-  for (const r of corridors) { r.outline?.forEach(Object.freeze); r.path?.forEach(Object.freeze); if (r.outline) Object.freeze(r.outline); if (r.path) Object.freeze(r.path); }
-  for (const v of [...rooms, ...corridors, ...members, ...floor.edges, ...floor.chests, ...props]) Object.freeze(v);
-  Object.freeze(rooms); Object.freeze(corridors); Object.freeze(members); Object.freeze(floor.edges);
-  Object.freeze(floor.chests); Object.freeze(floor.entry); Object.freeze(floor.exit); Object.freeze(props);
-  return Object.freeze(floor);
-}
-
-// ── Entrance placement ───────────────────────────────────────────────────
-/** One deterministic remote gate per world seed: the first far raid-tier cell that holds no other raid gate. */
-const RAID6_MIN_ZONE_LEVEL = 20;
-const gateCache = new Map<number, { x: number; y: number } | null>();
-function raid6GatePoint(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites' | 'blocked' | 'isSanctuary' | 'sampleBiome'>): { x: number; y: number } | null {
-  const cached = gateCache.get(world.seed);
-  if (cached !== undefined) return cached;
-  let point: { x: number; y: number } | null = null;
-  // Spiral outward through wilderness cells; the nearest high-tier cell without another raid gate wins.
-  for (let ring = 9; ring <= 64 && !point; ring++)
-    for (let cy = -ring; cy <= ring && !point; cy++)
-      for (let cx = -ring; cx <= ring && !point; cx++) {
-        if (Math.max(Math.abs(cx), Math.abs(cy)) !== ring) continue;
-        const seed = siteHash(cx, cy, world.seed, 0x0b51a7);
-        const x = (cx + .5) * 1400 + ((seed >>> 8) % 900 - 450), y = (cy + .5) * 1400 + ((seed >>> 20) % 900 - 450);
-        if (getZoneAt(x, y, world.seed).originalLevel < RAID6_MIN_ZONE_LEVEL) continue;
-        // Never share a cell with the five prior raid gates: probe whether any lands inside this cell's bounds.
-        if (raidEntrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid2Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid3Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid4Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        if (raid5Entrances(world, cx * 1400 - 160, cy * 1400 - 160, 1720, 1720).length) continue;
-        point = { x, y };
-      }
-  gateCache.set(world.seed, point);
-  if (gateCache.size > 8) gateCache.delete(gateCache.keys().next().value!);
-  return point;
+  return buildArenaFloor(SPEC, seed);
 }
 
 /**
@@ -212,17 +170,5 @@ function raid6GatePoint(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites
  */
 export function raid6Entrances(world: Pick<WorldLandscape, 'seed' | 'getWildernessSites' | 'blocked' | 'isSanctuary' | 'sampleBiome'>,
   x: number, y: number, w: number, h: number): DungeonEntrance[] {
-  if (!GAME_FEATURES.raidBoss || ![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0 || w > 100000 || h > 100000)
-    return [];
-  const anchor = raid6GatePoint(world);
-  if (!anchor) return [];
-  for (let i = 0; i < 24; i++) {
-    const a = i * Math.PI / 12, px = anchor.x + Math.cos(a) * (i < 8 ? 60 : 140), py = anchor.y + Math.sin(a) * (i < 8 ? 60 : 140);
-    if (px < x || py < y || px >= x + w || py >= y + h) continue;
-    if (world.blocked(px, py, 40) || world.isSanctuary(px, py)) continue;
-    const zone = getZoneAt(px, py, world.seed);
-    return [{ id: RAID6_ENTRANCE_ID, name: 'Obsidian Sanctum', theme: 'blackrock', x: px, y: py,
-      seed: (world.seed ^ 0x0b51a7) >>> 0, level: Math.min(1e6, zone.maxLevel), biome: world.sampleBiome(px, py).id }];
-  }
-  return [];
+  return raidEntrancesAt(SPEC, world, x, y, w, h);
 }

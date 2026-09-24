@@ -10,6 +10,7 @@ import { resolveSkill } from './skill-progression.ts';
 import { drawSkillIcon } from './skill-icon-canvas.ts';
 import { SKILL_DEFINITIONS, canUseSkill } from './skill-content.ts';
 import { text, textWidth } from './font.ts';
+import { clamp } from './art-primitives.ts';
 import { UI_THEME } from './ui-theme.ts';
 import { WOW_COMBAT, isWowClassId } from './wow-types.ts';
 import { WOW_CLASSES, RESOURCE_COLORS } from './wow-classes.ts';
@@ -29,7 +30,6 @@ import { controls } from './control-preferences.ts';
 
 const UI = UI_THEME.palette;
 const TAU = Math.PI * 2;
-const clamp = (n: number) => Math.max(0, Math.min(1, n));
 /** Absolute bar index under a screen point, or null. Geometry mirrors the draw pass. */
 export function actionBarSlotAt(bars: ActionBars, x: number, y: number, width: number, height: number): number | null {
   return hotbarSlotAt(bars, x, y, width, height);

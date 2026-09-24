@@ -52,8 +52,26 @@ export function canInteractNPC(npc: TownNPC, player: { x: number; y: number; dea
   return !player.dead && !world.blocked(npc.x, npc.y, 0) && !world.blocked(player.x, player.y, 0) && Math.hypot(player.x - npc.x, player.y - npc.y) <= 70
     && hasLineOfSight(world, player.x, player.y, npc.x, npc.y);
 }
-export function focusNPC(npcs: readonly TownNPC[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
-  pointer?: { x: number; y: number }): TownNPC | null {
+/** Standalone service fixtures (stable master, battlemaster, vendors, trainer,
+ * quartermaster) are anchored to a building kind at a fixed door offset. */
+export function serviceFixture<R extends NPCRole>(building: Building, kind: Building['kind'], role: R,
+  dx: number, dy: number, names: readonly string[]): (TownNPC & { role: R }) | null {
+  if (building.kind !== kind) return null;
+  const x = building.door.x + dx, y = building.door.y + dy, id = `${building.id}:${role}`;
+  const seed = hashService(id);
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
+  return { settlementTier: building.settlementTier, id, buildingId: building.id, role, x, y, seed,
+    name: names[seed % names.length], level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+}
+/** Scan a world rect for a fixture's NPCs. */
+export function npcsNear<T extends TownNPC>(world: WorldQuery, x: number, y: number, width: number, height: number,
+  fixture: (building: Building) => T | null): T[] {
+  return (world.getBuildings?.(x, y, width, height) ?? [])
+    .map(fixture).filter((npc): npc is T => npc !== null);
+}
+/** The interactable NPC nearest the player; a pointer pick must land on the NPC's head. */
+export function focusNPC<T extends TownNPC>(npcs: readonly T[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
+  pointer?: { x: number; y: number }): T | null {
   return npcs.filter(npc => canInteractNPC(npc, player, world) && (!pointer || Math.hypot(pointer.x - npc.x, pointer.y - (npc.y - 17)) <= 28))
     .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
 }
@@ -64,26 +82,17 @@ export function vendorLevel(npc: TownNPC, playerLevel: number): number { return 
  * service NPC like the innkeeper, not a building kind. Every settlement has a stash fixture. */
 export type StableMaster = TownNPC & { role: 'stable' };
 const STABLE_MASTER_NAMES = ['Shellei', 'Balfour', 'Kelsuwa', 'Penny', 'Durik', 'Aesha', 'Grif', 'Lina'] as const;
-export const stableMasterFor = memoFixture((building: Building): StableMaster | null => {
-  if (building.kind !== 'stash') return null;
-  const x = building.door.x - 52, y = building.door.y - 2, id = `${building.id}:stable`;
-  const seed = hashService(id);
-  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
-  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'stable', x, y, seed,
-    name: STABLE_MASTER_NAMES[seed % STABLE_MASTER_NAMES.length],
-    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
-});
+export const stableMasterFor = memoFixture((building: Building): StableMaster | null =>
+  serviceFixture(building, 'stash', 'stable', -52, -2, STABLE_MASTER_NAMES));
 export function stableMastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): StableMaster[] {
-  return (world.getBuildings?.(x, y, width, height) ?? [])
-    .map(stableMasterFor).filter((master): master is StableMaster => master !== null);
+  return npcsNear(world, x, y, width, height, stableMasterFor);
 }
 export function canStableAt(master: StableMaster, player: { x: number; y: number; dead?: boolean }, world: WorldQuery): boolean {
   return canInteractNPC(master, player, world);
 }
 export function focusedStableMaster(masters: readonly StableMaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
   pointer?: { x: number; y: number }): StableMaster | null {
-  return masters.filter(master => canStableAt(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
-    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+  return focusNPC(masters, player, world, pointer);
 }
 
 /** Battlemasters (WotLK arena/battleground queue NPCs) stand beside the Count's Hall in
@@ -91,23 +100,14 @@ export function focusedStableMaster(masters: readonly StableMaster[], player: { 
  * city settlements raise a noble hall, so battlemasters are a city fixture. */
 export type Battlemaster = TownNPC & { role: 'battlemaster' };
 const BATTLEMASTER_NAMES = ['Korrak', 'Beka', 'Deze', 'Grikka', 'Andrissa', 'Fizim', 'Rex', 'Mosha'] as const;
-export const battlemasterFor = memoFixture((building: Building): Battlemaster | null => {
-  if (building.kind !== 'noble') return null;
-  const x = building.door.x + 70, y = building.door.y + 24, id = `${building.id}:battlemaster`;
-  const seed = hashService(id);
-  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
-  return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'battlemaster', x, y, seed,
-    name: BATTLEMASTER_NAMES[seed % BATTLEMASTER_NAMES.length],
-    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
-});
+export const battlemasterFor = memoFixture((building: Building): Battlemaster | null =>
+  serviceFixture(building, 'noble', 'battlemaster', 70, 24, BATTLEMASTER_NAMES));
 export function battlemastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Battlemaster[] {
-  return (world.getBuildings?.(x, y, width, height) ?? [])
-    .map(battlemasterFor).filter((master): master is Battlemaster => master !== null);
+  return npcsNear(world, x, y, width, height, battlemasterFor);
 }
 export function focusedBattlemaster(masters: readonly Battlemaster[], player: { x: number; y: number; dead?: boolean }, world: WorldQuery,
   pointer?: { x: number; y: number }): Battlemaster | null {
-  return masters.filter(master => canInteractNPC(master, player, world) && (!pointer || Math.hypot(pointer.x - master.x, pointer.y - (master.y - 17)) <= 28))
-    .sort((a, b) => Math.hypot(player.x - a.x, player.y - a.y) - Math.hypot(player.x - b.x, player.y - b.y))[0] ?? null;
+  return focusNPC(masters, player, world, pointer);
 }
 
 // ── Daily routines (wayfinder world-t10) ─────────────────────────────────────

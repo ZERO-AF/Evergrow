@@ -1,4 +1,5 @@
 import { propRasterScale } from './prop-art.ts';
+import { hash1 } from './random-source.ts';
 import { createTreeSprite, isTreeKind } from './tree-art.ts';
 import type { Sprite } from './art-types.ts';
 import type { Prop } from './world.ts';
@@ -12,13 +13,7 @@ interface ViewRect { x: number; y: number; width: number; height: number; }
 const TAU = Math.PI * 2;
 export const ENVIRONMENT_ART_RULES = Object.freeze({ variants: 24, cacheLimit: 96, ambientCells: 384 });
 
-function hash(seed: number): number {
-  let n = seed | 0;
-  n = Math.imul(n ^ n >>> 16, 0x45d9f3b);
-  n = Math.imul(n ^ n >>> 16, 0x45d9f3b);
-  return (n ^ n >>> 16) >>> 0;
-}
-function random(seed: number, salt: number) { return hash(seed + Math.imul(salt, 7919)) / 0x100000000; }
+function random(seed: number, salt: number) { return hash1(seed + Math.imul(salt, 7919)) / 0x100000000; }
 function polygon(c: CanvasRenderingContext2D, points: readonly Point[], color: string) {
   c.beginPath(); c.moveTo(...points[0]);
   for (let i = 1; i < points.length; i++) c.lineTo(...points[i]);
@@ -55,11 +50,11 @@ export class EnvironmentArt {
     if (!bounds && !isTreeKind(family) && !['reeds', 'fern', 'flowers'].includes(family)) return null;
     if (family === 'tree' || family === 'deadTree') return null;
     const resolution = propRasterScale(prop.scale);
-    const variant = hash(prop.seed) % ENVIRONMENT_ART_RULES.variants, key = `${family}:${variant}:${resolution}`;
+    const variant = hash1(prop.seed) % ENVIRONMENT_ART_RULES.variants, key = `${family}:${variant}:${resolution}`;
     const existing = this.cache.get(key);
     if (existing) { this.cache.delete(key); this.cache.set(key, existing); return existing; }
     if (isTreeKind(family)) {
-      const sprite = createTreeSprite(this.factory, family, hash(variant + family.length * 313), resolution);
+      const sprite = createTreeSprite(this.factory, family, hash1(variant + family.length * 313), resolution);
       this.cache.set(key, sprite);
       if (this.cache.size > ENVIRONMENT_ART_RULES.cacheLimit) this.cache.delete(this.cache.keys().next().value!);
       return sprite;
@@ -70,7 +65,7 @@ export class EnvironmentArt {
     const c = image.getContext('2d');
     if (!c) throw new Error('A 2D canvas context is required for biome art.');
     const sprite: Sprite = { image, width, height, anchorX: width / 2, anchorY: height - 4 };
-    const seed = hash(variant + family.length * 313);
+    const seed = hash1(variant + family.length * 313);
     c.scale(resolution, resolution);
     c.translate(sprite.anchorX, sprite.anchorY);
     if (bounds) drawBiomeProp(c, family, seed);
@@ -119,7 +114,7 @@ export class EnvironmentArt {
       leaf(c, [x * .65, -3], [x + 5, -10], 2.1, '#81a065');
       for (let petal = 0; petal < 5; petal++) {
         const a = petal / 5 * TAU;
-        c.fillStyle = colors[hash(seed) % colors.length]; c.beginPath();
+        c.fillStyle = colors[hash1(seed) % colors.length]; c.beginPath();
         c.ellipse(x + Math.cos(a) * 1.8, y + Math.sin(a) * 1.6, 1.7, 1.1, a, 0, TAU); c.fill();
       }
       c.fillStyle = '#efd499'; c.fillRect(x - .7, y - .7, 1.4, 1.4);
@@ -138,7 +133,7 @@ export class EnvironmentArt {
     ambient: for (let cy = Math.floor(view.y / 170 / stride) * stride - stride; cy <= Math.floor((view.y + view.height) / 170); cy += stride) {
       for (let cx = Math.floor(view.x / 170 / stride) * stride - stride; cx <= Math.floor((view.x + view.width) / 170); cx += stride) {
         if (visited++ >= ENVIRONMENT_ART_RULES.ambientCells) break ambient;
-        const seed = hash(Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663));
+        const seed = hash1(Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663));
         const phase = random(seed, 0) * TAU;
         const x = cx * 170 + random(seed, 1) * 170 + Math.sin(t * .35 + phase) * 13;
         const y = cy * 170 + random(seed, 2) * 170 + Math.cos(t * .3 + phase) * 8;

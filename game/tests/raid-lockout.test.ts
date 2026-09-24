@@ -5,7 +5,8 @@ import { CharacterRepository } from '../src/character-storage.ts';
 import { CharacterSession } from '../src/character-session.ts';
 import { decodeCharacterSave } from '../src/character-save.ts';
 import { createDungeonRun, freshExpeditions, emptyContents } from '../src/dungeon-state.ts';
-import { generateDungeon, dungeonRandom } from '../src/dungeon.ts';
+import { generateDungeon } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { planDungeonTravel, claimDungeonChest } from '../src/dungeon-command.ts';
 import { dungeonRunChest } from '../src/dungeon-locations.ts';
 import {
@@ -137,17 +138,17 @@ test('the raid boss chest rolls the named table and stamps the lockout', async (
   assert.ok(result.ok, result.message);
   const items = sim.groundItems.map(g => g.item);
   assert.equal(items.length, 3, 'three rolls off the Firelord table');
-  const expected = raidBossLoot(RAID2_ENTRANCE_ID, dungeonRandom(entrance.seed), run.entrance.level, sim.player.character.classId)!.items;
+  const expected = raidBossLoot(RAID2_ENTRANCE_ID, lcgRandom(entrance.seed), run.entrance.level, sim.player.character.classId)!.items;
   assert.deepEqual(items.map(i => i.name), expected.map(i => i.name), 'chest loot matches the named table roll');
   assert.ok(items.every(i => i.tier === 'epic' || i.tier === 'legendary' || i.tier === 'unique' || setPieceOf(i)), 'no generic-rank commons');
   assert.ok(sim.player.character.raidLockouts![RAID2_ENTRANCE_ID] > 0, 'lockout receipt written');
 });
 
 test('per-boss tables produce their signature drops', () => {
-  const random = dungeonRandom(123456);
+  const random = lcgRandom(123456);
   // Onyxia: every set-piece roll is a head-slot piece (Tier-2 helms).
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID_ENTRANCE_ID, dungeonRandom(1000 + i), 60, 'warrior')!;
+    const loot = raidBossLoot(RAID_ENTRANCE_ID, lcgRandom(1000 + i), 60, 'warrior')!;
     for (const item of loot.items) {
       const piece = setPieceOf(item);
       if (piece) assert.equal(piece.kind, 'head', `Onyxia set drop ${piece.id} must be a helm`);
@@ -155,7 +156,7 @@ test('per-boss tables produce their signature drops', () => {
   }
   // Ragnaros: set drops are legs; Sulfuras is on the table.
   assert.ok(RAID_LOOT_TABLES.ragnaros.drops.some(d => d.kind === 'legendary' && d.legendaryId === 'sulfuras'));
-  const rag = raidBossLoot(RAID2_ENTRANCE_ID, dungeonRandom(77), 60, 'paladin')!;
+  const rag = raidBossLoot(RAID2_ENTRANCE_ID, lcgRandom(77), 60, 'paladin')!;
   for (const item of rag.items) {
     const piece = setPieceOf(item);
     if (piece) assert.equal(piece.kind, 'legs', `Ragnaros set drop ${piece.id} must be legs`);
@@ -170,8 +171,8 @@ test('per-boss tables produce their signature drops', () => {
   const denied = raidBossLoot(RAID4_ENTRANCE_ID, () => 0.999, 80)!;
   assert.equal(denied.mount, undefined);
   // Determinism: same seed, same haul.
-  const a = raidBossLoot(RAID3_ENTRANCE_ID, dungeonRandom(55), 60, 'priest')!;
-  const b = raidBossLoot(RAID3_ENTRANCE_ID, dungeonRandom(55), 60, 'priest')!;
+  const a = raidBossLoot(RAID3_ENTRANCE_ID, lcgRandom(55), 60, 'priest')!;
+  const b = raidBossLoot(RAID3_ENTRANCE_ID, lcgRandom(55), 60, 'priest')!;
   assert.deepEqual(a.items.map(i => i.id), b.items.map(i => i.id));
   // Unknown bosses get no table.
   assert.equal(raidBossLoot('dungeon:other', random, 60), undefined);
@@ -181,7 +182,7 @@ test('the Lich King mount drop lands on the achievement ledger', async () => {
   // Find a deterministic entrance seed whose bonus roll lands the drake.
   let seed = 1;
   for (; seed < 200000; seed++)
-    if (raidBossLoot(RAID4_ENTRANCE_ID, dungeonRandom(seed), 30)!.mount === 'drake') break;
+    if (raidBossLoot(RAID4_ENTRANCE_ID, lcgRandom(seed), 30)!.mount === 'drake') break;
   assert.ok(seed < 200000, 'a mount-dropping seed exists');
   const sim = new Simulation(world, { seed: 7319, spawn: false });
   const entrance = raidEntrance(RAID4_ENTRANCE_ID, seed);

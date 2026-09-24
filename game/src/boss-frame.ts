@@ -10,6 +10,7 @@ import { getHUDLayout } from './hud-layout.ts';
 import { getMinimapRect } from './map-view.ts';
 import { drawBossCrest, BOSS_METAL, RANK_METALS } from './enemy-rank-art.ts';
 import { drawSkillIcon } from './skill-icon-canvas.ts';
+import { saturate as clamp } from './art-primitives.ts';
 import { SKILL_ICON_RECIPES } from './skill-icon-content.ts';
 import { enemyDisplayName } from './zone-roster.ts';
 import type { SkillId } from './character-types.ts';
@@ -35,7 +36,6 @@ export interface BossFrameOptions {
 
 const UI = UI_THEME.palette;
 const TAU = Math.PI * 2;
-const clamp = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 const compactNumber = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 const compact = (value: number) => value >= 10_000 ? compactNumber.format(value) : `${Math.ceil(value)}`;
 

@@ -7,6 +7,7 @@ import { refreshCharacter } from './character.ts';
 import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
 import { pushChatMessage } from './chat-log.ts';
+import { commitPurchase } from './vendor-buy.ts';
 import { COMPANION_RULES } from './companion-state.ts';
 import { mountFlagKey } from './mount-state.ts';
 import type { Simulation } from './simulation.ts';
@@ -113,14 +114,9 @@ export async function buyPrize(sim: Simulation, vendor: FaireNPC, stockId: strin
   checkpoint.character.commerce.operations++;
   const staged = checkpoint.holiday = cloneData(checkpoint.holiday ?? holidayOf(sim));
   if (staged.lastFaire !== faireWindowAt(now).index) { staged.lastFaire = faireWindowAt(now).index; staged.visits++; }
-  const saved = await persist(checkpoint);
-  if (!saved.ok) return { ok: false, message: saved.message ?? 'Could not save. No tickets were spent.' };
-  const carrier = sim as unknown as { holiday?: HolidayState };
-  carrier.holiday = staged;
-  p.character = checkpoint.character;
-  if (checkpoint.achievements) p.achievements = checkpoint.achievements;
-  refreshCharacter(p);
   const message = `Bought ${entry.name} for ${formatTickets(entry.price)} ${TICKET_NAME}s.`;
-  pushChatMessage(p, 'loot', message, sim.time);
-  return { ok: true, message };
+  return commitPurchase(sim, checkpoint, persist, committed => {
+    (sim as unknown as { holiday?: HolidayState }).holiday = committed.holiday;
+    if (committed.achievements) p.achievements = committed.achievements;
+  }, message, 'Could not save. No tickets were spent.');
 }

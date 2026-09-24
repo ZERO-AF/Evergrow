@@ -1,6 +1,7 @@
 import type { SkyState } from './world-time.ts';
 import type { Prop } from './world.ts';
-import { hash, randomFromSeed } from './art-primitives.ts';
+import { hash, } from './art-primitives.ts';
+import { randomSource } from './random-source.ts';
 import type { World } from './world.ts';
 import type { CameraView } from './camera.ts';
 import { sceneClimate } from './scene-light-style.ts';
@@ -14,7 +15,7 @@ export class AtmosphereArt {
   private mistStamp(color: string) {
     const cached = this.mist.get(color); if (cached) return cached;
     const image = document.createElement('canvas'); image.width = 256; image.height = 96;
-    const c = image.getContext('2d')!, random = randomFromSeed(17319);
+    const c = image.getContext('2d')!, random = randomSource(17319);
     for (let i = 0; i < 10; i++) {
       const x = 48 + random() * 160, y = 32 + random() * 32, radius = 20 + random() * 24;
       const gradient = c.createRadialGradient(x, y, 0, x, y, radius);
@@ -110,7 +111,7 @@ export class AtmosphereArt {
         c.drawImage(this.mistStamp(color), x - width / 2, y - height / 2, width, height);
         // Near-camera motes: sparse drifting dust that catches the light.
         if (foreground && !enclosed && seed % 4 === 0) {
-          const random = randomFromSeed(seed);
+          const random = randomSource(seed);
           for (let mote = 0; mote < 3; mote++) {
             const mx = anchorX + (random() - .5) * cell + Math.sin(t * (.3 + mote * .13) + phase + mote * 2) * 26;
             const my = anchorY + (random() - .5) * cell * .5 + Math.cos(t * (.24 + mote * .09) + phase + mote) * 18;

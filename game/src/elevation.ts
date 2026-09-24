@@ -15,6 +15,8 @@
 
 import { CONTINENTS, ZONES, zoneAt, type AtlasZone } from './world-atlas.ts';
 import type { OccluderVolume } from './occlusion.ts';
+import { smoothstep } from './art-primitives.ts';
+import { noise2 } from './random-source.ts';
 
 // ── Authored spec ────────────────────────────────────────────────────────────
 export type ElevationKind = 'plateau' | 'mesa' | 'valley' | 'overhang';
@@ -108,28 +110,6 @@ const SEGMENT_STEP = 3;
 const PROBE = 1.5;
 
 // ── Deterministic noise (self-contained copy of the landscape hash) ──────────
-function elevHash(x: number, y: number, seed: number): number {
-  let value = (seed ^ Math.imul(x | 0, 0x45d9f3b) ^ Math.imul(y | 0, 0x27d4eb2d)
-    ^ Math.imul(Math.floor(x / 0x100000000), 0x165667b1)
-    ^ Math.imul(Math.floor(y / 0x100000000), 0x85ebca77)) >>> 0;
-  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
-  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
-  return (value ^ (value >>> 16)) >>> 0;
-}
-function elevRandom(x: number, y: number, seed: number, salt = 0): number {
-  return elevHash(x, y, seed ^ Math.imul(salt, 0x9e3779b1)) / 0x100000000;
-}
-function elevSmooth(a: number, b: number, v: number): number {
-  const t = Math.max(0, Math.min(1, (v - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-}
-function elevNoise(x: number, y: number, seed: number): number {
-  const ix = Math.floor(x), iy = Math.floor(y);
-  const tx = elevSmooth(0, 1, x - ix), ty = elevSmooth(0, 1, y - iy);
-  const a = elevRandom(ix, iy, seed), b = elevRandom(ix + 1, iy, seed);
-  const c = elevRandom(ix, iy + 1, seed), d = elevRandom(ix + 1, iy + 1, seed);
-  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-}
 /** FNV-1a so a zone id becomes a stable seed without a string table. */
 function seedFor(id: string): number {
   let h = 0x811c9dc5;
@@ -253,7 +233,7 @@ export class ElevationSite {
   heightAt(x: number, y: number): number {
     for (const ramp of this.ramps) {
       if (ramp.sd(x, y) < 0) {
-        const t = elevSmooth(0, 1, ramp.t(x, y));
+        const t = smoothstep(0, 1, ramp.t(x, y));
         return (ramp.fromTier + (ramp.toTier - ramp.fromTier) * t) * ELEVATION_TIER_HEIGHT
           + this.noiseAt(x, y) * .4;
       }
@@ -263,7 +243,7 @@ export class ElevationSite {
       const sd = f.sd(x, y);
       // The face slope sits on the low side of the edge: outside the footprint
       // for raised features, inside the rim for valleys.
-      const w = f.tier > 0 ? 1 - elevSmooth(0, f.edge, sd) : 1 - elevSmooth(-f.edge, 0, sd);
+      const w = f.tier > 0 ? 1 - smoothstep(0, f.edge, sd) : 1 - smoothstep(-f.edge, 0, sd);
       height += f.tier * w;
     }
     return height * ELEVATION_TIER_HEIGHT + this.noiseAt(x, y);
@@ -271,8 +251,8 @@ export class ElevationSite {
 
   private noiseAt(x: number, y: number): number {
     if (this.noise <= 0) return 0;
-    return (elevNoise(x / 260, y / 260, this.seed) - .5) * this.noise
-      + (elevNoise(x / 57, y / 57, this.seed ^ 0x9e3779b9) - .5) * this.noise * .35;
+    return (noise2(x / 260, y / 260, this.seed) - .5) * this.noise
+      + (noise2(x / 57, y / 57, this.seed ^ 0x9e3779b9) - .5) * this.noise * .35;
   }
 
   /** True when a circle at (x,y) straddles a tier discontinuity (a cliff edge or

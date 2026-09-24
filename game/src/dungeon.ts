@@ -1,4 +1,5 @@
 import { buildRiftFloor, riftLandscape } from './rift-floor.ts';
+import { lcgRandom } from './random-source.ts';
 import type { RiftTag } from './rift-content.ts';
 import { dungeonCollision } from './dungeon-collision.ts';
 import type { ExpeditionModifier } from './expedition-modifiers.ts';
@@ -108,7 +109,6 @@ export interface DungeonFloor {
     }[];
 }
 
-export function dungeonRandom(seed: number) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
 /** Grow a branching core, add two optional treasure leaves, then an exterior boss chamber. */
 export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<DungeonEntrance,'theme'|'expedition'|'rift'|'biome'|'id'|'pvp'>> = {}): DungeonFloor {
     const pvpMapId=options.pvp?.mapId??pvpMapIdFromEntranceId(options.id);
@@ -123,7 +123,7 @@ export function generateDungeon(seed: number, _level = 1, options: Partial<Pick<
     if(isRaid8EntranceId(options.id))return raid8ArenaFloor(seed,_level);
     if(isRaid9EntranceId(options.id))return raid9ArenaFloor(seed,_level);
     if(isRaidEntranceId(options.id))return raidArenaFloor(seed,_level);
-    const theme=dungeonTheme(seed,options.theme), random=dungeonRandom(seed);
+    const theme=dungeonTheme(seed,options.theme), random=lcgRandom(seed);
     const {rooms,edges,corridors,treasureIds,bossId}=buildDungeonLayout(random,theme.id,!!options.expedition);
     const center = (r: Room) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
     const events: DungeonEvent[] = treasureIds.map((room,id)=>({id,room,kind: isBlackrockTheme(theme.id) ? BLACKROCK_EVENT_KINDS[id] : id===0 ? (theme.id==='foundry'?'champion':'reliquary') : (theme.id==='rootbound'?'champion':'ward'),...center(rooms[room]),chest:id}));

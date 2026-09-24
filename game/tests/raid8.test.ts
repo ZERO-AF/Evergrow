@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import type { EnemyAIContext } from '../src/enemy-ai.ts';
 import type { CombatEvent, Enemy, WorldQuery } from '../src/model.ts';
-import { dungeonRandom } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { raidBossLoot, raidLootTable, RAID_BOSS_LOOT, RAID_LOOT_TABLES } from '../src/raid-loot-content.ts';
 import { AuthoredWorld } from '../src/authored-world.ts';
 import { zoneRect } from '../src/world-atlas.ts';
@@ -228,11 +228,11 @@ test('Anub\'arak maps to his named loot table', () => {
 
 test('the Crusader\'s Tribute rolls Tier-9 flavored loot deterministically', () => {
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID8_ENTRANCE_ID, dungeonRandom(4000 + i), 80, 'warrior')!;
+    const loot = raidBossLoot(RAID8_ENTRANCE_ID, lcgRandom(4000 + i), 80, 'warrior')!;
     assert.equal(loot.items.length, 3);
   }
   // Determinism: same entrance seed, same haul.
-  const a = raidBossLoot(RAID8_ENTRANCE_ID, dungeonRandom(77), 80, 'paladin')!;
-  const b = raidBossLoot(RAID8_ENTRANCE_ID, dungeonRandom(77), 80, 'paladin')!;
+  const a = raidBossLoot(RAID8_ENTRANCE_ID, lcgRandom(77), 80, 'paladin')!;
+  const b = raidBossLoot(RAID8_ENTRANCE_ID, lcgRandom(77), 80, 'paladin')!;
   assert.deepEqual(a.items.map(i => i.id), b.items.map(i => i.id));
 });

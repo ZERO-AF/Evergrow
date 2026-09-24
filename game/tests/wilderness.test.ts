@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { World, pathDistance } from '../src/world.ts';
-import { WILDERNESS_RULES, startingEnemyCamp, siteHash, CAMP_BIOME_ROSTERS, WILDERNESS_BIOME_THEMES } from '../src/wilderness-sites.ts';
+import { WILDERNESS_RULES, startingEnemyCamp, CAMP_BIOME_ROSTERS, WILDERNESS_BIOME_THEMES } from '../src/wilderness-sites.ts';
+import { hash2 } from '../src/random-source.ts';
 import { BIOMES, type BiomeId } from '../src/biomes.ts';
 import { propDefinition } from '../src/biome-props.ts';
 import { ENEMY_DEFINITIONS } from '../src/combat-content.ts';
@@ -40,7 +41,7 @@ test('wilderness overlap and POI center queries agree across positive and negati
   assert.deepEqual(sort(partitioned), sort(known));
   assert.equal(new Set(partitioned.map(p => p.id)).size, partitioned.length);
   assert.ok(known.every(validExplorationPOI));
-  assert.notEqual(siteHash(1, 2, 7319), siteHash(1 + 0x100000000, 2, 7319));
+  assert.notEqual(hash2(1, 2, 7319), hash2(1 + 0x100000000, 2, 7319));
 });
 
 test('site placement protects settlements, roads, the starting clearing and other sites', () => {

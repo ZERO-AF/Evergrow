@@ -4,7 +4,8 @@
  * unchanged. Ocean (no zone) is impassable deep water with no spawns. */
 
 import { World } from './world.ts';
-import { AUTHORED_GENERATION_VERSION, hash, MAX_PROP_RADIUS, random, type Prop } from './world-landscape.ts';
+import { AUTHORED_GENERATION_VERSION, MAX_PROP_RADIUS, type Prop } from './world-landscape.ts';
+import { hash2, random2 } from './random-source.ts';
 import { CONTINENTS, ZONES, zoneAt, type AtlasZone } from './world-atlas.ts';
 import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect, type TownSpec, type WaterSpec, type ZonePropWeight } from './zone-content.ts';
 import { authoredBiomeSample, zoneBiome, type BiomeId, type BiomeSample, type BiomeWeights } from './biomes.ts';
@@ -221,7 +222,7 @@ export class AuthoredWorld extends World {
     const rect = zoneWorldRect(zone.id)!;
     const x = rect.x + spec.nx * rect.w, y = rect.y + spec.ny * rect.h;
     const tier = spec.tier ?? 'town';
-    let townSeed = hash(ZONE_INDEX[zone.id], index, this.seed, 7331);
+    let townSeed = hash2(ZONE_INDEX[zone.id], index, this.seed, 7331);
     // generateSettlement derives kind from the place: id 0 or seed%3===0 is a
     // settlement, city needs the flag, everything else is a village. Authored
     // towns are never the seed%3 camp, so 'outpost' stamps the settlement kind
@@ -305,7 +306,7 @@ export class AuthoredWorld extends World {
       for (const [i, spec] of zoneContent(zone.id).entrances.entries()) {
         const px = rect.x + spec.nx * rect.w, py = rect.y + spec.ny * rect.h;
         if (px < x || py < y || px >= x + w || py >= y + h) continue;
-        const seed = hash(ZONE_INDEX[zone.id], i, this.seed, 0xd0e7) >>> 0;
+        const seed = hash2(ZONE_INDEX[zone.id], i, this.seed, 0xd0e7) >>> 0;
         const theme = spec.theme ?? DUNGEON_THEME_IDS[seed % DUNGEON_THEME_IDS.length];
         const name = spec.name ?? dungeonTheme(seed, theme).name;
         // Dedicated raid arenas are routed by entrance id; other authored raids
@@ -363,8 +364,8 @@ export class AuthoredWorld extends World {
   }
 
   private generateAuthoredCellProp(cx: number, cy: number): Prop | null {
-    const x = (cx + .18 + random(cx, cy, this.seed, 1) * .64) * PROP_CELL;
-    const y = (cy + .18 + random(cx, cy, this.seed, 2) * .64) * PROP_CELL;
+    const x = (cx + .18 + random2(cx, cy, this.seed, 1) * .64) * PROP_CELL;
+    const y = (cy + .18 + random2(cx, cy, this.seed, 2) * .64) * PROP_CELL;
     const zone = this.zoneAtFast(x, y);
     if (!zone) return null; // ocean carries no props
     const biome = this.sampleBiome(x, y);
@@ -372,13 +373,13 @@ export class AuthoredWorld extends World {
     if (authoredRoadDistance(x, y) < 76) return null;
     if (this.terrainWater(x, y).coverage > .12) return null;
     if (this.getWildernessSites(x - 18, y - 18, 36, 36).some(site => Math.hypot(x - site.x, y - site.y) < site.radius + 18)) return null;
-    const entry = pickFromTable(content.props, random(cx, cy, this.seed, 4));
+    const entry = pickFromTable(content.props, random2(cx, cy, this.seed, 4));
     if (entry === null) return null;
     const kind = entry.kind;
     // Same density gate as the procedural field so authored zones don't flood.
-    if (random(cx, cy, this.seed, 3) > landscapePropProbability(x, y, this.seed, kind, biome.id)) return null;
+    if (random2(cx, cy, this.seed, 3) > landscapePropProbability(x, y, this.seed, kind, biome.id)) return null;
     const definition = propDefinition(kind);
-    const scale = definition.scale[0] + random(cx, cy, this.seed, 5) * (definition.scale[1] - definition.scale[0]);
+    const scale = definition.scale[0] + random2(cx, cy, this.seed, 5) * (definition.scale[1] - definition.scale[0]);
     const towns = this.getSettlements(x - 180, y - 180, 360, 360), clearance = definition.radius[1] + 22;
     for (const town of towns) {
       if (Math.hypot(x - town.x, y - town.y) < 155) return null;
@@ -390,7 +391,7 @@ export class AuthoredWorld extends World {
       }))) return null;
       if (definition.canopy && town.buildings.some(b => circleHitsRect(x + definition.canopy!.offsetX * scale, y - definition.canopy!.height * scale, definition.canopy!.radius * scale + 16, b))) return null;
     }
-    const radius = definition.radius[0] + random(cx, cy, this.seed, 6) * (definition.radius[1] - definition.radius[0]);
+    const radius = definition.radius[0] + random2(cx, cy, this.seed, 6) * (definition.radius[1] - definition.radius[0]);
     const siteClearance = radius + 18;
     if (this.getWildernessSites(x - siteClearance, y - siteClearance, siteClearance * 2, siteClearance * 2)
       .some(site => Math.hypot(x - site.x, y - site.y) < site.radius + siteClearance)) return null;
@@ -400,7 +401,7 @@ export class AuthoredWorld extends World {
       if (this.getWildernessSites(crownX - margin, crownY - margin, margin * 2, margin * 2)
         .some(site => Math.hypot(crownX - site.x, crownY - site.y) < site.radius + margin)) return null;
     }
-    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome: biome.id, seed: hash(cx, cy, this.seed, 7), scale, occluder: entry.occluder };
+    return { id: `prop:${cx}:${cy}`, x, y, radius, kind, biome: biome.id, seed: hash2(cx, cy, this.seed, 7), scale, occluder: entry.occluder };
   }
   // ── Collision / movement ───────────────────────────────────────────────────
   /** Non-elevation collision: ocean, deep authored water, props, sites, buildings. */

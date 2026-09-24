@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { FIXED_STEP, Simulation } from '../src/simulation.ts';
 import type { EnemyAIContext } from '../src/enemy-ai.ts';
 import type { CombatEvent, Enemy, WorldQuery } from '../src/model.ts';
-import { dungeonRandom } from '../src/dungeon.ts';
+import { lcgRandom } from '../src/random-source.ts';
 import { raidBossLoot, raidLootTable, RAID_BOSS_LOOT, RAID_LOOT_TABLES } from '../src/raid-loot-content.ts';
 import { setPieceOf } from '../src/item-set-content.ts';
 import { AuthoredWorld } from '../src/authored-world.ts';
@@ -342,7 +342,7 @@ test('Malygos and Sartharion map to their named loot tables', () => {
 
 test('Malygos chest rolls spell weapons and Tier-7 chests', () => {
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID5_ENTRANCE_ID, dungeonRandom(2000 + i), 80, 'mage')!;
+    const loot = raidBossLoot(RAID5_ENTRANCE_ID, lcgRandom(2000 + i), 80, 'mage')!;
     assert.equal(loot.items.length, 3);
     for (const item of loot.items) {
       const piece = setPieceOf(item);
@@ -350,27 +350,27 @@ test('Malygos chest rolls spell weapons and Tier-7 chests', () => {
     }
   }
   // Determinism.
-  const a = raidBossLoot(RAID5_ENTRANCE_ID, dungeonRandom(77), 80, 'priest')!;
-  const b = raidBossLoot(RAID5_ENTRANCE_ID, dungeonRandom(77), 80, 'priest')!;
+  const a = raidBossLoot(RAID5_ENTRANCE_ID, lcgRandom(77), 80, 'priest')!;
+  const b = raidBossLoot(RAID5_ENTRANCE_ID, lcgRandom(77), 80, 'priest')!;
   assert.deepEqual(a.items.map(i => i.id), b.items.map(i => i.id));
 });
 
 test('Sartharion hardmode pays a bonus roll and the guaranteed Twilight Drake', () => {
   // Normal kill (0 drakes): three rolls, no mount.
-  const normal = raidBossLoot(RAID6_ENTRANCE_ID, dungeonRandom(500), 80, 'warrior', { drakesAlive: 0 })!;
+  const normal = raidBossLoot(RAID6_ENTRANCE_ID, lcgRandom(500), 80, 'warrior', { drakesAlive: 0 })!;
   assert.equal(normal.items.length, 3);
   assert.equal(normal.mount, undefined);
   // 3-drake hardmode: four rolls (3 + 1 bonus) and the guaranteed drake.
-  const hard = raidBossLoot(RAID6_ENTRANCE_ID, dungeonRandom(500), 80, 'warrior', { drakesAlive: 3 })!;
+  const hard = raidBossLoot(RAID6_ENTRANCE_ID, lcgRandom(500), 80, 'warrior', { drakesAlive: 3 })!;
   assert.equal(hard.items.length, 4, 'hardmode adds a bonus roll');
   assert.equal(hard.mount, 'drake', 'Twilight Drake guaranteed on 3D');
   // 2 drakes is not enough for the hardmode payout.
-  const two = raidBossLoot(RAID6_ENTRANCE_ID, dungeonRandom(500), 80, 'warrior', { drakesAlive: 2 })!;
+  const two = raidBossLoot(RAID6_ENTRANCE_ID, lcgRandom(500), 80, 'warrior', { drakesAlive: 2 })!;
   assert.equal(two.items.length, 3);
   assert.equal(two.mount, undefined);
   // Set drops are gloves.
   for (let i = 0; i < 12; i++) {
-    const loot = raidBossLoot(RAID6_ENTRANCE_ID, dungeonRandom(3000 + i), 80, 'paladin')!;
+    const loot = raidBossLoot(RAID6_ENTRANCE_ID, lcgRandom(3000 + i), 80, 'paladin')!;
     for (const item of loot.items) {
       const piece = setPieceOf(item);
       if (piece) assert.equal(piece.kind, 'gloves', `Sartharion set drop ${piece.id} must be gloves`);

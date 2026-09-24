@@ -26,14 +26,14 @@ import { ELEMENT_COLORS } from '../elemental-weapon.ts';
 import { PROP_KINDS, BIOME_PROP_TABLES, propDefinition, type PropKind } from '../biome-props.ts';
 import { BIOME_IDS, BIOMES, proceduralBiomeSample, type BiomeId, type BiomeWeights, type BiomeSample } from '../biomes.ts';
 import { World, type Prop } from '../world.ts';
-import { noise } from '../world-landscape.ts';
+import { noise2, randomSource } from '../random-source.ts';
 import type { Building, Rect } from '../settlements.ts';
 import type { Sprite } from '../art-types.ts';
 import type { WaterSample } from '../hydrology.ts';
 import type { CameraView } from '../camera.ts';
 import type { PointLight } from '../light-types.ts';
 import type { DamageType } from '../model.ts';
-import { randomFromSeed, hash, mixColor, polygon, line } from '../art-primitives.ts';
+import { hash, mixColor, polygon, line } from '../art-primitives.ts';
 
 type Family = 'trees' | 'props' | 'equipment' | 'ground' | 'water' | 'architecture' | 'atmosphere';
 const FAMILIES: readonly { id: Family; name: string }[] = [
@@ -269,7 +269,7 @@ function paintTrees(c: CanvasRenderingContext2D, cell: Cell, index: number, time
   castShadows(c, [prop], new Map([[prop, sprite]]), cell, 1, time);
   drawPropSprite(c, prop, sprite, time, biome);
   c.restore();
-  const habit = Math.floor(randomFromSeed(seed)() * 3);
+  const habit = Math.floor(randomSource(seed)() * 3);
   return `seed ${seed} · habit ${['tall', 'broad', 'wide'][habit]}`;
 }
 
@@ -278,7 +278,7 @@ function paintProps(c: CanvasRenderingContext2D, cell: Cell, index: number, time
   const seed = state.seed + index * 733;
   paintGround(c, cell, biome, seed, 1);
   const count = 1 + Math.round(state.params.density * 4);
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   const props: Prop[] = [], sprites = new Map<Prop, Sprite>();
   for (let i = 0; i < count; i++) {
     const scale = state.params.size * (.75 + random() * .5);
@@ -348,7 +348,7 @@ function paintGroundCell(c: CanvasRenderingContext2D, cell: Cell, index: number,
   const zoom = state.params.size;
   paintGround(c, cell, biome, seed, zoom);
   const table = BIOME_PROP_TABLES[biome], total = table.reduce((s, e) => s + e.weight, 0);
-  const random = randomFromSeed(seed);
+  const random = randomSource(seed);
   const count = 2 + Math.round(state.params.density * 5);
   const props: Prop[] = [], sprites = new Map<Prop, Sprite>();
   for (let i = 0; i < count; i++) {
@@ -370,7 +370,7 @@ function paintGroundCell(c: CanvasRenderingContext2D, cell: Cell, index: number,
 function waterSampler(kind: WaterKind, seed: number, worldW: number, worldH: number, density: number) {
   return (x: number, y: number): WaterSample => {
     const nx = (x - worldW / 2) / (worldW / 2), ny = (y - worldH / 2) / (worldH / 2);
-    const wobble = (noise(x / 140 + seed % 97, y / 140, seed) - .5) * .55;
+    const wobble = (noise2(x / 140 + seed % 97, y / 140, seed) - .5) * .55;
     let d: number;
     if (kind === 'stream') d = Math.abs(nx + wobble * .8) / (.34 + density * .3);
     else if (kind === 'shore') d = (nx + .45 + wobble) / (.5 + density * .35);
@@ -539,7 +539,7 @@ function paintAtmosphere(c: CanvasRenderingContext2D, cell: Cell, index: number,
   c.save(); c.translate(cell.x, cell.y); c.scale(zoom, zoom);
   const t = state.frozen ? 0 : time * state.params.sway;
   if (kind === 'lily-rings') {
-    const random = randomFromSeed(seed), props: Prop[] = [];
+    const random = randomSource(seed), props: Prop[] = [];
     const count = 2 + Math.round(state.params.density * 4);
     for (let i = 0; i < count; i++)
       props.push(makeProp('lilies', worldW * (.15 + random() * .7), worldH * (.3 + random() * .55), seed + i * 17, .9 + random() * .4, 'swamp'));
