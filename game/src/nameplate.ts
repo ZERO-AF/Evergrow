@@ -18,6 +18,9 @@ import { DUNGEON_THEMES } from './dungeon-content.ts';
 import { riftMechanic } from './rift-encounters.ts';
 import { enemyDisplayName } from './zone-roster.ts';
 import { ELITE_AFFIXES, type EliteAffixId } from './combat-content.ts';
+import { SKILL_DEFINITIONS } from './skill-content.ts';
+import { PLAYER_ART_SCALE } from './character-motion.ts';
+import type { PvpTeam } from './pvp-combatant.ts';
 
 /**
  * WoW-style floating enemy nameplates (V key). Headless model: resolves which
@@ -62,6 +65,8 @@ export interface Nameplate {
   /** Elite affix id + display color for the glyph left of the name. */
   readonly affix?: EliteAffixId;
   readonly affixColor?: string;
+  /** PvP team for arena/battleground combatants; undefined for world enemies. */
+  readonly team?: PvpTeam;
 }
 
 /** Most plates drawn at once; extras are culled by priority, nearest first. */
@@ -122,6 +127,26 @@ export function collectNameplates(sim: Simulation, view: CameraView,
       affix: e.affix, affixColor: e.affix ? ELITE_AFFIXES[e.affix].color : undefined,
     });
   }
+  // PvP combatants are Player objects outside sim.enemies; give them the same
+  // floating plate (name, level, health, live cast) so the arena is readable.
+  // Index 0 is the real player — skip it. Team drives ally/enemy coloring.
+  if (sim.pvpCombatants) for (let i = 1; i < sim.pvpCombatants.length; i++) {
+    const c = sim.pvpCombatants[i]!;
+    if (c.dead || c.hp <= 0) continue;
+    const targeted = c.id === p.targetId;
+    const wx = c.prevX + (c.x - c.prevX) * alpha;
+    const wy = c.prevY + (c.y - c.prevY) * alpha;
+    // Player silhouette: head sits ~48 art units above the feet anchor.
+    const head = worldToScreen(view, wx, wy - 48 * PLAYER_ART_SCALE);
+    if (head.x < -80 || head.x > screenW + 80 || head.y < -60 || head.y > screenH + 60) continue;
+    plates.push({
+      id: c.id, x: head.x, y: head.y, worldX: wx, worldY: wy,
+      name: c.name ?? 'Combatant', level: c.level, hp: Math.max(0, c.hp), maxHp: Math.max(1, c.maxHp),
+      rank: 'normal', crest: 'none', boss: false,
+      casting: combatantCast(c), targeted, engaged: true, hitFlash: c.hitFlash,
+      team: c.team,
+    });
+  }
   if (plates.length > limit) {
     const priority = (n: Nameplate) =>
       (n.targeted ? 0 : n.engaged ? 1 : 2) * 1e7
@@ -134,4 +159,31 @@ export function collectNameplates(sim: Simulation, view: CameraView,
   plates.sort((a, b) => a.y - b.y);
   plates.sort((a, b) => (a.targeted ? 1 : 0) - (b.targeted ? 1 : 0));
   return plates;
+}
+
+/** A combatant's live cast as an EnemyCast for the shared plate bar. Players
+ * cast via `cast` (skill + remaining/duration) or the `castTime` windup; the
+ * `enemy` field is unused by the plate renderer, so the combatant fills it. */
+function combatantCast(c: import('./pvp-combatant.ts').Combatant): EnemyCast | null {
+  const cast = c.cast;
+  if (cast && cast.duration > 0) {
+    const def = SKILL_DEFINITIONS[cast.skill];
+    return {
+      enemy: c as unknown as Enemy,
+      spell: def?.name ?? 'Casting', color: def?.color ?? '#e8b04a',
+      progress: Math.max(0, Math.min(1, 1 - cast.remaining / cast.duration)),
+      remaining: Math.max(0, cast.remaining), interruptible: true, phase: 'cast',
+    };
+  }
+  if (c.castTime > 0 && c.activeSkill) {
+    const def = SKILL_DEFINITIONS[c.activeSkill];
+    const duration = Math.max(.001, c.castDuration);
+    return {
+      enemy: c as unknown as Enemy,
+      spell: def?.name ?? 'Casting', color: def?.color ?? '#e8b04a',
+      progress: Math.max(0, Math.min(1, c.castTime / duration)),
+      remaining: Math.max(0, duration - c.castTime), interruptible: true, phase: 'cast',
+    };
+  }
+  return null;
 }

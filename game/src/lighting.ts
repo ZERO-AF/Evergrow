@@ -230,7 +230,12 @@ export class Lighting {
     for (const prop of props) {
       if (prop.kind === 'shrine' || prop.radius <= 0) continue;
       const dx = prop.x - light.x, dy = prop.y - light.y;
-      const distance = Math.hypot(dx, dy), radius = Math.max(3, prop.radius * .85);
+      const radius = Math.max(3, prop.radius * .85);
+      // Cheap AABB reject before the trig: a prop outside the light's square
+      // reach can't cast into it. Zoomed-out views carry many more props, so
+      // this keeps the per-light pass proportional to nearby occluders.
+      if (Math.abs(dx) > light.radius + radius || Math.abs(dy) > light.radius + radius) continue;
+      const distance = Math.hypot(dx, dy);
       if (distance <= radius + 4 || distance - radius > light.radius || count++ >= 24) continue;
       const center = Math.atan2(dy, dx), spread = Math.asin(radius / distance);
       const near = Math.sqrt(distance * distance - radius * radius), far = light.radius * 1.7;

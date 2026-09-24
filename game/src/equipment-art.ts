@@ -216,9 +216,12 @@ export function headArmor(ctx: CanvasRenderingContext2D, piece: ArmorPiece | nul
   const width = torsoFacing(facing).width;
   const skin = skinColor ?? color;
   ctx.save(); ctx.scale(width, 1);
-  polygon(ctx, [[-1.7, 3.8], [1.9, 3.8], [2.1, 6.7], [-2, 6.7]], skin(appearancePalette(SKIN_PALETTES, look.skin).shadow));
-  polygon(ctx, [[-3.5, 5.4], [-1.9, 5.8], [0, 6.9], [2.3, 5.6], [3.6, 5.2], [3.1, 7.3], [0, 8], [-3.1, 7]], color(m.shadow));
-  line(ctx, [[-3, 5.8], [0, 7.2], [3.1, 5.6]], color(m.edge), .65);
+    // Neck bridges chin to collar: a skin-toned trapezoid long enough to close
+    // the gap, with a shadowed far edge, then the collar plate over the chest.
+    polygon(ctx, [[-2.1, 3.4], [2.3, 3.4], [2.5, 7.4], [-2.4, 7.4]], skin(appearancePalette(SKIN_PALETTES, look.skin).base));
+    polygon(ctx, [[-2.1, 3.4], [-.4, 3.4], [-.2, 7.4], [-2.4, 7.4]], skin(appearancePalette(SKIN_PALETTES, look.skin).shadow));
+    polygon(ctx, [[-3.5, 5.4], [-1.9, 5.8], [0, 6.9], [2.3, 5.6], [3.6, 5.2], [3.1, 7.3], [0, 8], [-3.1, 7]], color(m.shadow));
+    line(ctx, [[-3, 5.8], [0, 7.2], [3.1, 5.6]], color(m.edge), .65);
   ctx.restore();
   // Skin, hair and face keep authored tones; only forged metal gets the vivid lift.
   drawGearShapes(ctx, appearanceHeadShapes(look, facing, !!piece, raceId), skin);

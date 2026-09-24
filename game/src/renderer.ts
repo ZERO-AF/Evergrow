@@ -1265,6 +1265,14 @@ export class Renderer {
     // Every controlled player is drawn; in co-op both share the world pass.
     if (settings.phase !== 'ready') for (const subject of sim.players)
       this.pushEntry(lerp(subject.prevY, subject.y, alpha), 'player', subject, undefined, lerp(subject.prevX, subject.x, alpha));
+    // PvP combatants are Player objects but live only in sim.pvpCombatants —
+    // not sim.players — so without this pass the arena renders the player alone.
+    // Index 0 is the real player (already drawn above); draw the NPC roster.
+    if (sim.pvpCombatants) for (let i = 1; i < sim.pvpCombatants.length; i++) {
+      const subject = sim.pvpCombatants[i]!;
+      if (subject.dead) continue;
+      this.pushEntry(lerp(subject.prevY, subject.y, alpha), 'player', subject, undefined, lerp(subject.prevX, subject.x, alpha));
+    }
     for (const scar of this.riftAtmosphere.visible) if (scar.float) this.pushEntry(scar.y, 'riftScar', scar, undefined, undefined, 'props');
     entries.sort((a, b) => a.y - b.y);
     for (const entry of entries) {

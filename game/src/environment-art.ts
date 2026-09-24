@@ -11,7 +11,7 @@ type Point = readonly [number, number];
 type CanvasFactory = (width: number, height: number) => HTMLCanvasElement;
 interface ViewRect { x: number; y: number; width: number; height: number; }
 const TAU = Math.PI * 2;
-export const ENVIRONMENT_ART_RULES = Object.freeze({ variants: 24, cacheLimit: 96, ambientCells: 384 });
+export const ENVIRONMENT_ART_RULES = Object.freeze({ variants: 24, cacheLimit: 192, ambientCells: 384 });
 
 function random(seed: number, salt: number) { return hash1(seed + Math.imul(salt, 7919)) / 0x100000000; }
 function polygon(c: CanvasRenderingContext2D, points: readonly Point[], color: string) {

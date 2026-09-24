@@ -102,7 +102,10 @@ function drawPlate(c: CanvasRenderingContext2D, n: Nameplate, playerLevel: numbe
   // Name: rank-colored like the top plate, shifted right when a boss skull sits left.
   c.shadowColor = '#010409'; c.shadowBlur = 2; c.shadowOffsetY = 1;
   const rank = ENEMY_RANKS[n.rank];
-  const nameColor = n.boss ? '#f0b8b0' : n.rank === 'normal' ? UI.ivory : rank.color;
+  // PvP: allies read friendly green, enemies keep the hostile red name.
+  const ally = n.team === 'A';
+  const nameColor = n.team ? (ally ? '#7fd08a' : '#e8907f')
+    : n.boss ? '#f0b8b0' : n.rank === 'normal' ? UI.ivory : rank.color;
   const nameSize = Math.min(.68 * s, (w + 20 * s) / Math.max(1, textWidth(n.name)));
   text(c, n.name, x + (n.boss ? 5 * s : 0), nameY, nameSize, nameColor, 'center');
   c.shadowBlur = 0; c.shadowOffsetY = 0;
@@ -120,13 +123,14 @@ function drawPlate(c: CanvasRenderingContext2D, n: Nameplate, playerLevel: numbe
     c.restore();
   }
 
-  // Health bar: dark well, hostile red fill, rank-colored border.
+  // Health bar: dark well, team-colored fill (ally green / enemy red), border.
   const barX = x - w / 2;
   c.fillStyle = '#050a10e2'; c.fillRect(barX - 1, barTop - 1, w + 2, hb + 2);
   const ratio = clamp(n.hp / Math.max(1, n.maxHp));
   if (ratio > 0) {
     const hp = c.createLinearGradient(0, barTop, 0, barTop + hb);
-    hp.addColorStop(0, '#d05248'); hp.addColorStop(.5, '#a82e2e'); hp.addColorStop(1, '#6e1a1e');
+    if (ally) { hp.addColorStop(0, '#5cb668'); hp.addColorStop(.5, '#3a8a4a'); hp.addColorStop(1, '#1e5a2c'); }
+    else { hp.addColorStop(0, '#d05248'); hp.addColorStop(.5, '#a82e2e'); hp.addColorStop(1, '#6e1a1e'); }
     c.fillStyle = hp; c.fillRect(barX, barTop, w * ratio, hb);
     c.fillStyle = '#ffffff22'; c.fillRect(barX, barTop, w * ratio, Math.max(.6, .7 * s));
     const flash = clamp(n.hitFlash / COMBAT_TIMING.hitFlashDuration);

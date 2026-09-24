@@ -62,7 +62,7 @@ import { PvpPanel, type PvpPanelActions } from './pvp-panel.ts';
 import { pvpBracketLabel, type PvpSetup } from './pvp-setup.ts';
 import { enterPvpMatch, exitPvpMatch, currentPvpMatch } from './pvp-instance.ts';
 import { drainPvpAnnouncements, pvpScoreboard, updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
-import { awardMatchRewards } from './pvp-rewards.ts';
+import { awardMatchRewards, previewMatchRewards } from './pvp-rewards.ts';
 import { FlightPanel } from './flight-panel.ts';
 import { flightMasterAt, flightDestinations, transportPrompt } from './transport.ts';
 import { flightPoint, type FlightPoint } from './transport-content.ts';
@@ -272,6 +272,8 @@ export class Game {
   /** Settled match awaiting the scoreboard countdown/Leave before teardown. */
   private pendingPvpEnd: PvpMatchEnd | null = null;
   private pvpExitAt = 0;
+  /** Edge detector: fires the death banner once when the player falls in a match. */
+  private pvpPlayerWasDead = false;
   readonly canvas: HTMLCanvasElement;
   private uiCanvas: HTMLCanvasElement;
   private uiContext: CanvasRenderingContext2D;
@@ -2351,7 +2353,8 @@ export class Game {
     this.pendingPvpEnd = end;
     this.pvpExitAt = performance.now() + PVP_SCOREBOARD_SECONDS * 1000;
     const match = currentPvpMatch(this.sim);
-    if (match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt });
+    const rewards = previewMatchRewards(this.sim, end.result);
+    if (match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt, rewards });
     this.notify(pvpScoreboardSummary(end.scoreboard, end.result.won));
   }
 
@@ -2366,11 +2369,20 @@ export class Game {
    * point), then award Honor/Arena Points/rep on the restored sheet. */
   private leavePvpMatch(): void {
     const end = this.pendingPvpEnd;
-    this.pendingPvpEnd = null;
     this.pvpScorePanel.close();
     void this.durable(async () => {
       const exit = await exitPvpMatch(this.sim, this.pvpHost());
-      if (!exit.ok) this.notify(exit.message);
+      if (!exit.ok) {
+        // Keep the match end alive so the auto-exit / Leave button can retry —
+        // clearing pendingPvpEnd first would strand the player in a finished match.
+        // Push the deadline forward so a persistent failure retries, not storms.
+        this.pendingPvpEnd = end;
+        const match = currentPvpMatch(this.sim);
+        if (end && match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt, rewards: previewMatchRewards(this.sim, end.result) });
+        this.notify(exit.message);
+        return;
+      }
+      this.pendingPvpEnd = null;
       if (!end) return;
       const award = await awardMatchRewards(this.sim, end.result, c => this.persistTravel(c));
       if (!award.ok) this.notify(award.message ?? 'The match rewards were lost.');
@@ -2581,8 +2593,15 @@ export class Game {
       for (const announcement of drainPvpAnnouncements(this.sim)) this.announcePvp(announcement);
       if (pvpEnd) this.finishPvpMatch(pvpEnd);
       const livePvp = currentPvpMatch(this.sim);
-      if (livePvp && this.pvpScorePanel.opened) this.pvpScorePanel.update(livePvp, pvpScoreboard(this.sim), this.pendingPvpEnd ? { winner: this.pendingPvpEnd.winner, exitAt: this.pvpExitAt } : undefined);
-      if (this.pendingPvpEnd && now >= this.pvpExitAt) this.leavePvpMatch();
+      if (livePvp && this.pvpScorePanel.opened) this.pvpScorePanel.update(livePvp, pvpScoreboard(this.sim), this.pendingPvpEnd ? { winner: this.pendingPvpEnd.winner, exitAt: this.pvpExitAt, rewards: previewMatchRewards(this.sim, this.pendingPvpEnd.result) } : undefined);
+      // Player death inside a live match: no defeat panel (the match may still
+      // be won by teammates), so announce it and let them spectate to the end.
+      if (livePvp && this.sim.player.dead && !this.pvpPlayerWasDead) {
+        this.pvpPlayerWasDead = true;
+        this.renderer.announceFlash('You Died', 'Spectating — the match continues', '#e8907f');
+        pushChatMessage(this.sim.player, 'system', 'You died. Your team fights on — the match ends when one side falls or time runs out.', this.sim.time);
+      }
+      if (!this.sim.player.dead) this.pvpPlayerWasDead = false;
       const simulationStart = this.performance.start();
       // AI dungeon party: role targeting, tank threat, healer triage, exit despawn.
       tickDungeonParty(this.sim);

@@ -281,6 +281,8 @@ export interface PvpMatchStatus {
   readonly suddenDeathIn: number;
   /** Headline score label for the mode ('Alive', 'Flags', 'Resources'). */
   readonly scoreLabel: string;
+  /** Live score: alive count for arenas, captures/resources for battlegrounds. */
+  readonly score: { A: number; B: number };
 }
 
 /** Live match status for the HUD and scoreboard chrome; undefined outside a match. */
@@ -289,7 +291,8 @@ export function pvpMatchStatus(sim: Simulation): PvpMatchStatus | undefined {
   if (!match) return undefined;
   const rt = runtimes.get(match);
   const scoreLabel = match.objectives?.scoreLabel ?? 'Alive';
-  if (!rt) return { phase: match.phase, prepLeft: PVP_PREP_SECONDS, timeLeft: PVP_MATCH_SECONDS, suddenDeath: false, suddenDeathIn: PVP_MATCH_SECONDS - PVP_SUDDEN_DEATH_SECONDS, scoreLabel };
+  const score = { A: match.score.A, B: match.score.B };
+  if (!rt) return { phase: match.phase, prepLeft: PVP_PREP_SECONDS, timeLeft: PVP_MATCH_SECONDS, suddenDeath: false, suddenDeathIn: PVP_MATCH_SECONDS - PVP_SUDDEN_DEATH_SECONDS, scoreLabel, score };
   return {
     phase: match.phase,
     prepLeft: Math.max(0, rt.prepUntil - sim.time),
@@ -297,6 +300,7 @@ export function pvpMatchStatus(sim: Simulation): PvpMatchStatus | undefined {
     suddenDeath: rt.suddenDeath,
     suddenDeathIn: Math.max(0, rt.suddenDeathAt - sim.time),
     scoreLabel,
+    score,
   };
 }
 /** Queued callouts for the live match (announcer lives in the runtime). */

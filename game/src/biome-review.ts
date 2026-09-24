@@ -28,6 +28,8 @@ async function boot() {
   let skyHour=Number(params.get('hour')??9);if(!Number.isFinite(skyHour))skyHour=9;skyHour=((skyHour%24)+24)%24;
   let cycle=false;
   const profiler=new FrameProfiler(lightingStudy),sceneRenderer=renderer=new Renderer(false,profiler);
+  // Dev-only handle for render-path profiling (zoom/prop-cost measurement).
+  (window as unknown as { __renderer?: Renderer }).__renderer = sceneRenderer;
   let present:((dt:number)=>void)|undefined,renderCount=0;
   const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 1100;
   canvas.className = 'layout-review-scene'; canvas.style.aspectRatio = '1600 / 1100'; canvas.setAttribute('role', 'img');
@@ -69,6 +71,8 @@ async function boot() {
     present=dt=>{
       profiler.begin(performance.now());
       sceneRenderer.render(sim,sceneWorld,dt,{phase:'paused',reducedMotion:!lightingStudy||reduced.matches,skyHour:lightingStudy?skyHour:undefined});
+      (window as unknown as { __sim?: Simulation; __world?: World }).__sim = sim;
+      (window as unknown as { __world?: World }).__world = sceneWorld;
       postfx??=new PostFX(display);const start=profiler.start();postfx.render(sceneRenderer.canvas,0);profiler.end('postfx',start);
       c.drawImage(display,0,0);profiler.finish();
       const clock=root.querySelector('[data-clock]');if(clock)clock.textContent=worldTimeLabel((skyHour-WORLD_TIME.startHour)/24*WORLD_TIME.daySeconds);

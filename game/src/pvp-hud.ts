@@ -18,17 +18,27 @@ export function drawPvpStatus(c: CanvasRenderingContext2D, sim: Simulation, widt
   c.save();
   c.textAlign = 'center'; c.textBaseline = 'middle';
   const clock = status.phase === 'prep' ? `Starts in ${Math.ceil(status.prepLeft)}` : fmt(status.timeLeft);
+  const scoreText = `${status.score.A} – ${status.score.B}`;
   const label = status.suddenDeath ? `${status.scoreLabel} — SUDDEN DEATH` : status.scoreLabel;
   c.font = `600 13px ${GAME_FONT_STACK}`;
-  const w = Math.max(c.measureText(clock).width, c.measureText(label).width) + 34;
+  const w = Math.max(c.measureText(clock).width, c.measureText(scoreText).width, c.measureText(label).width) + 34;
   c.fillStyle = 'rgba(8,12,18,.72)'; c.strokeStyle = 'rgba(160,180,200,.4)'; c.lineWidth = 1;
-  roundRect(c, cx - w / 2, top, w, 40, 6); c.fill(); c.stroke();
+  roundRect(c, cx - w / 2, top, w, 54, 6); c.fill(); c.stroke();
   c.fillStyle = status.suddenDeath ? '#ff8a5c' : '#e8eef4';
-  c.font = `700 15px ${GAME_FONT_STACK}`; c.fillText(clock, cx, top + 14);
+  c.font = `700 15px ${GAME_FONT_STACK}`; c.fillText(clock, cx, top + 13);
+  // Live score: team-colored numbers so the arena/BG standing reads at a glance.
+  c.font = `700 13px ${GAME_FONT_STACK}`;
+  const aW = c.measureText(String(status.score.A)).width;
+  const bW = c.measureText(String(status.score.B)).width;
+  const sepW = c.measureText(' – ').width;
+  const left = cx - (aW + sepW + bW) / 2;
+  c.fillStyle = TEAM_COLOR.A; c.fillText(String(status.score.A), left + aW / 2, top + 30);
+  c.fillStyle = '#a9b8c4'; c.fillText(' – ', left + aW + sepW / 2, top + 30);
+  c.fillStyle = TEAM_COLOR.B; c.fillText(String(status.score.B), left + aW + sepW + bW / 2, top + 30);
   c.fillStyle = status.suddenDeath ? '#ffb08a' : '#a9b8c4';
-  c.font = `600 10px ${GAME_FONT_STACK}`; c.fillText(label, cx, top + 30);
+  c.font = `600 10px ${GAME_FONT_STACK}`; c.fillText(label, cx, top + 45);
   c.restore();
-  return top + 40;
+  return top + 54;
 }
 
 /** World-anchored objective markers (flags / nodes) projected to screen. */

@@ -14,6 +14,7 @@
 .pvp-score-banner.is-defeat { color:#f34e60; background:linear-gradient(90deg,#f34e6000,#f34e601a,#f34e6000); }
 .pvp-score-banner.is-draw { color:#e3ddc4; }
 .pvp-score-banner span { color:#8fa1a8; font-size:12px; }
+.pvp-score-rewards { padding:4px 16px 8px; text-align:center; font-size:12px; color:#c9b98a; border-bottom:1px solid #8ba5ae22; }
 .pvp-score-body { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:10px 16px; }
 .pvp-score-team h3 { margin:0 0 6px; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; }
 .pvp-score-team.is-ally h3 { color:#8fd18a; }

@@ -103,10 +103,9 @@ export function pvpOnCombatantKill(sim: Simulation): number {
   return honor;
 }
 
-/** The durable match-end award: currency + reputation + items in one checkpoint. */
-export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult, persist: PvpPersist): Promise<PvpAwardResult> {
-  const none = { honor: 0, arenaPoints: 0, reputation: 0, unlocked: [] as const };
-  if (!pvpEnabled()) return { ...none, ok: false, message: 'PvP is not available.' };
+/** Pure reward math for a finished match — the scoreboard shows this before the
+ * durable `awardMatchRewards` commits it. No mutation, no persist. */
+export function previewMatchRewards(sim: Simulation, result: PvpMatchResult): { honor: number; arenaPoints: number; reputation: number } {
   const p = sim.player;
   const kills = Math.max(0, Math.floor(result.kills ?? 0));
   const objectives = Math.max(0, Math.floor(result.objectives ?? 0));
@@ -118,7 +117,17 @@ export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult,
   const arenaPoints = result.mode === 'arena'
     ? result.won ? PVP_REWARDS.arenaPointsWin : PVP_REWARDS.arenaPointsLoss
     : 0;
-  const rep = result.won ? PVP_REWARDS.repWin : PVP_REWARDS.repLoss;
+  const reputation = result.won ? PVP_REWARDS.repWin : PVP_REWARDS.repLoss;
+  return { honor, arenaPoints, reputation };
+}
+
+/** The durable match-end award: currency + reputation + items in one checkpoint. */
+export async function awardMatchRewards(sim: Simulation, result: PvpMatchResult, persist: PvpPersist): Promise<PvpAwardResult> {
+  const none = { honor: 0, arenaPoints: 0, reputation: 0, unlocked: [] as const };
+  if (!pvpEnabled()) return { ...none, ok: false, message: 'PvP is not available.' };
+  const p = sim.player;
+  const { honor, arenaPoints, reputation: rep } = previewMatchRewards(sim, result);
+  const kills = Math.max(0, Math.floor(result.kills ?? 0));
 
   // Achievements track on the live player so they are captured with the award;
   // a failed persist restores the pre-award ledger. Arena rating is computed

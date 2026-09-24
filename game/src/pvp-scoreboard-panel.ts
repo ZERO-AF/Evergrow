@@ -25,6 +25,8 @@ export interface PvpScoreboardActions {
 export interface PvpScoreboardEnd {
     readonly winner: 'A' | 'B' | null;
     readonly exitAt: number;
+    /** Reward preview (honor/arena points/rep) shown under the banner. */
+    readonly rewards?: { honor: number; arenaPoints: number; reputation: number };
 }
 
 const num = (n: number): string => Math.round(n).toLocaleString();
@@ -107,12 +109,18 @@ export class PvpScoreboardPanel {
         const scoreA = Math.floor(match.score.A), scoreB = Math.floor(match.score.B);
         const teamA = (board?.rows ?? []).filter(r => r.team === 'A');
         const teamB = (board?.rows ?? []).filter(r => r.team === 'B');
+        const rewards = this.end?.rewards;
+        const rewardLine = rewards ? `<div class="pvp-score-rewards">Rewards: ${[
+            `${num(rewards.honor)} Honor`,
+            rewards.arenaPoints ? `${num(rewards.arenaPoints)} Arena Points` : '',
+            rewards.reputation ? `${num(rewards.reputation)} Warsong rep` : '',
+        ].filter(Boolean).join(' · ')}</div>` : '';
         const banner = this.end
             ? `<div class="pvp-score-banner is-${this.end.winner === 'A' ? 'victory' : this.end.winner === 'B' ? 'defeat' : 'draw'}">
           ${uiIcon(this.end.winner === 'A' ? 'star' : 'skull')}
           <strong>${this.end.winner === 'A' ? 'Victory!' : this.end.winner === 'B' ? 'Defeat' : 'Draw'}</strong>
           <span>Leaving in ${Math.max(0, Math.ceil((this.end.exitAt - now) / 1000))}s</span>
-        </div>` : '';
+        </div>${rewardLine}` : '';
         const footer = this.end
             ? `<button class="ui-button" data-pvp-leave>Leave match</button>`
             : `<span class="pvp-score-hint">${esc(';')} — close</span>`;

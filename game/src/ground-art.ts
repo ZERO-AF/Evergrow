@@ -187,7 +187,7 @@ export class GroundDressing {
     if (this.cache.size > GROUND_DRESSING_LIMIT) this.cache.delete(this.cache.keys().next().value!);
     return stamp;
   }
-  draw(c: CanvasRenderingContext2D, props: readonly Prop[], view?: { left: number; top: number; width: number; height: number }) {
+  draw(c: CanvasRenderingContext2D, props: readonly Prop[], view?: { left: number; top: number; width: number; height: number; zoom?: number }) {
     for (const prop of props) {
       if (prop.radius <= 0 || prop.kind === 'shrine') continue;
       if (view && (prop.x + 115 < view.left || prop.x - 115 > view.left + view.width
