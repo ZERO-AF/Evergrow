@@ -76,6 +76,12 @@ export const TOOLS: readonly Tool[] = [
   {id:'progression',group:'data',name:'Progression & loot',path:'/progression.html',description:'Compare current enemy stats, XP, item curves and drop distributions.'},
   {id:'power-audit',group:'data',name:'Combat power audit',path:'/progression.html?view=power',description:'Import a read-only character or cloud-history snapshot; compare enemy power curves and proposed health, damage and recovery tuning.'},
   {id:'hud-history',group:'archive',name:'HUD concepts',path:'/hud-directions.html',description:'Historical alternatives; Astral is the selected runtime design.'},
+  {id:'character-studio',group:'characters',name:'Character studio',path:'/tools/character-studio.html',description:'Author a hero: race, appearance, visual sliders, gear and motion; JSON export.',tags:'studio editor author race appearance'},
+  {id:'item-studio',group:'equipment',name:'Item studio',path:'/tools/item-studio.html',description:'Author items: kind, stats, affixes, equip and pack preview, variant rolls; JSON export.',tags:'studio editor author item affix'},
+  {id:'map-studio',group:'world',name:'Map studio',path:'/tools/map-studio.html',description:'Author the world: seed regen, generation sliders, zone inspect, POI placement; JSON export.',tags:'studio editor author map world seed'},
+  {id:'enemy-studio',group:'combat',name:'Enemy studio',path:'/tools/enemy-studio.html',description:'Author enemies and encounters: stats, telegraphs, formations, death preview; JSON export.',tags:'studio editor author enemy encounter'},
+  {id:'skill-studio',group:'combat',name:'Skill studio',path:'/tools/skill-studio.html',description:'Author skills: tune execution params, cast preview, icon edit; JSON export.',tags:'studio editor author skill effect'},
+  {id:'art-studio',group:'world',name:'Art studio',path:'/tools/art-studio.html',description:'Author procedural art: trees, props, equipment, ground, water, architecture, atmosphere; JSON/PNG export.',tags:'studio editor author art procedural'},
 ];
 export function toolForPath(path: string): Tool | undefined {
   const url = new URL(path, 'http://local');

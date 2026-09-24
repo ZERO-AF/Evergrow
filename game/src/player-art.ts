@@ -324,11 +324,11 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   }
   // The neck counterbalances the moving torso; the head reads ~18% larger with
   // a warm rim arc so the silhouette separates from dark terrain.
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
+  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 4.5 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
   ctx.scale(1.18, 1.18);
   headArmor(ctx, outfit.head, gear, pose.angle, appearance, pose.raceId, color);
   ctx.restore();
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 2.2 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
+  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 4.5 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3;
   ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = .9;
   ctx.beginPath(); ctx.arc(0, -31, 6.4, -Math.PI * .92, -Math.PI * .08); ctx.stroke();

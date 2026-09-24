@@ -11,8 +11,17 @@ export async function executeService(player: Player, npc: TownNPC, world: WorldQ
   const plan = planService(player.character, npc, player.level, quote, player, world.seed);
   if (!plan.ok) return plan;
   const candidate = { ...player, character: plan.character }; refreshCharacter(candidate);
+  // A respec unlearns skills: live cooldowns for them would fail checkpoint
+  // validation (cooldowns must be unlocked skills), so they are cleared before
+  // the staged save and restored if the write is rejected.
+  const respec = quote.request.type === 'respec';
+  const cooldowns = player.skillCooldowns;
+  if (respec) player.skillCooldowns = {};
   const result = await persist(plan.character, candidate.hp, candidate.mana);
-  if (!result.ok) return { ok: false, message: result.message ?? 'Could not save. No gold or items changed.' };
-  player.character = plan.character; if(quote.request.type==='respec') player.skillCooldowns={}; refreshCharacter(player);
+  if (!result.ok) {
+    if (respec) player.skillCooldowns = cooldowns;
+    return { ok: false, message: result.message ?? 'Could not save. No gold or items changed.' };
+  }
+  player.character = plan.character; refreshCharacter(player);
   return { ok: true, message: plan.message };
 }

@@ -170,10 +170,14 @@ export function playerMotion(pose: CharacterPose) {
   const leanDepth = (moving * moveY * 0.065 + Math.sin(pose.attackAngle) * commitment * 0.065) * ARM_DEPTH_SCALE;
   const hunch = pose.raceId ? WOW_RACES[pose.raceId]?.visual.hunch ?? 0 : 0;
   const bulk = pose.raceId ? WOW_RACES[pose.raceId]?.visual.bulk ?? 1 : 1;
-  const hunchLean = hunch * .32;
-  const body: Affine = [1, 0, -lean - hunchLean * Math.cos(pose.angle), 1 - leanDepth - hunchLean * Math.sin(pose.angle) * ARM_DEPTH_SCALE,
+  // A hunch bends the spine; it is not a whole-body tilt. Keep only a slight
+  // torso shear and let the head crane (in player-art) carry the stoop, while
+  // the symmetric squash settles the shoulders on front and back views alike.
+  const hunchLean = hunch * .1;
+  const hunchSink = hunch * .16;
+  const body: Affine = [1, 0, -lean - hunchLean * Math.cos(pose.angle), 1 - leanDepth - hunchSink * Math.abs(Math.sin(pose.angle)),
     hipX * 0.6 + Math.cos(pose.attackAngle) * commitment * 1.6,
-    bob + crouch - 3 + Math.sin(pose.attackAngle) * commitment * 1.4 + hunch * (1 + Math.abs(Math.sin(pose.angle)))];
+    bob + crouch - 3 + Math.sin(pose.attackAngle) * commitment * 1.4 + hunch * (1.2 + .8 * Math.abs(Math.sin(pose.angle)))];
   // Recovery retracts from the end of that cut rather than orbiting the torso.
   const sweep = smooth(active);
   const sweepSide = -3 + sweep * 10;

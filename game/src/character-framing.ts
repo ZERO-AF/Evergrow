@@ -3,7 +3,7 @@ import { appearanceHeadShapes } from './appearance-shapes.ts';
 import type { CharacterPose } from './art-types.ts';
 import { characterTransform, PLAYER_ART_SCALE, playerMotion } from './character-motion.ts';
 import { transformPoint, type Point } from './art-primitives.ts';
-import { projectArmPoint } from './player-arm-rig.ts';
+import { ARM_DEPTH_SCALE, projectArmPoint } from './player-arm-rig.ts';
 import { STARTING_SWORD } from './equipment.ts';
 import { shieldShapes, weaponShapes } from './weapon-shapes.ts';
 import { WOW_RACES } from './wow-races.ts';
@@ -24,7 +24,7 @@ export function characterBounds(pose: CharacterPose): CharacterBounds {
   for (const x of [-20, 20]) for (const y of [-42, 10]) add([x, y]);
   const headAppearance = pose.appearance ?? (pose.raceId ? raceAppearance(pose.raceId) : undefined);
   if(headAppearance) for(const shape of appearanceHeadShapes(headAppearance,pose.angle,false,pose.raceId)) for(const [x,y] of shape.points) {
-    add([x+Math.cos(pose.angle)*(1.4+motion.hunch*7)-motion.lean*12,y-33-motion.bob*.3+motion.hunch*2.2]);
+    add([x+Math.cos(pose.angle)*(1.4+motion.hunch*7)-motion.lean*12,y-33-motion.bob*.3+motion.hunch*4.5-motion.leanDepth*12+Math.sin(pose.angle)*motion.hunch*7*ARM_DEPTH_SCALE]);
   }
   for (const x of [-19, 19]) for (const y of [-16, 12]) add([x, y], false);
   for (const arm of [motion.weaponArm, motion.offArm]) for (const joint of [arm.shoulder, arm.elbow, arm.hand]) {

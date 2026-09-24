@@ -4,7 +4,7 @@ import { Simulation } from '../src/simulation.ts';
 import { NetHostSession } from '../src/net-host.ts';
 import { NetClientSession } from '../src/net-client.ts';
 import { createMemoryChannels } from '../src/net-transport.ts';
-import { NET_PROTOCOL_VERSION } from '../src/net-protocol.ts';
+import { NET_PROTOCOL_VERSION, encodeClient } from '../src/net-protocol.ts';
 import type { Input } from '../src/model.ts';
 
 const world = { blocked: () => false, move: (x: number, y: number, dx: number, dy: number) => ({ x: x + dx, y: y + dy }) };
@@ -22,7 +22,7 @@ async function linked() {
   host.attach(b); // host listens on b; client uses a
   const hello = { type: 'hello' as const, version: NET_PROTOCOL_VERSION, name: 'Guest', player: clientSim.netPlayerFields(clientSim.player) };
   const welcome = await client.connect(a, hello);
-  return { hostSim, clientSim, host, client, welcome };
+  return { hostSim, clientSim, host, client, welcome, channel: a };
 }
 
 test('host seats the client and the welcome carries the roster + world', async () => {
@@ -94,4 +94,18 @@ test('edge-triggered input fires once per client frame, not once per host tick',
   // dodgeTime decays each tick; a single press yields a bounded value, not a
   // re-triggered full duration on every tick.
   assert.ok(dodges <= 0.5, `dodge should fire once (dodgeTime=${dodges})`);
+});
+
+test('a target clear is not swallowed by a held input frame', async () => {
+  const { hostSim, host, channel } = await linked();
+  const partner = hostSim.players[1];
+  const enemy = hostSim.spawnEnemy('wisp', partner.x + 60, partner.y)!;
+  // Two separate wire frames land before the host ticks: frame 1 selects the
+  // enemy and sits unconsumed, frame 2 clears the target. The host merge must
+  // honor the explicit null, not defer to the held frame's stale targetId.
+  channel.send(encodeClient({ type: 'input', seq: 1, input: { ...idle(), targetId: enemy.id } }));
+  channel.send(encodeClient({ type: 'input', seq: 2, input: { ...idle(), targetId: null } }));
+  await flush();
+  host.tick(1 / 60, idle());
+  assert.equal(partner.targetId, null);
 });

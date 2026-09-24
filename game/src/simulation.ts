@@ -1410,7 +1410,7 @@ export class Simulation {
     else {
       const run = currentDungeon(this.expeditions);
       if (run && enemy.campId === run.entrance.id && enemy.campMemberId && run.states[enemy.campMemberId]) run.states[enemy.campMemberId]!.hp = 0;
-      this.enemies.splice(this.enemies.indexOf(enemy), 1);
+      const index = this.enemies.indexOf(enemy); if (index >= 0) this.enemies.splice(index, 1);
     }
     this.syncPetAlly();
     this.emit({ type: 'notice', x: enemy.x, y: enemy.y, message: `${pet.name} tamed.` });

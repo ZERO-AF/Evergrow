@@ -198,7 +198,9 @@ export class NetHostSession {
       heal: held.heal || next.heal,
       skillPressed: held.skillPressed || next.skillPressed,
       skillSlot: next.skillSlot ?? held.skillSlot,
-      targetId: next.targetId ?? held.targetId,
+      // targetId null is a real clear, not "absent" — only undefined defers to
+      // the held frame (same contract as the client's mergeInput).
+      targetId: next.targetId === undefined ? held.targetId : next.targetId,
       cycleTarget: next.cycleTarget ?? held.cycleTarget,
     } : next;
   }

@@ -1,0 +1,35 @@
+/* Skill & Effect Studio — layout on top of the shared tool vocabulary. */
+.skill-studio{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;margin-top:20px}
+.skill-studio>.tool-panel{align-self:start}
+.skill-studio .tool-toolbar{margin-top:0}
+.skill-studio #skills{max-height:82vh}
+.skill-studio #skills button{font-size:14px}
+.skill-studio #skills svg{vertical-align:middle}
+.skill-studio #skills button small em{color:#c5d4aa;font-style:normal}
+.skill-studio #arena{width:100%;height:auto;aspect-ratio:3/2;display:block;background:#0a1116;border:1px solid #2b414a;border-radius:8px}
+.skill-studio form select{max-width:200px}
+.studio-scrub{display:flex;gap:12px;align-items:center;margin:10px 0}
+.studio-scrub input[type=range]{flex:1}
+.studio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:18px}
+.studio-grid h2{font-size:19px;margin:0 0 12px}
+.studio-grid h3{font-size:15px;font-weight:400;color:#b9cbb3;margin:18px 0 8px}
+.tune-row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:7px 0;border-bottom:1px solid #22343b}
+.tune-row:last-child{border-bottom:0}
+.tune-row label{font-size:14px;color:#c4d5aa}
+.tune-row output{font-size:13px;color:#9cae81;text-align:right}
+.tune-row input[type=range]{grid-column:1/-1;width:100%}
+.tune-row small{grid-column:1/-1;color:#829797;font-size:11px}
+.icon-stage{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+.icon-stage canvas{background:#0a1116;border:1px solid #2b414a;border-radius:8px}
+.icon-sizes{display:grid;gap:8px;justify-items:center;font-size:11px;color:#829797}
+.icon-controls{display:grid;gap:10px}
+.icon-controls label{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;font-size:13px;color:#a6bcb7}
+.icon-controls output{font-size:12px;color:#9cae81;min-width:44px;text-align:right}
+.icon-parts{max-height:300px;overflow:auto;display:grid;gap:6px;margin-top:8px}
+.icon-part{display:grid;grid-template-columns:34px 1fr 96px 60px 34px;gap:8px;align-items:center;font-size:12px;color:#a6bcb7;padding:5px 6px;border:1px solid #22343b;border-radius:6px}
+.icon-part svg{background:#0a1116;border-radius:4px}
+.icon-part select{padding:3px 6px;font-size:12px}
+.icon-part input[type=range]{width:100%}
+.studio-note{font-size:12px;color:#829797;margin-top:10px;line-height:1.5}
+.studio-status{display:flex;flex-wrap:wrap;gap:8px 18px}
+@media(max-width:900px){.skill-studio{grid-template-columns:1fr}.skill-studio #skills{display:flex;max-height:170px;overflow:auto}.skill-studio #skills button{min-width:170px}}
