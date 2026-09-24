@@ -2134,3 +2134,10 @@ export function giverSpec(def: QuestDef): QuestGiver {
 export function turnInSpec(def: QuestDef): QuestGiver {
   return def.turnIn ?? giverSpec(def);
 }
+
+/** Identity key for a giver spec: two specs with the same key resolve to the
+ * same anchors, so callers can dedupe/bucket by string instead of field-wise
+ * comparison. `label` is display-only and deliberately excluded. */
+export function questGiverKey(spec: QuestGiver): string {
+  return `${spec.role ?? ''}:${spec.poi ?? ''}:${spec.biome ?? ''}:${spec.tier ?? ''}`;
+}

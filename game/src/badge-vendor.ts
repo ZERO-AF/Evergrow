@@ -10,7 +10,7 @@ import type { Simulation } from './simulation.ts';
 import type { ActionResult, CharacterSheet } from './character-types.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import { getZoneAt } from './zone-progression.ts';
-import { canInteractNPC, hashService, type TownNPC } from './npcs.ts';
+import { canInteractNPC, hashService, memoFixture, type TownNPC } from './npcs.ts';
 import { factionAt } from './factions.ts';
 import { addInventoryItem } from './inventory.ts';
 import { canPackItem } from './inventory-grid.ts';
@@ -25,14 +25,15 @@ import { emblemBalance, emblemsEnabled, formatEmblems, spendEmblems } from './em
  * battlemaster — a standalone service NPC like the PvP quartermaster. */
 export type BadgeVendor = TownNPC & { role: 'badgeVendor' };
 const BADGE_VENDOR_NAMES = ['Arcanist', 'Magister', 'Lukems', 'Braeg', 'Nixi', 'Varesh', 'Ormus', 'Selin'] as const;
-export function badgeVendorFor(building: Building): BadgeVendor | null {
+export const badgeVendorFor = memoFixture((building: Building): BadgeVendor | null => {
   if (building.kind !== 'noble') return null;
   const x = building.door.x + 70, y = building.door.y + 78, id = `${building.id}:badgeVendor`;
   const seed = hashService(id);
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'badgeVendor', x, y, seed,
     name: BADGE_VENDOR_NAMES[seed % BADGE_VENDOR_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+});
 export function badgeVendorsNear(world: WorldQuery, x: number, y: number, width: number, height: number): BadgeVendor[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])
     .map(badgeVendorFor).filter((vendor): vendor is BadgeVendor => vendor !== null);

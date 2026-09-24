@@ -9,7 +9,28 @@ function boot(ctx: CanvasRenderingContext2D, x: number, y: number, width: number
   line(ctx, [[x - width + 1, y - 5], [x - width + 1, y - 1]], color('#53605a'), 0.8);
 }
 
+/**
+ * Brief whole-body flinch on a confirmed hit: the creature is shoved a few
+ * pixels away from the blow, squashes, and leans back. Feet stay near the
+ * ground anchor; the shared characterTransform recoil composes on top.
+ * Returns the jolt strength so kinds can flare eyes/jaws on top.
+ */
+function flinch(ctx: CanvasRenderingContext2D, pose: CharacterPose): number {
+  const impact = pose.impact ?? 0;
+  if (impact <= 0) return 0;
+  const elapsed = 1 - clamp(impact);
+  const jolt = Math.sin(Math.min(1, elapsed * 1.9) * Math.PI);
+  if (jolt <= 0.01) return 0;
+  const angle = pose.impactAngle ?? pose.angle + Math.PI;
+  const pushX = Math.cos(angle), pushY = Math.sin(angle);
+  ctx.transform(1 + jolt * 0.045, 0, -pushX * jolt * 0.085, 1 - jolt * 0.07,
+    pushX * jolt * 2.6, pushY * jolt * 1.5);
+  return jolt;
+}
+
+
 export function stalker(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  const jolt = flinch(ctx, pose);
   const step = Math.sin(pose.gaitPhase ?? pose.time * 9) * clamp(pose.moving);
   const pulse = Math.sin(clamp(pose.attack) * Math.PI);
   const windup = pose.attack < 0 ? smooth(-pose.attack) : pose.attack > 0 ? 1 - smooth(pose.attack / 0.25) : 0;
@@ -52,13 +73,13 @@ export function stalker(ctx: CanvasRenderingContext2D, pose: CharacterPose, colo
   line(ctx, [[faceX - 4.4, headY - 8.8], [faceX - 7.1, headY - 9.7]], color('#9ba180'), .85);
   ctx.fillStyle = color('#27342d');
   ctx.fillRect(faceX - 2.5, headY - 1.5, 2, 2);
-  ctx.fillRect(faceX + 1.7, headY - 1.5, 2, 2);
-  ctx.fillStyle = color(windup > 0.65 ? '#ffe798' : '#ddc769');
+  ctx.fillStyle = color(jolt > .3 || windup > 0.65 ? '#ffe798' : '#ddc769');
   ctx.fillRect(faceX - 1.5, headY - 1, 1, 1);
   ctx.fillRect(faceX + 2, headY - 1, 1, 1);
 }
 
 export function brute(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  flinch(ctx, pose);
   const step = Math.sin(pose.gaitPhase ?? pose.time * 6) * clamp(pose.moving);
   const windup = pose.attack < 0 ? smooth(-pose.attack) : pose.attack > 0 ? 1 - smooth(pose.attack / 0.35) : 0;
   const pulse = Math.sin(clamp(pose.attack) * Math.PI);
@@ -110,8 +131,8 @@ export function brute(ctx: CanvasRenderingContext2D, pose: CharacterPose, color:
   line(ctx, [[headX - 3.5, -32 + bob], [headX + 4, -32 + bob]], color('#29352e'), 2);
   line(ctx, [[headX - 2, -28 + bob], [headX + 2, -28 + bob]], color('#4c503e'), 1);
 }
-
 export function caster(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  flinch(ctx, pose);
   const moving = clamp(pose.moving);
   const sway = Math.sin(pose.time * 4) * (0.6 + moving);
   const bob = Math.sin(pose.time * 3) * 0.55;
@@ -164,6 +185,7 @@ export function caster(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
 /** A four-legged, forward-projecting skeleton. Its low body and skull remain
  * recognizable from every approach; legs articulate around the actual gait. */
 export function hound(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  const jolt = flinch(ctx, pose);
   const moving = clamp(pose.moving), phase = pose.gaitPhase ?? pose.time * 13;
   const windup = pose.attack < 0 ? smooth(-pose.attack) : 0;
   const leap = pose.attack > 0 ? Math.sin(clamp(pose.attack) * Math.PI) : 0;
@@ -207,12 +229,13 @@ export function hound(ctx: CanvasRenderingContext2D, pose: CharacterPose, color:
   for (const side of [-1, 1]) {
     const eye = p(11.2, side * 3.15, skull + 3.7);
     polygon(ctx, [[eye[0] - 1.7, eye[1] - .8], [eye[0] + 1.5, eye[1] - .5], [eye[0] + .8, eye[1] + 1.6], [eye[0] - 1.3, eye[1] + 1.1]], color('#263833'));
-    line(ctx, [[eye[0] - .7, eye[1] + .1], [eye[0] + .7, eye[1] + .1]], color(windup ? '#fff7a2' : '#e9bd63'), .9);
+    line(ctx, [[eye[0] - .7, eye[1] + .1], [eye[0] + .7, eye[1] + .1]], color(jolt > .3 || windup ? '#fff7a2' : '#e9bd63'), .9);
     taper(ctx, p(15, side * 2.4, skull), p(15.7, side * 2.4, skull - 2.5), 1.1, .15, color('#ede0ba'));
   }
 }
 
 export function archer(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  flinch(ctx, pose);
   const move = clamp(pose.moving), phase = pose.gaitPhase ?? pose.time * 8;
   const stride = Math.sin(phase) * move, bob = Math.abs(stride) * .65;
   const charge = pose.attack < 0 ? smooth(-pose.attack) : pose.attack > 0 ? 1 - smooth(pose.attack / .28) : 0;
@@ -271,6 +294,7 @@ export function archer(ctx: CanvasRenderingContext2D, pose: CharacterPose, color
 
 /** A suspended reliquary, with a living flame behind its iron cage. */
 export function wisp(ctx: CanvasRenderingContext2D, pose: CharacterPose, color: Color): void {
+  flinch(ctx, pose);
   const charge = pose.attack < 0 ? smooth(-pose.attack) : 0;
   const release = pose.attack > 0 ? Math.sin(clamp(pose.attack) * Math.PI) : 0;
   const bob = Math.sin(pose.time * 3.2) * 2 - charge * 2;

@@ -109,7 +109,7 @@ import { Renderer } from './renderer.ts';
 import { PostFX } from './postfx.ts';
 import { GameAudio } from './audio.ts';
 import { Exploration } from './exploration.ts';
-import { WorldMap } from './world-map.ts';
+import { WorldMap, type MinimapEnemy } from './world-map.ts';
 import { GameInput } from './game-input.ts';
 import { GamepadInput, PAD } from './gamepad-input.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
@@ -365,6 +365,8 @@ export class Game {
   private partyFrame!: PartyFrame;
   private zoneBanner = new ZoneBanner();
   private minimapTracking = new MinimapTracking();
+  /** Pooled minimap enemy blips; restamped each frame (no per-enemy alloc). */
+  private minimapBlips: MinimapEnemy[] = [];
   private fishing: FishingSession = freshFishing();
   private questPanel!: QuestPanel;
   private professionPanel!: ProfessionPanel;
@@ -2858,11 +2860,21 @@ export class Game {
         ui.translate(this.renderer.width, mapTop); ui.scale(mapScale, mapScale); ui.translate(-this.renderer.width, -18);
       }
       if (dungeonRun) drawCryptMinimap(ui,this.sim.dungeonFloor!,dungeonRun,mapPlayer,this.renderer.width,this.renderer.height,this.journeys.marker,this.sim.time,this.sim.enemies,this.mapIcons);
-      else this.worldMap.drawMinimap(ui, mapPlayer, this.renderer.width, this.renderer.height, this.sim.time,
-        this.sim.enemies.filter(enemy => enemy.hp > 0).map(enemy => ({
-          x: enemy.prevX + (enemy.x - enemy.prevX) * alpha,
-          y: enemy.prevY + (enemy.y - enemy.prevY) * alpha, kind: enemy.kind, rank:enemy.rank,
-        })));
+      else {
+        // Pooled blip objects: the minimap redraws every frame, so the enemy
+        // list is restamped in place instead of allocating per enemy per frame.
+        const blips = this.minimapBlips; let n = 0;
+        for (const enemy of this.sim.enemies) {
+          if (enemy.hp <= 0) continue;
+          const blip = blips[n] ??= { x: 0, y: 0 };
+          blip.x = enemy.prevX + (enemy.x - enemy.prevX) * alpha;
+          blip.y = enemy.prevY + (enemy.y - enemy.prevY) * alpha;
+          blip.kind = enemy.kind; blip.rank = enemy.rank;
+          n++;
+        }
+        blips.length = n;
+        this.worldMap.drawMinimap(ui, mapPlayer, this.renderer.width, this.renderer.height, this.sim.time, blips);
+      }
       if (!dungeonRun && GAME_FEATURES.minimapTracking) {
         const bounds = minimapWorldBounds(mapPlayer, this.renderer.width, this.renderer.height);
         const blips = collectTrackingBlips({

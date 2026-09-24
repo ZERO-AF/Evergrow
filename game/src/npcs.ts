@@ -23,14 +23,28 @@ export function hashService(value: string): number {
   for (let i = 0; i < value.length; i++) n = Math.imul(n ^ value.charCodeAt(i), 16777619);
   return n >>> 0;
 }
-export function buildingNPC(building: Building): TownNPC | null {
+/** Buildings are frozen generation data, so a building's service fixture is
+ * computed once and reused — the renderer and quest resolver ask for these
+ * several times per frame per building. */
+export function memoFixture<B extends object, T>(factory: (building: B) => T): (building: B) => T {
+  const cache = new WeakMap<B, T | null>();
+  return building => {
+    if (cache.has(building)) return cache.get(building)!;
+    const value = factory(building);
+    cache.set(building, value);
+    return value;
+  };
+}
+
+export const buildingNPC = memoFixture((building: Building): TownNPC | null => {
   const role = building.kind === 'blacksmith' ? 'blacksmith' : building.kind === 'merchant' ? 'jeweler'
     : building.kind === 'chapel' ? 'enchanter' : building.kind === 'gambler' ? 'gambler' : building.kind === 'stash' ? 'stash' : null;
   if (!role) return null;
   const x = building.door.x, y = building.kind==='stash' ? building.door.y+12 : building.door.y + (building.form==='stall'?22:-57), id = `${building.id}:${role}`;
   const seed = hashService(id), names = ['Mara', 'Oswin', 'Vesper', 'Iona', 'Alden', 'Sable', 'Corvin', 'Edda'];
-  return { settlementTier:building.settlementTier, id, buildingId: building.id, role, x, y, seed, name: names[seed % names.length], level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
+  return { settlementTier:building.settlementTier, id, buildingId: building.id, role, x, y, seed, name: names[seed % names.length], level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+});
 export function canInteractNPC(npc: TownNPC, player: { x: number; y: number; dead?: boolean; character?: { raceId: WowRaceId } }, world: WorldQuery): boolean {
   // Opposing-faction NPCs refuse service (world-t05); callers without a
   // character (ambient residents) skip the check. Untagged NPCs are neutral.
@@ -50,14 +64,15 @@ export function vendorLevel(npc: TownNPC, playerLevel: number): number { return 
  * service NPC like the innkeeper, not a building kind. Every settlement has a stash fixture. */
 export type StableMaster = TownNPC & { role: 'stable' };
 const STABLE_MASTER_NAMES = ['Shellei', 'Balfour', 'Kelsuwa', 'Penny', 'Durik', 'Aesha', 'Grif', 'Lina'] as const;
-export function stableMasterFor(building: Building): StableMaster | null {
+export const stableMasterFor = memoFixture((building: Building): StableMaster | null => {
   if (building.kind !== 'stash') return null;
   const x = building.door.x - 52, y = building.door.y - 2, id = `${building.id}:stable`;
   const seed = hashService(id);
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'stable', x, y, seed,
     name: STABLE_MASTER_NAMES[seed % STABLE_MASTER_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+});
 export function stableMastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): StableMaster[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])
     .map(stableMasterFor).filter((master): master is StableMaster => master !== null);
@@ -76,14 +91,15 @@ export function focusedStableMaster(masters: readonly StableMaster[], player: { 
  * city settlements raise a noble hall, so battlemasters are a city fixture. */
 export type Battlemaster = TownNPC & { role: 'battlemaster' };
 const BATTLEMASTER_NAMES = ['Korrak', 'Beka', 'Deze', 'Grikka', 'Andrissa', 'Fizim', 'Rex', 'Mosha'] as const;
-export function battlemasterFor(building: Building): Battlemaster | null {
+export const battlemasterFor = memoFixture((building: Building): Battlemaster | null => {
   if (building.kind !== 'noble') return null;
   const x = building.door.x + 70, y = building.door.y + 24, id = `${building.id}:battlemaster`;
   const seed = hashService(id);
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'battlemaster', x, y, seed,
     name: BATTLEMASTER_NAMES[seed % BATTLEMASTER_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+});
 export function battlemastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Battlemaster[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])
     .map(battlemasterFor).filter((master): master is Battlemaster => master !== null);

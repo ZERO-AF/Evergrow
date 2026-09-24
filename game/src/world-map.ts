@@ -61,7 +61,7 @@ export function isMapSampleRevealed(exploration: Pick<Exploration, 'isCellReveal
   return true;
 }
 const TERRAIN_CACHE_LIMIT = MAP_TERRAIN_RULES.cacheLimit;
-interface TerrainTile { base: HTMLCanvasElement; charted: HTMLCanvasElement; roads: HTMLCanvasElement | null; chartedRoads: HTMLCanvasElement | null; revision: number; nextRow: number; decorated: boolean; readyAt?: number; }
+interface TerrainTile { base: HTMLCanvasElement; charted: HTMLCanvasElement; roads: HTMLCanvasElement | null; chartedRoads: HTMLCanvasElement | null; revision: number; nextRow: number; colorsDone: boolean; propsDone: boolean; roadsDone: boolean; decorated: boolean; maskDirty: boolean; readyAt?: number; }
 interface PreviewTile { base: HTMLCanvasElement; charted: HTMLCanvasElement; revision: number; }
 export function mapTileBlend(readyAt: number, now: number, reducedMotion = false): number {
   if (reducedMotion) return 1;
@@ -71,16 +71,40 @@ export function mapTileBlend(readyAt: number, now: number, reducedMotion = false
 
 function maskMapTile(c: CanvasRenderingContext2D, source: HTMLCanvasElement, exploration: Exploration,
   ox: number, oy: number, size: number, pixels: number): void {
-  const sampleSize = size / pixels;
+  const sampleSize = size / pixels, cell = EXPLORATION_CELL_SIZE;
   c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, pixels, pixels);
+  const minCX = Math.floor(ox / cell), cols = Math.ceil((ox + size) / cell) - minCX;
+  // Revealed bits are fetched once per cell row-group instead of once per
+  // sample; rows whose cells are all known copy in a single draw.
+  const ok = new Uint8Array(cols);
+  let okY0 = -1, okY1 = -1, okAll = false, rowRun = -1;
   for (let y = 0; y < pixels; y++) {
+    const top = oy + y * sampleSize;
+    const cy0 = Math.floor(top / cell), cy1 = Math.ceil((top + sampleSize) / cell) - 1;
+    if (cy0 !== okY0 || cy1 !== okY1) {
+      okY0 = cy0; okY1 = cy1; okAll = true;
+      for (let cx = 0; cx < cols; cx++) {
+        let bit = 1;
+        for (let cy = cy0; cy <= cy1; cy++) if (!exploration.isCellRevealed(minCX + cx, cy)) { bit = 0; break; }
+        ok[cx] = bit; if (!bit) okAll = false;
+      }
+    }
+    if (okAll) { if (rowRun < 0) rowRun = y; continue; }
+    if (rowRun >= 0) { c.drawImage(source, 0, rowRun, pixels, y - rowRun, 0, rowRun, pixels, y - rowRun); rowRun = -1; }
     let run = -1;
     for (let x = 0; x <= pixels; x++) {
-      const revealed = x < pixels && isMapSampleRevealed(exploration, ox + x * sampleSize, oy + y * sampleSize, sampleSize);
+      let revealed = false;
+      if (x < pixels) {
+        const left = ox + x * sampleSize;
+        const a = Math.floor(left / cell) - minCX, b = Math.ceil((left + sampleSize) / cell) - 1 - minCX;
+        revealed = true;
+        for (let cx = a; cx <= b; cx++) if (!ok[cx]) { revealed = false; break; }
+      }
       if (revealed && run < 0) run = x;
       if (!revealed && run >= 0) { c.drawImage(source, run, y, x - run, 1, run, y, x - run, 1); run = -1; }
     }
   }
+  if (rowRun >= 0) c.drawImage(source, 0, rowRun, pixels, pixels - rowRun, 0, rowRun, pixels, pixels - rowRun);
 }
 export interface MapRoadPath { main: boolean; points: readonly (readonly [number, number])[] }
 /** Exact existing centerlines sampled at a fixed, bounded world interval; tile canvases clip the ends. */
@@ -225,6 +249,8 @@ export class WorldMap {
   private pingAnimations: Animation[] = [];
   private chartDirty = false;
   private buildBudget?: number;
+  /** Per-render millisecond cap on coarse preview builds; detail tiles keep their own budget. */
+  private previewBudget?: number;
   private pendingTerrain = false;
   private overviewFog?: HTMLCanvasElement;
   private chartLayer?: HTMLCanvasElement;
@@ -587,6 +613,23 @@ export class WorldMap {
     }, { signal });
   }
 
+  /** Apply (or re-apply) the exploration mask; the first mask is when a tile becomes presentable. */
+  private maskTile(tile: TerrainTile, ox: number, oy: number, size: number, pixels: number, revision: number, timed: boolean) {
+    const c = tile.charted.getContext('2d')!;
+    // One copy per contiguous revealed row run, retaining the exact fine-cell mask.
+    maskMapTile(c, tile.base, this.exploration, ox, oy, size, pixels);
+    if (tile.roads && tile.chartedRoads) {
+      const roads = tile.chartedRoads.getContext('2d')!;
+      roads.globalCompositeOperation = 'source-over'; roads.clearRect(0, 0, 128, 128);
+      roads.drawImage(tile.roads, 0, 0); roads.imageSmoothingEnabled = false;
+      // The same conservative exploration mask clips terrain and fine road strokes.
+      roads.globalCompositeOperation = 'destination-in'; roads.drawImage(tile.charted, 0, 0, 128, 128);
+      roads.globalCompositeOperation = 'source-over';
+    }
+    if (tile.revision === -1 && timed) tile.readyAt = performance.now();
+    tile.revision = revision; tile.maskDirty = false;
+  }
+
   private tile(tx: number, ty: number, size: number, detailed = false): TerrainTile | null {
     const ox = tx * size, oy = ty * size, pixels = detailed ? 160 : TILE_PIXELS;
     let revision = 0;
@@ -606,13 +649,16 @@ export class WorldMap {
       if (performance.now() >= deadline) { this.pendingTerrain = true; return null; }
       const base = document.createElement('canvas'), charted = document.createElement('canvas');
       base.width = base.height = charted.width = charted.height = pixels;
-      tile = { base, charted, roads: null, chartedRoads: null, revision: -1, nextRow: 0, decorated: false };
+      tile = { base, charted, roads: null, chartedRoads: null, revision: -1, nextRow: 0,
+        colorsDone: false, propsDone: false, roadsDone: false, decorated: false, maskDirty: false };
       this.tiles.set(id, tile);
     } else { this.tiles.delete(id); this.tiles.set(id, tile); }
-    if (!tile.decorated) {
+    if (!tile.colorsDone) {
       const c = tile.base.getContext('2d')!;
-      const samples = detailed ? (size <= 3072 ? 96 : 160) : TILE_PIXELS, step = size / samples, pixelStep = pixels / samples;
-      let changed = false;
+      // Sample density tracks the tile's canvas, not its world span: far-zoom
+      // tiles display at or below canvas size, so extra samples only cost time.
+      const samples = detailed ? (size <= 768 ? 96 : size <= 1536 ? 48 : 32) : TILE_PIXELS,
+        step = size / samples, pixelStep = pixels / samples;
       while (tile.nextRow < samples && performance.now() < deadline) {
         const y = tile.nextRow++;
         for (let x = 0; x < samples; x++) {
@@ -620,38 +666,35 @@ export class WorldMap {
           c.fillStyle = detailed && this.world.atlasColor ? this.world.atlasColor(wx, wy) : this.world.mapColor(wx, wy, step);
           c.fillRect(x * pixelStep, y * pixelStep, pixelStep, pixelStep);
         }
-        changed = true;
       }
-      if (tile.nextRow === samples && performance.now() < deadline) {
-        if (detailed && size <= 3072 && this.world.getProps)
-          drawMapProps(c, this.world.getProps(ox - 160, oy - 160, size + 320, size + 320), ox, oy, size, pixels);
-        if (detailed) c.drawImage(createMapRoadLayer(ox, oy, size, this.world.seed), 0, 0);
-        tile.roads = !detailed ? createMapRoadLayer(ox, oy, size, this.world.seed) : null;
-        tile.chartedRoads = tile.roads ? document.createElement('canvas') : null;
-        if (tile.chartedRoads) tile.chartedRoads.width = tile.chartedRoads.height = 128;
-        tile.decorated = true; tile.readyAt = Number.isFinite(deadline) ? performance.now() : undefined; changed = true;
-      } else this.pendingTerrain = true;
-      if (changed) tile.revision = -1;
+      if (tile.nextRow === samples) tile.colorsDone = true;
+      else this.pendingTerrain = true;
     }
-    if (tile.decorated && tile.revision !== revision) {
-      // The fine-cell mask is charged against the same frame budget; over budget
-      // or mid-zoom the previous mask stays until the next pass.
-      if (this.zoomActive() || performance.now() >= deadline) this.pendingTerrain = true;
+    // Props and road ink are separate stages so a tight frame presents the
+    // sampled terrain first and fills silhouettes in on the next pass.
+    if (tile.colorsDone && !tile.propsDone && performance.now() < deadline) {
+      if (detailed && size <= 3072 && this.world.getProps)
+        drawMapProps(tile.base.getContext('2d')!, this.world.getProps(ox - 160, oy - 160, size + 320, size + 320), ox, oy, size, pixels);
+      tile.propsDone = true; tile.maskDirty ||= tile.revision !== -1;
+    }
+    if (tile.colorsDone && !tile.roadsDone && performance.now() < deadline) {
+      if (detailed) tile.base.getContext('2d')!.drawImage(createMapRoadLayer(ox, oy, size, this.world.seed), 0, 0);
       else {
-        const c = tile.charted.getContext('2d')!;
-        // One copy per contiguous revealed row run, retaining the exact fine-cell mask.
-        maskMapTile(c, tile.base, this.exploration, ox, oy, size, pixels);
-        if (tile.roads && tile.chartedRoads) {
-          const roads = tile.chartedRoads.getContext('2d')!;
-          roads.globalCompositeOperation = 'source-over'; roads.clearRect(0, 0, 128, 128);
-          roads.drawImage(tile.roads, 0, 0); roads.imageSmoothingEnabled = false;
-          // The same conservative exploration mask clips terrain and fine road strokes.
-          roads.globalCompositeOperation = 'destination-in'; roads.drawImage(tile.charted, 0, 0, 128, 128);
-          roads.globalCompositeOperation = 'source-over';
-        }
-        tile.revision = revision;
+        tile.roads = createMapRoadLayer(ox, oy, size, this.world.seed);
+        tile.chartedRoads = document.createElement('canvas');
+        tile.chartedRoads.width = tile.chartedRoads.height = 128;
       }
+      tile.roadsDone = true; tile.maskDirty ||= tile.revision !== -1;
     }
+    tile.decorated = tile.colorsDone && tile.propsDone && tile.roadsDone;
+    if (!tile.decorated) this.pendingTerrain = true;
+    const needsMask = tile.colorsDone && (tile.revision !== revision || tile.maskDirty);
+    // The fine-cell mask is charged against the same frame budget; over budget
+    // or mid-zoom the previous mask stays until the next pass. A tile that has
+    // never been presented masks anyway so fresh terrain is never withheld.
+    if (needsMask && !this.zoomActive() && (performance.now() < deadline || tile.revision === -1))
+      this.maskTile(tile, ox, oy, size, pixels, revision, Number.isFinite(deadline));
+    else if (needsMask) this.pendingTerrain = true;
     if (building && detailed && this.buildBudget !== undefined)
       this.buildBudget = Math.max(0, this.buildBudget - (performance.now() - started));
     if (this.tiles.size > TERRAIN_CACHE_LIMIT) this.tiles.delete(this.tiles.keys().next().value!);
@@ -669,6 +712,10 @@ export class WorldMap {
     const cache = this.previewTiles ??= new Map<string, PreviewTile>(), key = `${size}:${tx}:${ty}`;
     let tile = cache.get(key);
     if (!tile) {
+      // Preview builds share the frame's terrain budget so a zoom into a fresh
+      // band can't spend the whole first frame on coarse stand-ins.
+      if (this.previewBudget !== undefined && this.previewBudget <= 0) { this.pendingTerrain = true; return null; }
+      const started = this.previewBudget === undefined ? 0 : performance.now();
       // Padded samples interpolate continuously through tile edges.
       const coarse = document.createElement('canvas'); coarse.width = coarse.height = 10;
       const samples = coarse.getContext('2d')!, step = size / 8;
@@ -681,11 +728,15 @@ export class WorldMap {
       const c = base.getContext('2d')!; c.imageSmoothingEnabled = true;
       c.drawImage(coarse, 1, 1, 8, 8, 0, 0, 32, 32);
       tile = { base, charted, revision: -1 };
+      if (this.previewBudget !== undefined) this.previewBudget -= performance.now() - started;
     } else cache.delete(key);
     cache.set(key, tile);
     if (tile.revision !== revision) {
+      if (this.previewBudget !== undefined && this.previewBudget <= 0) { this.pendingTerrain = true; return tile; }
+      const started = this.previewBudget === undefined ? 0 : performance.now();
       maskMapTile(tile.charted.getContext('2d')!, tile.base, this.exploration, ox, oy, size, 32);
       tile.revision = revision;
+      if (this.previewBudget !== undefined) this.previewBudget -= performance.now() - started;
     }
     if (cache.size > TERRAIN_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     return tile;
@@ -740,8 +791,10 @@ export class WorldMap {
     const now = performance.now(), reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const layers = visibleTiles.map(({ tx, ty }) => {
       const tile = this.tile(tx, ty, tileSize, !mini);
-      const blend = !tile?.decorated ? 0 : mini || tile.readyAt === undefined || this.buildBudget === undefined ? 1 : mapTileBlend(tile.readyAt, now, reducedMotion);
-      if (tile?.decorated && blend < 1) this.pendingTerrain = true;
+      // A tile is drawable once its colors are masked; props/roads may still be pending.
+      const presented = !!tile && tile.revision !== -1;
+      const blend = !presented ? 0 : mini || tile!.readyAt === undefined || this.buildBudget === undefined ? 1 : mapTileBlend(tile!.readyAt!, now, reducedMotion);
+      if (presented && blend < 1) this.pendingTerrain = true;
       return { tx, ty, tile, blend };
     });
     // Populate every revealed low-resolution tile in this frame, before refining the center outward.
@@ -749,6 +802,35 @@ export class WorldMap {
       const preview = this.previewTile(tx, ty, tileSize)?.charted; if (!preview) continue;
       const p = projectMapPoint(tx * tileSize, ty * tileSize, view);
       c.drawImage(preview, p.x, p.y, tileSize * view.zoom + bleed, tileSize * view.zoom + bleed);
+    }
+    // Tiles cached at a neighboring zoom band stretch under unbuilt spots, so
+    // crossing a sampling band reuses detail instead of dropping to previews.
+    if (!mini && this.pendingTerrain) {
+      const covered = new Set<string>();
+      for (const { tx, ty, tile, blend } of layers) {
+        if (tile && tile.revision !== -1 && blend >= 1) continue;
+        for (const foreign of [tileSize * 2, tileSize / 2, tileSize * 4, tileSize / 4]) {
+          if (foreign < MAP_TERRAIN_RULES.baseWorldSize || foreign > 49152) continue;
+          if (foreign > tileSize) {
+            const ftx = Math.floor(tx * tileSize / foreign), fty = Math.floor(ty * tileSize / foreign), key = `${foreign}:${ftx}:${fty}`;
+            if (covered.has(key)) continue;
+            const other = this.tiles.get(`atlas:${key}`);
+            if (!other || other.revision === -1) continue;
+            covered.add(key);
+            const p = projectMapPoint(ftx * foreign, fty * foreign, view);
+            c.drawImage(other.charted, p.x, p.y, foreign * view.zoom + bleed, foreign * view.zoom + bleed);
+          } else {
+            const x0 = Math.floor(tx * tileSize / foreign), x1 = Math.ceil((tx + 1) * tileSize / foreign);
+            const y0 = Math.floor(ty * tileSize / foreign), y1 = Math.ceil((ty + 1) * tileSize / foreign);
+            for (let fy = y0; fy < y1; fy++) for (let fx = x0; fx < x1; fx++) {
+              const other = this.tiles.get(`atlas:${foreign}:${fx}:${fy}`);
+              if (!other || other.revision === -1) continue;
+              const p = projectMapPoint(fx * foreign, fy * foreign, view);
+              c.drawImage(other.charted, p.x, p.y, foreign * view.zoom + bleed, foreign * view.zoom + bleed);
+            }
+          }
+        }
+      }
     }
     for (const { tx, ty, tile, blend } of layers) {
       if (!tile || !blend) continue;
@@ -905,8 +987,8 @@ export class WorldMap {
     this.chartDirty = false; this.pendingTerrain = false;
     if (!this.prepareLayout()) return;
     this.advanceRecenter(performance.now());
-    this.buildBudget = 5;
-    try { this.drawChart(); } finally { this.buildBudget = undefined; }
+    this.buildBudget = 5; this.previewBudget = 3;
+    try { this.drawChart(); } finally { this.buildBudget = undefined; this.previewBudget = undefined; }
     const destination = this.focusTarget ?? this.player;
     const focusPoint = projectMapPoint(destination.x, destination.y, this.view);
     this.focusPing.style.left = `${focusPoint.x}px`;

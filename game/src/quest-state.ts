@@ -5,10 +5,9 @@ import type { Player } from './model.ts';
 import type { EnemyKind } from './model.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import {
-  QUESTS, QUEST_PREV, QUEST_ITEMS, QUEST_BY_ID,
-  type QuestDef, type QuestId, type QuestObjective, type QuestState,
+  QUESTS, QUEST_PREV, QUEST_ITEMS, QUEST_BY_ID, giverSpec, turnInSpec, questGiverKey,
+  type QuestDef, type QuestGiver, type QuestId, type QuestObjective, type QuestState,
 } from './quest-content.ts';
-
 /** Quests offered a little early, WoW-style: the marker shows before the level gate. */
 export const QUEST_RULES = Object.freeze({
   /** NPC/POI offers appear this many levels below the quest's authored level. */
@@ -215,5 +214,58 @@ export function stageTurnIn(carrier: QuestsCarrier, id: QuestId, now?: number): 
   state.status = 'turnedIn';
   // Dailies stamp the wall-clock day so the UTC reset can re-offer them.
   if (QUEST_BY_ID[id]?.daily) state.lastCompletedAt = Math.floor((now ?? Date.now()) / 1000);
+}
+
+// ── Giver bucketing (shared by markers and the interact dialog) ──────────────
+
+/** Quests grouped by the giver spec that offers or accepts them. */
+export interface QuestBuckets {
+  readonly spec: QuestGiver;
+  /** Turned-in-ready quests (status 'complete') accepted here. */
+  readonly turnIns: QuestDef[];
+  /** Offerable at the player's level. */
+  readonly offers: QuestDef[];
+  /** Unlocked but under-level (gray `!` preview). */
+  readonly upcoming: QuestDef[];
+  /** Active but unfinished quests this giver accepts (gray `?`). */
+  readonly pending: QuestDef[];
+}
+
+/** Fingerprint of the ledger fields that decide bucketing: which quests are
+ * held and their status. Progress counts and timestamps don't move markers. */
+function ledgerFingerprint(player: QuestsCarrier): string {
+  const ledger = player.quests;
+  if (!ledger) return '';
+  let out = '';
+  for (const id of Object.keys(ledger)) out += `${id}=${ledger[id]!.status};`;
+  return out;
+}
+
+let bucketCache: { key: string; level: number; map: Map<string, QuestBuckets> } | null = null;
+
+/** All giver specs with quest business for `player`, keyed by questGiverKey.
+ * One pass over the quest catalog, cached on (ledger fingerprint, level) —
+ * marker drawing and interact hit-testing call this several times a frame. */
+export function questBuckets(player: Player): Map<string, QuestBuckets> {
+  const key = ledgerFingerprint(player);
+  if (bucketCache && bucketCache.key === key && bucketCache.level === player.level) return bucketCache.map;
+  const map = new Map<string, QuestBuckets>();
+  const bucket = (spec: QuestGiver): QuestBuckets => {
+    const id = questGiverKey(spec);
+    let entry = map.get(id);
+    if (!entry) map.set(id, entry = { spec, turnIns: [], offers: [], upcoming: [], pending: [] });
+    return entry;
+  };
+  for (const def of QUESTS) {
+    const state = player.quests?.[def.id];
+    if (state?.status === 'complete') bucket(turnInSpec(def)).turnIns.push(def);
+    else if (state?.status === 'active') bucket(turnInSpec(def)).pending.push(def);
+    else if (!state) {
+      if (questAvailable(player, def)) bucket(giverSpec(def)).offers.push(def);
+      else if (questPreviewable(player, def)) bucket(giverSpec(def)).upcoming.push(def);
+    }
+  }
+  bucketCache = { key, level: player.level, map };
+  return map;
 }
 

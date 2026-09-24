@@ -8,7 +8,7 @@ interface RibbonPoint {
   x: number; y: number; nx: number; ny: number;
   width: number; born: number; stroke: number; color: string;
 }
-const LIFETIME = .19;
+const LIFETIME = .23;
 const SAMPLE_STEP = 1 / 120;
 
 /** A world-space ribbon records the moving blade, then tapers and disperses behind it. */
@@ -69,7 +69,7 @@ export class SwordTrail {
       pose.gaitPhase = (pose.gaitPhase ?? 0) - Math.hypot(player.vx, player.vy) * behind / 22;
       const tip = getPlayerSwordTip(pose);
       this.points.push({ x: cx + tip.x, y: cy + tip.y,
-        nx, ny, width: 3 + Math.min(7, speed * .26), born: this.time - behind,
+        nx, ny, width: 3.6 + Math.min(8.5, speed * .3), born: this.time - behind,
         stroke: this.stroke, color });
     }
   }
@@ -89,14 +89,14 @@ export class SwordTrail {
       const a = shaped[i - 1], b = shaped[i];
       if (a.stroke !== b.stroke || a.life <= 0 || Math.hypot(a.x - b.x, a.y - b.y) < .04) continue;
       const alpha = Math.pow(Math.min(a.life, b.life), .8);
-      c.globalAlpha = alpha * .48; c.fillStyle = b.color;
+      c.globalAlpha = alpha * .55; c.fillStyle = b.color;
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y);
       c.lineTo(b.x - b.nx * b.width, b.y - b.ny * b.width);
       c.lineTo(a.x - a.nx * a.width, a.y - a.ny * a.width); c.closePath(); c.fill();
       // A bright metal edge and a softer second filament separate the ribbon's layers.
-      c.strokeStyle = '#fff1bf'; c.lineWidth = 1.35; c.globalAlpha = alpha * .88;
+      c.strokeStyle = '#fff1bf'; c.lineWidth = 1.6; c.globalAlpha = alpha * .92;
       c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
-      c.strokeStyle = '#d99548'; c.lineWidth = 1; c.globalAlpha = alpha * .48;
+      c.strokeStyle = '#d99548'; c.lineWidth = 1; c.globalAlpha = alpha * .5;
       c.beginPath(); c.moveTo(a.x - a.nx * a.width * .68, a.y - a.ny * a.width * .68);
       c.lineTo(b.x - b.nx * b.width * .68, b.y - b.ny * b.width * .68); c.stroke();
       if (i % 5 === 0) {
@@ -106,7 +106,7 @@ export class SwordTrail {
     }
     const head = shaped[shaped.length - 1];
     c.globalAlpha = 1;
-    drawGlow(c, head.x, head.y, 25, head.color, head.life * .5);
+    drawGlow(c, head.x, head.y, 30, head.color, head.life * .62);
     c.restore();
   }
 }

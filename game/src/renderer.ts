@@ -60,7 +60,7 @@ import { quartermasterFor, quartermastersNear, focusedQuartermaster } from './qu
 import { mailboxFor, focusedMailbox, mailboxesNear, type Mailbox } from './mail-content.ts';
 import { faireActive, faireSite, faireVendor, type FaireSite } from './holiday-content.ts';
 import { focusedFaireVendor } from './holiday-state.ts';
-import type { Settlement } from './settlements.ts';
+import type { Building, Settlement } from './settlements.ts';
 import { drawNPC, npcArtScale } from './npc-art.ts';
 import { RewardFeedback } from './reward-feedback.ts';
 import { drawGroundGold, drawRewardFlights, drawGoldBalance, drawLevelCelebration, drawLevelAnnouncement, drawJourneyAnnouncement } from './reward-art.ts';
@@ -292,6 +292,37 @@ export class Renderer {
   /** TownNPC moved to its daily-routine spot for this frame (world-t10). */
   private positioned<T extends TownNPC>(npc: T | null): T | null {
     return npc ? positionedNPC(npc, this.npcTowns.get(npc.buildingId), this.npcTime) : npc;
+  }
+  /** Positioned service NPCs per building, computed once per frame and shared
+   * by the shadow, depth-sort and light passes (they used to re-run every
+   * factory + routine three times per building per frame). */
+  private npcCast = new WeakMap<Building, { frame: number; npcs: TownNPC[]; lights: PointLight[] }>();
+  private castFrame = 0;
+  private castFor(building: Building): { npcs: TownNPC[]; lights: PointLight[] } {
+    let entry = this.npcCast.get(building);
+    if (!entry) this.npcCast.set(building, entry = { frame: -1, npcs: [], lights: [] });
+    if (entry.frame === this.castFrame) return entry;
+    entry.frame = this.castFrame;
+    entry.npcs.length = 0;
+    let count = 0;
+    const push = (npc: TownNPC | null) => {
+      if (!npc) return;
+      const placed = this.positioned(npc)!;
+      entry.npcs.push(placed);
+      // Light objects persist across frames; only the position moves.
+      const light = entry.lights[count] ??= { x: 0, y: 0, radius: 60, color: '', power: .3 };
+      light.x = placed.x; light.y = placed.y - 20; light.color = NPC_COLORS[placed.role];
+      count++;
+    };
+    push(buildingNPC(building));
+    push(stableMasterFor(building));
+    push(battlemasterFor(building));
+    push(pvpVendorFor(building));
+    push(badgeVendorFor(building));
+    push(trainerFor(building));
+    push(quartermasterFor(building));
+    entry.lights.length = count;
+    return entry;
   }
   /** Positioned NPC list into a pooled scratch array (no per-frame map allocation). */
   private positionedList<T extends TownNPC>(list: readonly T[]): T[] {
@@ -625,12 +656,13 @@ export class Renderer {
       ? focusGatherNode(world, p, sim.time, p,
           this.pointerActive && !this.pointerOverHUD() ? screenToWorld(this.view, this.pointerX, this.pointerY) : undefined)
       : null;
+    this.npcTime = sim.time;
+    this.castFrame++;
     this.siteAftermath = projectSiteAftermath(this.visibility.sites, sim.eventState, id => sim.getCampState(id));
     const towns = this.cryptFloor ? [] : world.getSettlements(left, top, worldWidth, worldHeight);
     this.residents.length = 0;
     for (const town of towns) for (const n of settlementResidents(town, sim.time))
       if (n.x >= left - 90 && n.x <= left + worldWidth + 90 && n.y >= top - 90 && n.y <= top + worldHeight + 90) this.residents.push(n);
-    this.npcTime = sim.time;
     this.npcTowns.clear();
     for (const town of towns) for (const b of town.buildings) this.npcTowns.set(b.id, town);
     if(active){
@@ -765,22 +797,9 @@ export class Renderer {
     }
     // Civilians share the character's contact and directional shadows, beneath all scenery.
     for (const resident of this.residents) this.drawNPCShadow(resident.x, resident.y, npcArtScale(resident));
-    for (const building of this.cachedBuildings) {
-      const npc = this.positioned(buildingNPC(building));
-      if (npc && npc.role !== 'stash') this.drawNPCShadow(npc.x, npc.y, npcArtScale(npc));
-      const master = this.positioned(stableMasterFor(building));
-      if (master) this.drawNPCShadow(master.x, master.y, npcArtScale(master));
-      const battlemaster = this.positioned(battlemasterFor(building));
-      if (battlemaster) this.drawNPCShadow(battlemaster.x, battlemaster.y, npcArtScale(battlemaster));
-      const pvpVendor = this.positioned(pvpVendorFor(building));
-      if (pvpVendor) this.drawNPCShadow(pvpVendor.x, pvpVendor.y, npcArtScale(pvpVendor));
-      const badgeVendor = this.positioned(badgeVendorFor(building));
-      if (badgeVendor) this.drawNPCShadow(badgeVendor.x, badgeVendor.y, npcArtScale(badgeVendor));
-      const trainer = this.positioned(trainerFor(building));
-      if (trainer) this.drawNPCShadow(trainer.x, trainer.y, npcArtScale(trainer));
-      const quartermaster = this.positioned(quartermasterFor(building));
-      if (quartermaster) this.drawNPCShadow(quartermaster.x, quartermaster.y, npcArtScale(quartermaster));
-    }
+    for (const building of this.cachedBuildings)
+      for (const npc of this.castFor(building).npcs)
+        if (npc.role !== 'stash') this.drawNPCShadow(npc.x, npc.y, npcArtScale(npc));
     if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
       const vendor = faireVendor(this.faireSiteFor(world));
       this.drawNPCShadow(vendor.x, vendor.y, npcArtScale(vendor));
@@ -849,6 +868,8 @@ export class Renderer {
         || effect.y + effect.radius < top || effect.y - effect.radius - 500 > top + worldHeight) continue;
       drawGroundSpell(c, effect, this.visualTime, settings.reducedMotion);
     }
+    this.effects.draw(c, settings.reducedMotion);
+    if (GAME_FEATURES.lootBeams) this.vfx.draw(c, settings.reducedMotion);
     if (GAME_FEATURES.spellVfx) drawCastTargetDecal(c, sim, this.visualTime, settings.reducedMotion);
     if (GAME_FEATURES.spellVfx) drawChannelBeam(c, sim, this.visualTime, settings.reducedMotion);
     const platesOn = GAME_FEATURES.nameplates && nameplateSettings().visible && nameplateSettings().mode !== 'off';
@@ -1096,7 +1117,8 @@ export class Renderer {
       this.drawPortalHints(c, sim, world);
       drawEventUI(c, sim, world, (x,y) => worldToScreen(this.view,x,y), this.gamepadActive, this.eventSites, this.eventProgressPresentation.view);
       drawWorldEventCard(c, this.worldEventCard.view);
-      const npcs = this.cachedBuildings.flatMap(b => { const npc = this.positioned(buildingNPC(b)); return npc ? [npc] : []; });
+      const npcs = this.npcList; npcs.length = 0;
+      for (const b of this.cachedBuildings) { const n = this.positioned(buildingNPC(b)); if (n) npcs.push(n); }
       const npc = focusNPC(npcs, p, world);
       if (npc) {
         const point = worldToScreen(this.view, npc.x, npc.y - 65);
@@ -1178,20 +1200,8 @@ export class Renderer {
     for (const resident of this.residents) this.pushEntry(resident.y, 'npc', resident, undefined, undefined, 'characters');
     for (const bird of this.biomeLife.birds) this.pushEntry(bird.y + (bird.state === 'perched' ? 1 : 130), 'bird', bird);
     for (const building of this.cachedBuildings) {
-      const npc = this.positioned(buildingNPC(building));
-      if (npc) this.pushEntry(npc.y, 'npc', npc, undefined, undefined, 'characters');
-      const master = this.positioned(stableMasterFor(building));
-      if (master) this.pushEntry(master.y, 'npc', master, undefined, undefined, 'characters');
-      const battlemaster = this.positioned(battlemasterFor(building));
-      if (battlemaster) this.pushEntry(battlemaster.y, 'npc', battlemaster, undefined, undefined, 'characters');
-      const pvpVendor = this.positioned(pvpVendorFor(building));
-      if (pvpVendor) this.pushEntry(pvpVendor.y, 'npc', pvpVendor, undefined, undefined, 'characters');
-      const badgeVendor = this.positioned(badgeVendorFor(building));
-      if (badgeVendor) this.pushEntry(badgeVendor.y, 'npc', badgeVendor, undefined, undefined, 'characters');
-      const trainer = this.positioned(trainerFor(building));
-      if (trainer) this.pushEntry(trainer.y, 'npc', trainer, undefined, undefined, 'characters');
-      const quartermaster = this.positioned(quartermasterFor(building));
-      if (quartermaster) this.pushEntry(quartermaster.y, 'npc', quartermaster, undefined, undefined, 'characters');
+      for (const npc of this.castFor(building).npcs)
+        this.pushEntry(npc.y, 'npc', npc, undefined, undefined, 'characters');
       const mailbox = GAME_FEATURES.mail ? mailboxFor(building) : null;
       if (mailbox) this.pushEntry(mailbox.y, 'mailbox', mailbox, undefined, undefined, 'props');
       for (const layer of this.settlementArt.getStructureLayers(building, this.visualTime, sim.brokenContainers))
@@ -1489,22 +1499,8 @@ export class Renderer {
     if (sim.portal.active) lights.push({ x: p.x, y: p.y - 30, radius: 105, color: '#b5a0ee', power: .22 + sim.portal.progress * .35 });
     for (const anchor of this.portalAnchors) if (sim.travel.returnTo?.town === anchor.band)
       environmentLights.push({ x: anchor.x, y: anchor.y - 30, radius: 130, color: '#b5a0ee', power: .6 });
-    for (const building of this.cachedBuildings) {
-      const npc = this.positioned(buildingNPC(building));
-      if (npc) environmentLights.push({ x: npc.x, y: npc.y - 20, radius: 60, color: NPC_COLORS[npc.role], power: .3 });
-      const master = this.positioned(stableMasterFor(building));
-      if (master) environmentLights.push({ x: master.x, y: master.y - 20, radius: 60, color: NPC_COLORS.stable, power: .3 });
-      const battlemaster = this.positioned(battlemasterFor(building));
-      if (battlemaster) environmentLights.push({ x: battlemaster.x, y: battlemaster.y - 20, radius: 60, color: NPC_COLORS.battlemaster, power: .3 });
-      const pvpVendor = this.positioned(pvpVendorFor(building));
-      if (pvpVendor) environmentLights.push({ x: pvpVendor.x, y: pvpVendor.y - 20, radius: 60, color: NPC_COLORS.pvpVendor, power: .3 });
-      const badgeVendor = this.positioned(badgeVendorFor(building));
-      if (badgeVendor) environmentLights.push({ x: badgeVendor.x, y: badgeVendor.y - 20, radius: 60, color: NPC_COLORS.badgeVendor, power: .3 });
-      const trainer = this.positioned(trainerFor(building));
-      if (trainer) environmentLights.push({ x: trainer.x, y: trainer.y - 20, radius: 60, color: NPC_COLORS.trainer, power: .3 });
-      const quartermaster = this.positioned(quartermasterFor(building));
-      if (quartermaster) environmentLights.push({ x: quartermaster.x, y: quartermaster.y - 20, radius: 60, color: NPC_COLORS.quartermaster, power: .3 });
-    }
+    for (const building of this.cachedBuildings)
+      for (const light of this.castFor(building).lights) environmentLights.push(light);
     if (GAME_FEATURES.holidays && !sim.dungeonFloor && faireActive(Date.now())) {
       const vendor = faireVendor(this.faireSiteFor(sim.world));
       environmentLights.push({ x: vendor.x, y: vendor.y - 20, radius: 60, color: NPC_COLORS.darkmoonVendor, power: .3 });

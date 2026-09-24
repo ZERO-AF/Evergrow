@@ -147,6 +147,9 @@ export class WarsongGulchObjectives implements PvpObjectives {
                 c.ai.focusId = focus.id;
             }
         }
+        // A dropped friendly flag gets a returner — touching it sends it home.
+        if (own.state === 'dropped')
+            for (const c of take(1, own)) setObjectiveDirective(c, { x: own.x, y: own.y, within: 20, engage: 120 });
         // Flag-runners go for a free enemy flag; escorts screen our carrier.
         if (theirs.state !== 'carried')
             for (const c of take(2, theirs)) setObjectiveDirective(c, { x: theirs.x, y: theirs.y, within: 24, engage: 90 });

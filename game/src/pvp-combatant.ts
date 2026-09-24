@@ -4,7 +4,6 @@ import type { EnemyRank } from './progression-content.ts';
 import type { CcKind } from './wow-types.ts';
 import { PlayerMovement } from './player-movement.ts';
 import { deriveAttackStats } from './equipment.ts';
-import { wowClassOf } from './wow-classes.ts';
 
 /** Arena team id: 'A' is the player's team, 'B' the opposing team. */
 export type PvpTeam = 'A' | 'B';
@@ -116,12 +115,11 @@ export function isCombatant(actor: Player | Enemy): actor is Combatant {
 const COMBATANT_KIND: EnemyKind = 'caster';
 const COMBATANT_BIOME: BiomeId = 'deadwood';
 
-/** Infers a default AI role from the class roster and equipped weapon. */
+/** Infers a default AI role from the equipped weapon. Roster roles steer
+ * explicitly (pvp-instance maps heal/tank); a damage-dealing priest must fight
+ * at range, not triage — no class hard-codes a role here. */
 function inferRole(player: Player): CombatantAi['role'] {
-  const wowClass = wowClassOf(player.character);
-  if (wowClass?.id === 'priest') return 'healer';
-  const weapon = player.equipment.mainHand;
-  return weapon.attackKind === 'melee' ? 'melee' : 'ranged';
+  return player.equipment.mainHand.attackKind === 'melee' ? 'melee' : 'ranged';
 }
 
 /** Compile-time proof that a Combatant can stand in for an Enemy target. */

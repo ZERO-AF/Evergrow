@@ -22,11 +22,11 @@ import type { Building, Settlement } from './settlements.ts';
 import type { WorldPOI } from './world-pois.ts';
 import type { ItemKind } from './character-types.ts';
 import {
-  QUEST_BY_ID, QUEST_ITEMS, giverSpec, turnInSpec,
+  QUEST_BY_ID, QUEST_ITEMS, turnInSpec, questGiverKey,
   type QuestDef, type QuestGiver, type QuestId,
 } from './quest-content.ts';
 import {
-  QUEST_RULES, applyCollect, applyExplore, applyKill, questAvailable, questPreviewable,
+  QUEST_RULES, applyCollect, applyExplore, applyKill, questAvailable, questBuckets,
   questState, resetDailies, stageAbandon, stageAccept, stageTurnIn, objectiveText,
   type QuestProgressNote, type QuestsCarrier,
 } from './quest-state.ts';
@@ -101,6 +101,47 @@ export function questGiverAnchors(world: QuestWorld, spec: QuestGiver,
   return anchors;
 }
 
+
+/** Anchors for many specs in one pass: a single buildings/towns/POI query plus
+ * one building→town index, instead of repeating all of it per spec. The
+ * per-frame marker pass (quest-marker.ts) resolves every active spec through
+ * this; single-spec callers keep the lazy questGiverAnchors path. */
+export function questGiverAnchorsFor(world: QuestWorld, specs: readonly QuestGiver[],
+  x: number, y: number, width: number, height: number, time?: number): Map<QuestGiver, QuestGiverAnchor[]> {
+  let roles = false, posters = false, sites = false;
+  for (const spec of specs) {
+    if (spec.role) roles = true;
+    else if (spec.poi === 'town') posters = true;
+    else if (spec.poi) sites = true;
+  }
+  const buildings = roles ? world.getBuildings?.(x, y, width, height) ?? [] : [];
+  const townsWide = roles && time !== undefined
+    ? world.getSettlements(x - 1400, y - 1400, width + 2800, height + 2800) : [];
+  const townsExact = posters ? world.getSettlements(x, y, width, height) : [];
+  const pois = sites ? world.getPOIs(x, y, width, height) : [];
+  const townOf = new Map<string, Settlement>();
+  for (const town of townsWide) for (const b of town.buildings) townOf.set(b.id, town);
+  const npcs = buildings.map(building => ({ building, npc: buildingNPC(building) }));
+  const out = new Map<QuestGiver, QuestGiverAnchor[]>();
+  for (const spec of specs) {
+    const anchors: QuestGiverAnchor[] = [];
+    if (spec.role) {
+      for (const { building, npc } of npcs) {
+        if (!npc || !npcMatches(npc, building, spec)) continue;
+        const placed = positionedNPC(npc, townOf.get(building.id), time);
+        anchors.push({ kind: 'npc', npc: placed, x: placed.x, y: placed.y });
+      }
+    } else if (spec.poi === 'town') {
+      for (const town of townsExact)
+        if (townMatches(town, spec)) anchors.push({ kind: 'poster', town, ...posterAnchor(town) });
+    } else if (spec.poi) {
+      for (const poi of pois)
+        if (poiMatches(poi, spec, world)) anchors.push({ kind: 'poi', poi, x: poi.x, y: poi.y });
+    }
+    if (anchors.length) out.set(spec, anchors);
+  }
+  return out;
+}
 /** Nearest anchor for `spec` around a point; `reach` gates interaction distance. */
 export function nearestGiverAnchor(world: QuestWorld, spec: QuestGiver, x: number, y: number, span = 900): QuestGiverAnchor | null {
   return questGiverAnchors(world, spec, x - span / 2, y - span / 2, span, span)
@@ -112,7 +153,6 @@ export function giverInReach(anchor: QuestGiverAnchor, player: { x: number; y: n
   if (anchor.kind === 'npc') return canInteractNPC(anchor.npc, player, world);
   return !player.dead && Math.hypot(player.x - anchor.x, player.y - anchor.y) <= QUEST_RULES.poiReach;
 }
-
 /** Display name for a giver spec ("Marshal Dughan", "Wanted Poster", role name). */
 export function giverLabel(spec: QuestGiver): string {
   return spec.label ?? spec.role ?? 'Notice';
@@ -137,21 +177,10 @@ export interface QuestGreeting {
 
 /** Quests relevant to one giver spec, bucketed for the dialog. */
 export function questsAtGiver(player: Player, spec: QuestGiver): Omit<QuestGreeting, 'anchor' | 'label' | 'service'> {
-  const turnIns: QuestDef[] = [], offers: QuestDef[] = [], upcoming: QuestDef[] = [], pending: QuestDef[] = [];
   // A daily turned in before today's UTC boundary re-offers here.
   resetDailies(player);
-  for (const def of Object.values(QUEST_BY_ID)) {
-    const state = questState(player, def.id);
-    const sameGiver = (s: QuestGiver) => s.role === spec.role && s.poi === spec.poi
-      && s.biome === spec.biome && s.tier === spec.tier;
-    if (state?.status === 'complete' && sameGiver(turnInSpec(def))) turnIns.push(def);
-    else if (state?.status === 'active' && sameGiver(turnInSpec(def))) pending.push(def);
-    else if (!state && sameGiver(giverSpec(def))) {
-      if (questAvailable(player, def)) offers.push(def);
-      else if (questPreviewable(player, def)) upcoming.push(def);
-    }
-  }
-  return { turnIns, offers, upcoming, pending };
+  const buckets = questBuckets(player).get(questGiverKey(spec));
+  return buckets ?? { turnIns: [], offers: [], upcoming: [], pending: [] };
 }
 
 /** E-interact entry: resolve the nearest giver with quest business in reach.
@@ -159,17 +188,14 @@ export function questsAtGiver(player: Player, spec: QuestGiver): Omit<QuestGreet
 export function questInteract(sim: Simulation, world: QuestWorld, pointer?: { x: number; y: number }): QuestGreeting | null {
   if (!GAME_FEATURES.quests || sim.dungeonFloor || sim.player.dead) return null;
   const p = sim.player;
+  // A daily turned in before today's UTC boundary re-offers here.
+  resetDailies(p);
   const candidates: { anchor: QuestGiverAnchor; spec: QuestGiver; greeting: Omit<QuestGreeting, 'anchor' | 'label' | 'service'> }[] = [];
-  const seen = new Set<string>();
-  const consider = (spec: QuestGiver) => {
-    const key = `${spec.role ?? ''}:${spec.poi ?? ''}:${spec.biome ?? ''}:${spec.tier ?? ''}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    const buckets = questsAtGiver(p, spec);
-    if (!buckets.turnIns.length && !buckets.offers.length && !buckets.upcoming.length && !buckets.pending.length) return;
-    for (const anchor of questGiverAnchors(world, spec, p.x - 320, p.y - 320, 640, 640, sim.time)) candidates.push({ anchor, spec, greeting: buckets });
-  };
-  for (const def of Object.values(QUEST_BY_ID)) { consider(giverSpec(def)); consider(turnInSpec(def)); }
+  const buckets = [...questBuckets(p).values()];
+  const anchors = questGiverAnchorsFor(world, buckets.map(b => b.spec), p.x - 320, p.y - 320, 640, 640, sim.time);
+  for (const bucket of buckets)
+    for (const anchor of anchors.get(bucket.spec) ?? [])
+      candidates.push({ anchor, spec: bucket.spec, greeting: bucket });
   const hit = candidates
     .filter(c => giverInReach(c.anchor, p, world)
       && (!pointer || Math.hypot(pointer.x - c.anchor.x, pointer.y - (c.anchor.y - 17)) <= 40))

@@ -11,6 +11,10 @@ import { escapeUI, trapDialogFocus, uiIcon } from './ui-components.ts';
 import { npcEmblem } from './npc-art.ts';
 import { createAppearanceEditor, type AppearanceEditor } from './character-editor.ts';
 import { createCharacterSheet } from './items.ts';
+import { itemIconSVG } from './item-art.ts';
+import { ItemTooltip } from './item-tooltip.ts';
+import { pvpGearOptions, resolveGearPick } from './pvp-chargen.ts';
+import type { EquipmentSlot } from './character-types.ts';
 import { GamepadMenu } from './gamepad-menu.ts';
 import { PAD, type GamepadInput } from './gamepad-input.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
@@ -54,6 +58,7 @@ export class PvpPanel implements PvpPanelHandle {
   private draft: PvpSetupDraft = createPvpDraft();
   private editor: AppearanceEditor | null = null;
   private master: Battlemaster | null = null;
+  private tooltip: ItemTooltip;
 
   constructor(mount: HTMLElement, actions: PvpPanelActions, embedded = false) {
     this.actions = actions;
@@ -63,6 +68,7 @@ export class PvpPanel implements PvpPanelHandle {
     this.element.hidden = true;
     mount.append(this.element);
     if (!embedded) attachPanelFrame(this.element, 'arena');
+    this.tooltip = new ItemTooltip(this.element, 'pvp-gear-tooltip');
     const signal = this.abort.signal;
     this.element.addEventListener('click', event => this.click(event), { signal });
     this.element.addEventListener('input', event => {
@@ -75,10 +81,31 @@ export class PvpPanel implements PvpPanelHandle {
     }, { signal });
     this.element.addEventListener('change', event => {
       const control = event.target as HTMLSelectElement;
+      if (control.dataset.pvpGear !== undefined && this.draft.custom) {
+        const slot = control.dataset.pvpGear as EquipmentSlot;
+        const gear = { ...(this.draft.custom.gear ?? {}) };
+        if (control.value === '') delete gear[slot]; else gear[slot] = Number(control.value);
+        this.draft.custom.gear = Object.keys(gear).length ? gear : undefined;
+        this.render();
+        return;
+      }
       if (control.dataset.pvpClass !== undefined && isWowClassId(control.value)) {
         setTeammateClass(this.draft, Number(control.dataset.pvpClass), control.value);
         this.render();
       }
+    }, { signal });
+    this.element.addEventListener('mouseover', event => {
+      const row = (event.target as HTMLElement).closest<HTMLElement>('[data-pvp-gear-row]');
+      if (!row || !this.draft.custom) return;
+      const slot = row.dataset.pvpGearRow as EquipmentSlot;
+      const options = this.gearOptions(slot);
+      if (!options.length) return;
+      const seed = this.draft.custom.gear?.[slot] ?? options[0]!.seed;
+      const item = resolveGearPick(this.draft.custom.classId, slot, seed, this.gearItemLevel());
+      if (item) this.tooltip.show(item, { sheet: createCharacterSheet(this.draft.custom.classId, this.draft.custom.raceId), level: this.draft.custom.level, compare: false }, row);
+    }, { signal });
+    this.element.addEventListener('mouseout', event => {
+      if ((event.target as HTMLElement).closest('[data-pvp-gear-row]')) this.tooltip.hide();
     }, { signal });
     this.element.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
@@ -99,6 +126,7 @@ export class PvpPanel implements PvpPanelHandle {
   }
 
   close(): void {
+    this.tooltip.hide();
     this.editor?.dispose();
     this.editor = null;
     this.focus?.dispose();
@@ -109,6 +137,7 @@ export class PvpPanel implements PvpPanelHandle {
   }
 
   dispose(): void {
+    this.tooltip.dispose();
     this.close();
     this.abort.abort();
     this.element.remove();
@@ -201,6 +230,47 @@ export class PvpPanel implements PvpPanelHandle {
       </div>`;
   }
 
+  /** Gear candidates for one slot under the current custom build (class + a
+   * resolved weapon pick decide offhand legality). */
+  private gearOptions(slot: EquipmentSlot) {
+    const custom = this.draft.custom;
+    if (!custom) return [];
+    const weaponSeed = custom.gear?.weapon;
+    const weapon = weaponSeed === undefined ? undefined
+      : resolveGearPick(custom.classId, 'weapon', weaponSeed, this.gearItemLevel()) ?? undefined;
+    return pvpGearOptions(custom.classId, slot, this.gearItemLevel(), weapon);
+  }
+  /** The item level gear picks resolve at — the same clamp buildCustomCharacter uses. */
+  private gearItemLevel(): number {
+    const custom = this.draft.custom!;
+    return Math.min(Math.max(1, Math.round(custom.itemLevel ?? custom.level)), custom.level + 2);
+  }
+  /** Per-slot gear selects for the custom build; 'Auto' keeps the seeded roll. */
+  private gearPicker(custom: PvpCustomBuild): string {
+    const itemLevel = this.gearItemLevel();
+    const weaponSeed = custom.gear?.weapon;
+    const weapon = weaponSeed === undefined ? undefined
+      : resolveGearPick(custom.classId, 'weapon', weaponSeed, itemLevel) ?? undefined;
+    const row = (slot: EquipmentSlot, label: string): string => {
+      const options = pvpGearOptions(custom.classId, slot, itemLevel, weapon);
+      const picked = custom.gear?.[slot];
+      const current = options.find(c => c.seed === picked);
+      const icon = current ? itemIconSVG(current.item) : '';
+      const note = slot === 'offhand' && weapon?.weapon?.hands === 2 ? ' <small>(needs a one-handed weapon)</small>' : '';
+      return `<label class="pvp-gear-row" data-pvp-gear-row="${slot}"><span class="pvp-gear-slot">${label}${note}</span>
+        <span class="pvp-gear-icon">${icon}</span>
+        <select data-pvp-gear="${slot}" ${options.length ? '' : 'disabled'} aria-label="${label} gear">
+          <option value="">Auto</option>
+          ${options.map(c => `<option value="${c.seed}"${c.seed === picked ? ' selected' : ''}>${e(c.item.name)}</option>`).join('')}
+        </select></label>`;
+    };
+    return `<div class="pvp-custom-row"><span class="pvp-custom-label">Gear</span><div class="pvp-gear-grid">
+      ${row('weapon', 'Weapon')}${row('offhand', 'Offhand')}
+      ${row('head', 'Head')}${row('chest', 'Chest')}${row('gloves', 'Gloves')}${row('legs', 'Legs')}${row('boots', 'Boots')}
+      ${row('cloak', 'Cloak')}${row('amulet', 'Amulet')}${row('ring1', 'Ring')}${row('ring2', 'Ring')}
+    </div></div>`;
+  }
+
   private customEditor(custom: PvpCustomBuild): string {
     const cls = WOW_CLASSES[custom.classId], race = WOW_RACES[custom.raceId];
     return `<div class="pvp-custom">
@@ -214,6 +284,7 @@ export class PvpPanel implements PvpPanelHandle {
       <div class="pvp-custom-row"><span class="pvp-custom-label">Role</span><div class="pvp-role-row" role="group" aria-label="Custom role">${pvpClassRoles(custom.classId).map(role =>
         `<button type="button" class="pvp-role" data-pvp-custom-role="${role}" aria-pressed="${(custom.role ?? 'dd') === role}">${uiIcon(ROLE_ICONS[role])}<span>${pvpRoleLabel(role)}</span></button>`).join('')}</div></div>
       <div class="pvp-custom-row"><span class="pvp-custom-label">Look</span><button type="button" class="ui-button ui-button--quiet" data-pvp-appearance>${uiIcon('palette')}<span>Appearance &amp; armor</span></button><span class="pvp-custom-summary">${e(race.name)} ${e(cls.name)}</span></div>
+      ${this.gearPicker(custom)}
       <p class="pvp-hint">Session character — never saved. Talents and gear are rolled for the match at this level.</p>
     </div>`;
   }

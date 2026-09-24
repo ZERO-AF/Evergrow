@@ -14,14 +14,15 @@ import { planDungeonTravel, type DungeonResult } from './dungeon-command.ts';
 import { currentDungeon } from './dungeon-state.ts';
 import { generateDungeon, type DungeonFloor } from './dungeon.ts';
 import { pvpEntrance, pvpMap, pvpMapIdFor } from './pvp-floor.ts';
-import { randomNpcBuild, buildCustomCharacter, type PvpBuildSummary } from './pvp-chargen.ts';
+import { randomNpcBuild, buildCustomCharacter, seedResource, type PvpBuildSummary } from './pvp-chargen.ts';
 import { pvpTeamSize, pvpBracketLabel, type PvpBracket, type PvpMode, type PvpRole, type PvpSetup } from './pvp-setup.ts';
 import { WOW_CLASS_IDS, type WowClassId } from './wow-types.ts';
+import { cloneData } from './data-clone.ts';
 import { randomSource } from './random-source.ts';
 import { refreshCharacter } from './character.ts';
 import type { CharacterSheet } from './character-types.ts';
+import type { Player, WorldQuery, WowBuff } from './model.ts';
 import type { Combatant, PvpTeam } from './pvp-combatant.ts';
-import type { Player, WorldQuery } from './model.ts';
 import type { Simulation } from './simulation.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 
@@ -37,16 +38,31 @@ export interface PvpRosterEntry {
     readonly summary?: PvpBuildSummary;
 }
 /** The persisted half of a match: everything a reload or a scoreboard needs.
- * `savedCharacter` is the real sheet/level/name a Custom build replaced. */
+ * `savedCharacter` is the real sheet/level/name a Custom build replaced;
+ * `savedState` is the universal pre-match player snapshot (resources, buffs,
+ * consumables — and gear for the saved-character path) restored on exit. */
 export interface PvpMatch {
     mode: PvpMode;
     bracket: PvpBracket;
     mapId: string;
     seed: number;
+    /** Sim time the match was entered; saved buffs decay by the elapsed span. */
+    enteredAt: number;
     phase: PvpMatchPhase;
     score: { A: number; B: number };
     roster: PvpRosterEntry[];
     savedCharacter?: { character: CharacterSheet; level: number; name?: string };
+    /** Pre-match player state, snapshotted for every entry mode. */
+    savedState?: {
+        hp: number; mana: number;
+        flasks: number; healCooldown: number;
+        soulShards?: number; runes?: number[];
+        buffs?: WowBuff[];
+        mounted?: Player['mounted'];
+        /** Saved-character path only: gear+pack snapshot (the live sheet stays
+         * mutable so honor drip and mid-match progress still land). */
+        gear?: { equipped: CharacterSheet['equipped']; inventory: CharacterSheet['inventory']; inventoryLayout?: CharacterSheet['inventoryLayout']; bags?: CharacterSheet['bags'] };
+    };
     /** Optional objective controller (battlegrounds). The match loop calls
      * `update` each tick and `winner` to decide a non-wipe victory. */
     objectives?: PvpObjectives;
@@ -55,6 +71,9 @@ export interface PvpMatch {
 export interface PvpObjectives {
     update(sim: Simulation, match: PvpMatch, dt: number): void;
     score(): { A: number; B: number };
+    /** Objective win threshold (flag captures, resource target); the match loop
+     * normalizes `score.A` against it for the honor award. */
+    readonly target?: number;
     winner(): 'A' | 'B' | null;
     /** Transient per-tick objective events (flag pickups, node captures) the
      * match loop drains for scoreboard credit and announcements. Lives on the
@@ -135,10 +154,28 @@ function buildMatch(sim: Simulation, setup: PvpSetup, seed: number, floor: Dunge
         npcs.push(built.player); teams.push('B');
         roster.push({ name: built.player.name ?? built.summary.identity, team: 'B', classId, role: built.summary.role, spawn: slot('B'), summary: built.summary });
     }
+    const p = sim.player;
     const match: PvpMatch = {
         mode: setup.mode, bracket: setup.bracket, mapId: tag.mapId, seed,
+        enteredAt: sim.time,
         phase: 'prep', score: { A: 0, B: 0 }, roster,
-        ...(setup.custom ? { savedCharacter: { character: sim.player.character, level: sim.player.level, name: sim.player.name } } : {}),
+        ...(setup.custom ? { savedCharacter: { character: p.character, level: p.level, name: p.name } } : {}),
+        // Universal pre-match snapshot: resources, consumables and buffs return
+        // on exit; the saved-character path also banks gear+pack so mid-match
+        // swaps and flask use never touch the real inventory.
+        savedState: {
+            hp: p.hp, mana: p.mana,
+            flasks: p.flasks, healCooldown: p.healCooldown,
+            soulShards: p.soulShards, runes: p.runes ? [...p.runes] : undefined,
+            buffs: p.buffs?.length ? cloneData(p.buffs) : undefined,
+            mounted: p.mounted ?? null,
+            ...(setup.custom ? {} : {
+                gear: cloneData({
+                    equipped: p.character.equipped, inventory: p.character.inventory,
+                    inventoryLayout: p.character.inventoryLayout, bags: p.character.bags,
+                }),
+            }),
+        },
     };
     return { match, npcs, teams };
 }
@@ -152,8 +189,7 @@ function applySessionCharacter(player: Player, setup: PvpSetup): void {
     player.level = built.player.level;
     player.name = built.player.name;
     refreshCharacter(player);
-    player.hp = player.maxHp;
-    player.mana = player.maxMana;
+    seedResource(player); // rage/runic start empty, mana/energy full — like createCharacter
     player.skillCooldowns = {};
     player.flasks = built.player.flasks;
     player.healCooldown = 0;
@@ -168,23 +204,50 @@ function applySessionCharacter(player: Player, setup: PvpSetup): void {
     player.allies = [];
 }
 
-/** Restores the real character after a Custom match and revives the player —
- * leaving an arena always returns you whole, like WoW. */
+/** Restores the pre-match character and player state: the Custom build's sheet
+ * swap is undone, gear+pack return for the saved-character path, and resources,
+ * consumables and buffs come back (buffs decayed by the match's duration, so a
+ * long fight can't freeze a short buff). Leaving an arena never kills you. */
 function restoreSessionCharacter(sim: Simulation, match: PvpMatch): void {
     const p = sim.player;
     if (match.savedCharacter) {
         p.character = match.savedCharacter.character;
         p.level = match.savedCharacter.level;
         p.name = match.savedCharacter.name;
-        refreshCharacter(p);
     }
+    const saved = match.savedState;
+    if (saved?.gear) {
+        p.character.equipped = cloneData(saved.gear.equipped);
+        p.character.inventory = cloneData(saved.gear.inventory);
+        p.character.inventoryLayout = saved.gear.inventoryLayout ? cloneData(saved.gear.inventoryLayout) : undefined;
+        p.character.bags = saved.gear.bags ? cloneData(saved.gear.bags) : undefined;
+    }
+    // Restore buffs before refreshCharacter so their stats re-derive into the
+    // sheet; decay them by the match's elapsed span.
+    if (saved) {
+        const elapsed = Math.max(0, sim.time - match.enteredAt);
+        p.buffs = saved.buffs
+            ?.map(buff => ({ ...buff, remaining: buff.remaining - elapsed }))
+            .filter(buff => buff.remaining > 0);
+        if (!p.buffs?.length) p.buffs = undefined;
+    }
+    refreshCharacter(p);
     p.dead = false;
-    p.hp = p.maxHp;
-    p.mana = p.maxMana;
+    sim.ghost = null;
+    if (saved) {
+        p.hp = Math.max(1, Math.min(p.maxHp, saved.hp));
+        p.mana = Math.max(0, Math.min(p.maxMana, saved.mana));
+        p.flasks = saved.flasks;
+        p.healCooldown = saved.healCooldown;
+        p.soulShards = saved.soulShards;
+        p.runes = saved.runes ? [...saved.runes] : undefined;
+        p.mounted = saved.mounted ?? null;
+    } else {
+        seedResource(p);
+    }
     p.cc = undefined;
     p.dots = undefined;
     p.stealthed = undefined;
-    p.mounted = null;
     p.targetId = null;
     p.autoAttack = false;
 }

@@ -1692,8 +1692,8 @@ export class Simulation {
     this.questScanTimer -= dt;
     if (!this.ghost && this.questScanTimer <= 0) { this.questScanTimer = 0.5; questExploreScan(this, this.world as QuestWorld); }
     if(this.dungeonFloor) updateDungeon(this,this.spawnExclusion,dt,event=>this.emit(event)); else this.updateSpawns(dt);
-    this.enemies = this.enemies.filter(e => e.state !== 'dead' || e.stateTime < ENCOUNTER_RULES.corpseDuration);
-    if (!this.dungeonFloor && this.spawnExclusion) this.enemies = this.enemies.filter(enemy =>
+    this.retireEnemies(enemy => enemy.state !== 'dead' || enemy.stateTime < ENCOUNTER_RULES.corpseDuration);
+    if (!this.dungeonFloor && this.spawnExclusion) this.retireEnemies(enemy =>
       !shouldRetireRoamer(enemy, this.player, this.spawnExclusion!, this.roaming.heading));
   }
 
@@ -1786,8 +1786,8 @@ export class Simulation {
     this.questScanTimer -= dt;
     if (anyActive && this.questScanTimer <= 0) { this.questScanTimer = 0.5; questExploreScan(this, this.world as QuestWorld); }
     if (this.dungeonFloor) updateDungeon(this, this.spawnExclusion, dt, event => this.emit(event)); else this.updateSpawns(dt);
-    this.enemies = this.enemies.filter(e => e.state !== 'dead' || e.stateTime < ENCOUNTER_RULES.corpseDuration);
-    if (!this.dungeonFloor && this.spawnExclusion) this.enemies = this.enemies.filter(enemy =>
+    this.retireEnemies(enemy => enemy.state !== 'dead' || enemy.stateTime < ENCOUNTER_RULES.corpseDuration);
+    if (!this.dungeonFloor && this.spawnExclusion) this.retireEnemies(enemy =>
       !roster.some(actor => shouldRetireRoamer(enemy, actor.player, this.spawnExclusion!, this.roaming.heading)));
   }
 
@@ -2251,21 +2251,37 @@ export class Simulation {
 
   private enemyNeighbors=new EnemyNeighbors();
   private riftTactics=new RiftTactics();
+  /** Persistent AI context; mutable fields are restamped each tick. */
+  private enemyContext: EnemyAIContext | null = null;
+  /** In-place filter: compacts a live list without allocating a new array
+   * each tick (the old `filter` reassignment churned one array per step). */
+  private compactList<T>(list: T[], keep: (item: T) => boolean): void {
+    let write = 0;
+    for (let read = 0; read < list.length; read++)
+      if (keep(list[read])) list[write++] = list[read];
+    list.length = write;
+  }
+  private retireEnemies(keep: (enemy: Enemy) => boolean): void {
+    this.compactList(this.enemies, keep);
+  }
+
   private updateEnemies(dt: number): void {
     this.enemyNeighbors.rebuild(this.enemies);
     updateWarbands(this.enemies, this.player, this.world, dt);
     const p = this.player;
     const trial = this.eventState.trial && !this.dungeonFloor ? this.eventState.sites[this.eventState.trial.siteId] : null;
-    const context = {
+    // One persistent context: the closures capture `this` once and the mutable
+    // fields are restamped each tick instead of allocating ~15 closures/tick.
+    const context = this.enemyContext ??= {
       player: p, players: this.players, enemies: this.enemies, world: this.world, time: this.time,
       allies: p.allies ?? [],
       hurtAlly: (ally: Ally, amount: number) => this.damageAlly(ally, amount),
       neighbors:(enemy,padding)=>this.enemyNeighbors.around(enemy,padding),
-      hurtDecoy:(id,amount,victim)=>{hurtDecoy(victim??p,id,amount);},
-      trial: trial ? { campId: `event:${trial.id}`, x: trial.x, y: trial.y, radius: EVENT_RULES.trialRadius } : worldEventTrialContext(this.worldEvents),
+      hurtDecoy:(id,amount,victim)=>{hurtDecoy(victim??this.player,id,amount);},
+      trial: null,
       visible: (ax, ay, bx, by) => this.lineOfSight(ax, ay, bx, by),
       move: (actor, vx, vy, delta) => this.moveEnemy(actor, vx, vy, delta),
-      hurt: (amount, angle, actor, damageType, victim) => this.forPlayer(victim ?? p, () => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical', actor)),
+      hurt: (amount, angle, actor, damageType, victim) => this.forPlayer(victim ?? this.player, () => this.takeDamage(amount, angle, actor.level, damageType, actor.kind, enemyDisplayName(actor), damageType === 'physical', actor)),
       shoot: (actor, angle, definition, effects) => this.projectile(actor.x, actor.y, angle,
         definition, undefined, effects, actor.level, actor.kind, enemyDisplayName(actor), actor.id),
       emit: event => this.emit(event),
@@ -2273,6 +2289,9 @@ export class Simulation {
         amount: TREASURE_GOBLIN.goldBase + TREASURE_GOBLIN.goldPerLevel * actor.level, age: 0 }),
       addBuff: (name, color, spec, id, victim) => this.addBuffTo(victim ?? this.player, name, color, spec, id),
     } as EnemyAIContext;
+    context.player = p; context.players = this.players; context.enemies = this.enemies;
+    context.world = this.world; context.time = this.time; context.allies = p.allies ?? [];
+    context.trial = trial ? { campId: `event:${trial.id}`, x: trial.x, y: trial.y, radius: EVENT_RULES.trialRadius } : worldEventTrialContext(this.worldEvents);
     this.riftTactics.tick(context,dt,currentDungeon(this.expeditions)?.rift?.phase==='hunt');
     for (const enemy of this.enemies) {
       if (isCombatant(enemy)) continue;
@@ -2397,9 +2416,9 @@ export class Simulation {
     const active = p.character.pets?.active;
     if (active && allies.some(ally => ally.petId === active.id && ally.hp <= 0))
       p.character.pets = { ...p.character.pets!, active: adjustPetLoyalty(active, -PET_RULES.deathLoyaltyLoss) };
-    p.allies = allies.filter(ally => ally.hp > 0 && (ally.remaining === undefined || ally.remaining > 0));
+    this.compactList(allies, ally => ally.hp > 0 && (ally.remaining === undefined || ally.remaining > 0));
     if (this.allySkillCooldowns.size) {
-      const live = new Set(p.allies.map(ally => ally.id));
+      const live = new Set(allies.map(ally => ally.id));
       for (const id of this.allySkillCooldowns.keys()) if (!live.has(id)) this.allySkillCooldowns.delete(id);
     }
   }
@@ -2583,7 +2602,7 @@ export class Simulation {
       }
       for (const [source, shots] of bySource) run(shots, source);
     }
-    this.projectiles = this.projectiles.filter(projectile => projectile.life > 0);
+    this.compactList(this.projectiles, projectile => projectile.life > 0);
   }
 
   private scheduleGroundEffect(effect: Omit<GroundEffect, 'id' | 'tick'>): void {
@@ -2655,7 +2674,7 @@ export class Simulation {
         }
       }
     }
-    this.pickups = this.pickups.filter(pickup => pickup.life > 0);
+    this.compactList(this.pickups, pickup => pickup.life > 0);
   }
 
   requestGroundItem(id: number, player: Player = this.player): string | null {
@@ -2664,8 +2683,6 @@ export class Simulation {
     this.clearCombatInput();this.portal.cancelFor(player);this.eventChannel.cancelFor(player);this.hearthstone.cancelFor(player);
     return this.pickupFor(player).select(player,this.groundItems.find(drop=>drop.id===id),this.time);
   }
-
-  /** The single validated equipment award: pack space, quest hooks and the loot event. */
   private awardGroundItem(index: number, player: Player = this.player): void {
     const drop=this.groundItems[index];
     const pickup = this.pickupFor(player);

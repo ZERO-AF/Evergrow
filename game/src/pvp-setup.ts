@@ -6,7 +6,7 @@
 import { WOW_CLASS_IDS, WOW_RACE_IDS, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { raceAllowsClass } from './wow-races.ts';
-import type { WowSkillId } from './character-types.ts';
+import type { EquipmentSlot, WowSkillId } from './character-types.ts';
 import { createRaceLook, type CharacterLook } from './character-look.ts';
 
 
@@ -36,10 +36,10 @@ export interface PvpTeammate { classId: WowClassId; role: PvpRole; }
 export interface PvpCustomBuild {
   classId: WowClassId; raceId: WowRaceId; level: number; look: CharacterLook;
   role?: PvpRole; skills?: WowSkillId[]; itemLevel?: number; seed?: number;
+  /** Item-picker choices: slot → candidate seed (pvp-chargen.pvpGearOptions).
+   * Absent slots auto-roll with the role loadout. */
+  gear?: Partial<Record<EquipmentSlot, number>>;
 }
-
-/** What the wizard hands the match controller on Queue/Enter. `custom === null` means
- * the loaded save character plays; a non-null custom build replaces it for the match. */
 export interface PvpSetup {
   mode: PvpMode;
   bracket: PvpBracket;
@@ -131,6 +131,7 @@ export function createCustomBuild(classId: WowClassId = 'warrior', raceId: WowRa
  * title-screen forge. */
 export function setCustomClass(custom: PvpCustomBuild, classId: WowClassId): void {
   custom.classId = classId;
+  delete custom.gear; // gear picks are class-scoped; a new class re-rolls them
   if (!raceAllowsClass(custom.raceId, classId)) custom.raceId = WOW_RACE_IDS.find(race => raceAllowsClass(race, classId))!;
 }
 export function setCustomRace(custom: PvpCustomBuild, raceId: WowRaceId): void {
@@ -144,8 +145,9 @@ export function validPvpSetup(draft: PvpSetupDraft, hasCharacter: boolean): PvpS
   if (draft.teammates.length !== pvpTeamSize(draft.bracket) - 1) return null;
   if (!draft.teammates.every(t => WOW_CLASS_IDS.includes(t.classId) && pvpClassRoles(t.classId).includes(t.role))) return null;
   if (draft.custom) {
-    const { classId, raceId, level } = draft.custom;
+    const { classId, raceId, level, gear } = draft.custom;
     if (!raceAllowsClass(raceId, classId) || level < PVP_LEVEL_MIN || level > PVP_LEVEL_MAX) return null;
+    if (gear && !Object.values(gear).every(seed => seed === undefined || Number.isInteger(seed))) return null;
   } else if (!hasCharacter) return null;
   return { mode: draft.mode, bracket: draft.bracket, teammates: draft.teammates.map(t => ({ ...t })), custom: draft.custom };
 }

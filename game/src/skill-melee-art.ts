@@ -110,6 +110,10 @@ export class SkillMeleeArt {
       c.globalAlpha = life * .2; line(c, outer, s.color, 18);
       c.globalAlpha = life * .68; polygon(c, [...outer, ...inner.reverse()], s.color);
       c.globalAlpha = life * .95; line(c, edge, '#fff1ce', 2.2);
+      // Hot leading tip: the sweep's cutting edge reads as a bright head.
+      const [hx, hy] = skillSweepPoint(s.angle, s.arc, s.hand, end, s.reach * .97);
+      c.globalAlpha = life * .9; c.fillStyle = '#fff8e2';
+      c.beginPath(); c.ellipse(hx, hy, 3.2, 2.2, s.angle + getActiveSwingOffset(end, s.arc, s.hand), 0, Math.PI * 2); c.fill();
       // A second, tighter wake separates a full-circle spin from a broad crescent.
       if (s.arc > Math.PI * 1.5) {
         const wake = outer.map(([x,y]): Point => [x * .72, y * .72]);

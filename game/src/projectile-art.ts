@@ -36,6 +36,7 @@ export function drawProjectile(c: CanvasRenderingContext2D, shot: Projectile, x:
   } else if (style === 'arrow') {
     c.globalAlpha *= .45;
     line(c, [[-42, 0], [-14, 0]], '#d5ddc2', 1.5);
+    line(c, [[-30, 0], [-8, 0]], '#f4f8e8', .7);
     c.globalAlpha /= .45;
     line(c, [[-23, .4], [6, .4]], '#473e32', 2);
     line(c, [[-23, -.2], [6, -.2]], '#c4ad80', .85);

@@ -7,8 +7,8 @@ import { PROJECTILE_HEIGHT } from './ranged-aim.ts';
 import { SKILL_CAST_MOTION } from './combat-content.ts';
 import { SKILL_DEFINITIONS, skillWeapon } from './skill-content.ts';
 import { playerMotion } from './character-motion.ts';
-import { getPlayerSwordTip } from './art.ts';
 import { playerPose } from './character-pose.ts';
+import { getPlayerSwordTip } from './art.ts';
 import { drawGlow } from './lighting.ts';
 import type { PointLight } from './lighting.ts';
 import type { CombatEvent, ProjectileStyle } from './model.ts';
@@ -30,9 +30,13 @@ interface Spark {
   x: number; y: number; vx: number; vy: number;
   z: number; vz: number; curl: number;
   life: number; max: number; size: number; color: string; luminous: boolean;
+  /** Soul motes rise steadily instead of arcing under gravity. */
+  float: boolean;
 }
 interface Flash { x: number; y: number; life: number; max: number; radius: number; color: string; ring: boolean; radiant?: boolean; }
 interface Impact { x: number; y: number; angle: number; life: number; max: number; color: string; hurt: boolean; lethal: boolean; radiant?: boolean; style?: ProjectileStyle; cls?: ClassStyle | null; }
+/** One dodge-trail sample: an interpolated body position that fades fast. */
+interface TrailPoint { x: number; y: number; life: number; }
 const GOLD = '#ffbd63', FIRE = '#ff643b', MINT = '#54e8b8', BLUE = '#64baff';
 const MANA_WARNING_DURATION = 1.15;
 /** Short floating cue per rejected-skill reason (skill-failed events). */
@@ -62,6 +66,8 @@ export class CombatEffects {
   private sword = new SwordTrail();
   private skillEffects = new SkillEffects();
   private meleeSkills = new SkillMeleeArt();
+  /** Interpolated positions sampled while the dodge roll runs; drawn as a streak. */
+  private dodgeTrail: TrailPoint[] = [];
   /** Ground-drop ids already seen, so a landing item bursts exactly once. */
   private seenGroundItems = new Set<number>();
   private groundItemsPrimed = false;
@@ -79,7 +85,7 @@ export class CombatEffects {
     this.emitterTime = 0; this.sword.reset(); this.skillEffects.reset(); this.meleeSkills.reset();
     this.seenGroundItems.clear(); this.groundItemsPrimed = false;
     this.seenAllies.clear(); this.alliesPrimed = false;
-    this.pendingLootMoments = []; this.lootPulse = 0;
+    this.pendingLootMoments = []; this.lootPulse = 0; this.dodgeTrail = [];
   }
 
   /**
@@ -158,13 +164,13 @@ export class CombatEffects {
     return moments;
   }
 
-  private spark(x: number, y: number, angle: number, color: string, strength = 1, airborne = true, luminous = true) {
+  private spark(x: number, y: number, angle: number, color: string, strength = 1, airborne = true, luminous = true, float = false) {
     const speed = (40 + Math.random() * 170) * strength;
-    const life = .2 + Math.random() * .48;
-    this.sparks.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      z: airborne ? 15 : 0, vz: airborne ? 25 + Math.random() * 95 : 0,
+    const life = float ? .55 + Math.random() * .5 : .2 + Math.random() * .48;
+    this.sparks.push({ x, y, vx: Math.cos(angle) * speed * (float ? .3 : 1), vy: Math.sin(angle) * speed * (float ? .3 : 1),
+      z: airborne ? 15 : 0, vz: float ? 16 + Math.random() * 22 : airborne ? 25 + Math.random() * 95 : 0,
       curl: (Math.random() - .5) * (luminous ? 5 : 1.2), life, max: life,
-      size: luminous ? .8 + Math.random() * 1.7 : 1.6 + Math.random() * 2, color, luminous });
+      size: luminous ? .8 + Math.random() * 1.7 : 1.6 + Math.random() * 2, color, luminous, float });
   }
 
   handleEvents(events: CombatEvent[]) {
@@ -194,11 +200,32 @@ export class CombatEffects {
         : event.type === 'hurt' ? 32 : event.type === 'cast' ? seal ? 10 : 26 : restoring ? 30
         : event.type === 'loot' ? 8 : event.type === 'pickup' ? 10 : event.type === 'dodge' ? 14 : 0;
       // MaterialResponses owns solid debris. Retain the short luminous contact accents here.
-      for (let i = 0; i < (contact ? event.type === 'kill' ? 0 : 8 : count); i++) {
+      for (let i = 0; i < (contact ? event.type === 'kill' ? 0 : event.type === 'hit' ? 12 : 8 : count); i++) {
         const radial = ['heal', 'potion', 'pickup', 'level', 'blast'].includes(event.type) || event.skill === 'iceNova';
         const angle = radial ? Math.random() * Math.PI * 2 : eventAngle + (Math.random() - .5) * 2.8;
         this.spark(event.x + (tip?.x ?? 0), event.y + (tip ? tip.y + 15 : 0), angle, i % 4 === 0 ? '#fff7db' : color,
           contact ? 1.2 : event.type === 'blast' ? 1 + Math.min(1.4, blastRadius / 130) : 1);
+      }
+      if (event.type === 'hit') {
+        // Weight: a fast, tight streak fan along the blow plus a hot core flash.
+        for (let i = 0; i < 6; i++)
+          this.spark(event.x, event.y - 14, eventAngle + (Math.random() - .5) * .9,
+            i % 2 ? '#fff7db' : color, 1.7 + Math.random() * .5);
+        this.flashes.push({ x: event.x, y: event.y - 16, life: .13, max: .13,
+          radius: heavy ? 36 : 26, color: '#fff4d6', ring: false });
+      }
+      if (event.type === 'kill') {
+        // Death commitment: pale soul motes stream upward off the falling body.
+        for (let i = 0; i < 9; i++)
+          this.spark(event.x + (Math.random() - .5) * 14, event.y - 8 - Math.random() * 14,
+            -Math.PI / 2 + (Math.random() - .5) * .8, i % 3 === 0 ? '#ffffff' : '#cfe4ff', .35, true, true, true);
+      }
+      if (event.type === 'dodge') {
+        // The roll reads as speed lines thrown backward off the dodge vector.
+        for (let i = 0; i < 9; i++)
+          this.spark(event.x, event.y - 10, eventAngle + Math.PI + (Math.random() - .5) * .55,
+            i % 3 === 0 ? '#eaf6ff' : color, 1.5 + Math.random() * .6);
+        this.flashes.push({ x: event.x, y: event.y - 4, life: .2, max: .2, radius: 34, color, ring: true });
       }
       const contactY = event.y - (event.type === 'hurt' ? 24 : enemyKind === 'brute' ? 25 : 18);
       if (contact) this.impacts.push({ x: event.x, y: contactY, angle: eventAngle,
@@ -247,9 +274,12 @@ export class CombatEffects {
       spark.vy = (spark.vx * sin + spark.vy * cos) * Math.exp(-dt * 1.7);
       spark.vx = vx * Math.exp(-dt * 1.7);
       spark.x += spark.vx * dt; spark.y += spark.vy * dt;
-      spark.z = Math.max(0, spark.z + spark.vz * dt); spark.vz -= dt * 190;
+      // Soul motes drift up and fade; everything else arcs under gravity.
+      if (spark.float) spark.z += spark.vz * dt;
+      else { spark.z = Math.max(0, spark.z + spark.vz * dt); spark.vz -= dt * 190; }
     }
     for (const flash of this.flashes) flash.life -= dt;
+    for (const point of this.dodgeTrail) point.life -= dt;
     for (const impact of this.impacts) impact.life -= dt;
     for (const popup of this.popups) {
       popup.life -= dt; popup.x += popup.vx * dt; popup.y += popup.vy * dt;
@@ -265,6 +295,16 @@ export class CombatEffects {
     write = 0;
     for (const impact of this.impacts) if (impact.life > 0) this.impacts[write++] = impact;
     this.impacts.length = write;
+    write = 0;
+    for (const point of this.dodgeTrail) if (point.life > 0) this.dodgeTrail[write++] = point;
+    this.dodgeTrail.length = write;
+    // The dodge roll leaves a fading streak along its real interpolated path.
+    const pl = sim.player;
+    if (pl.dodgeTime > 0 && !pl.dead) {
+      this.dodgeTrail.push({ x: pl.prevX + (pl.x - pl.prevX) * sim.interpolationAlpha,
+        y: pl.prevY + (pl.y - pl.prevY) * sim.interpolationAlpha, life: .26 });
+      if (this.dodgeTrail.length > 26) this.dodgeTrail.splice(0, this.dodgeTrail.length - 26);
+    }
     write = 0;
     for (const popup of this.popups) if (popup.life > 0) this.popups[write++] = popup;
     this.popups.length = write;
@@ -284,6 +324,14 @@ export class CombatEffects {
         const y = p.prevY + (p.y - p.prevY) * sim.interpolationAlpha + tip.y;
         for (let i = 0; i < 2; i++) this.spark(x, y, angle + 1.3,
           i === 0 ? '#fff0d4' : (attack.weapon.visual.glow ?? GOLD), .5, false);
+      } else if (attack?.kind === 'melee' && attack.weapon.visual.kind !== 'unarmed' && attack.elapsed < attack.activeStart) {
+        // Windup anticipation: faint motes converge on the drawn-back blade.
+        const tip = getPlayerSwordTip(playerPose(p, sim.time));
+        const x = p.prevX + (p.x - p.prevX) * sim.interpolationAlpha + tip.x;
+        const y = p.prevY + (p.y - p.prevY) * sim.interpolationAlpha + tip.y;
+        const pull = Math.random() * Math.PI * 2, reach = 10 + Math.random() * 8;
+        this.spark(x + Math.cos(pull) * reach, y + Math.sin(pull) * reach * .6,
+          Math.atan2(-Math.sin(pull), -Math.cos(pull)), attack.weapon.visual.glow ?? GOLD, .22, false);
       }
       for (let i = 0; i < Math.min(32, sim.projectiles.length); i++) {
         const shot = sim.projectiles[i];
@@ -345,6 +393,23 @@ export class CombatEffects {
     }
     this.skillEffects.draw(c, reducedMotion);
     this.meleeSkills.draw(c, reducedMotion);
+    if (!reducedMotion && this.dodgeTrail.length > 1) {
+      // Dodge streak: a tapering ribbon along the roll path plus a head glow.
+      c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+      for (let i = 1; i < this.dodgeTrail.length; i++) {
+        const a = this.dodgeTrail[i - 1], b = this.dodgeTrail[i];
+        const life = Math.min(a.life, b.life) / .26;
+        if (life <= 0) continue;
+        c.globalAlpha = life * .34; c.strokeStyle = '#9fd0ff';
+        c.lineWidth = 1 + life * 5;
+        c.beginPath(); c.moveTo(a.x, a.y - 13); c.lineTo(b.x, b.y - 13); c.stroke();
+        c.globalAlpha = life * .5; c.strokeStyle = '#eaf6ff'; c.lineWidth = .8 + life * 1.4;
+        c.beginPath(); c.moveTo(a.x, a.y - 13); c.lineTo(b.x, b.y - 13); c.stroke();
+      }
+      const head = this.dodgeTrail[this.dodgeTrail.length - 1];
+      c.globalAlpha = 1;
+      drawGlow(c, head.x, head.y - 13, 22, '#9fd0ff', Math.min(1, head.life / .26) * .4);
+    }
     for (const impact of this.impacts) this.drawImpact(c, impact, reducedMotion);
     for (const spark of this.sparks) {
       const t = Math.min(1, spark.life / spark.max * 1.8), y = spark.y - spark.z;
@@ -371,14 +436,20 @@ export class CombatEffects {
     c.save(); c.translate(impact.x, impact.y); c.rotate(impact.angle);
     c.globalCompositeOperation = 'lighter';
     c.globalAlpha = Math.pow(t, 1.5);
-    const length = (impact.lethal ? (GAME_FEATURES.combatJuice ? 38 : 30) : 23) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
-    const waist = 3.7 * t;
+    const length = (impact.lethal ? (GAME_FEATURES.combatJuice ? 38 : 30) : 27) * Math.sin(Math.min(1, elapsed * 2 + .25) * Math.PI / 2);
+    const waist = 4.2 * t;
     c.fillStyle = elapsed < .3 ? '#fff8da' : impact.color;
     // The contact has a hard, brief center, followed by an expanding broken star.
     c.beginPath(); c.moveTo(-length * .7, 0); c.lineTo(-waist, -waist);
     c.lineTo(0, -length * .65); c.lineTo(waist, -waist);
     c.lineTo(length, 0); c.lineTo(waist, waist);
     c.lineTo(0, length * .65); c.lineTo(-waist, waist); c.closePath(); c.fill();
+    // White-hot core dot: the first frames read as a real contact point.
+    if (elapsed < .45 && !impact.radiant) {
+      c.globalAlpha = Math.pow(t, 2) * .9;
+      c.fillStyle = '#fffdf2';
+      c.beginPath(); c.ellipse(0, 0, 3.4 * t + 1, 2.6 * t + .8, 0, 0, Math.PI * 2); c.fill();
+    }
     if (impact.radiant) {
       drawRadiantSeal(c, reducedMotion ? 16 : 11 + elapsed * 9, 1);
       c.restore(); return;
@@ -417,7 +488,7 @@ export class CombatEffects {
     c.save();
     for (const popup of this.popups) {
       const elapsed = popup.max - popup.life;
-      const pop = 1 + .35 * Math.exp(-elapsed * 22);
+      const pop = 1 + (popup.crit ? .55 : .35) * Math.exp(-elapsed * (popup.crit ? 16 : 22));
       const size = popup.size * pop;
       const { x, y } = project(popup.x, popup.y);
       c.globalAlpha = Math.min(1, popup.life / .2);

@@ -6,7 +6,7 @@
  * and the ticket wallet live in holiday-state.ts, durable commands in
  * holiday-command.ts, and the faire window in holiday-panel.ts. */
 import { siteHash } from './wilderness-sites.ts';
-import { hashService, type TownNPC } from './npcs.ts';
+import { hashService, memoFixture, type TownNPC } from './npcs.ts';
 import { getZoneAt } from './zone-progression.ts';
 import { generateItem } from './items.ts';
 import type { WorldQuery } from './model.ts';
@@ -248,7 +248,7 @@ export type FaireNPC = Omit<TownNPC, 'role'> & { role: 'darkmoonVendor' };
 
 const FAIRE_VENDOR_NAMES = ['Silas', 'Gelvas', 'Lhara', 'Rona', 'Boomie', 'Flik'] as const;
 
-export function faireVendor(site: FaireSite): FaireNPC {
+export const faireVendor = memoFixture((site: FaireSite): FaireNPC => {
   const x = site.x, y = site.y + HOLIDAY_RULES.vendorOffset;
   const id = `${site.id}:vendor`;
   const seed = hashService(id);
@@ -256,7 +256,7 @@ export function faireVendor(site: FaireSite): FaireNPC {
   return { id, buildingId: site.id, role: 'darkmoonVendor', x, y, seed,
     name: FAIRE_VENDOR_NAMES[seed % FAIRE_VENDOR_NAMES.length],
     level: zone.level, maxLevel: zone.maxLevel, faction: 'neutral' };
-}
+});
 
 /** One prize row: generated gear (replica weapon, cosmetics, heirloom trinket),
  * a companion collection marker, or a mount unlock flag. */

@@ -11,7 +11,7 @@ import type { WorldQuery } from './model.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import { GAME_FEATURES } from './game-features.ts';
 import { cloneData } from './data-clone.ts';
-/** WotLK-flavored limits; every persisted inbox stays bounded by these. */
+import { memoFixture } from './npcs.ts';
 export const MAIL_RULES = Object.freeze({
   /** Messages kept per character inbox (WoW shows ~50). */
   maxMessages: 50,
@@ -108,11 +108,11 @@ export interface Mailbox {
 }
 
 /** Every settlement has a stash fixture; the mailbox stands on its far side. */
-export function mailboxFor(building: Building): Mailbox | null {
+export const mailboxFor = memoFixture((building: Building): Mailbox | null => {
   if (building.kind !== 'stash') return null;
   return { id: `${building.id}:mailbox`, name: 'Mailbox', buildingId: building.id,
     x: building.door.x + 52, y: building.door.y - 2 };
-}
+});
 
 export function mailboxesNear(world: WorldQuery, x: number, y: number, width: number, height: number): Mailbox[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])

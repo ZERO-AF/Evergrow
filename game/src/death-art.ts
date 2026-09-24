@@ -33,14 +33,28 @@ export function drawDeathFigure(c:CanvasRenderingContext2D,kind:EnemyKind,varian
   }
   const impact=(age-recipe.contact)/.38;
   if(impact>0&&impact<1&&age<recipe.settle) {
-    c.save();c.globalAlpha*=(1-impact)*.16;c.fillStyle='#b0a184';
-    for(let i=0;i<7;i++) {
-      const angle=i*2.399,spread=(3+impact*15)*scale;
+    c.save();c.globalAlpha*=(1-impact)*.26;c.fillStyle='#b0a184';
+    for(let i=0;i<9;i++) {
+      const angle=i*2.399,spread=(3+impact*17)*scale;
       c.beginPath();c.ellipse(Math.cos(facing)*travel+Math.cos(angle)*spread,Math.sin(facing)*travel*.55+Math.sin(angle)*spread*.4-2*scale,
         (1+impact*2)*scale,(.6+impact)*scale,0,0,Math.PI*2);c.fill();
     }
     c.restore();
   }
+  c.restore();
+}
+
+/** A pale soul wisp rises off the body for the first second — the readable
+ * "this one is dead" beat, drawn over live and cached remains alike. */
+function drawSoulWisp(c:CanvasRenderingContext2D,r:EnemyRemains,age:number):void {
+  if(age<=0||age>1.05)return;
+  const t=age/1.05,rise=t*30,fade=Math.sin(Math.min(1,t*1.6)*Math.PI);
+  c.save();c.globalCompositeOperation='lighter';c.globalAlpha*=fade*.8;
+  const sway=Math.sin(age*7+r.id)*3*t;
+  c.fillStyle='#dff0ff';
+  c.beginPath();c.ellipse(sway,-14-rise,2.6-t*1.1,4.5-t*1.6,0,0,Math.PI*2);c.fill();
+  c.globalAlpha*=fade*.5;c.fillStyle='#8fb8e8';
+  c.beginPath();c.ellipse(sway*.6,-10-rise*.7,4.5-t*2,2.2-t,0,0,Math.PI*2);c.fill();
   c.restore();
 }
 
@@ -76,5 +90,6 @@ export function drawEnemyRemains(c:CanvasRenderingContext2D,r:EnemyRemains,reduc
     }
     c.drawImage(art,-size/2,-size/2,size,size);
   } else drawDeathFigure(c,r.kind,r.variant,pose.age,r.facing);
+  if(!reducedMotion)drawSoulWisp(c,r,r.age);
   c.restore();
 }

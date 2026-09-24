@@ -190,7 +190,8 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
   for (const c of roster) if (!c.dead) c.stunTime = Math.max(c.stunTime ?? 0, 1);
   rt.announcer.finish(match, winner);
   const playerKills = rt.tracker.snapshot().rows.find(row => row.isPlayer)?.kills ?? 0;
-  const objectivesScore = match.mode === 'arena' ? undefined : Math.max(0, Math.floor(match.score.A));
+  const objectivesScore = match.mode === 'arena' ? undefined
+    : Math.max(0, Math.floor(match.score.A / Math.max(1, objectives.target ?? 1) * 3));
   const heldAllNodes = !!objectives.peakOwned?.total && objectives.peakOwned.A >= objectives.peakOwned.total;
   return {
     winner,
@@ -200,7 +201,7 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
       ...(objectivesScore ? { objectives: objectivesScore } : {}),
       ...(rt.flagCaptures ? { flagCaptures: rt.flagCaptures } : {}),
       ...(heldAllNodes ? { heldAllNodes: true } : {}),
-      honorFromKills: true,
+      honorFromKills: !match.savedCharacter,
     },
     scoreboard: rt.tracker.snapshot(),
   };

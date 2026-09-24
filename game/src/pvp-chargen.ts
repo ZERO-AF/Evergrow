@@ -5,7 +5,7 @@
  * character does (connected talents, one Doctrine/spec per family, class-gated gear,
  * point conservation). Nothing here constructs a CharacterSession or touches a save;
  * match controllers discard these sheets when the match ends. */
-import { createCharacterSheet, generateItem, EQUIPMENT_SLOTS } from './items.ts';
+import { createCharacterSheet, generateItem, EQUIPMENT_SLOTS, RELIC_CLASSES, SHIELD_CLASSES } from './items.ts';
 import { allocateSkillRoute, buildSkillRoutes } from './skill-tree-routes.ts';
 import { SKILL_NODES, unlockedSkills } from './skill-tree.ts';
 import { specSignatureNode } from './skill-tree-content.ts';
@@ -15,14 +15,16 @@ import { initialPlayer } from './simulation.ts';
 import { WOW_CLASSES } from './wow-classes.ts';
 import { raceAllowsClass, WOW_RACES } from './wow-races.ts';
 import { WOW_CLASS_SKILLS } from './wow-skills.ts';
-import { WEAPON_PROFILES } from './weapon-content.ts';
-import { MATERIAL_POOLS, type ItemMaterialId } from './item-materials.ts';
+import { WEAPON_PROFILES, SHIELD_PROFILES } from './weapon-content.ts';
+import { FOCUS_PROFILES } from './focus-content.ts';
+import { jewelryProfiles } from './jewelry-content.ts';
+import { MATERIAL_POOLS, itemMaterialPool, type ItemMaterialId } from './item-materials.ts';
 import { randomSource } from './random-source.ts';
 import { normalizeLevel } from './progression-content.ts';
 import { pvpClassRoles, type PvpCustomBuild, type PvpRole } from './pvp-setup.ts';
 import { BAR_TOTAL } from './action-bar.ts';
+import type { Attribute, CharacterSheet, EquipmentSlot, Item, ItemKind, ItemTier, SkillId, WowSkillId } from './character-types.ts';
 import type { Player, WeaponFamily } from './model.ts';
-import type { Attribute, CharacterSheet, EquipmentSlot, ItemTier, SkillId, WowSkillId } from './character-types.ts';
 import type { WowClassId, WowRaceId } from './wow-types.ts';
 import type { CharacterLook } from './character-look.ts';
 
@@ -192,17 +194,13 @@ function legalWeapons(classId: WowClassId, families: readonly WeaponFamily[], ha
     && (hands === undefined || profile.hands === hands)
     && (profile.hands === 1 || profile.attackKind !== 'melee' || cls.twoHandedMelee));
 }
-
 /** Roll the equipped record for a loadout at the target item level. */
 function rollLoadoutGear(random: () => number, classId: WowClassId, preset: PvpRolePreset, loadout: PvpLoadout, itemLevel: number): CharacterSheet['equipped'] {
   const equipped = Object.fromEntries(EQUIPMENT_SLOTS.map(slot => [slot, null])) as CharacterSheet['equipped'];
   const item = (kind: Parameters<typeof generateItem>[2], profileId?: string, material?: ItemMaterialId) =>
     generateItem(Math.floor(random() * 0xffffffff), itemLevel, kind, profileId, gearTier(random(), itemLevel), material);
 
-  // Offhand 'none' prefers a two-handed profile when the class can legally carry one.
-  const twoHanded = loadout.offhand === 'none' && legalWeapons(classId, loadout.weapons, 2).length > 0;
-  const weapon = item('weapon', pick(random, legalWeapons(classId, loadout.weapons, loadout.offhand === 'none' && twoHanded ? 2 : loadout.offhand === 'none' ? undefined : 1)).id);
-  equipped.weapon = weapon;
+  equipped.weapon = rollWeapon(random, classId, loadout.weapons, loadout.offhand === 'none' ? 'twoHanded' : 'oneHanded', itemLevel);
 
   switch (loadout.offhand) {
     case 'shield': equipped.offhand = item('shield'); break;
@@ -210,7 +208,8 @@ function rollLoadoutGear(random: () => number, classId: WowClassId, preset: PvpR
     case 'relic': equipped.offhand = item('relic'); break;
     case 'dual': {
       const oneHanded = legalWeapons(classId, loadout.weapons, 1).filter(profile => profile.attackKind === 'melee');
-      equipped.offhand = item('weapon', pick(random, oneHanded).id);
+      // A class whose loadout families hold no 1H melee weapon leaves the hand empty.
+      if (oneHanded.length) equipped.offhand = item('weapon', pick(random, oneHanded).id);
       break;
     }
     default: break; // 'none'
@@ -225,12 +224,140 @@ function rollLoadoutGear(random: () => number, classId: WowClassId, preset: PvpR
   return equipped;
 }
 
+/** Roll a legal main-hand weapon for the class. `twoHanded` prefers a 2H profile
+ * when one exists; `oneHanded` forces a 1H profile (a chosen offhand needs it).
+ * Falls back to every class-legal weapon when the loadout's families run dry. */
+function rollWeapon(random: () => number, classId: WowClassId, families: readonly WeaponFamily[], grip: 'twoHanded' | 'oneHanded' | 'any', itemLevel: number): Item {
+  const cls = WOW_CLASSES[classId];
+  const hands = grip === 'twoHanded' ? 2 : grip === 'oneHanded' ? 1 : undefined;
+  let pool = legalWeapons(classId, families, hands);
+  if (!pool.length && grip === 'twoHanded') pool = legalWeapons(classId, families); // no legal 2H: any grip
+  if (!pool.length) pool = legalWeapons(classId, cls.weapons, hands);
+  if (!pool.length) pool = legalWeapons(classId, cls.weapons);
+  if (!pool.length) throw new RangeError(`${cls.name} has no wieldable weapon.`);
+  return generateItem(Math.floor(random() * 0xffffffff), itemLevel, 'weapon', pick(random, pool).id, gearTier(random(), itemLevel));
+}
+
 /** Per-slot generateItem loadout at the match item level — the same items player loot rolls. */
 export function equalGearFor(classId: WowClassId, itemLevel: number, role: PvpRole = 'dd', seed = 0): CharacterSheet['equipped'] {
   const preset = rolePreset(classId, role) ?? rolePreset(classId, 'dd');
   if (!preset) throw new RangeError(`Unknown class: ${classId}`);
   const random = randomSource(seed ^ 0x9e3779b9);
   return rollLoadoutGear(random, classId, preset, pick(random, preset.loadouts), normalizeLevel(itemLevel));
+}
+
+// ── Item picker (custom build gear selection) ────────────────────────────────
+
+/** One pickable gear option: the seed regenerates the exact item at any level. */
+export interface PvpGearCandidate {
+  /** Deterministic regeneration seed — stored on the custom build. */
+  readonly seed: number;
+  readonly item: Item;
+}
+
+/** Classes that may carry a second one-handed melee weapon (WoW dual wield). */
+const DUAL_WIELD_CLASSES: readonly WowClassId[] = ['warrior', 'rogue', 'deathKnight', 'hunter', 'shaman'];
+
+/** FNV-1a string hash → deterministic candidate seed (stable across levels). */
+function gearSeed(classId: WowClassId, slot: EquipmentSlot, key: string): number {
+  let n = 2166136261;
+  for (const c of `${classId}:${slot}:${key}`) n = Math.imul(n ^ c.charCodeAt(0), 16777619);
+  return n >>> 0;
+}
+
+const candidate = (classId: WowClassId, slot: EquipmentSlot, key: string, itemLevel: number,
+  kind?: ItemKind, profileId?: string, material?: ItemMaterialId): PvpGearCandidate => {
+  const seed = gearSeed(classId, slot, key);
+  return { seed, item: generateItem(seed, itemLevel, kind, profileId, gearTier(randomSource(seed)(), itemLevel), material) };
+};
+
+/**
+ * The picker's per-slot offer list: every candidate is class-legal at the given
+ * item level. `weapon` offers one roll per legal weapon profile; `offhand`
+ * offers shields/focuses/relics/dual-wield weapons the class may carry (empty
+ * when `mainHand` is two-handed); armor slots offer seeded rolls in the class's
+ * armor style; jewelry offers every profile plus seeded generic rolls.
+ */
+export function pvpGearOptions(classId: WowClassId, slot: EquipmentSlot, itemLevel: number, mainHand?: Item | null): PvpGearCandidate[] {
+  const cls = WOW_CLASSES[classId];
+  const level = normalizeLevel(itemLevel);
+  if (slot === 'weapon')
+    return legalWeapons(classId, cls.weapons).map(profile => candidate(classId, slot, profile.id, level, 'weapon', profile.id));
+  if (slot === 'offhand') {
+    if (mainHand?.weapon?.hands === 2) return [];
+    const out: PvpGearCandidate[] = [];
+    if (SHIELD_CLASSES.includes(classId))
+      for (const profile of SHIELD_PROFILES) out.push(candidate(classId, slot, profile.id, level, 'shield', profile.id));
+    for (const profile of FOCUS_PROFILES) out.push(candidate(classId, slot, profile.id, level, profile.visual.kind as ItemKind, profile.id));
+    if (RELIC_CLASSES.includes(classId))
+      for (let i = 0; i < 3; i++) out.push(candidate(classId, slot, `relic:${i}`, level, 'relic'));
+    if (DUAL_WIELD_CLASSES.includes(classId))
+      for (const profile of legalWeapons(classId, cls.weapons, 1).filter(p => p.attackKind === 'melee'))
+        out.push(candidate(classId, slot, `dual:${profile.id}`, level, 'weapon', profile.id));
+    return out;
+  }
+  if (slot === 'cloak')
+    return itemMaterialPool('cloak').map((entry, i) => candidate(classId, slot, `cloak:${i}`, level, 'cloak', undefined, entry.id));
+  if (slot === 'amulet' || slot === 'ring1' || slot === 'ring2') {
+    const kind: ItemKind = slot === 'amulet' ? 'amulet' : 'ring';
+    return [
+      ...jewelryProfiles(kind).map(profile => candidate(classId, slot, profile.id, level, kind, profile.id)),
+      ...[0, 1].map(i => candidate(classId, slot, `roll:${i}`, level, kind)),
+    ];
+  }
+  // Armor slots: seeded rolls restricted to the class's armor-style materials.
+  return Array.from({ length: 6 }, (_, i) => {
+    const seed = gearSeed(classId, slot, `roll:${i}`);
+    const material = armorMaterial(randomSource(seed ^ 0x51ab), cls.armorStyle);
+    return candidate(classId, slot, `roll:${i}`, level, slot, undefined, material);
+  });
+}
+
+/** The item a stored pick regenerates, or null when the seed is not a current
+ * candidate (stale pick from another class/slot). */
+export function resolveGearPick(classId: WowClassId, slot: EquipmentSlot, seed: number, itemLevel: number, mainHand?: Item | null): Item | null {
+  return pvpGearOptions(classId, slot, itemLevel, mainHand).find(c => c.seed === seed)?.item ?? null;
+}
+
+/**
+ * Applies the picker's stored choices over a rolled loadout. A chosen offhand
+ * forces a one-handed main-hand re-roll when no weapon was picked; a chosen
+ * two-handed weapon clears the offhand. Unknown seeds throw — a chosen kit is
+ * honored exactly, like `skills`.
+ */
+export function applyGearPicks(equipped: CharacterSheet['equipped'], picks: Partial<Record<EquipmentSlot, number>>,
+  random: () => number, classId: WowClassId, loadout: PvpLoadout, itemLevel: number): void {
+  const weaponSeed = picks.weapon;
+  if (weaponSeed !== undefined) {
+    const item = resolveGearPick(classId, 'weapon', weaponSeed, itemLevel);
+    if (!item) throw new RangeError(`Unknown weapon pick for ${WOW_CLASSES[classId].name}.`);
+    equipped.weapon = item;
+    if (item.weapon?.hands === 2) equipped.offhand = null;
+  }
+  const offhandSeed = picks.offhand;
+  if (offhandSeed !== undefined) {
+    // An explicitly picked two-handed weapon makes a stale offhand pick a no-op,
+    // not an error. An auto-rolled two-hander yields to a chosen offhand instead.
+    if (weaponSeed !== undefined && equipped.weapon?.weapon?.hands === 2) {
+      // 2H weapon was chosen — the offhand pick is stale; leave the hand empty.
+    } else {
+      // A chosen offhand needs a one-handed main hand; re-roll an auto-rolled
+      // two-hander BEFORE resolving the pick so the option list isn't empty.
+      if (equipped.weapon?.weapon?.hands === 2)
+        equipped.weapon = rollWeapon(random, classId, loadout.weapons, 'oneHanded', itemLevel);
+      const item = resolveGearPick(classId, 'offhand', offhandSeed, itemLevel, equipped.weapon);
+      if (!item) throw new RangeError(`Unknown offhand pick for ${WOW_CLASSES[classId].name}.`);
+      equipped.offhand = item;
+    }
+  }
+  for (const slot of EQUIPMENT_SLOTS) {
+    if (slot === 'weapon' || slot === 'offhand') continue;
+    const seed = picks[slot];
+    if (seed === undefined) continue;
+    const item = resolveGearPick(classId, slot, seed, itemLevel);
+    if (!item) throw new RangeError(`Unknown ${slot} pick for ${WOW_CLASSES[classId].name}.`);
+    equipped[slot] = item;
+  }
 }
 
 /** Spend attribute points by the loadout's weights; leftovers stay as unspent statPoints. */
@@ -315,9 +442,9 @@ function ensureMobility(sheet: CharacterSheet, classId: WowClassId, loadout: Pvp
     if (SKILL_NODES.has(nodeId) && allocateSkillRoute(sheet, nodeId).ok) return;
   }
 }
-
-/** Resource seeding mirrors createCharacter: rage/runic start empty, mana/energy full. */
-function seedResource(player: Player): void {
+/** Resource seeding mirrors createCharacter: rage/runic start empty, mana/energy full.
+ * Exported for the match chassis — session characters and restored players use it. */
+export function seedResource(player: Player): void {
   const cls = WOW_CLASSES[player.character.classId];
   player.hp = player.maxHp;
   player.mana = cls.resource === 'rage' || cls.resource === 'runicPower' ? 0 : Math.min(player.maxMana, cls.resourceCap || player.maxMana);
@@ -423,9 +550,9 @@ export function buildCustomCharacter(options: CustomCharacterOptions): PvpCharac
   ensureMobility(sheet, options.classId, loadout);
   if (options.fillTalents !== false) spendTalents(sheet, random, loadout.specs);
 
-  // Gear can require up to level + 2; clamp so the sheet stays equippable.
   const itemLevel = Math.min(normalizeLevel(options.itemLevel ?? level), level + 2);
   sheet.equipped = rollLoadoutGear(random, options.classId, preset, loadout, itemLevel);
+  if (options.gear) applyGearPicks(sheet.equipped, options.gear, random, options.classId, loadout, itemLevel);
 
   const player = initialPlayer(0, 0);
   player.character = sheet;

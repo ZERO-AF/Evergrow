@@ -9,6 +9,9 @@ export function goblinSpeed(enemy: Enemy): number {
 export function goblinDamage(enemy: Enemy): number {
   return enemy.kind === 'goblin' && enemy.warband?.order === 'rush' && !enemy.warband.warning ? WARBAND_RULES.rushDamage : 1;
 }
+/** Scratch member list: updateWarbands runs once per tick, so a module-level
+ * buffer avoids a filter allocation per goblin chief. */
+const memberScratch: Enemy[] = [];
 /** Orders apply only to the chief's own, nearby, visible followers. They never spawn actors or rewrite source stats. */
 export function updateWarbands(enemies: readonly Enemy[], player: Player, world: WorldQuery, dt: number): void {
   for (const goblin of enemies) {
@@ -24,9 +27,11 @@ export function updateWarbands(enemies: readonly Enemy[], player: Player, world:
   }
   for (const chief of enemies) {
     if (chief.kind !== 'goblinChief' || chief.state === 'dead' || !chief.campId) continue;
-    const members = enemies.filter(e => e.kind === 'goblin' && e.state !== 'dead' && e.campId === chief.campId
-      && Math.hypot(e.x - chief.x, e.y - chief.y) <= WARBAND_RULES.range
-      && hasLineOfSight(world, chief.x, chief.y, e.x, e.y));
+    const members = memberScratch; members.length = 0;
+    for (const e of enemies)
+      if (e.kind === 'goblin' && e.state !== 'dead' && e.campId === chief.campId
+        && Math.hypot(e.x - chief.x, e.y - chief.y) <= WARBAND_RULES.range
+        && hasLineOfSight(world, chief.x, chief.y, e.x, e.y)) members.push(e);
     if (chief.state !== 'return' && !world.isSanctuary?.(player.x, player.y) && chief.awareness < 1 && members.some(e => e.awareness >= 1 && e.seesPlayer)) alertEnemy(chief, player);
     for (const member of members) member.commanderId = chief.id;
     if (player.dead || world.isSanctuary?.(player.x, player.y) || chief.awareness < 1 || chief.state === 'return' || chief.stagger > 0) {
@@ -36,12 +41,20 @@ export function updateWarbands(enemies: readonly Enemy[], player: Player, world:
     chief.commandClock = ((chief.commandClock ?? 0) + dt) % (WARBAND_RULES.commandPeriod * 2);
     const phase = chief.commandClock % WARBAND_RULES.commandPeriod;
     const order = Math.floor(chief.commandClock / WARBAND_RULES.commandPeriod) % 2 ? 'surround' : 'rush';
-    chief.warband = { order, remaining: WARBAND_RULES.commandPeriod - phase, warning: phase < WARBAND_RULES.warning };
+    // Reuse the order object: order/warning flip on the command clock, only
+    // `remaining` counts down — mutating in place keeps the tick alloc-free.
+    const chiefOrder = chief.warband ??= { order, remaining: 0, warning: false };
+    chiefOrder.order = order;
+    chiefOrder.remaining = WARBAND_RULES.commandPeriod - phase;
+    chiefOrder.warning = phase < WARBAND_RULES.warning;
     for (const member of members) {
       if (member.state === 'return') continue;
       if (chief.seesPlayer) alertEnemy(member, player);
       // Short leases expire when an ally leaves the command radius or loses sight of its chief.
-      member.warband = { order, remaining: .15, warning: chief.warband.warning };
+      const lease = member.warband ??= { order, remaining: 0, warning: false };
+      lease.order = order;
+      lease.remaining = .15;
+      lease.warning = chiefOrder.warning;
     }
   }
 }

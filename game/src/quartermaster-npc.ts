@@ -7,21 +7,22 @@
 import type { Building } from './settlements.ts';
 import type { WorldQuery } from './model.ts';
 import { getZoneAt } from './zone-progression.ts';
-import { canInteractNPC, hashService, type TownNPC } from './npcs.ts';
+import { canInteractNPC, hashService, memoFixture, type TownNPC } from './npcs.ts';
 import { factionAt } from './factions.ts';
 
 /** Quartermasters stand beside the Count's Hall in cities — a standalone
  * service NPC like the battlemaster, not a building kind. */
 export type Quartermaster = TownNPC & { role: 'quartermaster' };
 const QUARTERMASTER_NAMES = ['Aliocha', 'Mendora', 'Corik', 'Fedryen', 'Grella', 'Mera', 'Nakodu', 'Sloane'] as const;
-export function quartermasterFor(building: Building): Quartermaster | null {
+export const quartermasterFor = memoFixture((building: Building): Quartermaster | null => {
   if (building.kind !== 'noble') return null;
   const x = building.door.x - 70, y = building.door.y + 78, id = `${building.id}:quartermaster`;
   const seed = hashService(id);
+  const zone = getZoneAt(x, y, Number(building.id.split(':')[1]));
   return { settlementTier: building.settlementTier, id, buildingId: building.id, role: 'quartermaster', x, y, seed,
     name: QUARTERMASTER_NAMES[seed % QUARTERMASTER_NAMES.length],
-    level: getZoneAt(x, y, Number(building.id.split(':')[1])).level, maxLevel: getZoneAt(x, y, Number(building.id.split(':')[1])).maxLevel, faction: factionAt(x, y) };
-}
+    level: zone.level, maxLevel: zone.maxLevel, faction: factionAt(x, y) };
+});
 export function quartermastersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Quartermaster[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])
     .map(quartermasterFor).filter((master): master is Quartermaster => master !== null);

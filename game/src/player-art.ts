@@ -1,6 +1,6 @@
 import { torsoFacing } from './character-facing.ts';
 import { gearSurface } from './gear-material.ts';
-import { ARM_DEPTH_SCALE, projectArmPoint } from './player-arm-rig.ts';
+import { projectArmPoint } from './player-arm-rig.ts';
 import type { CharacterOutfit } from './art-types.ts';
 import type { StatusPose } from './status-art.ts';
 import { PLAYER_ATTACHMENTS, playerMotion } from './character-motion.ts';
@@ -322,13 +322,19 @@ export function player(ctx: CanvasRenderingContext2D, pose: StatusPose, color: C
   for (const arm of caps) {
     shoulderArmor(ctx, projectArmPoint(arm.shoulder), projectArmPoint(arm.elbow), outfit.shoulders, gear, bulk);
   }
-  // The neck counterbalances the moving torso; the head reads ~18% larger with
-  // a warm rim arc so the silhouette separates from dark terrain.
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 4.5 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
+  // The head seats on the torso's top edge: the chest plate crests at -28 in
+  // body space and the collar hangs ~9.4 below the scaled head mount, so a
+  // baseline drop of ~3.5 keeps the collar overlapping the shoulders on every
+  // race. The hunch then cranes the head forward and down for stooped races,
+  // and the neck counterbalances the moving torso. The head reads ~18% larger
+  // with a warm rim arc so the silhouette separates from dark terrain.
+  const headX = lean * -12 + Math.cos(pose.angle) * hunch * 7;
+  const headY = -bob * 0.3 - leanDepth * 12 + 3.5 + hunch * (0.8 + Math.sin(pose.angle) * 1.6);
+  ctx.save(); ctx.translate(headX, headY);
   ctx.scale(1.18, 1.18);
   headArmor(ctx, outfit.head, gear, pose.angle, appearance, pose.raceId, color);
   ctx.restore();
-  ctx.save(); ctx.translate(lean * -12 + Math.cos(pose.angle) * hunch * 7, -bob * 0.3 + hunch * 4.5 - leanDepth * 12 + Math.sin(pose.angle) * hunch * 7 * ARM_DEPTH_SCALE);
+  ctx.save(); ctx.translate(headX, headY);
   ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3;
   ctx.strokeStyle = '#ffe9b8'; ctx.lineWidth = .9;
   ctx.beginPath(); ctx.arc(0, -31, 6.4, -Math.PI * .92, -Math.PI * .08); ctx.stroke();

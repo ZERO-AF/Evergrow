@@ -2,7 +2,7 @@ import { sampleBiome, type BiomeId } from './biomes.ts';
 import { hasLineOfSight } from './combat-geometry.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
 import type { Input, Player, WorldQuery } from './model.ts';
-import { hashService } from './npcs.ts';
+import { hashService, memoFixture } from './npcs.ts';
 import { interruptTrial } from './poi-content.ts';
 import type { Simulation } from './simulation.ts';
 import type { Building } from './settlements.ts';
@@ -40,14 +40,13 @@ export interface Innkeeper {
   readonly x: number;
   readonly y: number;
 }
-
-export function innkeeperFor(building: Building): Innkeeper | null {
+export const innkeeperFor = memoFixture((building: Building): Innkeeper | null => {
   if (building.kind !== 'inn') return null;
   const id = `${building.id}:innkeeper`, seed = hashService(id);
   return { id, buildingId: building.id, inn: building.name,
     x: building.door.x, y: building.door.y + (building.form === 'stall' ? 22 : -57),
     name: INNKEEPER_NAMES[seed % INNKEEPER_NAMES.length] };
-}
+});
 
 export function innkeepersNear(world: WorldQuery, x: number, y: number, width: number, height: number): Innkeeper[] {
   return (world.getBuildings?.(x, y, width, height) ?? [])

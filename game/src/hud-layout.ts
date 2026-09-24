@@ -33,31 +33,41 @@ export interface HUDRect { x: number; y: number; width: number; height: number; 
 export interface HUDShortcut extends HUDRect { id: string; label: string; key: string; }
 export interface HUDLayout extends HUDRect { scale: number; shortcuts: HUDShortcut[]; }
 
-/** Art and native menu targets use the same responsive transform. */
+/** Art and native menu targets use the same responsive transform. The layout
+ * is a pure function of the viewport, so the last result is cached — pointer
+ * hit-tests and several draw passes ask for it every frame. */
+let layoutCache: { width: number; height: number; layout: HUDLayout } | null = null;
 export function getHUDLayout(width: number, height: number): HUDLayout {
+  if (layoutCache && layoutCache.width === width && layoutCache.height === height) return layoutCache.layout;
   const scale = Math.max(0, Math.min(HUD_ART.maxScale,
     (width - 20) / HUD_ART.width, (height - 28) / HUD_ART.height));
   const hudWidth = HUD_ART.width * scale, hudHeight = HUD_ART.height * scale;
   const x = (width - hudWidth) / 2, y = height - hudHeight - 14;
   const menu = HUD_ART.menu;
-  return {
+  const layout: HUDLayout = {
     x, y, width: hudWidth, height: hudHeight, scale,
     shortcuts: [{ id: 'menu', label: 'Character menus', key: '',
       x: x + menu.x * scale, y: y + menu.y * scale,
       width: menu.width * scale, height: menu.height * scale }],
   };
+  layoutCache = { width, height, layout };
+  return layout;
 }
 
 /** Block the instrument's surfaces while leaving its surrounding space playable. */
 export function isHUDPoint(x: number, y: number, width: number, height: number): boolean {
+  // The layout is cached per viewport, so this stays allocation-free while
+  // comparing against the exact same bounds the menu buttons were placed with.
   const h = getHUDLayout(width, height);
   if (h.scale <= 0 || x < h.x || x > h.x + h.width || y < h.y || y > h.y + h.height) return false;
   // The menu button uses the same bounds as its native target.
-  if (h.shortcuts.some(s => x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height)) return true;
+  for (const s of h.shortcuts)
+    if (x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height) return true;
   const lx = (x - h.x) / h.scale, ly = (y - h.y) / h.scale;
   const utility = HUD_ART.utility;
-  if ([utility.left, utility.right].some((left, i) => lx >= left - (i ? 27 : 0) && lx <= left + utility.width + (i ? 0 : 15)
-    && ly >= utility.y && ly <= utility.y + utility.height + 5)) return true;
+  if ((lx >= utility.left && lx <= utility.left + utility.width + 15
+      || lx >= utility.right - 27 && lx <= utility.right + utility.width)
+    && ly >= utility.y && ly <= utility.y + utility.height + 5) return true;
   const racial = HUD_ART.racial;
   if (lx >= racial.x - 2 && lx <= racial.x + racial.width + 2 && ly >= racial.y && ly <= racial.y + racial.height + 5) return true;
   // Include a small input margin between adjacent skill plates.
@@ -66,8 +76,11 @@ export function isHUDPoint(x: number, y: number, width: number, height: number):
     && ly >= skill.y - 4 && ly <= skill.y + skill.height + 7) return true;
   const xp = HUD_ART.experience;
   if (lx >= xp.x && lx <= xp.x + xp.width && ly >= xp.y && ly <= xp.y + xp.height) return true;
-  return [HUD_ART.orb.left, HUD_ART.orb.right].some(cx =>
-    Math.hypot(lx - cx, ly - HUD_ART.orb.y) <= 55
-    || (Math.abs(lx - cx) <= 5 && ly >= HUD_ART.orb.y - 59 && ly <= HUD_ART.orb.y - 45)
-    || (Math.abs(lx - cx) <= 34 && ly >= HUD_ART.orb.readoutY - 11 && ly <= HUD_ART.orb.readoutY + 11));
+  const orb = HUD_ART.orb;
+  return (Math.hypot(lx - orb.left, ly - orb.y) <= 55
+      || (Math.abs(lx - orb.left) <= 5 && ly >= orb.y - 59 && ly <= orb.y - 45)
+      || (Math.abs(lx - orb.left) <= 34 && ly >= orb.readoutY - 11 && ly <= orb.readoutY + 11))
+    || (Math.hypot(lx - orb.right, ly - orb.y) <= 55
+      || (Math.abs(lx - orb.right) <= 5 && ly >= orb.y - 59 && ly <= orb.y - 45)
+      || (Math.abs(lx - orb.right) <= 34 && ly >= orb.readoutY - 11 && ly <= orb.readoutY + 11));
 }

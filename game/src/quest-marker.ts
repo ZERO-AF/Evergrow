@@ -6,13 +6,13 @@ import { GAME_FEATURES } from './game-features.ts';
 import type { Player } from './model.ts';
 import type { WorldPOI } from './world-pois.ts';
 import {
-  QUEST_BY_ID, giverSpec, turnInSpec, type QuestDef, type QuestGiver,
+  QUESTS, turnInSpec, type QuestDef, type QuestGiver,
 } from './quest-content.ts';
 import {
-  QUEST_RULES, questAvailable, questPreviewable, questState,
-  type QuestsCarrier,
+  QUEST_RULES, questBuckets, questState,
+  type QuestBuckets, type QuestsCarrier,
 } from './quest-state.ts';
-import { questGiverAnchors, type QuestGiverAnchor, type QuestWorld } from './quest-command.ts';
+import { questGiverAnchors, questGiverAnchorsFor, type QuestGiverAnchor, type QuestWorld } from './quest-command.ts';
 
 export type QuestMarkKind = 'available' | 'turnIn' | 'pending' | 'locked';
 export interface QuestMark {
@@ -24,25 +24,12 @@ export interface QuestMark {
   readonly label: string;
 }
 
-const sameSpec = (a: QuestGiver, b: QuestGiver) =>
-  a.role === b.role && a.poi === b.poi && a.biome === b.biome && a.tier === b.tier;
-
-/** Marker state for one giver spec: '?' beats '!' beats pending '?'. */
-function markFor(player: Player, spec: QuestGiver): { mark: QuestMarkKind; quests: QuestDef[] } | null {
-  const turnIns: QuestDef[] = [], offers: QuestDef[] = [], pending: QuestDef[] = [], locked: QuestDef[] = [];
-  for (const def of Object.values(QUEST_BY_ID)) {
-    const state = questState(player, def.id);
-    if (state?.status === 'complete' && sameSpec(turnInSpec(def), spec)) turnIns.push(def);
-    else if (state?.status === 'active' && sameSpec(turnInSpec(def), spec)) pending.push(def);
-    else if (!state && sameSpec(giverSpec(def), spec)) {
-      if (questAvailable(player, def)) offers.push(def);
-      else if (questPreviewable(player, def)) locked.push(def);
-    }
-  }
-  if (turnIns.length) return { mark: 'turnIn', quests: turnIns };
-  if (offers.length) return { mark: 'available', quests: offers };
-  if (pending.length) return { mark: 'pending', quests: pending };
-  if (locked.length) return { mark: 'locked', quests: locked };
+/** Marker state for one giver bucket: '?' beats '!' beats pending '?'. */
+function markFor(bucket: QuestBuckets): { mark: QuestMarkKind; quests: readonly QuestDef[] } | null {
+  if (bucket.turnIns.length) return { mark: 'turnIn', quests: bucket.turnIns };
+  if (bucket.offers.length) return { mark: 'available', quests: bucket.offers };
+  if (bucket.pending.length) return { mark: 'pending', quests: bucket.pending };
+  if (bucket.upcoming.length) return { mark: 'locked', quests: bucket.upcoming };
   return null;
 }
 
@@ -52,23 +39,24 @@ function anchorLabel(anchor: QuestGiverAnchor, spec: QuestGiver): string {
 }
 
 /** Every giver anchor in view carrying a marker. Call once per frame from the
- * renderer; bounds should cover the visible world plus a small margin. */
+ * renderer; bounds should cover the visible world plus a small margin. The
+ * spec→quest bucketing is cached on the ledger fingerprint (quest-state.ts),
+ * so repeat calls cost one ledger scan plus anchor resolution for the handful
+ * of specs that actually carry a marker. */
 export function questMarkers(world: QuestWorld, player: Player,
   x: number, y: number, width: number, height: number, time?: number): QuestMark[] {
   if (!GAME_FEATURES.quests) return [];
-  const specs: QuestGiver[] = [];
-  for (const def of Object.values(QUEST_BY_ID)) {
-    const offer = giverSpec(def), turnIn = turnInSpec(def);
-    if (!specs.some(s => sameSpec(s, offer))) specs.push(offer);
-    if (!specs.some(s => sameSpec(s, turnIn))) specs.push(turnIn);
+  const buckets: { bucket: QuestBuckets; result: { mark: QuestMarkKind; quests: readonly QuestDef[] } }[] = [];
+  for (const bucket of questBuckets(player).values()) {
+    const result = markFor(bucket);
+    if (result) buckets.push({ bucket, result });
   }
+  const anchors = questGiverAnchorsFor(world, buckets.map(b => b.bucket.spec), x, y, width, height, time);
   const marks: QuestMark[] = [];
-  for (const spec of specs) {
-    const result = markFor(player, spec);
-    if (!result) continue;
-    for (const anchor of questGiverAnchors(world, spec, x, y, width, height, time))
-      marks.push({ x: anchor.x, y: anchor.y, mark: result.mark, quests: result.quests, label: anchorLabel(anchor, spec) });
-  }
+  for (const { bucket, result } of buckets)
+    for (const anchor of anchors.get(bucket.spec) ?? [])
+      marks.push({ x: anchor.x, y: anchor.y, mark: result.mark, quests: result.quests,
+        label: anchorLabel(anchor, bucket.spec) });
   return marks;
 }
 
@@ -158,7 +146,7 @@ function objectiveAnchor(world: QuestWorld, def: QuestDef, state: { progress: nu
 export function questMapMarkers(world: QuestWorld, player: Player): QuestMapMarker[] {
   if (!GAME_FEATURES.quests) return [];
   const markers: QuestMapMarker[] = [];
-  for (const def of Object.values(QUEST_BY_ID)) {
+  for (const def of QUESTS) {
     const state = questState(player, def.id);
     if (!state || state.status === 'turnedIn') continue;
     if (state.status === 'complete') {
