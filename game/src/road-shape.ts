@@ -3,7 +3,7 @@ import { geoHash, parentPlace, queryPlaces, settlementPlace, type Place } from '
 import { validWorldRectangle } from './world-query.ts';
 import { zoneAt } from './world-atlas.ts';
 import { authoredRoadDistance, zoneContent, zonesIn, zoneWorldRect } from './zone-content.ts';
-import { clamp, smoothstep } from './art-primitives.ts';
+import { clamp, smoothstep } from './random-source.ts';
 export interface RoadPath {
   id: string;
   main: boolean;

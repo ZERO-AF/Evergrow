@@ -31,7 +31,7 @@ import { isWorldCoordinate, validWorldRectangle, WORLD_QUERY_LIMITS } from './wo
 import { generateWildernessSite, startingEnemyCamp, wildernessPOI, WILDERNESS_RULES, type WildernessSite, type EnemyCamp } from './wilderness-sites.ts';
 export { pathDistance } from './road-shape.ts';
 import { nearestPlace, placeCell, queryPlaces, settlementPlace, type Place } from './world-geography.ts';
-import { smoothstep } from './art-primitives.ts';
+import { smoothstep } from './random-source.ts';
 import { hash2, random2, noise2 } from './random-source.ts';
 
 /** All coordinates are world pixels; prop positions are their ground contacts. */

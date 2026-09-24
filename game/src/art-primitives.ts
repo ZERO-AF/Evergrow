@@ -19,29 +19,9 @@ export type CanvasFactory = (width: number, height: number) => HTMLCanvasElement
 
 export type Color = (value: string) => string;
 
-export const TAU = Math.PI * 2;
-
-export function clamp(value: number, low = 0, high = 1): number {
-  return Math.max(low, Math.min(high, value));
-}
-
-export function smooth(value: number): number {
-  const t = clamp(value);
-  return t * t * (3 - 2 * t);
-}
-
-export function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-export function smoothstep(low: number, high: number, value: number): number {
-  return smooth((value - low) / (high - low));
-}
-
-/** Unit-interval clamp that also sanitizes non-finite input to 0. */
-export function saturate(value: number): number {
-  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
-}
+// Pure scalar helpers live in random-source.ts (headless); re-exported here so
+// existing art callers keep one import surface.
+export { TAU, clamp, smooth, lerp, smoothstep, saturate } from './random-source.ts';
 
 export function hash(value: number): number {
   let x = value | 0;

@@ -1,6 +1,6 @@
 import { sampleBiome } from './biomes.ts';
 import { isWorldCoordinate, validWorldRectangle } from './world-query.ts';
-import { clamp, smooth } from './art-primitives.ts';
+import { clamp, smooth } from './random-source.ts';
 import { random2, noise2 } from './random-source.ts';
 
 export const HYDROLOGY = Object.freeze({ spacing: 4800, bucket: 512, nodes: 4096, features: 1024, buckets: 512 });

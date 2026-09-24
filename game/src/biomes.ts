@@ -1,7 +1,7 @@
 import { CONTINENTS, zoneAt, type AtlasZone } from './world-atlas.ts';
 import { terrainTint, type ZoneTint } from './zone-palettes.ts';
 import { hash2, noise2 } from './random-source.ts';
-import { smooth } from './art-primitives.ts';
+import { smooth } from './random-source.ts';
 
 export const BIOME_IDS = Object.freeze(['deadwood', 'verdant', 'swamp', 'frostpine', 'emberfall', 'autumn', 'highlands', 'steppe', 'sunscar'] as const);
 export type BiomeId = typeof BIOME_IDS[number];

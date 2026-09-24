@@ -15,7 +15,7 @@
 
 import { CONTINENTS, ZONES, zoneAt, type AtlasZone } from './world-atlas.ts';
 import type { OccluderVolume } from './occlusion.ts';
-import { smoothstep } from './art-primitives.ts';
+import { smoothstep } from './random-source.ts';
 import { noise2 } from './random-source.ts';
 
 // ── Authored spec ────────────────────────────────────────────────────────────

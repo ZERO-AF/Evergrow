@@ -3,7 +3,7 @@ import { sampleBiome, type BiomeId } from './biomes.ts';
 import { settlementBenefits, type SettlementTier } from './settlement-services.ts';
 import { placeId, type Place } from './world-geography.ts';
 import type { WorldPOI } from './world-pois.ts';
-import { smoothstep } from './art-primitives.ts';
+import { smoothstep } from './random-source.ts';
 import { randomSource } from './random-source.ts';
 export type POI = WorldPOI;
 
