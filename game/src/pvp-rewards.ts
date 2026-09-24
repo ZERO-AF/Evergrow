@@ -117,7 +117,8 @@ export function previewMatchRewards(sim: Simulation, result: PvpMatchResult): { 
   const arenaPoints = result.mode === 'arena'
     ? result.won ? PVP_REWARDS.arenaPointsWin : PVP_REWARDS.arenaPointsLoss
     : 0;
-  const reputation = result.won ? PVP_REWARDS.repWin : PVP_REWARDS.repLoss;
+  // Warsong Outriders rep is a battleground reward; arenas pay rating, not rep.
+  const reputation = result.mode === 'battleground' ? (result.won ? PVP_REWARDS.repWin : PVP_REWARDS.repLoss) : 0;
   return { honor, arenaPoints, reputation };
 }
 

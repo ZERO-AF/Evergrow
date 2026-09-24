@@ -26,6 +26,7 @@ import type { Player, WorldQuery, WowBuff } from './model.ts';
 import type { Combatant, PvpTeam } from './pvp-combatant.ts';
 import type { Simulation } from './simulation.ts';
 import type { CharacterCheckpoint } from './character-save.ts';
+import { pvpEnabled } from './pvp-currency.ts';
 
 export type PvpMatchPhase = 'prep' | 'live' | 'finished';
 /** One roster slot. `spawn` is the pad this combatant was placed at; roster
@@ -369,6 +370,7 @@ function restoreSessionCharacter(sim: Simulation, match: PvpMatch): void {
  * plus the live roster (combatants(sim)[0] is always the real player).
  */
 export async function enterPvpMatch(sim: Simulation, setup: PvpSetup, host: PvpMatchHost): Promise<DungeonResult & { combatants?: readonly Combatant[] }> {
+    if (!pvpEnabled()) return { ok: false, message: 'PvP is not available.' };
     const surface = host.surface();
     const seed = ((surface.seed ?? 1) ^ Math.imul(Math.floor(sim.time * 120) + 1, 0x9e3779b9)) >>> 0;
     const mapId = pvpMapIdFor(setup, seed);
@@ -381,6 +383,10 @@ export async function enterPvpMatch(sim: Simulation, setup: PvpSetup, host: PvpM
     let built: BuiltMatch;
     try {
         built = buildMatch(sim, setup, seed, floor);
+        // Pre-validate the custom build here — applySessionCharacter re-runs the
+        // same deterministic buildCustomCharacter after the world swap, where a
+        // throw would strand the player on the arena floor.
+        if (setup.custom) buildCustomCharacter(setup.custom);
     } catch (error) {
         return { ok: false, message: error instanceof Error ? error.message : 'Invalid match setup.' };
     }

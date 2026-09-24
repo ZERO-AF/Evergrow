@@ -6,7 +6,7 @@ import { CharacterRepository } from '../src/character-storage.ts';
 import { decodeCharacterSave } from '../src/character-save.ts';
 import { createCharacterSheet, generateItem } from '../src/items.ts';
 import { FACTION_BY_ID, isFactionId } from '../src/reputation-content.ts';
-import { knownFactions, reputationPoints, standingOf } from '../src/reputation-state.ts';
+import { reputationPoints, standingOf } from '../src/reputation-state.ts';
 import { ACHIEVEMENT_BY_ID, ACHIEVEMENT_CATEGORIES } from '../src/achievement-content.ts';
 import { achievementComplete, achievementProgress } from '../src/achievement-state.ts';
 import {
@@ -93,17 +93,17 @@ test('awardMatchRewards stages honor, arena points and reputation in one checkpo
   assert.ok(result.ok, result.message);
   assert.equal(result.honor, PVP_REWARDS.arenaWin + 2 * PVP_REWARDS.honorPerKill);
   assert.equal(result.arenaPoints, PVP_REWARDS.arenaPointsWin);
-  assert.equal(result.reputation, PVP_REWARDS.repWin);
+  // Arenas pay rating, not faction rep — Warsong rep is a battleground reward.
+  assert.equal(result.reputation, 0);
   assert.equal(writes.length, 1, 'one atomic checkpoint write');
   const staged = writes[0]!;
   assert.equal(staged.character.honor, result.honor);
   assert.equal(staged.character.arenaPoints, PVP_REWARDS.arenaPointsWin);
-  assert.equal((staged as CharacterCheckpoint & { reputation?: Record<string, number> }).reputation?.warsong, PVP_REWARDS.repWin);
+  assert.equal((staged as CharacterCheckpoint & { reputation?: Record<string, number> }).reputation?.warsong, undefined);
   // Committed to the live player.
   assert.equal(honorBalance(s.player.character), result.honor);
   assert.equal(arenaPointsBalance(s.player.character), PVP_REWARDS.arenaPointsWin);
-  assert.equal(reputationPoints(s.player, 'warsong'), PVP_REWARDS.repWin);
-  assert.ok(knownFactions(s.player).some(f => f.id === 'warsong'));
+  assert.equal(reputationPoints(s.player, 'warsong'), 0);
   // Achievements: first win unlocks; the internal rating ladder starts at 1500.
   assert.ok(achievementComplete(s.player.achievements, 'first-blood-arena'));
   assert.equal(s.player.character.arenaRating, 1516);
@@ -116,6 +116,7 @@ test('awardMatchRewards pays less on a loss, battleground rep, and rolls back on
   assert.ok(loss.ok);
   assert.equal(loss.honor, PVP_REWARDS.battlegroundLoss + PVP_REWARDS.honorPerKill + 2 * PVP_REWARDS.honorPerObjective);
   assert.equal(loss.arenaPoints, 0, 'battlegrounds pay no arena points');
+  assert.equal(loss.reputation, PVP_REWARDS.repLoss, 'battlegrounds pay Warsong rep even on a loss');
   assert.ok(achievementComplete(s.player.achievements, 'warsong-gulch-victory') === false, 'loss does not earn the map achievement');
   assert.equal(achievementProgress(ACHIEVEMENT_BY_ID['honorable-kills']!, s.player).value, 1);
 

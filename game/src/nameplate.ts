@@ -181,8 +181,8 @@ function combatantCast(c: import('./pvp-combatant.ts').Combatant): EnemyCast | n
     return {
       enemy: c as unknown as Enemy,
       spell: def?.name ?? 'Casting', color: def?.color ?? '#e8b04a',
-      progress: Math.max(0, Math.min(1, c.castTime / duration)),
-      remaining: Math.max(0, duration - c.castTime), interruptible: true, phase: 'cast',
+      progress: Math.max(0, Math.min(1, 1 - c.castTime / duration)),
+      remaining: Math.max(0, c.castTime), interruptible: true, phase: 'cast',
     };
   }
   return null;

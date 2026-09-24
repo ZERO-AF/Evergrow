@@ -151,6 +151,9 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
       rt!.tracker.recordDamage(source && isCombatant(source) ? source : undefined, target, dealt);
     // Attach the arena default (or adopt T07's controller) up front.
     objectivesOf(match);
+    // Battlegrounds need their real controller during prep too — otherwise the
+    // HUD reads 'Alive 0–0' instead of 'Flags'/'Resources' behind the gates.
+    attachBattlegroundObjectives(sim);
     rt.announcer.bind(roster, match);
     rt.announcer.update(match, rt.tracker.snapshot(), []);
   }
@@ -221,12 +224,23 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
   if (!winner) {
     if (aliveB === 0 && aliveA > 0) winner = 'A'; else if (aliveA === 0 && aliveB > 0) winner = 'B';
   }
-  // Over on a winner, a mutual wipe (draw), or the match timer.
-  if (!winner && aliveA > 0 && aliveB > 0 && sim.time < rt.endsAt) return undefined;
-  if (!winner) winner = timeoutWinner(match, roster);
-  if (!winner && sim.time < rt.endsAt) return undefined;
+  // Over on a winner, a mutual wipe (draw), or the match timer. A wipe ends it
+  // now — both teams dead can't fight on to the clock.
+  const wiped = aliveA === 0 && aliveB === 0;
+  if (!winner && !wiped) {
+    if (sim.time < rt.endsAt) return undefined; // both teams still standing
+    winner = timeoutWinner(match, roster);
+    // A perfect tie at the horn is a draw — fall through with winner null.
+  }
 
   // ── Finished: freeze survivors, stamp the record, hand off the payload. ──
+  return finishMatch(match, rt, roster, winner, objectives);
+}
+
+/** Stamp the match finished and build the end payload. Shared by the natural
+ * end (updatePvpMatch) and a player forfeit (forfeitPvpMatch). */
+function finishMatch(match: PvpMatch, rt: MatchRuntime,
+  roster: readonly Combatant[], winner: PvpTeam | null, objectives: PvpObjectives): PvpMatchEnd {
   match.phase = 'finished';
   for (const c of roster) if (!c.dead) c.stunTime = Math.max(c.stunTime ?? 0, 1);
   rt.announcer.finish(match, winner);
@@ -248,6 +262,19 @@ export function updatePvpMatch(sim: Simulation, dt: number): PvpMatchEnd | undef
   };
 }
 
+/** Player-initiated forfeit (the exit gate mid-match): ends the match as a loss
+ * for the player's team, like WoW's /afk deserter. Returns the end payload so
+ * the caller can run the normal scoreboard → exit → loss-reward flow. */
+export function forfeitPvpMatch(sim: Simulation): PvpMatchEnd | undefined {
+  const match = currentPvpMatch(sim);
+  if (!match || match.phase === 'finished') return undefined;
+  const rt = runtimes.get(match);
+  const roster = combatants(sim);
+  if (!rt || !roster.length) return undefined;
+  // The player is always team 'A'; a forfeit hands the win to 'B'.
+  return finishMatch(match, rt, roster, 'B', objectivesOf(match));
+}
+
 /** Live scoreboard for the in-match panel: the tracker's snapshot while a
  * runtime exists, else zeroed rows from the roster record. */
 export function pvpScoreboard(sim: Simulation): PvpScoreboard | undefined {
@@ -257,6 +284,7 @@ export function pvpScoreboard(sim: Simulation): PvpScoreboard | undefined {
   if (rt) return rt.tracker.snapshot();
   return {
     rows: match.roster.map((entry, i) => ({
+      id: -(i + 1), // no live combatant — a synthetic stable key per roster slot
       name: entry.name, team: entry.team, classId: entry.classId, role: entry.role,
       isPlayer: i === 0, kills: 0, deaths: 0, damageDone: 0, healingDone: 0, damageTaken: 0,
       objectives: 0, alive: true,

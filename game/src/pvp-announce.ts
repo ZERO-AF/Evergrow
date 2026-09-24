@@ -49,11 +49,11 @@ export class PvpAnnouncer {
     private firstBlood = false;
     /** Roster display names by combatant (spec identities differ from roster names). */
     private names = new Map<Combatant, string>();
-    private readonly kills = new Map<string, number>();
-    private readonly deaths = new Map<string, number>();
+    private readonly kills = new Map<number, number>();
+    private readonly deaths = new Map<number, number>();
     /** Consecutive kills without dying, per combatant (keyed by roster name). */
-    private readonly spree = new Map<string, number>();
-    private readonly spreeTier = new Map<string, number>();
+    private readonly spree = new Map<number, number>();
+    private readonly spreeTier = new Map<number, number>();
 
     /** Pull every queued callout. */
     drain(): PvpAnnouncement[] { return this.queue.splice(0); }
@@ -102,30 +102,30 @@ export class PvpAnnouncer {
             flash: { title: 'Draw', subtitle: score, color: IVORY }, cue: 'defeat' });
     }
     /** New kills/deaths since the last snapshot → first blood and sprees.
-     * Rows are plain data; roster names are unique per match, so diff by name. */
+     * Rows are plain data; names can repeat across NPC builds, so diff by the stable row id. */
     private scanKills(board: PvpScoreboard): void {
         for (const row of board.rows) {
-            const lastKills = this.kills.get(row.name) ?? 0;
-            const lastDeaths = this.deaths.get(row.name) ?? 0;
+            const lastKills = this.kills.get(row.id) ?? 0;
+            const lastDeaths = this.deaths.get(row.id) ?? 0;
             if (row.deaths > lastDeaths) {
-                this.deaths.set(row.name, row.deaths);
-                this.spree.set(row.name, 0);
-                this.spreeTier.set(row.name, 0);
+                this.deaths.set(row.id, row.deaths);
+                this.spree.set(row.id, 0);
+                this.spreeTier.set(row.id, 0);
                 if (row.isPlayer) this.say({ text: 'You were slain.', chat: 'death' });
             }
             if (row.kills > lastKills) {
-                this.kills.set(row.name, row.kills);
-                const streak = (this.spree.get(row.name) ?? 0) + (row.kills - lastKills);
-                this.spree.set(row.name, streak);
+                this.kills.set(row.id, row.kills);
+                const streak = (this.spree.get(row.id) ?? 0) + (row.kills - lastKills);
+                this.spree.set(row.id, streak);
                 if (!this.firstBlood) {
                     this.firstBlood = true;
                     this.say({ text: `${row.name} drew First Blood!`, chat: 'system',
                         flash: { title: 'First Blood', subtitle: row.name, color: row.team === 'A' ? ALLY : ENEMY }, cue: 'firstBlood' });
                 }
-                const tier = this.spreeTier.get(row.name) ?? 0;
+                const tier = this.spreeTier.get(row.id) ?? 0;
                 const next = SPREES.find(([at]) => streak >= at && at > tier);
                 if (next) {
-                    this.spreeTier.set(row.name, next[0]);
+                    this.spreeTier.set(row.id, next[0]);
                     const label = row.isPlayer ? `You ${next[1].replace('is', 'are')}` : `${row.name} ${next[1]}`;
                     this.say({ text: `${label}!`, chat: 'system',
                         flash: { title: label, color: row.team === 'A' ? ALLY : ENEMY }, cue: 'spree' });

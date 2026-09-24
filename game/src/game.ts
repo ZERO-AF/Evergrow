@@ -61,7 +61,7 @@ import { StablePanel, type StableActions } from './stable-panel.ts';
 import { PvpPanel, type PvpPanelActions } from './pvp-panel.ts';
 import { pvpBracketLabel, type PvpSetup } from './pvp-setup.ts';
 import { enterPvpMatch, exitPvpMatch, currentPvpMatch } from './pvp-instance.ts';
-import { drainPvpAnnouncements, pvpScoreboard, updatePvpMatch, type PvpMatchEnd } from './pvp-match.ts';
+import { drainPvpAnnouncements, pvpScoreboard, updatePvpMatch, forfeitPvpMatch, type PvpMatchEnd } from './pvp-match.ts';
 import { awardMatchRewards, previewMatchRewards } from './pvp-rewards.ts';
 import { FlightPanel } from './flight-panel.ts';
 import { flightMasterAt, flightDestinations, transportPrompt } from './transport.ts';
@@ -1867,7 +1867,12 @@ export class Game {
               return true;
           }
           if (run.entrance.pvp ? hit(f.entry) || hit(dungeonRunExit(f,run)) : hit(f.entry) || ((run.states.warden?.hp ?? 0) <= 0 && hit(dungeonRunExit(f,run)))) {
-              if (run.entrance.pvp) this.leavePvpMatch();
+              if (run.entrance.pvp) {
+                  // A corpse can't walk out; a live match forfeits as a loss.
+                  if (p.dead) return true;
+                  const forfeit = forfeitPvpMatch(this.sim);
+                  if (forfeit) this.finishPvpMatch(forfeit); else this.leavePvpMatch();
+              }
               else this.switchDungeon({ kind: 'exit' });
               return true;
           }
@@ -2339,6 +2344,15 @@ export class Game {
   }
 
   private enterPvp(setup: PvpSetup): void {
+    // Arenas are solo/host-authoritative like dungeons and travel: a net client
+    // would corrupt its solo save, and a coop session would freeze the NPCs.
+    if (this.sim.netMode === 'client' || this.sim.coop || this.netHostHasGuests()) {
+      this.notify('PvP is not available in a shared session.');
+      return;
+    }
+    // The title Arena page configures a match but has no live character — a
+    // match needs an active session, not the placeholder title sim.
+    if (!this.session.active) { this.notify('Choose a character first.'); return; }
     if (this.phase === 'arena') this.resume();
     else if (this.phase === 'ready') this.titleScreen.selectPage('characters');
     void this.durable(async () => {
@@ -2355,7 +2369,7 @@ export class Game {
     const match = currentPvpMatch(this.sim);
     const rewards = previewMatchRewards(this.sim, end.result);
     if (match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt, rewards });
-    this.notify(pvpScoreboardSummary(end.scoreboard, end.result.won));
+    this.notify(pvpScoreboardSummary(end.scoreboard, end.result.won, end.winner));
   }
 
   /** One announcement: chat line, center-screen flash, audio stinger. */
@@ -2377,6 +2391,7 @@ export class Game {
         // clearing pendingPvpEnd first would strand the player in a finished match.
         // Push the deadline forward so a persistent failure retries, not storms.
         this.pendingPvpEnd = end;
+        this.pvpExitAt = performance.now() + 2000;
         const match = currentPvpMatch(this.sim);
         if (end && match) this.pvpScorePanel.open(match, end.scoreboard, { winner: end.winner, exitAt: this.pvpExitAt, rewards: previewMatchRewards(this.sim, end.result) });
         this.notify(exit.message);
@@ -2594,6 +2609,7 @@ export class Game {
       if (pvpEnd) this.finishPvpMatch(pvpEnd);
       const livePvp = currentPvpMatch(this.sim);
       if (livePvp && this.pvpScorePanel.opened) this.pvpScorePanel.update(livePvp, pvpScoreboard(this.sim), this.pendingPvpEnd ? { winner: this.pendingPvpEnd.winner, exitAt: this.pvpExitAt, rewards: previewMatchRewards(this.sim, this.pendingPvpEnd.result) } : undefined);
+      if (this.pendingPvpEnd && now >= this.pvpExitAt) this.leavePvpMatch();
       // Player death inside a live match: no defeat panel (the match may still
       // be won by teammates), so announce it and let them spectate to the end.
       if (livePvp && this.sim.player.dead && !this.pvpPlayerWasDead) {

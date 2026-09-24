@@ -107,6 +107,24 @@ test('prep holds combatants, then a 2v2 fight runs to a team wipe and ends the m
     assert.ok(honorBalance(sim.player.character) > 0);
 });
 
+test('a mutual wipe ends the match immediately as a draw, not at the timer', async () => {
+    const sim = createWowSim('warrior');
+    await enter(sim);
+    const match = currentPvpMatch(sim)!;
+    const roster = combatants(sim);
+    // Reach the live phase.
+    for (let i = 0; i < (PVP_PREP_SECONDS + 1) / FIXED_STEP && match.phase === 'prep'; i++) tick(sim);
+    assert.equal(match.phase, 'live');
+    // Both teams fall on the same tick (shared DoT / AoE trade).
+    for (const c of roster) { c.hp = 0; c.dead = true; }
+    const end = tick(sim);
+    assert.ok(end, 'mutual wipe ends the match on the spot');
+    assert.equal(end.winner, null, 'mutual wipe is a draw');
+    assert.equal(match.phase, 'finished');
+    assert.equal(end.result.won, false);
+    await exitPvpMatch(sim, hostFor(sim));
+});
+
 test('a mid-match checkpoint survives the non-enumerable objectives controller', async () => {
     const sim = createWowSim('mage');
     await enter(sim);

@@ -42,8 +42,9 @@ const match = (mode: 'arena' | 'battleground'): PvpMatch => ({
     mode, bracket: '2v2', mapId: 'arena-nagrand', phase: 'live', score: { A: 1, B: 0 }, roster: [],
 }) as unknown as PvpMatch;
 
+let rowId = 0;
 const row = (over: Partial<PvpScoreRow>): PvpScoreRow => ({
-    name: 'Custom', team: 'A', classId: 'warrior', role: 'dd',
+    id: ++rowId, name: 'Custom', team: 'A', classId: 'warrior', role: 'dd',
     isPlayer: false, kills: 0, deaths: 0, damageDone: 0, healingDone: 0,
     damageTaken: 0, objectives: 0, alive: true, ...over,
 });

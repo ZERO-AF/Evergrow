@@ -13,6 +13,8 @@ import type { WowClassId } from './wow-types.ts';
 
 /** One scoreboard row: identity from the roster plus live combat stats. */
 export interface PvpScoreRow {
+  /** Stable per-match identity (the combatant's id) — names can repeat. */
+  readonly id: number;
   readonly name: string;
   readonly team: PvpTeam;
   readonly classId?: WowClassId;
@@ -62,6 +64,7 @@ export class PvpScoreTracker {
     this.rows = roster.map((combatant, i) => {
       const entry = match.roster[i];
       const row: PvpScoreRow = {
+        id: combatant.id,
         name: entry?.name ?? combatant.name ?? 'Combatant',
         team: combatant.team,
         classId: entry?.classId ?? combatant.character.classId,
@@ -127,9 +130,11 @@ export class PvpScoreTracker {
   }
 }
 
-/** One-line end-of-match summary for chat/notifications. */
-export function pvpScoreboardSummary(board: PvpScoreboard, won: boolean): string {
+/** One-line end-of-match summary for chat/notifications. `winner` distinguishes
+ * a draw (null) from a defeat — 'won' alone can't. */
+export function pvpScoreboardSummary(board: PvpScoreboard, won: boolean, winner?: 'A' | 'B' | null): string {
   const player = board.rows.find(row => row.isPlayer);
   const mine = player ? ` — you: ${player.kills} KB, ${Math.round(player.damageDone)} dmg, ${Math.round(player.healingDone)} heal` : '';
-  return `${won ? 'Victory' : 'Defeat'} ${board.kills.A}–${board.kills.B}${mine}`;
+  const outcome = winner === null ? 'Draw' : won ? 'Victory' : 'Defeat';
+  return `${outcome} ${board.kills.A}–${board.kills.B}${mine}`;
 }
