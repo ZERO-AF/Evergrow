@@ -393,6 +393,7 @@ export class TitleScreen {
     const ticket = ++this.inspection;
     this.closeAppearanceEditor();
     this.render();
+    this.arena?.refresh?.();
     if (focus) this.element.querySelector<HTMLButtonElement>(`[data-slot="${index}"]`)?.focus();
     // Fresh selections and explicit recovery refreshes read the latest revision.
     if (!slot || !this.actions.read) return;
@@ -400,9 +401,13 @@ export class TitleScreen {
       if (ticket !== this.inspection || this.element.hidden) return;
       const restoreSlot = (document.activeElement as HTMLElement | null)?.dataset.slot === String(index);
       this.slots[index] = value; this.loading = false; this.render();
+      this.arena?.refresh?.();
       if (restoreSlot) this.element.querySelector<HTMLButtonElement>(`[data-slot="${index}"]`)?.focus({ preventScroll: true });
     }).catch(() => { if (ticket === this.inspection) { this.loading = false; this.message('Save unavailable. Please retry.', true); this.renderSelection(); } });
   }
+  /** The hall slot the roster is focused on; the embedded arena's "saved
+   * character" pick follows this selection. */
+  get selectedSlot(): SaveSlot | undefined { return this.slots[this.selected]; }
   message(text: string, retry = false) {
     const target = this.element.querySelector<HTMLElement>('.title-save-message')!;
     target.textContent = text; target.hidden = !text;

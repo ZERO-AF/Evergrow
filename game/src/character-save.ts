@@ -426,3 +426,57 @@ export function decodeCharacterSave(raw: string): CharacterSave | null {
     return v as unknown as CharacterSave;
   } catch { return null; }
 }
+
+/** Named failure reason for an unreadable slot, so the hall can say more than
+ * 'invalid'. Runs the same validators as decodeCharacterSave (plus the legacy
+ * upgrades) in the same order — keep in sync when the save contract changes. */
+export function diagnoseCharacterSave(raw: string): string {
+  if (raw.length > SAVE_MAX_CODE_UNITS) return 'the save exceeds the size limit';
+  let v: unknown;
+  try { v = JSON.parse(raw); } catch { return 'the save is not valid JSON'; }
+  if (!object(v)) return 'the save is not an object';
+  if (!(v.version === 3 || v.version === 4 || v.version === 5 || v.version === 6 || v.version === 7)) return `unsupported save version ${String(v.version)}`;
+  if (!object(v.checkpoint) || !object(v.checkpoint.character)) return 'the checkpoint has no character';
+  if (!isWowClassId(v.checkpoint.character.classId)) v.checkpoint.character.classId = inferWowClassId(v.checkpoint.character);
+  if (!isWowRaceId(v.checkpoint.character.raceId)) v.checkpoint.character.raceId = 'human';
+  if (!Object.hasOwn(v.checkpoint.character, 'look')) v.checkpoint.character.look = createRaceLook(v.checkpoint.character.raceId as WowRaceId);
+  ensureBarSlots(v.checkpoint.character as unknown as CharacterSheet);
+  v.version = CHARACTER_SAVE_VERSION;
+  if (!text(v.id, 64) || !/^[a-zA-Z0-9-]+$/.test(v.id)) return 'the character id is malformed';
+  if (!text(v.name, 24)) return 'the character name is malformed';
+  if (!integer(v.createdAt) || !integer(v.updatedAt) || v.updatedAt < v.createdAt) return 'the save timestamps are malformed';
+  if (!integer(v.worldSeed, 0, 4294967295)) return 'the world seed is malformed';
+  if (!integer(v.worldVersion, 1)) return 'the world version is malformed';
+  const p = v.checkpoint;
+  if (!upgradeSkillTree(p)) return 'the skill-tree upgrade failed';
+  if (!validWorldFields(p)) return 'the world fields are malformed';
+  const sheet = p.character;
+  if (object(sheet)) {
+    if (!isWowClassId(sheet.classId)) return 'the class could not be inferred';
+    if (!isWowRaceId(sheet.raceId)) return 'the race is invalid';
+    if (!validCharacterLook(sheet.look)) return 'the character appearance is invalid';
+    if (!object(sheet.equipped) || !Array.isArray(sheet.inventory)) return 'the equipment or inventory is malformed';
+    if (!Array.isArray(sheet.allocatedNodes) || !sheet.allocatedNodes.every(id => typeof id === 'string' && SKILL_NODES.has(id))) return 'the talent allocation references removed nodes';
+    if (sheet.treeVersion !== SKILL_TREE_VERSION) return 'the talent-tree version is unsupported';
+    if (Array.isArray(sheet.inventory) && sheet.inventory.length > bagGridLayout(sheet).totalCells) return 'the inventory exceeds its grid';
+  }
+  if (!validPlayerFields(p)) {
+    if (object(sheet)) {
+      const cs = sheet as unknown as CharacterSheet;
+      if (object(p.skillCooldowns)) {
+        const unlocked = unlockedSkills(cs.allocatedNodes ?? []);
+        const racial = WOW_RACES[cs.raceId]?.racial;
+        const stale = Object.keys(p.skillCooldowns).filter(id => !unlocked.includes(id as SkillId) && id !== racial);
+        if (stale.length) return `stale skill cooldowns remain (${stale.slice(0, 3).join(', ')}${stale.length > 3 ? '…' : ''})`;
+      }
+      if (cs.treeRefunded !== true && !cs.allocatedNodes?.includes('origin')) return 'the talent tree is missing its origin';
+      if (!validSpecs(cs.specs, cs.activeSpec, cs.classId, cs.raceId, p.level as number, trainedNodeIds(cs))) return 'the dual-spec record is invalid';
+    }
+    return 'the player fields are malformed';
+  }
+  if (p.partner !== undefined && !validPartner(p.partner)) return 'the co-op partner record is invalid';
+  const items = [...(p.character.stash ?? []), ...(p.character.guildVault ?? []), ...p.character.inventory, ...Object.values(p.character.equipped), ...p.groundItems.map((i: { item: Item }) => i.item), ...p.character.commerce.buyback.map((i: { item: Item }) => i.item)].filter(Boolean) as Item[];
+  if (new Set(items.map(i => i.id)).size !== items.length) return 'duplicate item ids exist';
+  if (!validStockItems(items, p.level, p.character.commerce)) return 'a merchant-bought item is from a retired stock epoch';
+  return 'the checkpoint no longer validates';
+}

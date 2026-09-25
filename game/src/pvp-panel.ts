@@ -45,6 +45,8 @@ export interface PvpPanelActions {
 /** The title screen mounts the panel through this narrow handle (TitleActions.arena). */
 export interface PvpPanelHandle {
   open(): void; close(): void; dispose(): void;
+  /** Re-read the host's character pick (hall selection changed). */
+  refresh?(): void;
   updateGamepad?(pad: GamepadInput, now: number): boolean;
 }
 
@@ -135,6 +137,9 @@ export class PvpPanel implements PvpPanelHandle {
     this.master = null;
     this.controller.clear();
   }
+
+  /** Re-render the wizard so it re-reads the host's selected character. */
+  refresh(): void { if (this.opened) this.render(); }
 
   dispose(): void {
     this.tooltip.dispose();

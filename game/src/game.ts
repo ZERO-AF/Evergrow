@@ -89,7 +89,7 @@ import { executeService } from './commerce-command.ts';
 import { PanelCoordinator } from './panel-coordinator.ts';
 import { bindGameKeyboard } from './game-keyboard.ts';
 import { createCharacter as createPlayerCharacter } from './character.ts';
-import type { WowClassId, WowRaceId } from './wow-types.ts';
+import { isWowClassId, isWowRaceId, type WowClassId, type WowRaceId } from './wow-types.ts';
 import { AreaNoticeTracker, areaLevelLabel, areaThreat, type AreaBannerNotice } from './area-banner.ts';
 import { activityLevel } from './activity-level.ts';
 import { getZoneAt } from './zone-progression.ts';
@@ -1758,6 +1758,9 @@ export class Game {
 
   private async returnToTitle() {
     return this.durable(async () => {
+      // A match launched from the hall owns no session to save — unwind to the
+      // title directly.
+      if (this.titleArenaMatch) { this.leaveArenaToTitle(); return; }
     if (!this.session.active || !await this.saveCharacter(true)) return;
     const index = this.session.active.index;
     await this.saveClient.flush();
@@ -2333,14 +2336,29 @@ export class Game {
       close: () => this.resume(),
       character: () => {
         const record = this.session.active?.record;
-        return record ? { name: record.name, level: record.checkpoint.level, classId: record.checkpoint.character.classId, raceId: record.checkpoint.character.raceId } : null;
+        if (record) return { name: record.name, level: record.checkpoint.level, classId: record.checkpoint.character.classId, raceId: record.checkpoint.character.raceId };
+        // Title hall: the roster selection stands in for a session character so
+        // the embedded arena's "saved character" pick stays enabled. Entering
+        // with it loads that slot through the normal hall flow.
+        const slot = this.titleScreen?.selectedSlot;
+        const r = slot?.record ?? slot?.recovery?.record;
+        if (r) return { name: r.name, level: r.checkpoint.level, classId: r.checkpoint.character.classId, raceId: r.checkpoint.character.raceId };
+        const s = slot?.summary;
+        return s && isWowClassId(s.classId) && isWowRaceId(s.raceId) ? { name: s.name, level: s.level, classId: s.classId, raceId: s.raceId } : null;
       },
       enter: setup => this.enterPvp(setup),
     };
   }
 
   private pvpHost() {
-    return { surface: () => this.overworld, persist: (c: Parameters<typeof this.persistTravel>[0]) => this.persistTravel(c), restoreWorld: (c: Parameters<typeof this.setLocationWorld>[0]) => this.setLocationWorld(c), arrived: () => this.finishTravel() };
+    return {
+      surface: () => this.overworld,
+      // Sessionless title matches are disposable — nothing persists, so the
+      // staged checkpoint commits in memory only.
+      persist: (c: Parameters<typeof this.persistTravel>[0]) => this.session.active ? this.persistTravel(c) : { ok: true, message: '' },
+      restoreWorld: (c: Parameters<typeof this.setLocationWorld>[0]) => this.setLocationWorld(c),
+      arrived: () => this.finishTravel(),
+    };
   }
 
   private enterPvp(setup: PvpSetup): void {
@@ -2350,15 +2368,68 @@ export class Game {
       this.notify('PvP is not available in a shared session.');
       return;
     }
-    // The title Arena page configures a match but has no live character — a
-    // match needs an active session, not the placeholder title sim.
-    if (!this.session.active) { this.notify('Choose a character first.'); return; }
+    if (!this.session.active) { this.enterTitlePvp(setup); return; }
+    this.titleArenaMatch = false;
     if (this.phase === 'arena') this.resume();
     else if (this.phase === 'ready') this.titleScreen.selectPage('characters');
     void this.durable(async () => {
       const result = await enterPvpMatch(this.sim, setup, this.pvpHost());
       this.notify(result.ok ? `${pvpBracketLabel(setup.bracket)} — ${result.message}` : result.message);
     }, undefined);
+  }
+
+  /** A match started from the hall must be unwound back to the title screen on
+   * exit rather than dropping the player into the placeholder overworld. */
+  private titleArenaMatch = false;
+
+  /** Arena entry from the title hall without a session: a saved pick loads its
+   * slot through the normal hall flow first; a custom build fights a one-off
+   * match on the placeholder sim and returns to the hall afterwards. */
+  private enterTitlePvp(setup: PvpSetup): void {
+    if (this.disposed || this.hallBusy) return;
+    const slot = this.titleScreen.selectedSlot;
+    const saved = slot ? (slot.state === 'saved' || slot.state === 'recovered') && (slot.record !== null || slot.recovery?.record !== undefined || slot.summary !== undefined) : false;
+    if (!setup.custom) {
+      if (!slot || !saved) { this.notify('Choose a character in the hall first.'); return; }
+      // Load the hall pick into a real session, then enter the match — the same
+      // as queueing from inside the world.
+      this.titleScreen.selectPage('characters');
+      void (async () => {
+        await this.continueCharacter(slot.index, slot.recovery?.record ? slot.token ?? undefined : undefined);
+        if (this.session.active && !this.disposed) this.enterPvp(setup);
+      })();
+      return;
+    }
+    this.titleArenaMatch = true;
+    void this.audio.unlock().catch(() => {});
+    this.titleScreen.close();
+    this.panels.transition('playing');
+    void this.durable(async () => {
+      const result = await enterPvpMatch(this.sim, setup, this.pvpHost());
+      if (result.ok) this.notify(`${pvpBracketLabel(setup.bracket)} — ${result.message}`);
+      else { this.notify(result.message); this.leaveArenaToTitle(); }
+    }, undefined);
+  }
+
+  /** Unwind a sessionless arena match: the surface is already restored by
+   * exitPvpMatch (or never left); reset the placeholder sim and reopen the hall. */
+  private leaveArenaToTitle(): void {
+    this.titleArenaMatch = false;
+    this.shell.setSaveStatus();
+    this.pendingPvpEnd = null;
+    this.pvpExitAt = 0;
+    this.pvpScorePanel.close();
+    this.shell.notifications.clear();
+    if (this.world !== this.overworld) this.world.dispose();
+    this.world = this.overworld;
+    this.sim.world = this.world;
+    this.sim.reset();
+    this.renderer.reset();
+    this.bars?.bind(null);
+    fishingCancel(this.fishing);
+    this.achievementToasts?.clear();
+    void (async () => this.titleScreen.open(await this.session.repository.list()))();
+    this.panels.transition('ready');
   }
 
   /** Match over: freeze on the scoreboard (Victory/Defeat banner + stats); the
@@ -2384,7 +2455,12 @@ export class Game {
   private leavePvpMatch(): void {
     const end = this.pendingPvpEnd;
     this.pvpScorePanel.close();
+    // A match entered from the hall has no session to reward or return into —
+    // exit, then unwind to the title screen.
+    const titleMatch = this.titleArenaMatch;
     void this.durable(async () => {
+      if (titleMatch && currentPvpMatch(this.sim)) await exitPvpMatch(this.sim, this.pvpHost());
+      if (titleMatch) { this.leaveArenaToTitle(); return; }
       const exit = await exitPvpMatch(this.sim, this.pvpHost());
       if (!exit.ok) {
         // Keep the match end alive so the auto-exit / Leave button can retry —

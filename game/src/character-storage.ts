@@ -1,5 +1,5 @@
 import type { ChronicleLedger } from './chronicle.ts';
-import { CHARACTER_SLOT_COUNT, SAVE_MAX_CODE_UNITS, decodeCharacterSave, type CharacterSave } from './character-save.ts';
+import { CHARACTER_SLOT_COUNT, SAVE_MAX_CODE_UNITS, decodeCharacterSave, diagnoseCharacterSave, type CharacterSave } from './character-save.ts';
 import type { WowClassId, WowRaceId } from './wow-types.ts';
 export interface CharacterStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; }
 export interface SaveSummary { name: string; level: number; power: number; gearPower?: number; riftTier?: number | null; riftSeconds?: number | null; updatedAt: number; classId?: WowClassId; raceId?: WowRaceId; }
@@ -30,6 +30,7 @@ export class CharacterRepository {
       const backup = this.storage.getItem(characterSlotKey(index) + ':backup');
       const recovered = backup && decodeCharacterSave(backup);
       if (recovered) return { index, record: recovered, token: raw, state: 'recovered' };
+      if (raw !== null || backup !== null) console.warn(`[saves] character slot ${index} is unreadable: ${diagnoseCharacterSave(raw ?? backup!)}`);
       return { index, record: null, token: raw, state: raw !== null || backup !== null ? 'invalid' : 'empty' };
     } catch { return { index, record: null, token: null, state: 'unavailable' }; }
   }
